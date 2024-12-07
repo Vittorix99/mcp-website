@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from 'next/navigation'
+import {LoginModal} from "@/components/auth/LoginModal" 
 
 const AnimatedBackground = () => (
   <div className="fixed inset-0 z-0 opacity-20">

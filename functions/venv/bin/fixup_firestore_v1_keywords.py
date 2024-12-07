@@ -1,4 +1,4 @@
-#!/Users/vittoriodigiorgio/Desktop/mcp-website/functions/venv/bin/python3.12
+#!/Users/vittoriodigiorgio/Desktop/mcp-website/functions/venv/bin/python3.10
 # -*- coding: utf-8 -*-
 # Copyright 2024 Google LLC
 #
