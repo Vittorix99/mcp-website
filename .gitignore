@@ -12,6 +12,7 @@ bower_components/
 # Build directories
 dist/
 build/
+out/
 
 # Runtime files
 *.pid
