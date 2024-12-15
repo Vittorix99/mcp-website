@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Menu } from 'lucide-react'
+import { Contact, Menu } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from 'next/navigation'
 import {LoginModal} from "@/components/auth/LoginModal" 
+import {ContactUs} from "@/components/pages/ContactUs"
 
 const AnimatedBackground = () => (
   <div className="fixed inset-0 z-0 opacity-20">
@@ -122,32 +123,11 @@ const router = useRouter()
         </div>
       </section>
 
+      <section id="contact-section" className="relative py-24 bg-black">
+  <ContactUs />
+</section>
 
-      {/* Contact Us Section */}
-      <section id="contact" className="relative py-24 bg-black">
-        <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold mb-8 text-center text-orange-500">Contact Us</h2>
-          <div className="max-w-md mx-auto">
-            <form className="space-y-4">
-              <div>
-                <Label htmlFor="contact-name" className="text-orange-200">Name</Label>
-                <Input id="contact-name" type="text" required className="bg-black border-orange-500 text-orange-200 placeholder-orange-200/50" />
-              </div>
-              <div>
-                <Label htmlFor="contact-email" className="text-orange-200">Email</Label>
-                <Input id="contact-email" type="email" required className="bg-black border-orange-500 text-orange-200 placeholder-orange-200/50" />
-              </div>
-              <div>
-                <Label htmlFor="contact-message" className="text-orange-200">Message</Label>
-                <Textarea id="contact-message" required className="bg-black border-orange-500 text-orange-200 placeholder-orange-200/50" rows={4} />
-              </div>
-              <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-black">
-                Send Message
-              </Button>
-            </form>
-          </div>
-        </div>
-      </section>
+  
 
       {/* Footer */}
       <footer className="bg-black text-orange-200 py-8">
