@@ -1,6 +1,12 @@
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 from firebase_functions import https_fn
+import base64
+import os
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+
 
 # Initialize Firebase app
 cred = credentials.ApplicationDefault()
@@ -8,6 +14,61 @@ firebase_admin.initialize_app(cred, {
     'projectId': 'mcp-website-2a1ad',
 })
 db = firestore.client()
+
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SERVICE_ACCOUNT_FILE = './service-account.json'
+
+
+def gmail_send_email(to,subject,body, cc=None,):
+    creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    try: 
+        service = build('gmail', 'v1', credentials=creds)
+        message = MIMEText(body)    
+        message['to'] = to
+        message['subject'] = subject
+        if cc:
+            message['cc'] = cc
+        create_message = service.users().messages().send(userId='me', body={'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}).execute()
+        print('Message Id: %s' % create_message['id'])
+        return create_message
+    except Exception as error:
+        print(f'An error occurred: {error}')
+        return None
+
+
+@https_fn.on_call()
+def contact_us(req):
+
+    req_json = req.get_json()
+    if not req_json:
+        return 'Invalid request', 400
+    if 'name' not in req_json or 'email' not in req_json or 'message' not in req_json:
+        return 'Missing required fields', 400
+    
+    name = req_json['name']
+    email = req_json['email']
+    message = req_json['message']
+    send_copy = req_json['send_copy'] if 'send_copy' in req_json else None
+    
+    try:
+        to_email = os.environ.get('CONTACT_EMAIL')
+        subject = f'Contact Us Form Submission from {name}'
+        body = f'Name: {name}\nEmail: {email}\n\n{message}'
+        cc =  email if send_copy else None
+        send_message = gmail_send_email(to_email, subject, body)
+        if send_message:
+            db = firestore.client()
+            db.collection('contact_messages').add({
+                'name': name,
+                'email': email,
+                'message': message, 
+            })
+            return 'Message sent successfully', 200
+        else:
+            return 'Failed to send message', 500
+    except Exception as e:
+        print(f'An error occurred: {e}')
+        return 'An error occurred', 500
 
 @https_fn.on_call()
 def set_user_role(req: https_fn.CallableRequest) -> dict:

@@ -15,10 +15,11 @@
         "firebase-debug.*.log",
         "*.local"
       ]
+
     }
   ],
   "hosting": {
-    "public": "public",
+    "public": "out",
     "ignore": [
       "firebase.json",
       "**/.*",
