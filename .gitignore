@@ -39,3 +39,9 @@ Thumbs.db
 
 functions/service-account.json
 functions/.env
+functions/.env.local
+functions/.env.development.local
+functions/.env.test.local
+functions/.env.production.local
+functions/.env.staging.local
+functions/service-account.json
