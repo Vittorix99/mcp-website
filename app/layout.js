@@ -2,6 +2,8 @@ import localFont from "next/font/local";
 import {Navigation} from "@/components/pages/Navigation"
 import {AnimatedBackground} from "@/components/pages/AnimatedBackground"
 import "./globals.css";
+import { Toaster } from 'react-hot-toast'
+
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -28,6 +30,8 @@ export default function RootLayout({ children }) {
         <AnimatedBackground />
         <Navigation />
         {children}
+        <Toaster position="top-right" reverseOrder={false} /> {/* Posizione opzionale */}
+
       </body>
     </html>
   );

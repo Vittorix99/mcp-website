@@ -1,0 +1,13 @@
+
+    {
+        "SCOPES": [
+            "https://www.googleapis.com/auth/gmail.send"
+        ],
+        "SERVICE_ACCOUNT_FILE": "service-account.json",
+        "USER_EMAIL": "highdreams290@gmail.com",
+        "ACCESS_TOKEN": "ya29.a0ARW5m77tq44ijV0nXM0TKWVGRBVPvT31_yzTiWLMaEfVPcf7wpLnbW6cLICwO0madrsh51tArsLb8q3VZVpnsd5l666_Sa6eLSBUXYuXqHrY61za7i4VthrWcYwm6DqbpNDc7uwVCs1FYVcH5q71HMqHtpP1XQiQ5pPot9qWaCgYKAUESARMSFQHGX2MiLAopO5MeEiNyR9ppJCNRsA0175",
+        "REFRESH_TOKEN": "1//047fBAh3oaQ8jCgYIARAAGAQSNwF-L9IrWy963G-3aV-RZFfc5xL3uvuFQ96xecnmuL1aB30XVuq7lPjs0T8y0hz4p3Y-3m_wwCE",
+        "CLIENT_ID": "407185703168-5sb198nc1plpneapturpgacha6r0sriq.apps.googleusercontent.com",
+        "CLIENT_SECRET": "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"
+
+    }
