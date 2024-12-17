@@ -1,3 +1,5 @@
 *.local
 .env
+functions/service-account.json
 service-account.json
+
