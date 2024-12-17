@@ -5,31 +5,30 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { getFunctions, httpsCallable } from 'firebase/functions'
-import { app } from "@/firebase"
+import toast from 'react-hot-toast' // Importa react-hot-toast
+import { sendContactRequest } from '@/services/contactService' // Import the service
 
 export function ContactUs() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
-  const [status, setStatus] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setStatus('Sending message...')
-
-    const functions = getFunctions(app)
-    const sendContactEmail = httpsCallable(functions, 'send_contact_email')
+    setIsSubmitting(true)
 
     try {
-      const result = await sendContactEmail({ name, email, message })
-      setStatus('Message sent successfully!')
+      await sendContactRequest({ name, email, message }) // Use the service
+      toast.success("Your message has been sent successfully!") // Mostra un toast di successo
       setName('')
       setEmail('')
       setMessage('')
     } catch (error) {
-      console.error('Error:', error)
-      setStatus('Failed to send message. Please try again.')
+      console.error('Error:', error.message)
+      toast.error(error.message || "Failed to send message. Please try again.") // Mostra un toast di errore
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -70,11 +69,14 @@ export function ContactUs() {
             onChange={(e) => setMessage(e.target.value)}
           />
         </div>
-        <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-black">
-          Send Message
+        <Button 
+          type="submit" 
+          className="w-full bg-orange-500 hover:bg-orange-600 text-black"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Sending...' : 'Send Message'}
         </Button>
       </form>
-      {status && <p className="mt-4 text-center text-orange-200">{status}</p>}
     </div>
   )
 }

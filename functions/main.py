@@ -1,43 +1,68 @@
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 from firebase_functions import https_fn
+from google.oauth2.credentials import Credentials
+from firebase_functions import params
+
+
 import base64
 import os
 from email.mime.text import MIMEText
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+
 from google.oauth2 import service_account
+from email.mime.text import MIMEText
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
+from mail import gmail_send_email
+from firebase_functions import options
+
+
+
+
+
+
 
 
 # Initialize Firebase app
 cred = credentials.ApplicationDefault()
-firebase_admin.initialize_app(cred, {
-    'projectId': 'mcp-website-2a1ad',
-})
+
+cred = credentials.Certificate("service-account.json")  # Path al tuo file JSON
+firebase_admin.initialize_app(cred)
+
+
 db = firestore.client()
-
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
-SERVICE_ACCOUNT_FILE = './service-account.json'
-
-
-def gmail_send_email(to,subject,body, cc=None,):
-    creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    try: 
-        service = build('gmail', 'v1', credentials=creds)
-        message = MIMEText(body)    
-        message['to'] = to
-        message['subject'] = subject
-        if cc:
-            message['cc'] = cc
-        create_message = service.users().messages().send(userId='me', body={'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}).execute()
-        print('Message Id: %s' % create_message['id'])
-        return create_message
-    except Exception as error:
-        print(f'An error occurred: {error}')
-        return None
+cors = options.CorsOptions(
+        cors_origins="*",
+        cors_methods=["get", "post", "options"],)
 
 
-@https_fn.on_call()
-def contact_us(req):
+
+@https_fn.on_request(cors=cors)
+def get_all_messages(req):
+    if req.method != 'GET':
+        return 'Invalid request method', 405
+    
+    try:
+
+        messages = db.collection('contact_message').stream()
+        messages_list = []
+        for message in messages:
+            print(f'{message.id} => {message.to_dict()}')
+            messages_list.append(message.to_dict())
+        return {'messages': messages_list}
+    except Exception as e:
+        print(f'An error occurred: {e}')
+        return 'An error occurred', 500
+
+@https_fn.on_request(cors=cors)
+def contact_us2(req):
+    if req.method != 'POST':
+        return 'Invalid request method', 405
+    print("Request received")
+    print("Current directory is: ", os.getcwd())
 
     req_json = req.get_json()
     if not req_json:
@@ -51,24 +76,29 @@ def contact_us(req):
     send_copy = req_json['send_copy'] if 'send_copy' in req_json else None
     
     try:
-        to_email = os.environ.get('CONTACT_EMAIL')
+        to_email =  os.environ.get("USER_EMAIL")
+        print(f"Sending email to {to_email}")
         subject = f'Contact Us Form Submission from {name}'
         body = f'Name: {name}\nEmail: {email}\n\n{message}'
         cc =  email if send_copy else None
         send_message = gmail_send_email(to_email, subject, body)
         if send_message:
-            db = firestore.client()
-            db.collection('contact_messages').add({
+            print('Message sent successfully, trying to save to Firestore')
+            db.collection('contact_message').add({
                 'name': name,
                 'email': email,
                 'message': message, 
             })
+            print('Message saved to Firestore')
+
+
+            
             return 'Message sent successfully', 200
         else:
             return 'Failed to send message', 500
     except Exception as e:
         print(f'An error occurred: {e}')
-        return 'An error occurred', 500
+        return f'ERROR IN SENDING MAIL: {e}', 500
 
 @https_fn.on_call()
 def set_user_role(req: https_fn.CallableRequest) -> dict:
@@ -90,7 +120,6 @@ def set_user_role(req: https_fn.CallableRequest) -> dict:
         db.collection('users').document(uid).set({
             'role': role
         }, merge=True)
-        
         return {'message': f'Successfully set role {role} for user {uid}'}
         
     except Exception as e:
