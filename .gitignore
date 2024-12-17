@@ -36,3 +36,6 @@ out/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+functions/service-account.json
+functions/.env
