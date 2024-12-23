@@ -10,13 +10,17 @@
     "export": "next export"
   },
   "dependencies": {
+    "@paypal/paypal-server-sdk": "^0.6.0",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-separator": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.4",
+    "body-parser": "^1.20.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "firebase": "^11.0.2",
     "lucide-react": "^0.460.0",
     "next": "15.0.3",

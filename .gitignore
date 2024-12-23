@@ -13,6 +13,10 @@ bower_components/
 dist/
 build/
 out/
+.next/
+.firebase/
+
+
 
 # Runtime files
 *.pid
@@ -45,3 +49,5 @@ functions/.env.test.local
 functions/.env.production.local
 functions/.env.staging.local
 functions/service-account.json
+functions/venv/
+functions/service_account.json

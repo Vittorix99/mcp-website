@@ -1,27 +1,38 @@
+import {endpoints} from '../config/endpoints';
 export async function sendContactRequest({ name, email, message, sendCopy = false }) {
     try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          message,
-          send_copy: sendCopy,
-        }),
-      });
+      // Chiamata diretta alla Firebase Cloud Function
+      const firebaseResponse = await fetch(
+     endpoints.contactUs, // URL della tua Firebase Cloud Function
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name,
+            email,
+            message,
+            send_copy: sendCopy,
+          }),
+        }
+      );
   
-      const result = await response.json();
-  
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to send the message');
+      // Controllo se la risposta non è andata a buon fine
+      if (!firebaseResponse.ok) {
+        const errorText = await firebaseResponse.text();
+        throw new Error(`Firebase Server Error: ${errorText}`);
       }
   
-      return result.message; // Return the success message
+      // Ottengo il messaggio di successo dalla risposta (può essere JSON o testo)
+      const responseData = await firebaseResponse.text();
+  
+      // Restituisco il messaggio per il chiamante
+      return { success: true, message: responseData };
     } catch (error) {
-      console.error('Service Error:', error.message);
-      throw error; // Re-throw for the caller to handle
+      console.error('Error while sending contact request:', error.message);
+  
+      // Rilancio l'errore con un oggetto ben strutturato
+      return { success: false, error: error.message };
     }
   }

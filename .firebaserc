@@ -1,7 +1,5 @@
 {
   "projects": {
-    "mcp": "mcp-website-2a1ad"
-  },
-  "targets": {},
-  "etags": {}
+    "default": "mcp-website-2a1ad"
+  }
 }
