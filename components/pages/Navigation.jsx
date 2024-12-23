@@ -30,35 +30,31 @@ export const Navigation = () => {
     checkAuth()
   }, [])
 
+  
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+    <nav
+    className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
       isScrolled ? 'bg-black/80 backdrop-blur-md' : 'bg-transparent'
-    }`}>
-      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <Link href="/" className="text-2xl font-bold text-orange-500 hover:text-orange-400 transition-colors">
-          MCP
-        </Link>
-        <div className="hidden md:flex items-center space-x-6">
-          <Link href="/#about" className="text-orange-200 hover:text-orange-500 transition-colors text-sm uppercase tracking-wider">
-            About
-          </Link>
-          <Link href="/#join" className="text-orange-200 hover:text-orange-500 transition-colors text-sm uppercase tracking-wider">
-            Join Us
-          </Link>
-          <Link href="/#contact" className="text-orange-200 hover:text-orange-500 transition-colors text-sm uppercase tracking-wider">
-            Contact
-          </Link>
-          {isAuthenticated ? (
-            <Link href="/profile" className="text-orange-200 hover:text-orange-500 transition-colors text-sm uppercase tracking-wider">
-              Profile
-            </Link>
-          ) : (
-            <div className="flex items-center">
-              <LoginModal />
-            </div>
-          )}
-        </div>
-        <Sheet>
+    }`}
+  >
+    <div className="container px-4 mx-auto py-4 flex justify-between items-center">
+      {/* Logo */}
+      <Link href="/" className="text-2xl mw-auto font-bold text-orange-500 hover:text-orange-400 transition-colors">
+        MCP
+      </Link>
+      
+      {/* Navbar links */}
+      <div className="flex items-center space-x-6 lg:ml-auto ml-auto hidden md:flex">
+        <NavLink href="/#about">About</NavLink>
+        <NavLink href="/#join">Join Us</NavLink>
+        <NavLink href="/#contact">Contact</NavLink>
+        {isAuthenticated ? (
+          <NavLink href="/profile">Profile</NavLink>
+        ) : (
+          <LoginModal />
+        )}
+      </div>
+      <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="md:hidden text-orange-500 hover:text-orange-400">
               <Menu className="h-6 w-6" />
@@ -66,23 +62,13 @@ export const Navigation = () => {
           </SheetTrigger>
           <SheetContent side="right" className="w-[300px] bg-black/95 border-orange-500/20">
             <nav className="flex flex-col space-y-6 mt-12">
-              <Link href="/#about" className="text-orange-200 hover:text-orange-500 transition-colors text-lg">
-                About
-              </Link>
-              <Link href="/#join" className="text-orange-200 hover:text-orange-500 transition-colors text-lg">
-                Join Us
-              </Link>
-              <Link href="/#contact" className="text-orange-200 hover:text-orange-500 transition-colors text-lg">
-                Contact
-              </Link>
+              <NavLink href="/#about" mobile>About</NavLink>
+              <NavLink href="/#join" mobile>Join Us</NavLink>
+              <NavLink href="/#contact" mobile>Contact</NavLink>
               {isAuthenticated ? (
-                <Link href="/profile" className="text-lg hover:text-orange-500 transition-colors">
-                  Profile
-                </Link>
+                <NavLink href="/profile" mobile>Profile</NavLink>
               ) : (
-                <div className="flex items-center">
-                  <LoginModal />
-                </div>
+                <LoginModal />
               )}
             </nav>
           </SheetContent>
@@ -92,3 +78,15 @@ export const Navigation = () => {
   )
 }
 
+const NavLink = ({ href, children, mobile }) => (
+  <Link 
+    href={href} 
+    className={`relative text-orange-200 hover:text-orange-500 transition-all duration-300 ${
+      mobile ? 'text-lg' : 'text-sm uppercase tracking-wider'
+    } group inline-block`}
+  >
+    <span className="relative z-10">{children}</span>
+    <span className="absolute inset-x-0 bottom-0 h-0.5 bg-orange-500 transform origin-left scale-x-0 transition-transform duration-300 group-hover:scale-x-100" />
+  </Link>
+)
+export default Navigation
