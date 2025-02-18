@@ -1,148 +1,182 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import Image from "next/image";
-import Link from "next/link";
-import { getNextEvent } from '@/services/events';
-import { getImageUrl } from '@/firebase'; // Importa la funzione getImageUrl
+import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import Image from "next/image"
+import Link from "next/link"
+import { Calendar, Clock, MapPin, Music } from "lucide-react"
+import { getNextEvent } from "@/services/events"
+import { getImageUrl } from "@/config/firebase"
+import { routes, getRoute } from "@/config/routes"
 
-export function NextEventSection() {
-  const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [imageUrl, setImageUrl] = useState(null);
-  const [imageError, setImageError] = useState(false); // Nuovo stato per gestire l'errore dell'immagine
+export function NextEventSection({event}) {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [imageUrl, setImageUrl] = useState(null)
+  const [imageError, setImageError] = useState(false)
+
 
   useEffect(() => {
     async function fetchNextEvent() {
       try {
-        const response = await getNextEvent();
-        if (response.success) {
-          setEvent(response.event);
-          const url = await getImageUrl('events', `${response.event.image}.jpg`);
-          setImageUrl(url);
+        if (event) {
+         
+          const url = await getImageUrl("events", `${event.image}.jpg`)
+          setImageUrl(url)
         } else {
-          setError(response.error || 'Unable to fetch the next event.');
+          setError(response.error || "Unable to fetch the next event.")
         }
       } catch (err) {
-        setError('Unexpected error occurred while fetching the next event.');
+        setError("Unexpected error occurred while fetching the next event.")
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
     }
-    fetchNextEvent();
-  }, []);
+    fetchNextEvent()
+  }, [])
+
+  const fadeInUp = {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.6 },
+  }
 
   if (loading) {
     return (
       <section className="py-24 bg-black/50 backdrop-blur-md">
         <div className="container mx-auto px-4">
-          <h2 className="text-5xl font-extrabold mb-12 text-center text-orange-500 uppercase">
+          <motion.h2
+            className="text-5xl font-extrabold text-center gradient-text uppercase mb-8"
+            initial="initial"
+            animate="animate"
+            variants={fadeInUp}
+          >
             Next Event
-          </h2>
-          <div className="text-center text-orange-200">Loading...</div>
+          </motion.h2>
+          <motion.div className="text-center text-gray-300" initial="initial" animate="animate" variants={fadeInUp}>
+            Loading...
+          </motion.div>
         </div>
       </section>
-    );
+    )
   }
-
-
 
   if (!event) {
     return (
       <section className="py-24 bg-black/50 backdrop-blur-md">
         <div className="container mx-auto px-4">
-          <h2 className="text-5xl font-extrabold mb-12 text-center text-orange-500 uppercase">
+          <motion.h2
+            className="text-5xl font-extrabold text-center gradient-text uppercase mb-8"
+            initial="initial"
+            animate="animate"
+            variants={fadeInUp}
+          >
             Next Event
-          </h2>
-          <div className="text-center text-orange-200">No upcoming events scheduled</div>
+          </motion.h2>
+          <motion.div className="text-center text-gray-300" initial="initial" animate="animate" variants={fadeInUp}>
+            No upcoming events scheduled
+          </motion.div>
         </div>
       </section>
-    );
+    )
   }
 
-  let formattedDate = '';
+  let formattedDate = ""
   try {
-    const [day, month, year] = event.date?.split('-').map(Number);
-  
-    // Rebuild the date string manually
-    formattedDate = `${day.toString().padStart(2, '0')}-${month
-      .toString()
-      .padStart(2, '0')}-${year}`;
+    const [day, month, year] = event.date?.split("-").map(Number)
+    formattedDate = `${day.toString().padStart(2, "0")}-${month.toString().padStart(2, "0")}-${year}`
   } catch (e) {
-    formattedDate = event.date || 'Data da definire';
+    formattedDate = event.date || "Date to be announced"
   }
 
-  const filteredLineup = event.lineup.filter((artist) => artist.trim() !== '');
+  const filteredLineup = event.lineup.filter((artist) => artist.trim() !== "")
 
   return (
     <section className="py-24 bg-black/50 backdrop-blur-md">
       <div className="container mx-auto px-4">
-        <h2 className="text-5xl font-extrabold mb-12 text-center text-orange-500 uppercase">
+        <motion.h2
+          className="text-5xl font-extrabold text-center gradient-text uppercase mb-12"
+          initial="initial"
+          animate="animate"
+          variants={fadeInUp}
+        >
           Next Event
-        </h2>
-        <Card className="max-w-4xl mx-auto bg-black/50 border border-orange-500">
-          <CardContent className="p-8">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div>
-                <h3 className="text-3xl font-bold mb-4 text-orange-500">{event.title}</h3>
-                <p className="text-lg mb-4 text-orange-200">
-                  {formattedDate} | {event.startTime} - {event.endTime}
-                </p>
-                <div className="space-y-2 mb-6">
-                  <p className="text-orange-200">Featuring:</p>
-                  {filteredLineup.length > 0 ? (
-                    <ul className="list-disc list-inside text-orange-300">
-                      {filteredLineup.map((artist, index) => (
-                        <li key={index}>{artist}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-orange-200 italic">No lineup available</p>
-                  )}
-                  {event.location && (
-                    <p className="mt-4 text-orange-200">
-                      Location: <span className="font-bold">{event.location}</span>
+        </motion.h2>
+        <motion.div initial="initial" animate="animate" variants={fadeInUp}>
+          <Card className="max-w-4xl mx-auto bg-black/70 border border-mcp-orange/50 overflow-hidden">
+            <CardContent className="p-8">
+              <div className="grid md:grid-cols-2 gap-8 items-center">
+                <div className="space-y-6">
+                  <h3 className="text-3xl font-bold gradient-text">{event.title}</h3>
+                  <div className="space-y-2 text-gray-300">
+                    <p className="flex items-center">
+                      <Calendar className="w-5 h-5 mr-2 text-mcp-orange" />
+                      {formattedDate}
                     </p>
-                  )}
-           
-                </div>
-                {event.active ? (
-              <Link href={`/events/${event.id}`}>
-                <Button className="bg-orange-500 hover:bg-orange-600 text-black font-bold">
-                  Tickets & Info
-                </Button>
-              </Link>
-            ) : (
-              <Button 
-                className="bg-gray-500 cursor-not-allowed text-black font-bold" 
-                disabled
-              >
-                Coming Soon
-              </Button>
-            )}
-              </div>
-              <div className="aspect-square relative">
-                {imageUrl && !imageError ? (
-                  <Image
-                    src={imageUrl}
-                    alt={event.title}
-                    fill
-                    className="object-cover rounded-lg"
-                    onError={() => setImageError(true)} // Imposta l'errore se il caricamento fallisce
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-                    <p className="text-orange-200 text-sm italic">Image not available</p>
+                    <p className="flex items-center">
+                      <Clock className="w-5 h-5 mr-2 text-mcp-orange" />
+                      {event.startTime} - {event.endTime}
+                    </p>
+                    {event.location && (
+                      <p className="flex items-center">
+                        <MapPin className="w-5 h-5 mr-2 text-mcp-orange" />
+                        {event.location}
+                      </p>
+                    )}
                   </div>
-                )}
+                  <div className="space-y-2">
+                    <p className="text-gray-300 flex items-center">
+                      <Music className="w-5 h-5 mr-2 text-mcp-orange" />
+                      Featuring:
+                    </p>
+                    {filteredLineup.length > 0 ? (
+                      <ul className="list-disc list-inside text-gray-300 pl-7">
+                        {filteredLineup.map((artist, index) => (
+                          <li key={index}>{artist}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-gray-400 italic pl-7">No lineup available</p>
+                    )}
+                  </div>
+                  {event.active ? (
+                    <Link href={getRoute(routes.events.details, event.id)}>
+                      <Button className="mt-5 bg-mcp-gradient hover:opacity-90 text-white font-bold py-3 px-6 rounded-md transition-all duration-300 transform hover:scale-105">
+                        Tickets & Info
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button
+                      className="bg-gray-700 cursor-not-allowed text-gray-300 font-bold py-3 px-6 rounded-md"
+                      disabled
+                    >
+                      Coming Soon
+                    </Button>
+                  )}
+                </div>
+                <div className="aspect-square relative rounded-lg overflow-hidden">
+                  {imageUrl && !imageError ? (
+                    <Image
+                      src={imageUrl || "/placeholder.svg"}
+                      alt={event.title}
+                      fill
+                      className="object-cover"
+                      onError={() => setImageError(true)}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                      <p className="text-gray-400 text-sm italic">Image not available</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </section>
-  );
+  )
 }
+

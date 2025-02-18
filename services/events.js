@@ -25,7 +25,6 @@ export async function getNextEvent() {
       // Restituisco i dati dell'evento per il chiamante
       return { success: true, event: eventData };
     } catch (error) {
-      console.log('Error while fetching next event:', error.message);
   
       // Rilancio l'errore con un oggetto ben strutturato
       return { success: false, error: error.message };
@@ -121,9 +120,13 @@ export async function getNextEvent() {
   
       // Ottengo i dati degli eventi dalla risposta
       const eventData = await firebaseResponse.json();
+
+      const res = {
+        success: true,
+        events: eventData
+      };
   
-      // Restituisco i dati degli eventi per il chiamante
-      return eventData;
+      return res;
     } catch (error) {
       console.error('Error while fetching all events:', error.message);
   

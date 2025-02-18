@@ -1,27 +1,44 @@
-import EventPage from './EventPage';
-import { getAllEvents } from '@/services/events';
+import { Suspense } from "react";
+import { EventContent } from "./content";
+import { getAllEvents } from "@/services/events";
 
+// Force SSR in Next.js (important for Firebase Hosting)
+export const dynamic = "force-dynamic";
 
+// Generate static params for optional preloading
 export async function generateStaticParams() {
   try {
     const events = await getAllEvents();
-    const eventsIds = events.map((event) => ({ id: event.id }))
-    console.log("Events IDs:", eventsIds);
-    return eventsIds
+
+    if (!events?.success || !events?.events?.length) {
+      return [];
+    }
+
+    // Return the list of event IDs
+    return events.events.map(event => ({
+      id: event.id.toString(),
+    }));
   } catch (error) {
-    console.error("Error fetching events:", error);
-    return [];
+    console.error("Errore nel recupero degli eventi:", error);
+    return []; // Avoid pre-rendering if there's an error
   }
 }
 
-export  default async function Page({ params }) {
-  const { id } = await params;
+// Main component with SSR enabled
+export default async function EventPage({ params }) {
+  const id = params.id; // Directly get the dynamic ID from params
 
   return (
-    <div>
-    
-      {/* Pass dynamic ID to the client component */}
-      <EventPage id={id} />
-    </div>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center gradient-text">Loading...</div>
+          </div>
+        </div>
+      }
+    >
+      <EventContent id={id} />
+    </Suspense>
   );
 }

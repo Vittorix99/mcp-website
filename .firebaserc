@@ -1,5 +1,11 @@
 {
   "projects": {
     "default": "mcp-website-2a1ad"
+  },
+  "targets": {},
+  "etags": {
+    "mcp-website-2a1ad": {
+      "extensionInstances": {}
+    }
   }
 }

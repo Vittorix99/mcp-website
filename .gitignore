@@ -15,6 +15,10 @@ build/
 out/
 .next/
 .firebase/
+.cache/
+js_functions/node_modules/
+js_functions/.next/
+
 
 
 
