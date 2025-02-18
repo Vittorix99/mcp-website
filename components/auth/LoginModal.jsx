@@ -1,117 +1,138 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { motion, AnimatePresence } from "framer-motion"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { auth, googleProvider } from '@/firebase'
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth'
+import { login, getIdTokenResult } from "@/config/firebase"
+import { routes } from "@/config/routes"
+import { useUser } from "@/contexts/userContext"
+import { Loader2, LogIn } from "lucide-react"
 
 export default function LoginModal() {
   const [isOpen, setIsOpen] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+  const { setUser, setIsAdmin } = useUser()
 
   const handleEmailLogin = async (e) => {
     e.preventDefault()
-    setError('')
+    setError("")
     setIsLoading(true)
 
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const user = await login(email, password)
+      const token = await getIdTokenResult()
+
+      setUser(user)
       setIsOpen(false)
+
+      if (!!token.claims.admin) {
+        setIsAdmin(token.claims.admin)
+        router.push(routes.admin.dashboard)
+      } else {
+        router.push("/")
+      }
     } catch (error) {
-      setError('Invalid email or password')
-      console.error('Login error:', error)
+      setError("Invalid email or password")
+      console.error("Login error:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleGoogleLogin = async () => {
-    setError('')
-    setIsLoading(true)
-
-    try {
-      await signInWithPopup(auth, googleProvider)
-      setIsOpen(false)
-    } catch (error) {
-      setError('Failed to sign in with Google')
-      console.error('Google login error:', error)
-    } finally {
-      setIsLoading(false)
-    }
+  const fadeIn = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.2 },
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="link" className="text-orange-200 hover:text-orange-500">
+        <Button variant="ghost" className="text-white hover:text-mcp-orange transition-colors">
           LOGIN
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-black border-orange-500">
+      <DialogContent className="sm:max-w-[425px] bg-black border-mcp-orange/50">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-orange-500">Login to MCP</DialogTitle>
+          <DialogTitle className="text-2xl font-bold gradient-text">Login to MCP</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleEmailLogin} className="space-y-4 py-4">
+        <motion.form
+          onSubmit={handleEmailLogin}
+          className="space-y-6 py-4"
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          variants={fadeIn}
+        >
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-orange-200">Email</Label>
+            <Label htmlFor="email" className="text-gray-300">
+              Email
+            </Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-black border-orange-500 text-orange-200 placeholder-orange-200/50"
+              className="bg-black/30 border-mcp-orange/50 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300"
               placeholder="Enter your email"
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-orange-200">Password</Label>
+            <Label htmlFor="password" className="text-gray-300">
+              Password
+            </Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-black border-orange-500 text-orange-200 placeholder-orange-200/50"
+              className="bg-black/30 border-mcp-orange/50 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300"
               placeholder="Enter your password"
               required
             />
           </div>
-          {error && (
-            <p className="text-red-500 text-sm">{error}</p>
-          )}
-          <Button 
-            type="submit" 
-            className="w-full bg-orange-500 hover:bg-orange-600 text-black"
+          <AnimatePresence>
+            {error && (
+              <motion.p
+                className="text-red-500 text-sm"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                {error}
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <Button
+            type="submit"
+            className="w-full bg-mcp-gradient hover:opacity-90 text-white font-bold py-2 rounded-md transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
             disabled={isLoading}
           >
-            {isLoading ? 'Logging in...' : 'Login with Email'}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Logging in...
+              </>
+            ) : (
+              <>
+                <LogIn className="mr-2 h-4 w-4" />
+                Login
+              </>
+            )}
           </Button>
-        </form>
-        <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center">
-            <Separator className="w-full border-orange-500/20" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-black px-2 text-orange-200">Or continue with</span>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full border-orange-500 text-orange-200 hover:bg-orange-500/10"
-          onClick={handleGoogleLogin}
-          disabled={isLoading}
-        >
-          Login with Google
-        </Button>
+        </motion.form>
       </DialogContent>
     </Dialog>
   )
 }
+

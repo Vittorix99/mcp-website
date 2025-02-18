@@ -1,0 +1,19 @@
+{
+  "name": "events/MCP EP 8.jpg",
+  "bucket": "mcp-website-2a1ad.firebasestorage.app",
+  "metageneration": 1,
+  "generation": 1739692965221,
+  "contentType": "image/jpeg",
+  "storageClass": "STANDARD",
+  "contentDisposition": "inline",
+  "downloadTokens": [
+    "3952e7d7-4d07-48f5-b6ee-43a8cdb7310f"
+  ],
+  "etag": "3knFdtgvRkuWSg2B8SDYmrXXd+s",
+  "customMetadata": {},
+  "timeCreated": "2025-02-16T08:02:45.221Z",
+  "updated": "2025-02-16T08:02:45.221Z",
+  "size": 180901,
+  "md5Hash": "2lvaqUcqzE7sRFmTtTMD7A==",
+  "crc32c": "226481851"
+}
