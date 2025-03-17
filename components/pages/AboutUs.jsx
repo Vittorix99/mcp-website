@@ -62,7 +62,7 @@ export function AboutUs() {
   }
 
   return (
-    <section className="py-24 min-h-screen bg-black overflow-hidden relative">
+    <section className="py-12 bg-black overflow-hidden relative">
       <div className="container mx-auto px-4 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
           {/* Image Gallery */}
@@ -93,7 +93,7 @@ export function AboutUs() {
           {/* Content */}
           <div className="space-y-6">
             <motion.h2
-              className="text-4xl md:text-5xl font-bold mb-8 gradient-text"
+              className="font-charter text-4xl md:text-5xl font-bold mb-8 gradient-text"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -103,7 +103,7 @@ export function AboutUs() {
             </motion.h2>
 
             <motion.p
-              className="text-lg md:text-xl text-gray-300"
+              className="font-helvetica text-lg md:text-xl text-gray-300"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -114,7 +114,7 @@ export function AboutUs() {
             </motion.p>
 
             <motion.p
-              className="text-lg md:text-xl text-gray-300"
+              className="font-helvetica text-lg md:text-xl text-gray-300"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -126,15 +126,15 @@ export function AboutUs() {
             </motion.p>
 
             <motion.p
-              className="text-lg md:text-xl text-gray-300"
+              className="font-charter italic text-lg md:text-xl text-orange-300"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
               variants={fadeInUp}
             >
-              We are drawn toward the future, while finding a guide in the past, lost in the present. Our future
+              "We are drawn toward the future, while finding a guide in the past, lost in the present. Our future
               represents a fully committed goal of innovation and sustainability, the past the underground sounds that
-              represent electronic music, and the present the total devotion to feelings, emotions, and connections.
+              represent electronic music, and the present the total devotion to feelings, emotions, and connections."
             </motion.p>
           </div>
         </div>

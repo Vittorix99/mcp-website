@@ -1,8 +1,11 @@
 "use client"
+import Image from "next/image"
 
 import { useState, useEffect } from "react"
+
+
 import { motion } from "framer-motion"
-import { Menu, LogOut, User, Calendar, Image } from "lucide-react"
+import { Menu, LogOut, User, Calendar, Image as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import Link from "next/link"
@@ -48,7 +51,8 @@ export const Navigation = () => {
       <div className="container px-4 mx-auto py-4 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="text-2xl font-bold gradient-text hover:opacity-80 transition-opacity">
-          MCP
+              <Image src="/secondaryLogoWhite.png" alt="MCP Logo" width={65} height={60} className="h-auto" />
+
         </Link>
 
         {/* Navbar links */}
@@ -57,7 +61,7 @@ export const Navigation = () => {
           <NavLink href="/#join">Join Us</NavLink>
           <NavLink href="/#contact-section">Contact</NavLink>}*/}
           <NavLink href={routes.events.foto.gallery}>
-          <Image className="mr-2 h-4 w-4" />
+          <ImageIcon className="mr-2 h-4 w-4" />
           Photos
         </NavLink>
           <NavLink href={routes.events.allevents}>

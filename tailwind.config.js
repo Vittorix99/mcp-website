@@ -17,6 +17,14 @@ module.exports = {
 		},
 	  },
 	  extend: {
+		fontFamily: {
+		  charter: ["var(--font-charter)", "serif"],
+		  helvetica: ["var(--font-helvetica)", "sans-serif"],
+		  atlantico: ["var(--font-atlantico)", "sans-serif"],
+		  // Override default font families
+		  sans: ["var(--font-helvetica)", "ui-sans-serif", "system-ui", "sans-serif"],
+		  serif: ["var(--font-charter)", "ui-serif", "Georgia", "serif"],
+		},
 		colors: {
 		  border: "hsl(var(--border))",
 		  input: "hsl(var(--input))",
