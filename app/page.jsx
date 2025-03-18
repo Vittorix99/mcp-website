@@ -63,12 +63,15 @@ export default function LandingPage() {
       {/* Join Us Section */}
       <section id="join" className="relative py-24">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="font-charter text-4xl font-bold mb-8 gradient-text">Join Our Community</h2>
+          <h2 className="font-atlantico text-5xl md:text-5xl font-bold mb-8 gradient-text">Join Our Community</h2>
           <p className="font-helvetica text-lg mb-8 text-gray-300 max-w-2xl mx-auto">
             Become a part of our movement and experience the power of music connection.
           </p>
           <Link href="/subscribe">
-            <Button size="lg" className="font-atlantico bg-mcp-gradient hover:opacity-90 text-white border-0">
+            <Button
+              size="lg"
+              className="  tracking-wider bg-mcp-gradient hover:opacity-90 text-white border-0 "
+            >
               Sign Up Now
             </Button>
           </Link>

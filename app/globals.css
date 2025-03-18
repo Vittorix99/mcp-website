@@ -62,27 +62,71 @@
     font-family: "HelveticaNeue", Arial, sans-serif;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  /* Override default heading styles with Atlantico */
+  h1, h2 {
+    font-family: "Atlantico", sans-serif;
+    font-size: 3rem; /* text-5xl */
+    font-weight: 700; /* font-bold */
+    margin-bottom: 2rem; /* mb-8 */
+    text-align: center; /* text-center */
+    letter-spacing: 0.08em; /* tracking-wide */
+  }
+
+  /* Apply gradient text to h1 and h2 */
+  h1, h2 {
+    background: linear-gradient(90deg, #ff6b00 0%, #ff0000 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    background-size: 200% 200%;
+    animation: gradientFlow 3s ease infinite;
+  }
+
+  /* Responsive text size */
+  @media (min-width: 768px) {
+    h1, h2 {
+      font-size: 3rem; /* md:text-5xl */
+    }
+  }
+
+  h3, h4, h5, h6 {
     font-family: "Charter", serif;
   }
 }
 
 /* Font utility classes */
 .font-atlantico {
-  font-family: var(--font-atlantico), sans-serif;
+  font-family: "Atlantico", sans-serif;
+  letter-spacing: 0.08em; /* tracking-wide by default */
+}
+
+/* Classi per diversi livelli di spaziatura */
+.tracking-atlantico-tight {
+  letter-spacing: 0.03em;
+}
+
+.tracking-atlantico-normal {
+  letter-spacing: 0.05em;
+}
+
+.tracking-atlantico-wide {
+  letter-spacing: 0.08em;
+}
+
+.tracking-atlantico-wider {
+  letter-spacing: 0.12em;
+}
+
+.tracking-atlantico-widest {
+  letter-spacing: 0.2em;
 }
 
 .font-charter {
-  font-family: var(--font-charter), serif;
+  font-family: "Charter", serif;
 }
 
 .font-helvetica {
-  font-family: var(--font-helvetica), sans-serif;
+  font-family: "HelveticaNeue", sans-serif;
 }
 
 /* Existing custom styles */
@@ -147,19 +191,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-@layer base {
-  body {
-    font-family: var(--font-helvetica), system-ui, sans-serif;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: var(--font-charter), serif;
-  }
-}
-

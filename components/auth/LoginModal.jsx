@@ -63,7 +63,7 @@ export default function LoginModal() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-black border-mcp-orange/50">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold gradient-text">Login to MCP</DialogTitle>
+          <DialogTitle className="font-helvetica text-3xl md:text-4xl font-bold  gradient-text tracking-atlantico-wider ">Login to MCP</DialogTitle>
         </DialogHeader>
         <motion.form
           onSubmit={handleEmailLogin}
@@ -115,7 +115,7 @@ export default function LoginModal() {
           </AnimatePresence>
           <Button
             type="submit"
-            className="w-full bg-mcp-gradient hover:opacity-90 text-white font-bold py-2 rounded-md transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
+            className="w-full bg-mcp-gradient hover:opacity-90 text-white  py-2 rounded-md transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
             disabled={isLoading}
           >
             {isLoading ? (

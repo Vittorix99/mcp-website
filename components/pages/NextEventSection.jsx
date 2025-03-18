@@ -101,10 +101,12 @@ export function NextEventSection({ event }) {
   const filteredLineup = event.lineup.filter((artist) => artist.trim() !== "")
 
   return (
-    <section className="py-24 bg-black/50 backdrop-blur-md">
-      <div className="container mx-auto px-4">
+    <section className="py-24 bg-black/50 backdrop-blur-md relative">
+      {/* Pattern Wave at the top */}
+
+      <div className="container mx-auto px-4 relative z-10 pt-16">
         <motion.h2
-          className="font-atlantico text-5xl font-extrabold text-center gradient-text uppercase mb-12"
+          className="font-atlantico text-5xl text-center text-orange-500 uppercase mb-12"
           initial="initial"
           animate="animate"
           variants={fadeInUp}
@@ -150,7 +152,7 @@ export function NextEventSection({ event }) {
                   </div>
                   {event.active ? (
                     <Link href={getRoute(routes.events.details, event.id)}>
-                      <Button className="font-atlantico mt-5 bg-mcp-gradient hover:opacity-90 text-white font-bold py-3 px-6 rounded-md transition-all duration-300 transform hover:scale-105">
+                      <Button className="font-helvetica font-light tracking-wider mt-5 bg-mcp-gradient hover:opacity-90 text-white py-3 px-6 rounded-md transition-all duration-300 transform hover:scale-105 uppercase">
                         Tickets & Info
                       </Button>
                     </Link>

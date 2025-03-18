@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { sendNewsLetterRequest } from "@/services/newsLetter"
-import { PolicyLinks } from "@/components/pages/PolicyLinks"
 
 export function NewsletterFooter() {
   const [emailNewsLetter, setEmailNewsLetter] = useState("")
@@ -59,56 +58,56 @@ export function NewsletterFooter() {
       <div className="absolute inset-0 bg-mcp-gradient opacity-80"></div>
 
       {/* Content */}
-      <div className="relative py-6 sm:py-8">
+      <div className="relative py-4 sm:py-6">
         <div className="container mx-auto px-4 max-w-6xl">
           {/* Center everything on mobile */}
-          <div className="text-center mb-4 sm:mb-6">
-            <div className="flex justify-center mb-2">
+          <div className="text-center mb-3">
+            <div className="flex justify-center mb-1">
               <Image src="/secondaryLogo.png" alt="MCP Logo" width={65} height={60} className="h-auto" />
             </div>
-            <p className="text-black text-xs sm:text-sm">
+            <p className="font-helvetica text-black text-xs sm:text-sm">
               Subscribe to our newsletter and stay updated with our news
             </p>
           </div>
 
           {/* Centered form with responsive width */}
-          <form onSubmit={handleNewsletter} className="flex w-full max-w-md mx-auto gap-2 mb-6">
+          <form onSubmit={handleNewsletter} className="flex w-full max-w-md mx-auto gap-2 mb-3">
             <Input
               id="newsletter-email"
               type="email"
               placeholder="enter your email@email.com"
               value={emailNewsLetter}
               onChange={(e) => setEmailNewsLetter(e.target.value)}
-              className="flex-1 bg-black border-none text-white placeholder:text-gray-500 h-12"
+              className="font-helvetica flex-1 bg-black border-none text-white placeholder:text-gray-500 h-10"
               required
               disabled={loading}
             />
-<Button
-  type="submit"
-  className="bg-gradient-to-r from-[#f5f5dc] to-[#fff5e1] hover:opacity-90 text-black font-bold px-4 h-12 rounded-md transition-all duration-300 transform hover:scale-105"
-  disabled={loading}
->
-  {loading ? (
-    <div className="h-5 w-5 animate-spin rounded-full border-2 border-black border-t-transparent" />
-  ) : (
-    <ArrowRight className="h-5 w-5" />
-  )}
-</Button>
+            <Button
+              type="submit"
+              className="bg-gradient-to-r from-[#f5f5dc] to-[#fff5e1] hover:opacity-90 text-black font-helvetica font-light px-4 h-10 rounded-md transition-all duration-300 transform hover:scale-105"
+              disabled={loading}
+            >
+              {loading ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+              ) : (
+                <ArrowRight className="h-4 w-4" />
+              )}
+            </Button>
           </form>
 
           {status.message && (
-            <div className="w-full max-w-md mx-auto mb-4">
+            <div className="w-full max-w-md mx-auto mb-2">
               <Alert
                 className={`${status.type === "success" ? "bg-green-500 border-green-600" : "bg-red-500 border-red-600"}`}
               >
-                <AlertDescription className="text-white text-sm">{status.message}</AlertDescription>
+                <AlertDescription className="font-helvetica text-white text-xs">{status.message}</AlertDescription>
               </Alert>
             </div>
           )}
 
           {/* Copyright text */}
-          <div className="text-center text-xs sm:text-sm text-black">
-            <p className="py-3">&copy; {new Date().getFullYear()} Music Connecting People. All rights reserved.</p>
+          <div className="font-helvetica text-center text-xs text-black font-charter py-2">
+            <p>&copy; {new Date().getFullYear()} Music Connecting People. All rights reserved.</p>
 
           </div>
         </div>

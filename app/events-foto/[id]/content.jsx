@@ -7,6 +7,7 @@ import { getImageUrls } from "@/config/firebase"
 import { Loader2 } from "lucide-react"
 import ImageModal from "@/components/pages/modals/ImageModal"
 import { MasonryGallery } from "@/components/pages/pictures/MasonGallery"
+import { SectionTitle } from "@/components/ui/section-title"
 
 export function EventContent({id}) {
 
@@ -61,7 +62,11 @@ export function EventContent({id}) {
   return (
     <div className="bg-black py-24">
       <div className="container mx-auto px-4">
-        <h1 className="text-4xl md:text-5xl font-bold text-center text-mcp-orange mb-12">{event.title}</h1>
+
+     
+        <SectionTitle as="h1" className="mt-8">
+          Event Photos
+        </SectionTitle>
         <MasonryGallery images={imageUrls} />
       </div>
 
