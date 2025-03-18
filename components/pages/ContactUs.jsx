@@ -50,9 +50,9 @@ export function ContactUs() {
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-black/50 backdrop-blur-md rounded-lg shadow-lg">
+    <div className="max-w-md mx-auto  bg-black/50 backdrop-blur-md rounded-lg shadow-lg">
       <motion.h2
-        className="text-4xl font-bold text-center gradient-text mb-8"
+        className="font-atlantico text-5xl md:text-5xl font-bold mb-8 gradient-text text-center "
         initial="initial"
         animate="animate"
         variants={fadeInUp}
@@ -110,7 +110,7 @@ export function ContactUs() {
         </div>
         <Button
           type="submit"
-          className="w-full bg-mcp-gradient hover:opacity-90 text-white font-bold py-3 rounded-md transition-all duration-300 transform hover:scale-105"
+          className="w-full bg-mcp-gradient hover:opacity-90 text-white  py-3 rounded-md transition-all duration-300 transform hover:scale-105"
           disabled={isSubmitting}
         >
           {isSubmitting ? "Sending..." : "Send Message"}

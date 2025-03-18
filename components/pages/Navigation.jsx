@@ -51,7 +51,7 @@ export const Navigation = () => {
       <div className="container px-4 mx-auto py-4 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="text-2xl font-bold gradient-text hover:opacity-80 transition-opacity">
-              <Image src="/secondaryLogoWhite.png" alt="MCP Logo" width={65} height={60} className="h-auto" />
+              <Image src="/secondaryLogoWhite.png" alt="MCP Logo" width={80} height={60} className="h-auto" />
 
         </Link>
 
@@ -107,7 +107,7 @@ export const Navigation = () => {
                 Contact
               </NavLink>
               <NavLink href={routes.events.foto.gallery}>
-          <Image className="mr-2 h-4 w-4" />
+          <ImageIcon className="mr-2 h-4 w-4" />
           Photos
         </NavLink>
               <NavLink href="/events" mobile>

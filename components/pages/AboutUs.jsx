@@ -93,7 +93,7 @@ export function AboutUs() {
           {/* Content */}
           <div className="space-y-6">
             <motion.h2
-              className="font-charter text-4xl md:text-5xl font-bold mb-8 gradient-text"
+              className="font-atlantico text-5xl md:text-5xl font-bold mb-8 gradient-text text-center"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}

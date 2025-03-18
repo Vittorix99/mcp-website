@@ -2,16 +2,16 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, MapPin, Clock, Loader2 } from "lucide-react"
-import { motion } from "framer-motion"
 import { getImageUrl } from "@/config/firebase"
 import { routes, getRoute } from "@/config/routes"
 import { useState, useEffect } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { motion } from "framer-motion"
 
 export default function EventCard({ event }) {
   const [imageUrl, setImageUrl] = useState(null)
-  const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9)
+  const [imageAspectRatio, setImageAspectRatio] = useState(4 / 5) // Default aspect ratio
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -23,7 +23,10 @@ export default function EventCard({ event }) {
           setImageUrl(url)
         } catch (error) {
           console.error("Error loading image:", error)
+          setIsLoading(false)
         }
+      } else {
+        setIsLoading(false)
       }
     }
     fetchImageUrl()
@@ -34,10 +37,27 @@ export default function EventCard({ event }) {
     setIsLoading(false)
   }
 
-  const formatDate = (dateString) => {
-    const [day, month, year] = dateString.split("-").map(Number)
-    return `${day.toString().padStart(2, "0")}-${month.toString().padStart(2, "0")}-${year}`
+  // Verifica se l'evento è passato
+  const isPastEvent = () => {
+    try {
+      const [day, month, year] = event.date.split("-").map(Number)
+      const eventDate = new Date(year, month - 1, day)
+      return eventDate < new Date()
+    } catch (e) {
+      return false
+    }
   }
+
+  const formatDate = (dateString) => {
+    try {
+      const [day, month, year] = dateString?.split("-").map(Number)
+      return `${day.toString().padStart(2, "0")}-${month.toString().padStart(2, "0")}-${year}`
+    } catch (e) {
+      return dateString || "Date to be announced"
+    }
+  }
+
+  const past = isPastEvent()
 
   return (
     <motion.div
@@ -92,5 +112,7 @@ export default function EventCard({ event }) {
       </Card>
     </motion.div>
   )
+  
+  
+  
 }
-

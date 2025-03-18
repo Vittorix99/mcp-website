@@ -21,7 +21,7 @@ export const LogoSection = () => {
         <motion.div variants={fadeInUp}>
           <Button
             size="lg"
-            className="font-atlantico bg-mcp-gradient hover:opacity-90 text-white font-bold py-3 px-6 rounded-md transition-all duration-300 transform hover:scale-105"
+            className="tracking-wider bg-mcp-gradient hover:opacity-90 text-white border-0 uppercase"
             onClick={() => {
               document.getElementById("join").scrollIntoView({ behavior: "smooth" })
             }}
@@ -49,7 +49,7 @@ export const LogoSection = () => {
         <motion.div variants={fadeInUp}>
           <Button
             size="lg"
-            className="font-atlantico bg-mcp-gradient hover:opacity-90 text-white font-bold py-3 px-6 rounded-md transition-all duration-300 transform hover:scale-105"
+            className="tracking-wider bg-mcp-gradient hover:opacity-90 text-white border-0 "
             onClick={() => {
               document.getElementById("join").scrollIntoView({ behavior: "smooth" })
             }}

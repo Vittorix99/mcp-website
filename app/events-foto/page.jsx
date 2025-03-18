@@ -5,42 +5,10 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { getAllEvents } from "@/services/events"
 import { getImageUrl, checkFolderExists } from "@/config/firebase"
-import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Camera } from "lucide-react"
+import { Loader2, Camera, Calendar } from "lucide-react"
 import { routes, getRoute } from "@/config/routes"
-
-const eventImageStyles = `
-  .event-image-container {
-    position: relative;
-    width: 100%;
-    padding-top: 100%; /* Square for mobile */
-    overflow: hidden;
-  }
-
-  .event-image {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .event-image-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 0.75rem;
-    background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0));
-  }
-
-  @media (min-width: 640px) {
-    .event-image-container {
-      padding-top: 33.33%; /* 3:1 aspect ratio for larger screens */
-    }
-  }
-`
+import { SectionTitle } from "@/components/ui/section-title"
+import { AnimatedSectionDivider } from "@/components/AnimatedSectionDivider"
 
 export default function EventPhotosPage() {
   const [events, setEvents] = useState([])
@@ -82,7 +50,7 @@ export default function EventPhotosPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center pt-24 mt-16">
         <Loader2 className="w-8 h-8 text-mcp-orange animate-spin" />
       </div>
     )
@@ -90,59 +58,103 @@ export default function EventPhotosPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black py-24">
+      <div className="min-h-screen bg-black py-24 pt-40">
         <div className="container mx-auto px-4">
-          <div className="text-center text-mcp-orange text-xl">{error}</div>
+          <div className="text-center text-mcp-orange text-xl font-helvetica">{error}</div>
         </div>
       </div>
     )
   }
 
-  return (
-    <>
-      <style jsx>{eventImageStyles}</style>
-      <div className="min-h-screen bg-black mb-5 pb-16 pt-16">
-        <div className="container mx-auto px-4">
-          <h1 className="text-4xl md:text-5xl font-bold text-center gradient-text mb-12">Event Photos</h1>
+  // Format date function
+  const formatDate = (dateString) => {
+    try {
+      const [day, month, year] = dateString?.split("-").map(Number)
+      return `${day.toString().padStart(2, "0")}-${month.toString().padStart(2, "0")}-${year}`
+    } catch (e) {
+      return dateString || "Date to be announced"
+    }
+  }
 
-          {events.length === 0 ? (
-            <div className="text-center text-gray-300 text-xl">No event photos available at the moment.</div>
-          ) : (
-            <div className="grid grid-cols-1  lg:grid-cols-1 gap-4 sm:gap-6 mb-5">
-              {events.map((event) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                >
-                  <Link href={getRoute(routes.events.foto.details, event.id)}>
-                    <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                      <CardContent className="p-0">
-                        <div className="event-image-container">
+  return (
+    <div className="min-h-screen bg-black">
+      {/* Spacer div to push content below navbar */}
+      <div className=""></div>
+
+      <div className="container mx-auto px-4 pt-16">
+        <SectionTitle as="h1" className="mt-8">
+          Event Photos
+        </SectionTitle>
+
+        <AnimatedSectionDivider color="ORANGE" className="mb-12" />
+
+        {events.length === 0 ? (
+          <div className="text-center text-gray-300 text-xl font-helvetica">
+            No event photos available at the moment.
+          </div>
+        ) : (
+          <div className="space-y-16">
+            {events.map((event, index) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+              >
+                <Link href={getRoute(routes.events.foto.details, event.id)}>
+                  <div className="group">
+                    <div className="grid md:grid-cols-2 gap-6 items-center">
+                      <div className="relative aspect-video overflow-hidden rounded-lg">
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent z-10" />
+                        {event.coverPhoto ? (
                           <img
                             src={event.coverPhoto || "/placeholder.svg"}
-                            alt={`${event.title} cover`}
-                            className="event-image"
+                            alt={event.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = "/placeholder.svg"
+                            }}
                           />
-                          <div className="event-image-overlay">
-                            <h2 className="text-sm sm:text-base font-bold text-white line-clamp-1">{event.title}</h2>
-                            <p className="text-xs text-gray-300 mt-1 flex items-center">
-                              <Camera className="w-3 h-3 mr-1" />
-                              View Photos
-                            </p>
+                        ) : (
+                          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                            <Camera className="w-12 h-12 text-gray-600" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-4 left-4 z-20">
+                          <div className="inline-flex items-center">
+                            <Camera className="w-5 h-5 text-white" />
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h2 className="font-charter text-2xl font-bold text-white group-hover:text-orange-500 transition-colors">
+                          {event.title}
+                        </h2>
+                        <div className="font-helvetica text-sm text-gray-300 flex items-center">
+                          <Calendar className="w-4 h-4 mr-2 text-mcp-orange" />
+                          {formatDate(event.date)}
+                        </div>
+                        {event.description && (
+                          <p className="font-helvetica text-gray-400 line-clamp-3">{event.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+
+                {index < events.length - 1 && (
+                  <div className="mt-8 mb-8">
+                    <hr className="border-gray-800" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   )
 }
 

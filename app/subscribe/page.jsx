@@ -10,6 +10,8 @@ import { AlertCircle, CheckCircle, XCircle, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { submitSignupRequest } from "@/services/signup"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SectionTitle } from "@/components/ui/section-title"
+import { AnimatedSectionDivider } from "@/components/AnimatedSectionDivider"
 
 export default function SubscribePage() {
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -50,16 +52,16 @@ export default function SubscribePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white py-24">
-      <div className="container mx-auto px-4">
-        <motion.h1
-          className="text-5xl font-bold text-center mb-12 gradient-text"
-          initial="initial"
-          animate="animate"
-          variants={fadeInUp}
-        >
+    <div className="min-h-screen bg-black text-white">
+      {/* Spacer div to push content below navbar */}
+      <div className="h-24"></div>
+
+      <div className="container mx-auto px-4 pt-16">
+        <SectionTitle as="h1" className="mt-8">
           Join MCP Community
-        </motion.h1>
+        </SectionTitle>
+
+        <AnimatedSectionDivider color="ORANGE" className="mb-12" />
 
         <motion.div initial="initial" animate="animate" variants={fadeInUp}>
           <Card className="max-w-2xl mx-auto bg-black/50 backdrop-blur-md border-mcp-orange/50">
@@ -71,7 +73,7 @@ export default function SubscribePage() {
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="space-y-4">
-                <h2 className="text-2xl font-semibold gradient-text">Benefits of Joining:</h2>
+                <h2 className="text-2xl  gradient-text">Benefits of Joining:</h2>
                 <ul className="list-disc list-inside space-y-2 text-gray-300">
                   <li>Exclusive access to MCP events</li>
                   <li>Networking opportunities with like-minded music enthusiasts</li>
