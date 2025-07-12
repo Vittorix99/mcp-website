@@ -5,7 +5,7 @@
   },
   "functions": [
     {
-      "source": "mcp-backend/functions",
+      "source": "../mcp-backend/functions",
       "codebase": "python_codebase",
       "runtime": "python310",
       "region": "us-central1",
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "source": "mcp-backend/js_functions",
+      "source": "../mcp-backend/js_functions",
       "codebase": "js_codebase",
       "runtime": "nodejs20",
       "region": "us-central1",
@@ -40,47 +40,7 @@
     ],
     "frameworksBackend": {
       "region": "us-central1"
-    },
-     "rewrites": [
-    {
-      "source": "/events/**",
-      "function": "ssrmcpwebsite2a1ad"
-    },
-    {
-      "source": "/event-foto/**",
-      "function": "ssrmcpwebsite2a1ad"
-    },
-    {
-      "source": "/admin/events/**",
-      "function": "ssrmcpwebsite2a1ad"
-    },
-    {
-      "source": "/admin/membership/**",
-      "function": "ssrmcpwebsite2a1ad"
     }
-  ],
-    
-    "headers": [
-      {
-        "source": "/events/**",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=0, s-maxage=300, stale-while-revalidate=60"
-          }
-        ]
-      },
-      {
-        "source": "/event-foto/**",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=0, s-maxage=300, stale-while-revalidate=60"
-          }
-        ]
-      }
-    ]
-
   
   },
   "storage": {

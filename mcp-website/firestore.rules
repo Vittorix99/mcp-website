@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 🔐 Helpers
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.superAdmin == true;
+    }
+
+    function isSelf(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 👤 Admin Users
+    match /admin_users/{userId} {
+      allow read: if isAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    // 📅 Events (visible to everyone, editable only by admins)
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 👥 Participants (only admin can access)
+    match /participants/{eventId}/participants_event/{participantId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 📦 Memberships (read-only for user, full access for admin)
+    match /memberships/{memberId} {
+      allow read: if isSelf(memberId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // 🧑‍💻 Users collection (user can only read/write their own document)
+    match /users/{userId} {
+      allow read, write: if isSelf(userId);
+    }
+
+    // ✨ Add other collections here as needed
+  }
+}
