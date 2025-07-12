@@ -1,0 +1,3 @@
+body:has(.no-nav) nav {
+  display: none !important;
+}
