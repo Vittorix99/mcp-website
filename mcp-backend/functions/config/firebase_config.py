@@ -29,6 +29,7 @@ bucket = storage.bucket()
 # Controllo se è attivo l'emulatore Firestore
 if os.environ.get("FIRESTORE_EMULATOR_HOST"):
     print("🔥 Firestore emulatore rilevato!")
+    print("Emulator is:",os.environ.get("FIRESTORE_EMULATOR_HOST"))
 else:
     print("⚠️ Nessuna emulazione Firestore, connessione a Firestore cloud.")
 

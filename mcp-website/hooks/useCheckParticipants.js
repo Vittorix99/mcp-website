@@ -14,17 +14,20 @@ export function useCheckParticipants() {
     try {
       const result = await checkParticipantsService(eventId, participants)
 
-      if (!result.valid) {
-        // Ora usiamo direttamente gli errori provenienti dal backend
-        setErrors(result.errors || ["Errore di validazione partecipanti."])
-        return false
+      if (!result || result.valid === false) {
+        // Usiamo direttamente gli errori provenienti dal backend se disponibili
+        const errs = Array.isArray(result?.errors) ? result.errors : ["Errore di validazione partecipanti."]
+        setErrors(errs)
+        return { valid: false, errors: errs }
       }
 
-      return true
+      // Se valido, ritorniamo l'intero payload (può contenere nonMembers, members, ecc.)
+      return result
     } catch (err) {
       console.error("Errore durante checkParticipants:", err)
-      setErrors(["Errore di rete. Riprova."])
-      return false
+      const errs = ["Errore di rete. Riprova."]
+      setErrors(errs)
+      return { valid: false, errors: errs }
     } finally {
       setLoading(false)
     }

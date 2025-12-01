@@ -6,15 +6,17 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Spacer
 from reportlab.platypus import Image
 import tempfile
-from config.firebase_config import bucket, db
+from config.firebase_config import bucket
 from io import BytesIO
 from weasyprint import HTML
+from config.event_types import EventTypes
 
 
 
 def generate_ticket_pdf(ticket_data, event_data, logo_path):
     print("Event data is:", event_data)
-    if event_data.get("type") in ["community", "custom_ep12"]:
+    ev_type = (event_data.get("type") or "").lower()
+    if ev_type in (EventTypes.COMMUNITY.value, EventTypes.CUSTOM_EP12.value, EventTypes.CUSTOM_EP13.value ):
         local_logo_path = download_image_from_firebase(logo_path)
         html = generate_member_ticket_pdf_html(ticket_data, event_data, local_logo_path)
         buffer = BytesIO()
@@ -22,8 +24,8 @@ def generate_ticket_pdf(ticket_data, event_data, logo_path):
         buffer.seek(0)
         return buffer
     else:
-       buffer =  generate_ticket_pdf_reportlab(ticket_data=ticket_data, event_data=event_data, logo_path=logo_path)
-       return buffer 
+        buffer = generate_ticket_pdf_reportlab(ticket_data=ticket_data, event_data=event_data, logo_path=logo_path)
+        return buffer 
 
 
 def generate_membership_pdf(membership_data, logo_path, pattern_path):

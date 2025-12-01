@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, ArrowLeft, Eye } from "lucide-react"
 import { motion } from "framer-motion"
+import { routes } from "@/config/routes"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardContent, CardTitle, CardFooter } from "@/components/ui/card"
@@ -116,7 +117,7 @@ export default function PurchasesPage() {
     setManualId("")
     setSelectedPurchase(null)
     setNotFoundMsg("")
-    router.push("/admin/purchases")
+    router.push(routes.admin.purchases)
   }
 
   return (
@@ -126,7 +127,7 @@ export default function PurchasesPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <Button variant="ghost" onClick={() => router.push("/admin")}>
+        <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
           <ArrowLeft className="mr-2 h-4 w-4"/> Torna indietro
         </Button>
         <h1 className="text-3xl font-bold">Gestione Acquisti</h1>

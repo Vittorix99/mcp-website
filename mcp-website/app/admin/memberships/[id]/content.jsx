@@ -4,8 +4,9 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { routes } from "@/config/routes"
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
@@ -27,7 +28,8 @@ export default function MembershipContent({ id }) {
     selected: member,
     loading,
     loadOne,
-    setError
+    setError,
+    extrasLoading,
   } = useAdminMemberships();
 
   const [purchaseFilter, setPurchaseFilter] = useState("");
@@ -61,25 +63,14 @@ export default function MembershipContent({ id }) {
     return arr;
   }, [member, purchaseFilter, purchaseSortDesc]);
 
+  // Mostra uno spinner finché i dettagli base non sono pronti
   if (loading || !member) {
     return (
       <div className="flex items-center justify-center h-screen  text-white">
-        <ArrowLeft className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
-  // Dopo il blocco: if (loading || !member)
-if (!loading && !member) {
-  return (
-    <div className="flex items-center justify-center h-screen text-white">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold mb-2">Membro non trovato</h2>
-        <p className="text-gray-400 mb-4">Controlla che l'ID sia corretto o torna indietro.</p>
-        <Button onClick={() => router.push("/admin/memberships")}>Torna alla lista</Button>
-      </div>
-    </div>
-  );
-}
 
   const {
     name, surname, email, phone, birthdate,
@@ -92,7 +83,8 @@ if (!loading && !member) {
     <TooltipProvider>
       <div className="text-gray-50 min-h-screen p-6 lg:p-8">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="max-w-5xl mx-auto space-y-6">
-          <Button variant="ghost" onClick={() => router.push("/admin/memberships")}>
+         <Button variant="ghost" onClick={() => router.push(routes.admin.memberships)}>
+
             <ArrowLeft className="mr-2 h-4 w-4" /> Torna a Memberships
           </Button>
 
@@ -140,7 +132,10 @@ if (!loading && !member) {
 
               {purchase_id && (
                 <div className="col-span-full">
-                  <Button size="sm" onClick={() => router.push(`/admin/purchases?purchaseId=${purchase_id}`)}>
+                  <Button
+                    size="sm"
+                    onClick={() => router.push(routes.admin.purchasesDetails(purchase_id))}
+                  >
                     Vai all'acquisto
                   </Button>
                 </div>
@@ -168,7 +163,14 @@ if (!loading && !member) {
               </div>
             </CardHeader>
             <CardContent>
-              {filteredPurchases.length ? (
+              {extrasLoading ? (
+                <div className="space-y-2">
+                  <div className="h-6 w-40 bg-zinc-800 animate-pulse rounded" />
+                  <div className="h-6 w-full bg-zinc-800 animate-pulse rounded" />
+                  <div className="h-6 w-5/6 bg-zinc-800 animate-pulse rounded" />
+                  <div className="h-6 w-4/6 bg-zinc-800 animate-pulse rounded" />
+                </div>
+              ) : filteredPurchases.length ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -187,7 +189,11 @@ if (!loading && !member) {
                           <TableCell>{formatDate(p.timestamp)}</TableCell>
                           <TableCell>
                             {p.ref_id ? (
-                              <Button size="sm" variant="link" onClick={() => router.push(`/admin/purchases?purchaseId=${p.id}`)}>
+                              <Button
+                                size="sm"
+                                variant="link"
+                                onClick={() => router.push(routes.admin.purchasesDetails(p.id))}
+                              >
                                 Vai
                               </Button>
                             ) : "-"}
@@ -207,7 +213,13 @@ if (!loading && !member) {
           <Card>
             <CardHeader><CardTitle>Eventi Partecipati ({events.length})</CardTitle></CardHeader>
             <CardContent>
-              {events.length ? (
+              {extrasLoading ? (
+                <div className="space-y-2">
+                  <div className="h-6 w-44 bg-zinc-800 animate-pulse rounded" />
+                  <div className="h-6 w-full bg-zinc-800 animate-pulse rounded" />
+                  <div className="h-6 w-5/6 bg-zinc-800 animate-pulse rounded" />
+                </div>
+              ) : events.length ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -225,7 +237,7 @@ if (!loading && !member) {
                           ) : "-"}
                         </TableCell>
                         <TableCell>
-                          <Button variant="link" onClick={() => router.push(`/admin/events/${e.id}`)}>
+                          <Button variant="link" onClick={() => router.push(routes.admin.eventDetails(e.id))}>
                             {e.title}
                           </Button>
                         </TableCell>

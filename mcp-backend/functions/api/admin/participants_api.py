@@ -112,8 +112,9 @@ def send_location(req):
     participant_id = body.get("participantId")
     address = body.get("address")
     link = body.get("link")
+    message = body.get("message")
 
-    return location_service.send_location(event_id, participant_id, address, link)
+    return location_service.send_location(event_id, participant_id, address, link, message)
 
 @https_fn.on_request(cors=cors)
 @require_admin
@@ -125,5 +126,6 @@ def send_location_to_all(req):
     event_id = body.get("eventId")
     address = body.get("address")
     link = body.get("link")
+    message = body.get("message")
 
-    return location_service.send_location_to_all(event_id, address, link)
+    return location_service.start_send_location_job(event_id, address, link, message)

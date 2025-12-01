@@ -6,6 +6,7 @@ export const routes = {
   // Public routes
   home: '/',
 
+
   events: {
     foto: {
       gallery: '/events-foto',
@@ -32,9 +33,10 @@ export const routes = {
     membershipDetails: (id) => `/admin/memberships/${id}`,
 
     purchases: '/admin/purchases',
-    eventsPhotos:'/admin/events-photos',
-    settings:'/admin/settings',
-
+    purchasesDetails: (id) => `/admin/purchases?purchaseId=${id}`,
+    eventsPhotos: '/admin/events-photos',
+    settings: '/admin/settings',
+    checkin: (id) => `/admin/events/${id}/checkin`,
     
     newsletter: '/admin/newsletter',
     signupRequests: '/admin/signup-requests',

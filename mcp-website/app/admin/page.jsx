@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {routes} from "@/config/routes"
 import {
   Users,
   Wallet,
@@ -239,7 +240,7 @@ useEffect(() => {
                       </p>
                     </div>
                   </div>
-                  <Button onClick={() => router.push(`/admin/events/${nextEvent.id}`)}>
+                  <Button onClick={() => router.push(routes.admin.eventDetails(nextEvent.id))}>
                     Gestisci Evento <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
