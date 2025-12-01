@@ -67,7 +67,7 @@ mcp-website/.env
 mcp-website/.env.*
 mcp-website/.firebase/
 mcp-website/firestore-debug.log
-mcp-backend/functions/dir
+mcp-backend/functions/dir/
 
 mcp-backend/node_modules/
 mcp-backend/__pycache__/
