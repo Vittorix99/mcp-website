@@ -51,8 +51,8 @@ export function ContactUs() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 sm:px-0 bg-black/50 backdrop-blur-md rounded-lg shadow-lg">
-        <SectionTitle as="h1" className="mt-3 md:mt-8 text-3xl md:text-5xl">
+    <div className="max-w-md  mx-auto px-4 sm:px-0 bg-black/50 backdrop-blur-md rounded-lg shadow-lg">
+        <SectionTitle as="h1" className="mt-4 py-4 md:mt-8 text-3xl md:text-5xl">
 Contact Us      
   </SectionTitle>    
 

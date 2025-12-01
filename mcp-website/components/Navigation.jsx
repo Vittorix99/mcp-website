@@ -4,36 +4,30 @@ import Image from "next/image"
 import { useState, useEffect } from "react"
 import { DialogTitle } from "@/components/ui/dialog"
 
-
 import { motion } from "framer-motion"
 import { Menu, LogOut, User, Calendar, Image as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetOverlay } from "@/components/ui/sheet"
 import Link from "next/link"
 import LoginModal from "@/components/auth/LoginModal"
 import { useUser } from "@/contexts/userContext"
 import { logout } from "@/config/firebase"
 import { useRouter } from "next/navigation"
 import { routes } from "@/config/routes"
-
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export const Navigation = () => {
   const [isScrolled, setIsScrolled] = useState(false)
   const { user, isAdmin } = useUser()
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const isMobile = useIsMobile()
 
-  const handleNavClick = () => {
-    setOpen(false)
-  }
-
+  const handleNavClick = () => setOpen(false)
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20)
-    }
-
-    window.addEventListener("scroll", handleScroll)
+    const handleScroll = () => setIsScrolled(window.scrollY > 20)
+    window.addEventListener("scroll", handleScroll, { passive: true })
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
@@ -47,31 +41,39 @@ export const Navigation = () => {
 
   const profileLink = user ? (isAdmin ? routes.admin.dashboard : routes.user.profile) : null
 
+  // Mobile sempre trasparente; Desktop cambia con scroll
+  const navBg = isMobile
+    ? "bg-transparent"
+    : isScrolled
+    ? "bg-black/80 backdrop-blur-md"
+    : "bg-transparent"
+
   return (
     <motion.nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? "bg-black/80 backdrop-blur-md" : "bg-transparent"
-      }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
       <div className="container px-4 mx-auto py-4 flex justify-between items-center">
-        {/* Logo */}
+        {/* Logo (dimensioni invariate) */}
         <Link href="/" className="text-2xl font-bold gradient-text hover:opacity-80 transition-opacity">
-              <Image src="/secondaryLogoWhite.png" alt="MCP Logo" width={80} height={60} className="h-auto" />
-
+          <Image
+            src="/secondaryLogoWhite.png"
+            alt="MCP Logo"
+            width={80}
+            height={60}
+            className="h-auto"
+            priority
+          />
         </Link>
 
-        {/* Navbar links */}
+        {/* Navbar links (desktop) */}
         <div className="flex items-center space-x-6 lg:ml-auto ml-auto hidden md:flex">
-        {/*  <NavLink href="/#about">About</NavLink>
-          <NavLink href="/#join">Join Us</NavLink>
-          <NavLink href="/#contact-section">Contact</NavLink>}*/}
           <NavLink href={routes.events.foto.gallery}>
-          <ImageIcon className="mr-2 h-4 w-4" />
-          Photos
-        </NavLink>
+            <ImageIcon className="mr-2 h-4 w-4" />
+            Photos
+          </NavLink>
           <NavLink href={routes.events.allevents}>
             <Calendar className="mr-2 h-4 w-4" />
             Events
@@ -97,14 +99,25 @@ export const Navigation = () => {
             <LoginModal />
           )}
         </div>
+
+        {/* Menu Mobile */}
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="md:hidden text-white hover:text-mcp-orange">
               <Menu className="h-6 w-6" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[300px] bg-black/95 border-mcp-orange/20">
-          <DialogTitle className="sr-only">Navigation Menu</DialogTitle>
+
+          {/* Overlay opaco e con blur leggero (non trasparente “totale”) */}
+          <SheetOverlay className="fixed inset-0 bg-black/60 supports-[backdrop-filter]:backdrop-blur-sm z-[190]" />
+
+          {/* Drawer con background SOLIDO */}
+          <SheetContent
+            side="right"
+            className="z-[200] w-[300px] bg-black text-white border-mcp-orange/20 backdrop-blur-none"
+          >
+            <DialogTitle className="sr-only">Navigation Menu</DialogTitle>
+
             <nav className="flex flex-col space-y-6 mt-12">
               <NavLink href="/#about" mobile onClick={handleNavClick}>
                 About
@@ -115,20 +128,23 @@ export const Navigation = () => {
               <NavLink href="/#contact-section" mobile onClick={handleNavClick}>
                 Contact
               </NavLink>
+
               <NavLink href={routes.events.foto.gallery} mobile onClick={handleNavClick}>
-          <ImageIcon className="mr-2 h-4 w-4" />
-          Photos
-        </NavLink>
+                <ImageIcon className="mr-2 h-4 w-4" />
+                Photos
+              </NavLink>
+
               <NavLink href="/events" mobile onClick={handleNavClick}>
                 <Calendar className="mr-2 h-4 w-4" />
                 Events
               </NavLink>
+
               {user ? (
                 <>
                   {profileLink && (
                     <NavLink href={profileLink} mobile>
                       <User className="mr-2 h-4 w-4" />
-                      {user.isAdmin ? "ADMIN" : "PROFILE"}
+                      {isAdmin ? "ADMIN" : "PROFILE"}
                     </NavLink>
                   )}
                   <Button
@@ -150,6 +166,7 @@ export const Navigation = () => {
     </motion.nav>
   )
 }
+
 const NavLink = ({ href, children, mobile, onClick }) => (
   <Link
     href={href}
@@ -167,5 +184,5 @@ const NavLink = ({ href, children, mobile, onClick }) => (
     />
   </Link>
 )
-export default Navigation
 
+export default Navigation

@@ -1,12 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
+  reactStrictMode: true,
+
+  // 🔴 Rimuovi "standalone" per funzionare con Firebase Hosting SSR
+  // output: "standalone",
+
   images: {
-      unoptimized: true,
-      domains: ["firebasestorage.googleapis.com"],
+    unoptimized: true, // utile su Firebase se non usi l’Image Optimization
+    domains: ["firebasestorage.googleapis.com"],
+  },
+};
 
-   },
-
-  };
-    
-  module.exports = nextConfig;
+module.exports = nextConfig;

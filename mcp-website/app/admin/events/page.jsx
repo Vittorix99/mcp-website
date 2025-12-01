@@ -36,6 +36,10 @@ export default function EventsPage() {
     active: true,
     type: EVENT_TYPES.STANDARD,
     image: null,
+    onlyMembers:false,
+    allowDuplicates:false,
+    onlyFemales:false,
+    onlyOver21:false,
   }
 
   const [form, setForm] = useState(emptyForm)
@@ -69,7 +73,11 @@ export default function EventsPage() {
         note: ev.note || "",
         lineup: (ev.lineup || []).join("\n"),
         active: !!ev.active,
+        onlyMembers: !!ev.onlyMembers,
+        allowDuplicates:  !!ev.allowDuplicates,
         type: ev.type || EVENT_TYPES.STANDARD,
+        onlyFemales:false,
+        onlyOver21:false,
         image: null,
       }
       setForm(norm)
@@ -163,7 +171,7 @@ export default function EventsPage() {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-                <Button variant="ghost" onClick={() => router.push("/admin")}>
+                <Button variant="ghost" onClick={() =>router.push(routes.admin.dashboard)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Torna admin
           </Button>
           
@@ -288,8 +296,7 @@ export default function EventsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => router.push(routes.admin.events + `/${ev.id}`)}
-                          >
+                            onClick={() => router.push(routes.admin.eventDetails(ev.id))}                          >
                             <Eye className="h-5 w-5" />
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => openModal(ev.id)}>

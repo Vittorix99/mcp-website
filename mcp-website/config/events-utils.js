@@ -7,6 +7,7 @@ export const EVENT_TYPES = Object.freeze({
   FREE:        "free",
   PRIVATE:     "private",
   CUSTOM_EP12: "custom_ep12",
+  CUSTOM_EP13: "custom_ep13",
   EXTERNAL: "external_link"
 });
 
@@ -16,5 +17,8 @@ export const EVENT_COMPONENTS = {
   [EVENT_TYPES.PRIVATE]:     dynamic(() => import("@/components/pages/events/event-types/PrivateContent")),
   [EVENT_TYPES.FREE]:        dynamic(() => import("@/components/pages/events/event-types/FreeContent")),
   [EVENT_TYPES.CUSTOM_EP12]: dynamic(() => import("@/components/pages/events/event-types/CustomEp12Content")),
+  [EVENT_TYPES.CUSTOM_EP13]: dynamic(() => import("@/components/pages/events/event-types/CustomEp13Content")),
+
+
   [EVENT_TYPES.EXTERNAL]: dynamic(() => import("@/components/pages/events/event-types/ExternalLinkContent"))
 };

@@ -12,6 +12,7 @@ import { getImageUrl } from "@/config/firebaseStorage"
 import QuantitySelector from "@/components/pages/events/QuantitySelector"
 import ParticipantsInfoPanel from "@/components/pages/events/ParticipantsInfoPanel"
 import { PayPalSection } from "@/components/pages/events/PayPalSection"
+import { PURCHASE_TYPES } from "@/config/purchaseTypes"
 import ParticipantsModal from "@/components/pages/events/modals/ParticipantsModal"
 import EventImage from "@/components/pages/events/EventImage"
 import { SelectParticipants } from "@/components/pages/events/SelectParticipants"
@@ -25,9 +26,15 @@ const isEventActive = event =>
 
 const isEventPast = event => {
   if (!event?.date) return false
+
   const [d, m, y] = event.date.split("-").map(Number)
-  return new Date(y, m - 1, d) < new Date()
+
+  // Crea una data a mezzanotte del giorno successivo
+  const eventEnd = new Date(y, m - 1, d + 1) // giorno +1, ore 00:00 automaticamente
+
+  return new Date() >= eventEnd
 }
+
 
 export default function CustomEp12Content({ id, event, settings }) {
   const [quantity, setQuantity] = useState(1)
@@ -63,6 +70,7 @@ const cart = useMemo(() => {
     participants: updatedParticipants,
     price,
     fee,
+    eventMeta: { type: "custom_ep12" },
     membershipFee: event?.membershipFee,
     total: (price + fee) * quantity
   }
@@ -146,7 +154,7 @@ const cart = useMemo(() => {
                 ) : (
                   <>
                     <QuantitySelector quantity={quantity} setQuantity={formComplete ? () => {} : setQuantity} disabled={formComplete} />
-                    <ParticipantsInfoPanel quantity={quantity} membershipFee={event.membershipFee} />
+                    <ParticipantsInfoPanel event={event} quantity={quantity} membershipFee={event.membershipFee} />
 
                     {formComplete && participants.length === quantity ? (
                       <>
@@ -169,7 +177,7 @@ const cart = useMemo(() => {
                         <PayPalSection
                           event={event}
                           cart={cart}
-                          purchase_type="event_and_membership"
+                          purchase_type={PURCHASE_TYPES.EVENT_AND_MEMBERSHIP}
                         />                        
                         </div>
                       </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useError } from "@/contexts/errorContext";
 import {
   getMemberships,
@@ -21,6 +21,8 @@ export function useAdminMemberships() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
   const [membershipPrice, setMembershipPrice] = useState(null); // { price, year }
+  const [extrasLoading, setExtrasLoading] = useState(false);
+  const loadOneReqRef = useRef(0);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -43,44 +45,72 @@ export function useAdminMemberships() {
       setLoading(false);
     }
   }, [setError]);
+  
+  
+  
   const loadOne = useCallback(async (membershipId) => {
-  if (!membershipId) {
-    console.warn("⚠️ ID membership mancante");
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const res = await getMembershipById(membershipId);
-
-    if (res?.error) {
-      setError(res.error);
-      setSelected(null);
+    if (!membershipId) {
+      console.warn("⚠️ ID membership mancante");
       return;
     }
 
-    const [purchases, events] = await Promise.all([
-      getMembershipPurchases(membershipId),
-      getMembershipEvents(membershipId),
-    ]);
+    // token per evitare race conditions se l'utente cambia membership velocemente
+    const reqId = ++loadOneReqRef.current;
 
+    // Fase 1: carica dati base (con loading globale)
+    setLoading(true);
+    try {
+      const res = await getMembershipById(membershipId);
+      if (res?.error) {
+        setError(res.error);
+        setSelected(null);
+        return;
+      }
 
+      // se nel frattempo è partito un altro loadOne, interrompi
+      if (reqId !== loadOneReqRef.current) return;
 
-    setSelected({
-      ...res,
-      purchases: purchases?.error ? [] : purchases,
-      events: events?.error ? [] : events,
-    });
+      // Aggiorna subito la UI con i dati base
+      setSelected({
+        ...res,
+        purchases: [],
+        events: [],
+      });
+    } catch (e) {
+      console.error("loadOne:getMembershipById error", e);
+      setError("Errore caricamento membership.");
+      setSelected(null);
+      return; // stop qui se la base fallisce
+    } finally {
+      setLoading(false); // fine fase 1
+    }
 
-  
-  } catch (e) {
-    setError("Errore caricamento membership.");
-    setSelected(null);
-  } finally {
-    setLoading(false);
-  }
-}, [setError]);
+    // Fase 2: carica acquisti ed eventi in background (senza bloccare la UI)
+    setExtrasLoading(true);
+    try {
+      const [purchases, events] = await Promise.all([
+        getMembershipPurchases(membershipId),
+        getMembershipEvents(membershipId),
+      ]);
+
+      // evita update se nel frattempo è stato lanciato un altro loadOne
+      if (reqId !== loadOneReqRef.current) return;
+
+      setSelected((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          purchases: purchases?.error ? [] : purchases,
+          events: events?.error ? [] : events,
+        };
+      });
+    } catch (e) {
+      console.error("loadOne:extras error", e);
+      // opzionale: potresti mostrare un toast non bloccante
+    } finally {
+      setExtrasLoading(false);
+    }
+  }, [setError]);
 
 
 
@@ -248,6 +278,7 @@ const getCurrentYearPrice = useCallback(async () => {
     setError,
     setCurrentYearPrice,
     getCurrentYearPrice,
+    extrasLoading,
     membershipPrice
 
   };

@@ -34,6 +34,10 @@ const DEFAULTS = {
   price: null,
   membershipFee: null,
   fee:null,
+  onlyMembers: false,
+  allowDuplicates: false,
+  over21Only:false,
+  onlyFemales:false,
 
   photoPath: null,
 };

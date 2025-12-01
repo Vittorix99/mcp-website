@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical } from "lucide-react"
 import { motion } from "framer-motion"
 import * as XLSX from "xlsx"
+import {routes} from "@/config/routes"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card"
@@ -35,6 +36,9 @@ export default function MembershipsPage() {
   } = useAdminMemberships()
 
   const [search, setSearch] = useState("")
+  const [showOnlyNotSent, setShowOnlyNotSent] = useState(false)
+  const [phoneFilter, setPhoneFilter] = useState("")
+  const [emailFilter, setEmailFilter] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [form, setForm] = useState({})
@@ -63,10 +67,23 @@ export default function MembershipsPage() {
     XLSX.writeFile(wb, `membri_${Date.now()}.xlsx`)
   }
 
-  const filtered = useMemo(
-    () => memberships.filter((m) => `${m.name} ${m.surname}`.toLowerCase().includes(search.toLowerCase())),
-    [memberships, search],
-  )
+  const filtered = useMemo(() => {
+    const s = (search || "").toLowerCase()
+    const e = (emailFilter || "").toLowerCase()
+    const p = (phoneFilter || "").trim()
+
+    return memberships.filter((m) => {
+      const fullName = `${m.name || ""} ${m.surname || ""}`.toLowerCase()
+      const phoneVal = (m.phone || "")
+      const emailVal = (m.email || "").toLowerCase()
+
+      if (s && !fullName.includes(s)) return false
+      if (showOnlyNotSent && !!m.membership_sent) return false
+      if (p && !phoneVal.includes(p)) return false
+      if (e && !emailVal.includes(e)) return false
+      return true
+    })
+  }, [memberships, search, showOnlyNotSent, phoneFilter, emailFilter])
 
   const stats = useMemo(
     () => ({
@@ -146,7 +163,7 @@ export default function MembershipsPage() {
         className="space-y-6 pb-8"
       >
        <div>
-                <Button variant="ghost" onClick={() => router.push("/admin")}>
+                <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Torna admin
           </Button>
           
@@ -217,6 +234,28 @@ export default function MembershipsPage() {
             </Button>
           </div>
         </div>
+        <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
+          <label className="flex items-center gap-2 text-sm text-gray-300">
+            <input
+              type="checkbox"
+              checked={showOnlyNotSent}
+              onChange={(e) => setShowOnlyNotSent(e.target.checked)}
+            />
+            Solo senza tessera inviata
+          </label>
+          <Input
+            value={phoneFilter}
+            onChange={(e) => setPhoneFilter(e.target.value)}
+            placeholder="Filtra per telefono"
+            className="md:max-w-xs"
+          />
+          <Input
+            value={emailFilter}
+            onChange={(e) => setEmailFilter(e.target.value)}
+            placeholder="Filtra per email"
+            className="md:max-w-xs"
+          />
+        </div>
 
         <Card>
           <CardContent className="p-0 md:p-6">
@@ -266,7 +305,7 @@ export default function MembershipsPage() {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  onClick={() => router.push(`/admin/memberships/${m.id}`)}
+                                  onClick={() => router.push(routes.admin.membershipDetails(m.id))}
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
@@ -327,7 +366,8 @@ export default function MembershipsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/admin/memberships/${m.id}`)}>
+                            <DropdownMenuItem onClick={() => router.push(routes.admin.membershipDetails(m.id))}>
+
                               <Eye className="mr-2 h-4 w-4" /> Vedi Profilo
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openForm(m)}>

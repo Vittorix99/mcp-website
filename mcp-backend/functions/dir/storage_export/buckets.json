@@ -2,6 +2,9 @@
   "buckets": [
     {
       "id": "mcp-website-2a1ad.firebasestorage.app"
+    },
+    {
+      "id": "mcp-website-2a1ad.appspot.com"
     }
   ]
 }

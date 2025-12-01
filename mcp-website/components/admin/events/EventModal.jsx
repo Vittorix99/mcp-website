@@ -100,20 +100,53 @@ export function EventModal({
           />
           <span>Evento attivo</span>
         </label>
-        <div className="w-full sm:w-auto flex-1">
-          <Label htmlFor="type">Tipo Evento</Label>
-          <select
-            id="type"
-            name="type"
-            value={form.type || ""}
-            onChange={onSelectType}
-            className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1"
-          >
-            {Object.values(EVENT_TYPES).map((val) => (
-              <option key={val} value={val}>{val}</option>
-            ))}
-          </select>
-        </div>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.onlyMembers || false}
+            onChange={(e) => onCheckbox("onlyMembers", e.target.checked)}
+          />
+          <span>Vendita riservata ai Membri</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.allowDuplicates || false}
+            onChange={(e) => onCheckbox("allowDuplicates", e.target.checked)}
+          />
+          <span>Consenti duplicati</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.over21Only || false}
+            onChange={(e) => onCheckbox("over21Only", e.target.checked)}
+          />
+          <span>Solo Over 21</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.onlyFemales || false}
+            onChange={(e) => onCheckbox("onlyFemales", e.target.checked)}
+          />
+          <span>Solo Donne</span>
+        </label>
+      </div>
+
+      <div className="w-full">
+        <Label htmlFor="type">Tipo Evento</Label>
+        <select
+          id="type"
+          name="type"
+          value={form.type || ""}
+          onChange={onSelectType}
+          className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1"
+        >
+          {Object.values(EVENT_TYPES).map((val) => (
+            <option key={val} value={val}>{val}</option>
+          ))}
+        </select>
       </div>
     </>
   )

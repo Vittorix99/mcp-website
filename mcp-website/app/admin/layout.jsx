@@ -43,7 +43,7 @@ export default function AdminLayout({ children }) {
   useEffect(() => {
     const allowMobile = process.env.NEXT_PUBLIC_ADMIN_ON_MOBILE === "true"
      if (!loading && (!user || !isAdmin)) {
-      router.push('/error/not-admin')
+      router.push(routes.error.notAdmin)
     }
  
   }, [user, isAdmin, loading, isMobile, router])

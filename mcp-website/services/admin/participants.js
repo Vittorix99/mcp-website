@@ -75,11 +75,13 @@ export async function sendLocationToParticipant({ eventId, participantId, addres
     link,
   });
 }
-export async function sendLocationToAllParticipants({ eventId, address, link }) {
+// Avvio job asincrono "send_location" (nuovo flusso)
+export async function startSendLocationJobService({ eventId, address, link, message }) {
   return safeFetch(endpoints.admin.sendLocationToAll, 'POST', {
     eventId,
     address,
     link,
+    message,
   });
 }
 export async function sendTicketToParticipant(participantId, eventId) {

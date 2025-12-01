@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 from utils.pdf_template import generate_ticket_pdf
 from config.firebase_config import db, bucket, cors
+from config.event_types import EventTypes
 
 
 
@@ -25,6 +26,8 @@ def process_new_ticket(participant_id, participant_data, send=True):
             return {"success": False, "error": f"Event {event_id} not found"}
         event_data = event_doc.to_dict()
         print(f"📅 Evento trovato: {event_data.get('title')}")
+        ev_type = (event_data.get("type") or "").lower()
+        print(f"📦 Event type: {ev_type}")
 
         # 📄 Genera PDF
         pdf_buffer = generate_ticket_pdf(participant_data, event_data, "logos/logo_white.png")

@@ -2,7 +2,7 @@ import logging
 from flask import jsonify
 from firebase_functions import https_fn
 from config.firebase_config import cors
-from services.payments_service import create_order_service, capture_order_service
+from services.payments_service import PaymentService
 from config.firebase_config import region
 @https_fn.on_request(cors=cors, region=region)
 def create_order(req):
@@ -14,7 +14,7 @@ def create_order(req):
     if not req_json:
         return jsonify({"error": "Missing request body"}), 400
 
-    return create_order_service(req_json)
+    return PaymentService.instance().create_order(req_json)
 
 @https_fn.on_request(cors=cors, region=region)
 def capture_order(req):
@@ -26,4 +26,4 @@ def capture_order(req):
     if not req_json:
         return jsonify({"error": "Missing request body"}), 400
 
-    return capture_order_service(req_json)
+    return PaymentService.instance().capture_order(req_json)

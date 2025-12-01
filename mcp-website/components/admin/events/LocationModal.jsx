@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 export function LocationModal({
   isOpen,
@@ -13,6 +14,8 @@ export function LocationModal({
   setAddress,
   link,
   setLink,
+  message,
+  setMessage,
   onSubmit
 }) {
   if (!isOpen) return null;
@@ -30,7 +33,7 @@ export function LocationModal({
         <form
           onSubmit={e => {
             e.preventDefault();
-            onSubmit({ address: address ?? "", link: link ?? "" });
+            onSubmit({ address: address ?? "", link: link ?? "", message: (message ?? "") });
           }}
           className="space-y-4"
         >
@@ -50,6 +53,16 @@ export function LocationModal({
               value={link ?? ""}
               onChange={e => setLink(e.target.value)}
               placeholder="https://..."
+            />
+          </div>
+          <div>
+            <Label htmlFor="message">Messaggio (opzionale)</Label>
+            <Textarea
+              id="message"
+              value={message ?? ""}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Scrivi un messaggio per i partecipanti..."
+              rows={4}
             />
           </div>
           <div className="flex justify-end gap-2 pt-4">

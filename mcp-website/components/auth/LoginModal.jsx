@@ -37,7 +37,7 @@ export default function LoginModal() {
         setIsAdmin(token.claims.admin)
         router.push(routes.admin.dashboard)
       } else {
-        router.push("/")
+        router.push(routes.home)
       }
     } catch (error) {
       setError("Invalid email or password")
