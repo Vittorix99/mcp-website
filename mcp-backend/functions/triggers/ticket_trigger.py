@@ -12,12 +12,11 @@ import requests
 from google.cloud import firestore
 from services.ticket_service import process_new_ticket, log_failed_ticket_email
 
-from services.singup_service import process_new_membership
+from utils.membership_cards import process_new_membership
 import datetime
 from config.firebase_config import region, db
 from utils.events_utils import is_valid_email
-import os
-GENDER_API_URL = os.environ.get("GENDER_API_URL", "https://api.genderize.io")
+from config.external_services import GENDER_API_URL
 
 
 @on_document_created(document="participants/{eventId}/participants_event/{participantId}", region=region)
@@ -125,7 +124,7 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
         # 🔍 Determina se inviare la tessera basandosi sul campo `send_card_on_create`
         send_card = membership_data.get("send_card_on_create", True)
 
-        result = process_new_membership(membership_id, membership_data, sent_on_create=send_card)
+        result = process_new_membership(membership_id, membership_data, sent_on_create=True)
 
         if not result.get("success", False):
             print(f"❌ Failed to process membership: {result.get('error', 'Unknown error')}")

@@ -12,17 +12,25 @@ import { useCheckParticipants } from "@/hooks/useCheckParticipants"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 import { analytics } from "@/config/firebase"
 import { logEvent } from "firebase/analytics"
-import { EVENT_TYPES } from "@/config/events-utils"
+import { PURCHASE_MODES, resolvePurchaseMode } from "@/config/events-utils"
 import "@/app/style/modal.css"
 
-export default function ParticipantsModal({ open, onOpenChange, quantity, event, eventMeta = { nonMembers: [] }, onEventMetaChange = () => {}, onSubmit }) {
+export default function ParticipantsModal({
+  open,
+  onOpenChange,
+  quantity,
+  event,
+  eventMeta = { nonMembers: [] },
+  onEventMetaChange = () => {},
+  onSubmit,
+}) {
   const empty = () => ({ name: "", surname: "", email: "", phone: "", birthdate: "" })
   const [fields, setFields] = useState([])
   const [current, setCurrent] = useState(0)
   const { checkParticipants, loading, errors: checkErrors } = useCheckParticipants()
   const isDesktop = useMediaQuery("(min-width: 768px)")
 
-  // EP13 (onlyMembers=false): mostra disclaimer e consenso se alcuni non sono membri
+  // Modalità ONLY_MEMBERS: mostra disclaimer e consenso se alcuni partecipanti non sono ancora tesserati
   const [nonMembers, setNonMembers] = useState([])
   const [requireConsent, setRequireConsent] = useState(false)
   const [consentChecked, setConsentChecked] = useState(false)
@@ -30,6 +38,9 @@ export default function ParticipantsModal({ open, onOpenChange, quantity, event,
   const disclaimerRef = useRef(null)
   const blockClose = requireConsent && !consentChecked
   const fieldsLocked = requireConsent === true
+  const purchaseMode = resolvePurchaseMode(event)
+  const requiresExistingMembership = purchaseMode === PURCHASE_MODES.ONLY_ALREADY_REGISTERED_MEMBERS
+  const membershipIncluded = purchaseMode === PURCHASE_MODES.ONLY_MEMBERS
 
   useEffect(() => {
     if (open) {
@@ -102,8 +113,8 @@ export default function ParticipantsModal({ open, onOpenChange, quantity, event,
     const valid = typeof result === "boolean" ? result : result?.valid
     if (!valid) return
 
-    // EP13: onlyMembers=false -> non blocchiamo, ma se ci sono non-membri chiediamo consenso
-    if ((event?.type || "").toLowerCase() === EVENT_TYPES.CUSTOM_EP13 && !event?.onlyMembers) {
+    // In modalità ONLY_MEMBERS non blocchiamo, ma se ci sono non membri chiediamo il consenso esplicito
+    if (membershipIncluded) {
       const nm = Array.isArray(result?.nonMembers) ? result.nonMembers : []
       if (nm.length > 0) {
         setNonMembers(nm)
@@ -157,7 +168,7 @@ export default function ParticipantsModal({ open, onOpenChange, quantity, event,
               </Alert>
             </motion.div>
           )}
-          {event.onlyMembers && checkErrors.length > 0 && (
+          {requiresExistingMembership && checkErrors.length > 0 && (
             <motion.div
               key="only-members-error"
               initial={{ opacity: 0, y: -5 }}
@@ -171,7 +182,7 @@ export default function ParticipantsModal({ open, onOpenChange, quantity, event,
               </Alert>
             </motion.div>
           )}
-          {requireConsent && nonMembers.length > 0 && (event?.type || "").toLowerCase() === "custom_ep13" && !event?.onlyMembers && (
+          {requireConsent && nonMembers.length > 0 && membershipIncluded && (
             <motion.div
               key="ep13-nonmembers-disclaimer"
               initial={{ opacity: 0, y: -5 }}

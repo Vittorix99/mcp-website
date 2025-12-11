@@ -115,6 +115,26 @@ const maybeUploadImage = async (eventData) => {
         if (res?.error) {
           setError(res.error);
         } else {
+          // Aggiorna subito i campi critici (active/price) per avere feedback istantaneo
+          setEvents((prev) =>
+            prev.map((ev) => {
+              if (ev.id !== eventId) return ev;
+              const patch = {};
+              if (Object.prototype.hasOwnProperty.call(payload, "active")) {
+                patch.active = payload.active;
+              }
+              if (Object.prototype.hasOwnProperty.call(payload, "price")) {
+                patch.price = payload.price;
+              }
+              if (Object.prototype.hasOwnProperty.call(payload, "fee")) {
+                patch.fee = payload.fee;
+              }
+              if (Object.prototype.hasOwnProperty.call(payload, "purchaseMode")) {
+                patch.purchaseMode = payload.purchaseMode;
+              }
+              return Object.keys(patch).length ? { ...ev, ...patch } : ev;
+            })
+          );
           await loadEvents();
         }
       } catch (err) {

@@ -2,8 +2,8 @@ import logging
 from flask import jsonify
 from firebase_functions import https_fn
 from config.firebase_config import cors, region
-from services.admin.auth_services import require_admin
-from services.admin.stats_service import StatsService
+from services.auth_service import require_admin
+from services.stats_service import StatsService
 
 logger = logging.getLogger("AdminStatsAPI")
 stats_service = StatsService()

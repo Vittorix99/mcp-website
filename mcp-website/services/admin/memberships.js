@@ -27,7 +27,7 @@ export async function deleteMembership(membership_id) {
 export async function sendMembershipCard({ membership_id }) {
   return safeFetch(endpoints.admin.sendMembershipCard, "POST", { membership_id });
 }
-// 🆕 Recupera tutti gli acquisti associati al membro
+//  Recupera tutti gli acquisti associati al membro
 export async function getMembershipPurchases(membership_id) {
   const endpointUrl = `${endpoints.admin.getMembershipPurchases}?id=${membership_id}`;
   return safeFetch(endpointUrl, "GET");
@@ -39,7 +39,7 @@ export async function getMembershipEvents(membership_id) {
 }
 export async function setMembershipFee(membership_fee) {
   if (typeof membership_fee !== "number" || isNaN(membership_fee)) {
-    console.error("❌ membership_fee non valido:", membership_fee);
+    console.error(" membership_fee non valido:", membership_fee);
     return { error: "Prezzo non valido" };
   }
 

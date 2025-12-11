@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { routes } from "@/config/routes"
 import { EventModal } from "@/components/admin/events/EventModal"
-import { EVENT_TYPES } from "@/config/events-utils"
+import { PURCHASE_MODES, resolvePurchaseMode } from "@/config/events-utils"
 import { EventThumbnail } from "@/components/admin/events/EventThumbnail"
 
 export default function EventsPage() {
@@ -25,21 +25,21 @@ export default function EventsPage() {
   const emptyForm = {
     title: "",
     location: "",
+    locationHint: "",
     date: "",
     startTime: "",
     endTime: "",
     price: "",
-    fee:"",
+    fee: "",
     membershipFee: "",
     note: "",
     lineup: "",
     active: true,
-    type: EVENT_TYPES.STANDARD,
+    purchaseMode: PURCHASE_MODES.PUBLIC,
     image: null,
-    onlyMembers:false,
-    allowDuplicates:false,
-    onlyFemales:false,
-    onlyOver21:false,
+    allowDuplicates: false,
+    onlyFemales: false,
+    over21Only: false,
   }
 
   const [form, setForm] = useState(emptyForm)
@@ -51,9 +51,9 @@ export default function EventsPage() {
 
   const onInput = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
   const onCheckbox = (name, value) => {
-  setForm((f) => ({ ...f, [name]: value }))
-}
-  const onSelectType = (e) => setForm((f) => ({ ...f, type: e.target.value }))
+    setForm((f) => ({ ...f, [name]: value }))
+  }
+  const onSelectPurchaseMode = (e) => setForm((f) => ({ ...f, purchaseMode: e.target.value }))
   const onFileChange = (e) => setForm((f) => ({ ...f, image: e.target.files[0] }))
 
   function openModal(id = null) {
@@ -64,6 +64,7 @@ export default function EventsPage() {
       const norm = {
         title: ev.title,
         location: ev.location,
+        locationHint: ev.locationHint || "",
         date: `${y}-${m}-${d}`,
         startTime: ev.startTime,
         endTime: ev.endTime,
@@ -73,11 +74,10 @@ export default function EventsPage() {
         note: ev.note || "",
         lineup: (ev.lineup || []).join("\n"),
         active: !!ev.active,
-        onlyMembers: !!ev.onlyMembers,
-        allowDuplicates:  !!ev.allowDuplicates,
-        type: ev.type || EVENT_TYPES.STANDARD,
-        onlyFemales:false,
-        onlyOver21:false,
+        allowDuplicates: !!ev.allowDuplicates,
+        purchaseMode: resolvePurchaseMode(ev),
+        onlyFemales: !!ev.onlyFemales,
+        over21Only: !!ev.over21Only,
         image: null,
       }
       setForm(norm)
@@ -150,9 +150,10 @@ export default function EventsPage() {
   const filtered = useMemo(() => {
     return events
       .filter(
-        (ev) =>
-          ev.title.toLowerCase().includes(search.toLowerCase()) ||
-          ev.location.toLowerCase().includes(search.toLowerCase()),
+        (ev) => {
+          const locText = (ev.locationHint || ev.location || "").toLowerCase()
+          return ev.title.toLowerCase().includes(search.toLowerCase()) || locText.includes(search.toLowerCase())
+        },
       )
       .sort((a, b) => {
         const [da, ma, ya] = a.date.split("-").map(Number)
@@ -266,6 +267,7 @@ export default function EventsPage() {
                 ) : filtered.length ? (
                   filtered.map((ev) => {
                     const st = getStatus(ev)
+                    const purchaseMode = resolvePurchaseMode(ev)
                     return (
                       <TableRow key={ev.id}>
                         <TableCell>
@@ -274,7 +276,7 @@ export default function EventsPage() {
                             <div>
                               <div className="font-medium">{ev.title}</div>
                               <div className="text-sm text-gray-400">{ev.location}</div>
-                              <div className="text-xs text-gray-500 italic">{ev.type}</div>
+                              <div className="text-xs text-gray-500 italic">{purchaseMode}</div>
                             </div>
                           </div>
                         </TableCell>
@@ -334,6 +336,7 @@ export default function EventsPage() {
             ) : filtered.length ? (
               filtered.map((ev) => {
                 const st = getStatus(ev)
+                const purchaseMode = resolvePurchaseMode(ev)
                 return (
                   <Card key={ev.id} className="bg-neutral-900 border-neutral-800">
                     <CardHeader className="flex flex-row items-start justify-between gap-4 p-4">
@@ -342,7 +345,7 @@ export default function EventsPage() {
                         <div>
                           <h3 className="font-bold">{ev.title}</h3>
                           <p className="text-sm text-gray-400">{ev.location}</p>
-                          <p className="text-xs text-gray-500 italic">{ev.type}</p>
+                          <p className="text-xs text-gray-500 italic">{purchaseMode}</p>
                         </div>
                       </div>
                       <DropdownMenu>
@@ -405,7 +408,7 @@ export default function EventsPage() {
         onSubmit={handleSubmit}
         onInput={onInput}
         onCheckbox={onCheckbox}
-        onSelectType={onSelectType}
+        onSelectMode={onSelectPurchaseMode}
         onFileChange={onFileChange}
       />
     </motion.div>

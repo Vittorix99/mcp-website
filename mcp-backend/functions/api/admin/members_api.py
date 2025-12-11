@@ -4,8 +4,8 @@ from firebase_functions import https_fn
 from config.firebase_config import region
 from flask import request, jsonify
 from config.firebase_config import cors
-from services.admin.auth_services import require_admin
-from services.admin.member_serice import MembershipsService
+from services.auth_service import require_admin
+from services.memberships_service import MembershipsService
 
 memberships_service = MembershipsService()
 

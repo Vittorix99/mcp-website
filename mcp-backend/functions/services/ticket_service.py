@@ -6,7 +6,6 @@ import sys
 from datetime import datetime
 from utils.pdf_template import generate_ticket_pdf
 from config.firebase_config import db, bucket, cors
-from config.event_types import EventTypes
 
 
 
@@ -26,8 +25,7 @@ def process_new_ticket(participant_id, participant_data, send=True):
             return {"success": False, "error": f"Event {event_id} not found"}
         event_data = event_doc.to_dict()
         print(f"📅 Evento trovato: {event_data.get('title')}")
-        ev_type = (event_data.get("type") or "").lower()
-        print(f"📦 Event type: {ev_type}")
+        print(f"📦 Event purchase mode: {event_data.get('type')}")
 
         # 📄 Genera PDF
         pdf_buffer = generate_ticket_pdf(participant_data, event_data, "logos/logo_white.png")
@@ -51,7 +49,7 @@ def process_new_ticket(participant_id, participant_data, send=True):
         print("Send is:", send)
         if send:
             # 📧 Prepara contenuto email
-            subject = f"🎟️ Il tuo ticket per {event_data.get('title')}"
+            subject = f"🎟️ La tua partecipazione per {event_data.get('title')}"
             html_content = get_ticket_email_template(participant_data, event_data)
             text_content = f"""
 Grazie per la tua partecipazione!
@@ -64,7 +62,7 @@ Dettagli:
 - Nome: {name} 
 - Cognome: {surname}
 
-Troverai il tuo biglietto in allegato a questa email.
+Troverai la tua partecipazione in allegato a questa email.
 
 Ci vediamo lì! 
 """
@@ -103,7 +101,7 @@ def log_failed_ticket_email(participant_id, participant_data, error_message):
     """Logga l'errore in caso di invio email fallito."""
     try:
         db.collection("contact_message").add({
-            "subject": "⚠️ Ticket Email Failed",
+            "subject": "⚠️ Partecipazione Email Failed",
             "participant_id": participant_id,
             "event_id": participant_data.get("event_id"),
             "email": participant_data.get("email"),

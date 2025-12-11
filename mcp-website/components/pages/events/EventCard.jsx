@@ -59,6 +59,8 @@ export default function EventCard({ event }) {
 
   const past = isPastEvent()
 
+  const publicLocation = event.locationHint || event.location || "Private Location (PA)"
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -92,7 +94,7 @@ export default function EventCard({ event }) {
               </div>
               <div className="flex items-center text-gray-300 text-sm">
                 <MapPin className="w-4 h-4 mr-2 text-mcp-orange flex-shrink-0" />
-                <span className="truncate">{event.location || "Private Location (PA)"}</span>
+                <span className="truncate">{publicLocation}</span>
               </div>
               <div className="flex items-center text-gray-300 text-sm">
                 <Clock className="w-4 h-4 mr-2 text-mcp-orange flex-shrink-0" />

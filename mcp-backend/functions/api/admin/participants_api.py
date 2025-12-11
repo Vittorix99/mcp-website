@@ -1,8 +1,8 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors
-from services.admin.auth_services import require_admin
-from services.admin.participants_service import ParticipantsService
-from services.admin.location_service import LocationService
+from services.auth_service import require_admin
+from services.participants_service import ParticipantsService
+from services.location_service import LocationService
 from config.firebase_config import region
 
 location_service = LocationService()

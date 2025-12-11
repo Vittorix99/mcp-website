@@ -101,6 +101,7 @@ export function NextEventSection({ event }) {
   }
 
   const filteredLineup = event.lineup.filter((artist) => artist.trim() !== "")
+  const publicLocation = event.locationHint || event.location
 
   return (
     <section className="py-12 md:py-24 md:bg-black/50 md:backdrop-blur-md relative">
@@ -132,10 +133,10 @@ export function NextEventSection({ event }) {
                       <Clock className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
                       {event.startTime} - {event.endTime}
                     </p>
-                    {event.location && (
+    {publicLocation && (
                       <p className="flex items-center">
                         <MapPin className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
-                        {event.location}
+                        {publicLocation}
                       </p>
                     )}
                   </div>

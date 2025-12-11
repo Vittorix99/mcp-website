@@ -1,7 +1,8 @@
 "use client"
 
 import { Info } from "lucide-react"
-import { EVENT_TYPES } from "@/config/events-utils"
+import { PURCHASE_MODES, resolvePurchaseMode } from "@/config/events-utils"
+
 function PanelBox({ children }) {
   return (
     <div className="bg-black/30 border border-mcp-orange/30 rounded-lg p-4 space-y-4 mt-6">
@@ -13,82 +14,61 @@ function PanelBox({ children }) {
   )
 }
 
-// --- Child: EP12 ---
-function EP12Panel({ quantity = 1, membershipFee = 10 }) {
-  const totalMembership = (Number(quantity) || 0) * (Number(membershipFee) || 0)
+function PublicPanel() {
   return (
     <PanelBox>
       <p>
-        Questo evento è riservato esclusivamente ai soci dell'associazione culturale
-        <strong> Music Connecting People ETS</strong>.
-      </p>
-      <p className="text-sm text-gray-300 font-helvetica">
-        Per ogni partecipante è inclusa una quota associativa obbligatoria di
-        <strong className="text-mcp-orange"> {Number(membershipFee).toFixed(2)}€</strong>, per un totale di
-        <strong className="text-mcp-orange"> {totalMembership.toFixed(2)}€</strong>.
-      </p>
-      <p className="text-sm text-gray-300 font-helvetica">Dopo il pagamento, ogni partecipante riceverà via email:</p>
-      <ul className="list-disc list-inside mt-1 text-gray-400">
-        <li>La tessera associativa digitale</li>
-        <li>Il biglietto dell'evento</li>
-        <li>Le informazioni per raggiungere la location in un secondo momento</li>
-      </ul>
-      <p className="text-sm text-gray-300 font-helvetica">
-        Ti verranno richiesti nome, cognome, numero di telefono e email per ciascun partecipante.
-      </p>
-    </PanelBox>
-  )
-}
-
-// --- Child: EP13 (onlyMembers = true) ---
-function EP13OnlyMembersPanel() {
-  return (
-    <PanelBox>
-      <p>
-        Questo evento è <strong>riservato esclusivamente ai membri</strong> dell'associazione culturale
-        <strong> Music Connecting People ETS</strong>. L'idoneità viene verificata al checkout.
+        Evento aperto ai soci MCP e a chi desidera tesserarsi. Dopo il pagamento riceverai biglietto e istruzioni via
+        email.
       </p>
       <p className="text-gray-300">
-        Assicurati di inserire <em>nome, cognome ed email</em> con cui sei tesserato.
+        Ti verranno richiesti nome, cognome, numero di telefono, email e data di nascita per ogni partecipante.
       </p>
     </PanelBox>
   )
 }
 
-// --- Child: EP13 (onlyMembers = false) ---
-function EP13OpenPanel() {
+function OnlyMembersPanel() {
   return (
     <PanelBox>
       <p>
-        Prezzo <strong>uguale per tutti</strong>. Se un partecipante non è ancora membro, procedendo con l'acquisto
-        <strong> accetta di diventare membro MCP ETS</strong> e di aderire allo Statuto dell'associazione.
+        Questo evento è <strong>riservato ai membri già registrati</strong>. L'idoneità viene verificata automaticamente
+        al checkout.
       </p>
-      <ul className="list-disc list-inside mt-1 text-gray-300">
-        <li>Biglietto digitale inviato via email</li>
-        <li>Per i non membri: attivazione della tessera associativa (senza costi extra oltre il prezzo indicato)</li>
-        <li>Informazioni per raggiungere la location inviate in seguito</li>
-      </ul>
+      <p className="text-gray-300">Inserisci gli stessi dati (nome, cognome, email) usati per il tesseramento MCP.</p>
+    </PanelBox>
+  )
+}
+
+function MembershipIncludedPanel({ membershipFee, quantity }) {
+  return (
+    <PanelBox>
+      <p>
+        I partecipanti non ancora membri <strong>diventeranno soci MCP</strong> contestualmente all’acquisto.
+      </p>
       <p className="text-gray-300">
-        Ti verranno richiesti nome, cognome, telefono ed email per ciascun partecipante.
+        La tessera MCP è già inclusa nel prezzo finale, quindi i nuovi membri non pagano costi aggiuntivi oltre al biglietto.
+      </p>
+      <p className="text-gray-300">
+        Tutti i partecipanti riceveranno biglietto, tessera digitale (se necessaria) e informazioni sulla location.
       </p>
     </PanelBox>
   )
 }
 
-export default function ParticipantsInfoPanel({ event, quantity = 1, membershipFee = 10 }) {
-  const type = (event?.type || "").toLowerCase()
-  const onlyMembers = !!event?.onlyMembers
-    // Debug: log what the component sees
-    // eslint-disable-next-line no-console
-    console.log("[ParticipantsInfoPanel] type=", type, "onlyMembers=", onlyMembers, "EVENT_TYPES=", EVENT_TYPES)
-  
+export default function ParticipantsInfoPanel({ event, quantity = 1, purchaseMode }) {
+  const mode = purchaseMode || resolvePurchaseMode(event)
 
-  if (type === EVENT_TYPES.CUSTOM_EP13) {
-    return onlyMembers ? <EP13OnlyMembersPanel /> : <EP13OpenPanel />
+  if (mode === PURCHASE_MODES.ONLY_ALREADY_REGISTERED_MEMBERS) {
+    return <OnlyMembersPanel />
   }
 
-  if (type === EVENT_TYPES.CUSTOM_EP12) {
-    return <EP12Panel quantity={quantity} membershipFee={membershipFee} />
+  if (mode === PURCHASE_MODES.ONLY_MEMBERS) {
+    return <MembershipIncludedPanel membershipFee={event?.membershipFee} quantity={quantity} />
+  }
+
+  if (mode === PURCHASE_MODES.PUBLIC) {
+    return <PublicPanel />
   }
 
   return null

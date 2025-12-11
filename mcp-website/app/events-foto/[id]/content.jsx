@@ -9,9 +9,12 @@ import ImageModal from "@/components/pages/modals/ImageModal"
 import { MasonryGallery } from "@/components/pages/pictures/MasonGallery"
 import { SectionTitle } from "@/components/ui/section-title"
 
-export function EventContent({ id }) {
-  const [event, setEvent] = useState(null)
-  const [loading, setLoading] = useState(true)
+const CACHE_KEY_PREFIX = "event-photos-cache-v1"
+const CACHE_TTL_MS = 1000 * 60 * 60 * 6 // 6 ore
+
+export function EventContent({ id, initialEvent = null }) {
+  const [event, setEvent] = useState(initialEvent)
+  const [loading, setLoading] = useState(!initialEvent)
   const [error, setError] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
   const [imageUrls, setImageUrls] = useState([])
@@ -20,31 +23,78 @@ export function EventContent({ id }) {
 
   useEffect(() => {
     let cancelled = false
+    const cacheKey = `${CACHE_KEY_PREFIX}:${id}`
+
+    const readCache = () => {
+      if (typeof window === "undefined") return null
+      try {
+        const raw = sessionStorage.getItem(cacheKey)
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (!parsed?.ts || Date.now() - parsed.ts > CACHE_TTL_MS) {
+          sessionStorage.removeItem(cacheKey)
+          return null
+        }
+        return parsed
+      } catch {
+        sessionStorage.removeItem(cacheKey)
+        return null
+      }
+    }
+
+    const cachedData = readCache()
+    const hasCache = Boolean(cachedData)
+
+    if (hasCache) {
+      setEvent(cachedData.event || initialEvent || null)
+      setImageUrls(cachedData.imageUrls || [])
+    } else if (initialEvent) {
+      setEvent(initialEvent)
+    }
+
+    setLoading(!hasCache && !initialEvent)
+    setImagesLoading(!hasCache)
+    firstImageLoadedRef.current = !!hasCache
+    setError(null)
 
     async function fetchEventAndPhotos() {
-      setLoading(true)
-      setImagesLoading(true)
-      firstImageLoadedRef.current = false
       try {
         const eventResponse = await getEventById(id)
-        if (eventResponse?.success && eventResponse?.event) {
-          if (cancelled) return
-          setEvent(eventResponse.event)
+        if (!eventResponse?.success || !eventResponse?.event) {
+          if (!initialEvent) setError("Unable to retrieve event details.")
+          setImagesLoading(false)
+          if (!initialEvent) setLoading(false)
+          return
+        }
 
-          const photoUrls = await getImageUrls(`foto/${eventResponse.event.photoPath}`)
+        if (cancelled) return
+        const cacheableEvent = cachedData?.event || initialEvent || eventResponse.event
+        const freshEvent = cacheableEvent || eventResponse.event
+
+        if (!freshEvent) {
+          setError("Unable to retrieve event details.")
+          setLoading(false)
+          setImagesLoading(false)
+          return
+        }
+
+        setEvent(freshEvent)
+        setLoading(false)
+
+        let formattedImageUrls = []
+        if (freshEvent.photoPath) {
+          const photoUrls = await getImageUrls(`foto/${freshEvent.photoPath}`)
           if (cancelled) return
 
-          const formattedImageUrls = (photoUrls || [])
+          formattedImageUrls = (photoUrls || [])
             .filter((url) => !url.toLowerCase().includes("cover.jpg"))
             .map((url, index) => ({
               src: url,
-              alt: `${eventResponse.event.title} - Photo ${index + 1}`,
+              alt: `${freshEvent.title} - Photo ${index + 1}`,
             }))
           setImageUrls(formattedImageUrls)
 
-          // Precarica almeno la prima immagine per mostrare la gallery senza flash
           if (formattedImageUrls.length > 0) {
-            // timeout di sicurezza in caso di rete lenta
             const fallback = setTimeout(() => {
               if (!cancelled && !firstImageLoadedRef.current) {
                 setImagesLoading(false)
@@ -61,17 +111,31 @@ export function EventContent({ id }) {
               clearTimeout(fallback)
               if (!cancelled) setImagesLoading(false)
             }
-            img.src = formattedImageUrls[0].src
+            img.src = formattedImageUrls[0]?.src
           } else {
             setImagesLoading(false)
           }
         } else {
-          setError("Unable to retrieve event details.")
+          setImageUrls([])
+          setImagesLoading(false)
+        }
+
+        if (!cancelled && typeof window !== "undefined") {
+          sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              event: freshEvent,
+              imageUrls: formattedImageUrls,
+              ts: Date.now(),
+            })
+          )
         }
       } catch (err) {
-        setError("An error occurred while fetching event data.")
-      } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setError("An error occurred while fetching event data.")
+          setLoading(false)
+          setImagesLoading(false)
+        }
       }
     }
 
@@ -79,7 +143,7 @@ export function EventContent({ id }) {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, initialEvent])
 
   // Wrapper a prova di overflow su mobile (navbar/pagine che strabordano)
   const MobileSafe = ({ children }) => (

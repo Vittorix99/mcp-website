@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Loader2, X } from "lucide-react"
-import { EVENT_TYPES } from "@/config/events-utils"
+import { PURCHASE_MODES } from "@/config/events-utils"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 
 export function EventModal({
@@ -19,7 +19,7 @@ export function EventModal({
   onSubmit,
   onInput,
   onCheckbox,
-  onSelectType,
+  onSelectMode,
   onFileChange,
 }) {
   const isMobile = !useMediaQuery("(min-width: 768px)")
@@ -44,6 +44,21 @@ export function EventModal({
           <Label htmlFor="location">Luogo</Label>
           <Input id="location" name="location" value={form.location || ""} onChange={onInput} required />
         </div>
+      </div>
+      <div>
+        <Label htmlFor="locationHint">Indicazione pubblica (location_hint)</Label>
+        <Input
+          id="locationHint"
+          name="locationHint"
+          value={form.locationHint || ""}
+          onChange={onInput}
+          placeholder="es: 'Zona Navigli, Milano' oppure 'Private location (PA)'"
+          maxLength={120}
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Testo visibile al pubblico. L’indirizzo completo verrà inviato solo a chi acquista.
+        </p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
@@ -103,14 +118,6 @@ export function EventModal({
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={form.onlyMembers || false}
-            onChange={(e) => onCheckbox("onlyMembers", e.target.checked)}
-          />
-          <span>Vendita riservata ai Membri</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
             checked={form.allowDuplicates || false}
             onChange={(e) => onCheckbox("allowDuplicates", e.target.checked)}
           />
@@ -135,16 +142,18 @@ export function EventModal({
       </div>
 
       <div className="w-full">
-        <Label htmlFor="type">Tipo Evento</Label>
+        <Label htmlFor="purchaseMode">Purchase mode</Label>
         <select
-          id="type"
-          name="type"
-          value={form.type || ""}
-          onChange={onSelectType}
+          id="purchaseMode"
+          name="purchaseMode"
+          value={form.purchaseMode || PURCHASE_MODES.PUBLIC}
+          onChange={onSelectMode}
           className="w-full bg-gray-800 border border-gray-600 text-white rounded px-2 py-1"
         >
-          {Object.values(EVENT_TYPES).map((val) => (
-            <option key={val} value={val}>{val}</option>
+          {Object.values(PURCHASE_MODES).map((val) => (
+            <option key={val} value={val}>
+              {val}
+            </option>
           ))}
         </select>
       </div>

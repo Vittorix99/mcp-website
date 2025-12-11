@@ -1,39 +1,50 @@
-import { Suspense } from "react";
-import { EventContent } from "./content";
-import { Loader2 } from "lucide-react";
-import { getAllEvents } from "@/services/events";
+import { Suspense } from "react"
+import { EventContent } from "./content"
+import { Loader2 } from "lucide-react"
+import { getAllEvents } from "@/services/events"
+import { endpoints } from "@/config/endpoints"
 
-// Force Next.js to use SSR for this page
-export const dynamic = "force-dynamic";
+export const revalidate = 3600
+export const dynamicParams = true
 
-// Generate static params for preloading (optional)
 export async function generateStaticParams() {
   try {
-    const events = await getAllEvents();
-
+    const events = await getAllEvents()
     if (!events?.success || !events?.events?.length) {
-      return [];
+      return []
     }
-
-    // Return the list of event IDs
-    return events.events.map(event => ({
+    return events.events.map((event) => ({
       id: event.id.toString(),
-    }));
+    }))
   } catch (error) {
-    console.error("Errore nel recupero degli eventi:", error);
-    return []; // Fallback to no pre-rendering if there's an error
+    console.error("Errore nel recupero degli eventi:", error)
+    return []
   }
 }
 
-// Main component with SSR enabled
+async function fetchEvent(eventId) {
+  if (!eventId) return null
+  try {
+    const response = await fetch(`${endpoints.getEventById}?id=${encodeURIComponent(eventId)}`, {
+      cache: "force-cache",
+      next: { revalidate },
+    })
+    if (!response.ok) return null
+    return await response.json()
+  } catch (error) {
+    console.error("Errore nel recupero dell'evento foto:", error)
+    return null
+  }
+}
+
 export default async function EventPhotosDetailPage({ params }) {
-  const { id } = await params // Directly get the dynamic ID from params
+  const { id } = await params
 
   if (!id) {
-    return (
-      <Suspense fallback={<div>Caricamento...</div>} />
-    );
+    return <Suspense fallback={<div>Caricamento...</div>} />
   }
+
+  const initialEvent = await fetchEvent(id)
 
   return (
     <Suspense
@@ -43,7 +54,7 @@ export default async function EventPhotosDetailPage({ params }) {
         </div>
       }
     >
-      <EventContent id={id} />
+      <EventContent id={id} initialEvent={initialEvent} />
     </Suspense>
-  );
+  )
 }

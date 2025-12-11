@@ -88,8 +88,8 @@ def get_ticket_email_template(ticket_data, event_data, pdf_url=None):
     instagram_url = os.getenv("INSTAGRAM_URL", "#")
 
     pdf_download_html = f"""
-        <p style="margin-top: 20px;">Click below to download your invitation:</p>
-        <a class="button" href="{pdf_url}" target="_blank">Download Ticket</a>
+        <p style="margin-top: 20px;">Clicca qui sotto per scaricare la tua partecipazione:</p>
+        <a class="button" href="{pdf_url}" target="_blank">Scarica la tua partecipazione</a>
     """ if pdf_url else ""
 
     membership_line = f"<br>Membership ID: {ticket_data.get('membershipId')}" if ticket_data.get("membershipId") else ""
@@ -181,8 +181,8 @@ def get_ticket_email_template(ticket_data, event_data, pdf_url=None):
         <div class="container">
             <img src="{logo_url}" alt="MCP Logo" class="logo">
 
-            <div class="header">Your Ticket for {event_data.get("title")}</div>
-            <p>Thank you for your purchase, {ticket_data.get("name")}!</p>
+            <div class="header">La tua partecipazione per {event_data.get("title")}</div>
+            <p>Grazie per la tua partecipazione, {ticket_data.get("name")}!</p>
 
             <div class="details">
                 <strong>Event Details:</strong><br>
@@ -190,7 +190,7 @@ def get_ticket_email_template(ticket_data, event_data, pdf_url=None):
                 Time: {event_data.get("startTime")} - {event_data.get("endTime")}<br>
                 Location: {event_data.get("location")}<br>
                 <br>
-                <strong>Your Ticket:</strong><br>
+                <strong>La tua partecipazione:</strong><br>
                 Name: {ticket_data.get("name")} {ticket_data.get("surname")}<br>
                 {membership_line}
             </div>

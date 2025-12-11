@@ -4,9 +4,11 @@ from firebase_functions.https_fn import Request, Response
 from firebase_admin import auth
 import json
 from config.firebase_config import region
-from services.contact_service import contact_us_service
+from services.messages_service import MessagesService
 from google.auth.exceptions import GoogleAuthError
 
+
+messages_service = MessagesService()
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -19,4 +21,4 @@ def contact_us(req):
     if not req_json:
         return 'Invalid request', 400
 
-    return contact_us_service(req_json)
+    return messages_service.submit_contact_message(req_json)

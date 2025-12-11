@@ -4,8 +4,7 @@
 
 // Force SSR in Next.js (important for Firebase Hosting)
 
-import { useState, useEffect, useMemo } from "react"
-import { db } from "@/config/firebase"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { routes } from "@/config/routes"
 
@@ -59,10 +58,11 @@ import { ParticipantModal } from "@/components/admin/participants/ParticipantMod
 import { LocationModal } from "@/components/admin/events/LocationModal"
 import { EventStats } from "@/components/admin/events/EventStats"
 import { exportParticipantsToExcel } from "@/lib/excel" // ✅ NUOVO IMPORT
+import { resolvePurchaseMode } from "@/config/events-utils"
 
 export default function EventContent({ id: eventId }) {
   const router = useRouter()
-  const { events, loading: evLoad } = useAdminEvents()
+  const { events, loading: evLoad, refreshEvents } = useAdminEvents()
   const {
     participants,
     loading: pLoad,
@@ -110,15 +110,32 @@ export default function EventContent({ id: eventId }) {
     loadAll()
   }, [eventId, loadAll])
 
+  const targetEvent = useMemo(() => events.find((e) => e.id === eventId) || null, [events, eventId])
+
+  const refreshRequestedRef = useRef(false)
+
   useEffect(() => {
-    const e = events.find((e) => e.id === eventId)
-    if (e) {
-      setEvent(e)
-      if (e.image) {
-        getImageUrl("events", `${e.image}.jpg`).then(setImageUrl).catch(console.error)
-      }
+    if (!targetEvent && !evLoad && !refreshRequestedRef.current) {
+      refreshRequestedRef.current = true
+      Promise.resolve(refreshEvents()).finally(() => {
+        refreshRequestedRef.current = false
+      })
     }
-  }, [events, eventId])
+  }, [targetEvent, evLoad, refreshEvents])
+
+  useEffect(() => {
+    if (!targetEvent) return
+    setEvent(targetEvent)
+    if (targetEvent.image) {
+      getImageUrl("events", `${targetEvent.image}.jpg`)
+        .then((url) => {
+          if (url) setImageUrl(url)
+        })
+        .catch(console.error)
+    } else {
+      setImageUrl(null)
+    }
+  }, [targetEvent])
 
   // reset page when filters/search change or dataset changes
   useEffect(() => {
@@ -267,6 +284,20 @@ export default function EventContent({ id: eventId }) {
     }
   }, [jobStatus, jobProgressDismissed])
 
+  const purchaseMode = resolvePurchaseMode(event)
+  const eventDateObj = useMemo(() => {
+    if (!event?.date) return null
+    const [d, m, y] = event.date.split("-").map(Number)
+    const parsed = new Date(y, (m || 1) - 1, d || 1)
+    return isNaN(parsed.getTime()) ? null : parsed
+  }, [event?.date])
+  const isPastEvent = useMemo(() => {
+    if (!eventDateObj) return false
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return eventDateObj < today
+  }, [eventDateObj])
+
   if (evLoad || !event) {
     return (
       <div className="flex items-center justify-center h-screen text-white">
@@ -321,7 +352,7 @@ export default function EventContent({ id: eventId }) {
                 )}
                 <p className="flex items-center gap-3">
                   <Info size={20} />
-                  <strong>Tipo:</strong> {event.type ?? "N/A"}
+                  <strong>Purchase mode:</strong> {purchaseMode}
                 </p>
                 <p className="flex items-center gap-3">
                   <IdCard size={20} />
@@ -358,6 +389,19 @@ export default function EventContent({ id: eventId }) {
               </CardContent>
             </Card>
           </div>
+
+          {(!event.active || isPastEvent) && (
+            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-4 text-center">
+              <p className="text-lg font-semibold text-white">
+                {isPastEvent ? "Evento terminato" : "Evento in arrivo"}
+              </p>
+              <p className="text-sm text-gray-400">
+                {isPastEvent
+                  ? "Questo evento è già stato completato. Puoi comunque gestire i partecipanti e le statistiche."
+                  : "L’evento non è ancora attivo. Aggiorna lo stato quando sarà pronto per la vendita."}
+              </p>
+            </div>
+          )}
 
           {/* Statistiche partecipanti */}
           <EventStats participants={participants} onRefresh={loadAll} />

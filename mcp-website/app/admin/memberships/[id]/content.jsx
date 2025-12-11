@@ -2,7 +2,7 @@
 
 // Force SSR in Next.js (important for Firebase Hosting)
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -30,14 +30,31 @@ export default function MembershipContent({ id }) {
     loadOne,
     setError,
     extrasLoading,
+    refresh: refreshMemberships,
+    memberships,
   } = useAdminMemberships();
 
   const [purchaseFilter, setPurchaseFilter] = useState("");
   const [purchaseSortDesc, setPurchaseSortDesc] = useState(true);
 
+  const targetMembership = useMemo(() => {
+    if (!id || !memberships?.length) return null
+    return memberships.find((m) => m.id === id) || null
+  }, [memberships, id])
+  const refreshRequestedRef = useRef(false)
+
   useEffect(() => {
-    if (id) loadOne(id);
-  }, [id, loadOne]);
+    if (id) loadOne(id)
+  }, [id, loadOne])
+
+  useEffect(() => {
+    if (!targetMembership && !loading && !refreshRequestedRef.current) {
+      refreshRequestedRef.current = true
+      Promise.resolve(refreshMemberships()).finally(() => {
+        refreshRequestedRef.current = false
+      })
+    }
+  }, [targetMembership, loading, refreshMemberships])
 
   const formatDate = (iso) => {
     if (!iso) return "-";

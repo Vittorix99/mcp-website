@@ -8,6 +8,7 @@ import base64
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
+from config.external_services import GMAIL_TOKEN_URL
 
 
 # Recupera le variabili dall'ambiente Firebase
@@ -49,7 +50,7 @@ def gmail_send_email(to_email, subject, body):
             refresh_token=REFRESH_TOKEN,
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
-            token_uri="https://oauth2.googleapis.com/token",
+            token_uri=GMAIL_TOKEN_URL,
             scopes=SCOPES,
         )
 
@@ -91,7 +92,7 @@ def gmail_send_email_template(to_email, subject, text_content, html_content, att
             refresh_token=REFRESH_TOKEN,
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
-            token_uri="https://oauth2.googleapis.com/token",
+            token_uri=GMAIL_TOKEN_URL,
             scopes=SCOPES,
         )
 
