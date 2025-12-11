@@ -15,8 +15,7 @@ from config.firebase_config import db, bucket, cors
 # === API Pubbliche ===
 from api.contact_api import  contact_us
 from api.newsletter_api import newsletter_signup
-from api.singnup_api import signup_request
-from api.payments_api import create_order, capture_order
+from api.event_payment_api import create_order_event, capture_order_event
 from api.events_api import get_event_by_id, get_next_event, get_all_events
 from api.events_tickets_api import check_participants
 
@@ -35,14 +34,6 @@ from api.admin.messages_api import(
     
     delete_message,
     reply_to_message
-)
-
-from api.questions_api import (
-    get_all_questions,
-    get_question_by_id,
-    create_question,
-    update_question,
-    delete_question
 )
 
 # === API Admin: Events ===

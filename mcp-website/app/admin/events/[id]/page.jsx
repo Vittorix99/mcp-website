@@ -7,7 +7,7 @@ import { Suspense } from "react";
 import EventContent from "./content";
 
 export default async function EventPage({ params }) {
-  const { id } = await  params;
+  const { id } = await params;
 
   return (
     <Suspense

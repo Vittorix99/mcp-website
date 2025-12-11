@@ -2,21 +2,20 @@ import { endpoints } from "../config/endpoints";
 
 /**
  * Crea un ordine PayPal sul backend.
- * @param {Object} cart - Oggetto con le info di acquisto (sarà messo in un array).
- * @param {string} purchase_type - Uno tra "event", "membership", "event_and_membership".
+ * @param {Object} payload - Deve contenere il carrello (singolo oggetto o array).
  * @returns {Promise<Object>} - Dati dell’ordine o errore.
  */
 export async function createOrder(payload) {
   try {
-    const response = await fetch(endpoints.createOrder, {
+    const cart = payload?.cart || []
+    const cartItems = Array.isArray(cart) ? cart : [cart]
+
+    const response = await fetch(endpoints.createEventOrder, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        cart: [payload.cart], // anche se è uno solo, sempre array
-        purchase_type: payload.purchase_type,
-      }),
+      body: JSON.stringify({ cart: cartItems }),
     });
 
     const data = await response.json();
@@ -34,7 +33,7 @@ export async function createOrder(payload) {
  */
 export async function onApprove(order_id) {
   try {
-    const response = await fetch(endpoints.captureOrder, {
+    const response = await fetch(endpoints.captureEventOrder, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

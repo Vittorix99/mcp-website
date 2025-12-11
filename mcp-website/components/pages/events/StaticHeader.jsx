@@ -38,7 +38,7 @@ export default function StaticHeader({ event }) {
         >
           <Meta icon={Calendar}>{formatDate(event.date)}</Meta>
 
-          <Meta icon={MapPin}>{event.location || "Location to be announced"}</Meta>
+        <Meta icon={MapPin}>{event.locationHint || event.location || "Location to be announced"}</Meta>
 
           {event.startTime && (
             <Meta icon={Clock}>

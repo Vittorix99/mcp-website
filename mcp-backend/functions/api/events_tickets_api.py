@@ -1,14 +1,10 @@
 from firebase_functions import https_fn
-from flask import jsonify, request
+from flask import jsonify
 from config.firebase_config import cors
-from services.event_tickets_service import (
-
-    check_participants_service,
-    
-)
+from services.participants_service import ParticipantsService
 from config.firebase_config import region
 
-
+participants_service = ParticipantsService()
 
 @https_fn.on_request(cors=cors, region=region)
 def check_participants(req):
@@ -20,7 +16,7 @@ def check_participants(req):
     if not data or "participants" not in data or "eventId" not in data:
         return jsonify({"error": "Missing participants or event ID"}), 400
 
-    return check_participants_service(data)
+    return participants_service.check_participants(data.get("eventId"), data.get("participants"))
 
 # ✅ Placeholder per `notify_location_service` (da implementare)
 def notify_location_service(data: dict) -> dict:

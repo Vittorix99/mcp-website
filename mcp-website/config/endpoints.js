@@ -14,8 +14,8 @@ export const endpoints = {
   getNextEvent: make("get_next_event"),
   newsletterSignup: make("newsletter_signup"),
   newsletterParticipantsSignup: make("newsletter_participants"),
-  createOrder: make("create_order"),
-  captureOrder: make("capture_order"),
+  createEventOrder: make("create_order_event"),
+  captureEventOrder: make("capture_order_event"),
   signupRequest: make("signup_request"),
   checkParticipants: make("check_participants"),
 

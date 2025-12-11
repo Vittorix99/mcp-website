@@ -10,58 +10,16 @@ import { PaymentSuccessDialog } from "@/components/pages/modals/PayPalModal"
 import { Loader2, AlertCircle } from "lucide-react"
 import { analytics } from "@/config/firebase"
 import { logEvent } from "firebase/analytics"
-import { EVENT_TYPES } from "@/config/events-utils"
-import { PURCHASE_TYPES } from "@/config/purchaseTypes"
+import { resolvePurchaseMode } from "@/config/events-utils"
 
-/**
- * PayPalSection ora è un WRAPPER estensibile:
- * - calcola il purchase type effettivo (EP13 misto → event_and_event_and_membership)
- * - usa una tabella di dispatch per costruire il payload di createOrder e post-processare la capture
- * - aggiungere un nuovo purchase type = aggiungere una entry in PURCHASE_HANDLERS
- */
-
-const PURCHASE_HANDLERS = {
-  [PURCHASE_TYPES.EVENT]: {
-    buildPayload: ({ cart }) => ({ purchase_type: PURCHASE_TYPES.EVENT, cart: { ...cart, eventMeta: cart?.eventMeta || {} } }),
-    afterApprove: async (_res) => {},
-  },
-  [PURCHASE_TYPES.MEMBERSHIP]: {
-    buildPayload: ({ cart }) => ({ purchase_type: PURCHASE_TYPES.MEMBERSHIP, cart: { ...cart } }),
-    afterApprove: async (_res) => {},
-  },
-  [PURCHASE_TYPES.EVENT_AND_MEMBERSHIP]: {
-    buildPayload: ({ cart }) => ({ purchase_type: PURCHASE_TYPES.EVENT_AND_MEMBERSHIP, cart: { ...cart, eventMeta: cart?.eventMeta || {} } }),
-    afterApprove: async (_res) => {},
-  },
-  [PURCHASE_TYPES.EVENT_OR_EVENT_AND_MEMBERSHIP]: {
-    buildPayload: ({ cart }) => ({ purchase_type: PURCHASE_TYPES.EVENT_OR_EVENT_AND_MEMBERSHIP, cart: { ...cart, eventMeta: cart?.eventMeta || {} } }),
-    afterApprove: async (_res) => {},
-  },
-}
-
-export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVENT, disabled = false }) {
+export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
   const [showSuccess, setShowSuccess] = useState(false)
   const [isProcessing, setProcessing] = useState(false)
   const [orderError, setOrderError] = useState(null)
   const [locked, setLocked] = useState(false)
 
-  // Determina dinamicamente il purchase type per EP13 “misto” ed esponi handler dedicato
-  const { effectiveType, handler } = useMemo(() => {
-    const type = (event?.type || "").toLowerCase()
-    const onlyMembers = !!event?.onlyMembers
-    const meta = cart?.eventMeta || {}
-    const declaredNonMembers = meta.nonMembers || meta.ep13NonMembers || []
+  const effectiveMode = useMemo(() => purchaseMode || resolvePurchaseMode(event), [purchaseMode, event])
 
-    let computed = purchase_type || PURCHASE_TYPES.EVENT
-
-
-    return {
-      effectiveType: computed,
-      handler: PURCHASE_HANDLERS[computed] || PURCHASE_HANDLERS[PURCHASE_TYPES.EVENT],
-    }
-  }, [event?.type, event?.onlyMembers, cart?.eventMeta, purchase_type])
-
-  /* ---------------- create ---------------- */
   const handleCreateOrder = async () => {
     setProcessing(true)
     setOrderError(null)
@@ -72,28 +30,25 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
         event_id: event?.id || "unknown",
         total: cart?.total || 0,
         source: "create_order",
-        purchase_type: effectiveType,
+        purchase_mode: effectiveMode,
       })
     }
 
     try {
-      const payload = handler.buildPayload({ cart, event, purchase_type: effectiveType })
-      const order = await createOrder(payload)
+      const order = await createOrder({ cart })
 
       if (order?.error) {
         const message = order?.message || order?.error || "Errore nella creazione dell'ordine."
         setOrderError(message)
         toast.error(message)
-        throw new Error(message) // Reject per evitare apertura/chiusura immediata del popup
+        throw new Error(message)
       }
 
-      // Estrai l'ID ordine da varie shape possibili
       const orderId = order?.id || order?.orderId || order?.result?.id || order?.data?.id
       if (orderId && typeof orderId === "string") {
         return orderId
       }
 
-      console.error("Unexpected createOrder response shape:", order)
       const msg = "Risposta inattesa dal server: ID ordine mancante."
       setOrderError(msg)
       toast.error(msg)
@@ -109,7 +64,6 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
     }
   }
 
-  /* ---------------- capture ---------------- */
   const handleApprove = async (data, actions) => {
     setProcessing(true)
     try {
@@ -122,16 +76,14 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
             purchase_id: res.purchase_id,
             event_id: event?.id || "unknown",
             total: cart?.total || 0,
-            purchase_type: effectiveType,
+            purchase_mode: effectiveMode,
           })
         }
-        await handler.afterApprove?.(res)
         setShowSuccess(true)
         setLocked(true)
         return
       }
 
-      // Errori dal backend (sicurezza/status/apple pay)
       if (res?.error) {
         const message = res?.message || res?.error || "Pagamento non completato."
         toast.error(message)
@@ -141,7 +93,7 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
             reason: res?.error,
             event_id: event?.id || "unknown",
             total: cart?.total || 0,
-            purchase_type: effectiveType,
+            purchase_mode: effectiveMode,
           })
         }
         if (res?.error === "payment_not_completed" && actions?.restart) actions.restart()
@@ -155,7 +107,7 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
             reason: res.details[0].issue || "unknown",
             event_id: event?.id || "unknown",
             total: cart?.total || 0,
-            purchase_type: effectiveType,
+            purchase_mode: effectiveMode,
           })
         }
         toast.error(res.details[0].description || "Errore durante il pagamento.")
@@ -172,10 +124,8 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
     }
   }
 
-  /* ---------------- UI ---------------- */
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }} className="space-y-6">
-      {/* Totale */}
       <div className="bg-black/30 p-3 rounded-md">
         <div className="flex justify-between items-center">
           <span className="text-gray-300">Totale:</span>
@@ -211,7 +161,7 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
                 event_id: event?.id || "unknown",
                 total: cart?.total || 0,
                 source: "paypal_button",
-                purchase_type: effectiveType,
+                purchase_mode: effectiveMode,
               })
             }
             return actions.resolve()
@@ -222,10 +172,12 @@ export function PayPalSection({ event, cart, purchase_type = PURCHASE_TYPES.EVEN
 
       <p className="text-sm text-gray-400 text-center">
         Procedendo con il pagamento, accetti i nostri&nbsp;
-        <a href="https://www.iubenda.com/termini-e-condizioni/78147975" className="text-mcp-orange hover:underline">Termini e Condizioni</a>
+        <a href="https://www.iubenda.com/termini-e-condizioni/78147975" className="text-mcp-orange hover:underline">
+          Termini e Condizioni
+        </a>
       </p>
 
-      <PaymentSuccessDialog open={showSuccess} onOpenChange={setShowSuccess} purchaseType={effectiveType} />
+      <PaymentSuccessDialog open={showSuccess} onOpenChange={setShowSuccess} purchaseMode={effectiveMode} />
     </motion.div>
   )
 }

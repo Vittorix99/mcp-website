@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ContactUs } from "@/components/pages/ContactUs";
 import { LogoSection } from "@/components/pages/Logo";
 import { NextEventSection } from "@/components/pages/NextEventSection";
 import { AboutUs } from "@/components/pages/AboutUs";
@@ -251,16 +250,18 @@ export default function LandingPage() {
   useEffect(() => {
     const fetchNextEvent = async () => {
       try {
-        const { success, event } = await getNextEvent();
-        if (success && event) {
-          setNextEvent(event);
+        const { success, events } = await getNextEvent();
+        if (success && Array.isArray(events) && events.length > 0) {
+          setNextEvent(events[0]);
           setHasNextEvent(true);
         } else {
           setHasNextEvent(false);
+          setNextEvent(null);
         }
       } catch (err) {
         console.error("Error fetching next event:", err);
         setHasNextEvent(false);
+        setNextEvent(null);
       }
     };
     fetchNextEvent();
@@ -319,10 +320,9 @@ export default function LandingPage() {
           <AnimatedSectionDivider color="RED" />
         </>
       )}
-
-      <section id="contact-section" className="relative py-12 md:py-24">
-        <ContactUs />
-      </section>
     </div>
+  
+  
+  
   );
 }

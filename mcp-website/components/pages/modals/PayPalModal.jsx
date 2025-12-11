@@ -4,21 +4,22 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CheckCircle2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
+import { PURCHASE_MODES } from "@/config/events-utils"
 
-const getSuccessMessage = (type) => {
-  switch (type) {
-    case "membership":
-      return "Grazie per esserti unito alla nostra associazione. Riceverai presto la tessera via mail.";
-    case "event":
-      return "Grazie per il tuo acquisto. Controlla la tua email per il biglietto.";
-    case "event_and_membership":
-      return "Grazie! Riceverai sia il biglietto che la tessera dell'associazione via mail.";
+const getSuccessMessage = (mode) => {
+  switch (mode) {
+    case PURCHASE_MODES.ONLY_ALREADY_REGISTERED_MEMBERS:
+      return "Grazie! Riceverai a breve il biglietto via email all'indirizzo associato al tuo tesseramento."
+    case PURCHASE_MODES.ONLY_MEMBERS:
+      return "Grazie! Riceverai sia il biglietto che la tessera (se necessaria) via email."
+    case PURCHASE_MODES.ON_REQUEST:
+      return "Grazie! La tua richiesta è stata inoltrata al team."
     default:
-      return "Pagamento completato. Controlla la tua email.";
+      return "Pagamento completato. Controlla la tua email per il biglietto."
   }
 }
 
-export function PaymentSuccessDialog({ open, onOpenChange, purchaseType }) {
+export function PaymentSuccessDialog({ open, onOpenChange, purchaseMode }) {
   const fadeIn = {
     initial: { opacity: 0, scale: 0.9 },
     animate: { opacity: 1, scale: 1 },
@@ -45,8 +46,8 @@ export function PaymentSuccessDialog({ open, onOpenChange, purchaseType }) {
                     Pagamento completato
                   </span>
                 </DialogTitle>
-                <DialogDescription className="text-center text-gray-300 font-light">
-                  {getSuccessMessage(purchaseType)}
+              <DialogDescription className="text-center text-gray-300 font-light">
+                  {getSuccessMessage(purchaseMode)}
                 </DialogDescription>
               </DialogHeader>
               <div className="mt-6 flex justify-center">

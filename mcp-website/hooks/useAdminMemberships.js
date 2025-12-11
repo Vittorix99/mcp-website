@@ -267,6 +267,7 @@ const getCurrentYearPrice = useCallback(async () => {
     memberships,
     selected,
     loading,
+    refresh: loadAll,
     loadAll,
     loadOne,
     create,

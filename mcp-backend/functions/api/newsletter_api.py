@@ -1,6 +1,5 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors, region
-from services.admin.auth_services import require_admin
 from services.newsletter_service import NewsletterService
 
 newsletter_service = NewsletterService()
@@ -39,4 +38,3 @@ def newsletter_participants(req):
 
     participants = data.get("participants", [])
     return newsletter_service.add_participants(participants)
-

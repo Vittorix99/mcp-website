@@ -1,15 +1,12 @@
 "use client"
 
 import { useEffect, useState, Suspense } from "react"
-import dynamic from "next/dynamic"
 import { Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getEventById } from "@/services/events"
-import { EVENT_COMPONENTS, EVENT_TYPES } from "@/config/events-utils"
+import { EVENT_CONTENT_COMPONENT, resolvePurchaseMode } from "@/config/events-utils"
 import StaticHeader from "@/components/pages/events/StaticHeader"
 import { analytics } from "@/config/firebase"
 import { logEvent } from "firebase/analytics"
-import { getSetting } from "@/services/admin/settings"
 import PaymentWarningModal from "@/components/popups/PaymentWarningModal"
 
 /* -------- tiny placeholders -------- */
@@ -35,65 +32,27 @@ const ErrorBanner = ({ msg }) => (
 
 /* -------- main wrapper -------- */
 
-export function EventContent({ id }) {
-  const [event, setEvent] = useState(null)
-  const [settings, setSettings] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [showInfo, setShowInfo] = useState(false)
+export function EventContent({ id, event, settings, error }) {
+  const [showInfo, setShowInfo] = useState(Boolean(settings?.payment_blocked))
 
   useEffect(() => {
-    if (!id) {
-      setError("ID evento non fornito")
-      setLoading(false)
-      return
-    }
-
-    const loadAll = async () => {
-      setLoading(true)
-
-      const ev = await getEventById(id)
-      if (!ev.success || !ev.event) {
-        setError(ev.error || "Evento non disponibile")
-      } else {
-        setEvent(ev.event)
-        if (analytics) {
-          logEvent(analytics, "page_event_view", {
-            event_id: id,
-            event_title: ev.event.title ?? "Untitled",
-            event_type: ev.event.type ?? "unknown"
-          })
-        }
-      }
-
-      const [resPB, resIBAN, resInt] = await Promise.all([
-        getSetting("payment_blocked"),
-        getSetting("company_iban"),
-        getSetting("company_intestatario"),
-      ])
-
-      setSettings({
-        payment_blocked: !resPB.error && Boolean(resPB.data?.value),
-        company_iban: resIBAN.error ? "" : String(resIBAN.data?.value ?? ""),
-        company_intestatario: resInt.error ? "" : String(resInt.data?.value ?? "")
+    if (event && analytics) {
+      logEvent(analytics, "page_event_view", {
+        event_id: id,
+        event_title: event.title ?? "Untitled",
+        purchase_mode: resolvePurchaseMode(event),
       })
-
-      setLoading(false)
     }
-
-    loadAll()
-  }, [id])
+  }, [id, event])
 
   useEffect(() => {
-    if (!loading && event && settings?.payment_blocked) {
-      setShowInfo(true)
-    }
-  }, [loading, event, settings])
+    setShowInfo(Boolean(settings?.payment_blocked))
+  }, [settings?.payment_blocked])
 
-  if (loading) return <Spinner />
-  if (error || !event || !settings) return <ErrorBanner msg={error || "Errore di caricamento"} />
+  if (error) return <ErrorBanner msg={error} />
+  if (!event || !settings) return <ErrorBanner msg="Evento non disponibile" />
 
-  const Content = EVENT_COMPONENTS[event.type] ?? EVENT_COMPONENTS[EVENT_TYPES.STANDARD]
+  const Content = EVENT_CONTENT_COMPONENT
 
   return (
     <div className="min-h-screen bg-black">

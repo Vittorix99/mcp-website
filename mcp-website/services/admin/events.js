@@ -17,6 +17,7 @@ async function safeFetch(url, method = 'GET', body = null) {
     const options = {
       method,
       headers,
+      cache: "no-store",
     };
     if (body !== null) {
       headers['Content-Type'] = 'application/json';

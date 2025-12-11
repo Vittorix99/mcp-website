@@ -1,10 +1,8 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors
-from services.admin.auth_services import require_admin
-from services.admin.participants_service import ParticipantsService
-from services.admin.location_service import LocationService
+from services.auth_service import require_admin
 from config.firebase_config import region
-from services.admin.settings_service import SettingsService
+from services.settings_service import SettingsService
 from flask import jsonify
 
 
@@ -19,13 +17,13 @@ def get_settings(req):
         key = req.args.get("key")
 
         if key:
-            # 🔍 Ritorna una singola setting
-            value = settings_service.get_setting(key)
-            return jsonify({"key": key, "value": value}), 200
-        else:
-            # 📋 Ritorna tutte le settings
-            all_settings = settings_service.get_all_settings()
-            return jsonify({"settings": all_settings}), 200
+            setting = settings_service.get_setting(key)
+            if not setting:
+                return jsonify({"error": "Setting not found"}), 404
+            return jsonify(setting.to_kv()), 200
+
+        all_settings = [entry.to_kv() for entry in settings_service.get_all_settings()]
+        return jsonify({"settings": all_settings}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -42,8 +40,7 @@ def set_settings(req):
         if not key or value is None:
             return jsonify({"error": "Missing 'key' or 'value' in body"}), 400
 
-        settings_service.set_setting(key, value)
-        return jsonify({"message": f"Setting '{key}' updated", "value": value}), 200
+        setting = settings_service.set_setting(key, value)
+        return jsonify({"message": f"Setting '{key}' updated", "setting": setting.to_kv()}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-

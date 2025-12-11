@@ -129,8 +129,8 @@ const loadAll = async () => {
 
     setStats(parsedStats)
 
-    if (eventResp?.success && eventResp.event) {
-      setNextEvent(eventResp.event)
+    if (eventResp?.success && Array.isArray(eventResp.events) && eventResp.events.length > 0) {
+      setNextEvent(eventResp.events[0])
     } else {
       console.warn("[loadAll] Nessun prossimo evento trovato.")
       setNextEvent(null)

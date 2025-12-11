@@ -4,7 +4,7 @@ from firebase_admin import auth, firestore
 from firebase_functions import https_fn
 from firebase_admin import initialize_app
 from config.firebase_config import cors, db,bucket, region
-from services.admin.auth_services import  verify_admin_service, require_admin
+from services.auth_service import verify_admin_service, require_admin
 
 
 

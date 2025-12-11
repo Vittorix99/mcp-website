@@ -3,8 +3,8 @@
 from firebase_functions import https_fn
 from flask import request, jsonify
 from config.firebase_config import cors
-from services.admin.auth_services import require_admin
-from services.admin.purchases_service import PurchasesService
+from services.auth_service import require_admin
+from services.purchases_service import PurchasesService
 from config.firebase_config import region
 # 🔧 Service instance
 purchases_service = PurchasesService()

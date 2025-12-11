@@ -9,23 +9,31 @@ import tempfile
 from config.firebase_config import bucket
 from io import BytesIO
 from weasyprint import HTML
-from config.event_types import EventTypes
+from models import EventPurchaseAccessType
 
 
 
 def generate_ticket_pdf(ticket_data, event_data, logo_path):
     print("Event data is:", event_data)
-    ev_type = (event_data.get("type") or "").lower()
-    if ev_type in (EventTypes.COMMUNITY.value, EventTypes.CUSTOM_EP12.value, EventTypes.CUSTOM_EP13.value ):
+    raw_mode = (event_data.get("type") or "").upper()
+    try:
+        purchase_mode = EventPurchaseAccessType(raw_mode)
+    except Exception:
+        purchase_mode = EventPurchaseAccessType.PUBLIC
+
+    if purchase_mode in (
+        EventPurchaseAccessType.ONLY_MEMBERS,
+        EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS,
+    ):
         local_logo_path = download_image_from_firebase(logo_path)
         html = generate_member_ticket_pdf_html(ticket_data, event_data, local_logo_path)
         buffer = BytesIO()
         HTML(string=html, base_url=".").write_pdf(buffer)
         buffer.seek(0)
         return buffer
-    else:
-        buffer = generate_ticket_pdf_reportlab(ticket_data=ticket_data, event_data=event_data, logo_path=logo_path)
-        return buffer 
+
+    buffer = generate_ticket_pdf_reportlab(ticket_data=ticket_data, event_data=event_data, logo_path=logo_path)
+    return buffer 
 
 
 def generate_membership_pdf(membership_data, logo_path, pattern_path):
