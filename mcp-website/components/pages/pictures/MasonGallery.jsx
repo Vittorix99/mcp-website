@@ -58,6 +58,7 @@ export function MasonryGallery({
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(initialPage)
   const [internalTotalPages, setInternalTotalPages] = useState(1)
+  const [loadedMap, setLoadedMap] = useState({})
 
   // Salviamo/ristoriamo lo scroll per evitare "salti all'inizio"
   const scrollYRef = useRef(0)
@@ -164,6 +165,7 @@ export function MasonryGallery({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1">
           {visibleImages.map((image, index) => {
             const key = image?.id || image?.src || `img-${page}-${index}`
+            const isLoaded = loadedMap[key]
             return (
               <motion.div
                 key={key}
@@ -173,13 +175,19 @@ export function MasonryGallery({
                 transition={{ duration: 0.2 }}
                 onClick={() => onOpenModal(image)}
               >
+                {!isLoaded && <div className="absolute inset-0 bg-zinc-900 animate-pulse" />}
                 <Image
                   src={image?.src || "/placeholder.svg"}
                   alt={image?.alt || ""}
                   fill
                   sizes="(max-width: 1024px) 50vw, 25vw"
-                  className="object-cover"
+                  className={`object-cover transition duration-500 ${
+                    isLoaded ? "opacity-100" : "opacity-0 scale-105"
+                  }`}
                   loading={serverPaging ? "eager" : "lazy"}
+                  onLoadingComplete={() =>
+                    setLoadedMap((prev) => ({ ...prev, [key]: true }))
+                  }
                 />
               </motion.div>
             )

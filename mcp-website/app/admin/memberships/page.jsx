@@ -32,6 +32,7 @@ export default function MembershipsPage() {
     getCurrentYearPrice,
     setCurrentYearPrice,
     membershipPrice,
+    isMembershipPriceReadOnly,
     loading,
   } = useAdminMemberships()
 
@@ -49,9 +50,8 @@ export default function MembershipsPage() {
   const currentYear = new Date().getFullYear().toString()
 
   useEffect(() => {
-    loadAll()
     getCurrentYearPrice()
-  }, [loadAll, getCurrentYearPrice])
+  }, [getCurrentYearPrice])
 
   const exportExcel = () => {
     const filteredData = filtered.map((m) => ({
@@ -100,6 +100,7 @@ export default function MembershipsPage() {
   }, [memberships, membershipPrice, currentYear])
 
   const onSavePrice = async () => {
+    if (isMembershipPriceReadOnly) return
     const val = Number.parseFloat(tempPrice)
     if (!isNaN(val)) {
       await setCurrentYearPrice(val)
@@ -175,7 +176,7 @@ export default function MembershipsPage() {
           <CardHeader>
             <CardTitle>Prezzo Membership ({currentYear})</CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center gap-4">
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
             {priceEditing ? (
               <>
                 <Input
@@ -193,7 +194,7 @@ export default function MembershipsPage() {
                 </Button>
               </>
             ) : (
-              <>
+              <div className="flex items-center gap-4">
                 <span className="text-xl font-semibold">
                   {membershipPrice && membershipPrice.year === currentYear
                     ? `${membershipPrice.price} €`
@@ -202,14 +203,21 @@ export default function MembershipsPage() {
                 <Button
                   size="icon"
                   variant="ghost"
+                  disabled={isMembershipPriceReadOnly}
                   onClick={() => {
+                    if (isMembershipPriceReadOnly) return
                     setTempPrice(membershipPrice?.price?.toString() || "")
                     setPriceEditing(true)
                   }}
                 >
                   <Edit className="h-5 w-5" />
                 </Button>
-              </>
+              </div>
+            )}
+            {isMembershipPriceReadOnly && (
+              <p className="text-sm text-gray-400">
+                Valore letto da <code>NEXT_MEMBESHIP_PRICE</code>. Aggiorna il file .env per modificarlo.
+              </p>
             )}
           </CardContent>
         </Card>

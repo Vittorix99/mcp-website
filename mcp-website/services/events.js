@@ -21,8 +21,12 @@ export async function getEventById(eventId) {
   return { success: true, event: res.data }
 }
 
-export async function getAllEvents() {
-  const res = await safePublicFetch(endpoints.getAllEvents, "GET")
+export async function getAllEvents(options = {}) {
+  const params = new URLSearchParams()
+  if (options.view) params.set("view", options.view)
+  const url = params.toString() ? `${endpoints.getAllEvents}?${params.toString()}` : endpoints.getAllEvents
+
+  const res = await safePublicFetch(url, "GET")
   if (!res.success) {
     return { success: false, error: res.error }
   }

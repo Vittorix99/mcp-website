@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { getAllEvents } from "@/services/events"
-import { getImageUrl, checkFolderExists } from "@/config/firebaseStorage"
+import { getImageUrl } from "@/config/firebaseStorage"
 import { Loader2, Camera, Calendar } from "lucide-react"
 import { routes, getRoute } from "@/config/routes"
 import { SectionTitle } from "@/components/ui/section-title"
@@ -15,11 +15,12 @@ export default function EventPhotosPage() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [coverLoaded, setCoverLoaded] = useState({})
 
 useEffect(() => {
   const fetchEvents = async () => {
     try {
-      const { success, events, error } = await getAllEvents()
+      const { success, events, error } = await getAllEvents({ view: "gallery" })
 
       if (!success || !Array.isArray(events)) {
         console.error("[fetchEvents] Fallito il recupero eventi")
@@ -29,21 +30,12 @@ useEffect(() => {
 
       const eventsWithPhotos = await Promise.all(
         events.map(async (event) => {
-          try {
-            console.log("Event is:", event)
-            const folder = `foto/${event.photoPath || event.title}` // fallback su ID se photoPath mancante
-            console.log("folder is:", folder)
-            const folderExists = await checkFolderExists(folder)
-
-            if (folderExists) {
-              const coverPhotoUrl = await getImageUrl(folder, "cover.jpg")
-              return { ...event, coverPhoto: coverPhotoUrl, hasPhotos: true }
-            }
-
-            return { ...event, coverPhoto: null, hasPhotos: false }
-          } catch (err) {
+          const folder = event.photoPath || event.title ? `foto/${event.photoPath || event.title}` : null
+          if (!folder) {
             return { ...event, coverPhoto: null, hasPhotos: false }
           }
+          const coverPhotoUrl = await getImageUrl(folder, "cover.jpg")
+          return { ...event, coverPhoto: coverPhotoUrl, hasPhotos: Boolean(coverPhotoUrl) }
         })
       )
 
@@ -125,15 +117,25 @@ useEffect(() => {
                       <div className="relative aspect-video overflow-hidden rounded-lg">
                         <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent z-10" />
                         {event.coverPhoto ? (
-                          <img
-                            src={event.coverPhoto || "/placeholder.svg"}
-                            alt={event.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            onError={(e) => {
-                              e.target.onerror = null
-                              e.target.src = "/placeholder.svg"
-                            }}
-                          />
+                          <>
+                            <img
+                              src={event.coverPhoto || "/placeholder.svg"}
+                              alt={event.title}
+                              className={`w-full h-full object-cover transition duration-500 group-hover:scale-105 ${
+                                coverLoaded[event.id] ? "opacity-100" : "opacity-0 scale-105"
+                              }`}
+                              onLoad={() =>
+                                setCoverLoaded((prev) => ({ ...prev, [event.id]: true }))
+                              }
+                              onError={(e) => {
+                                e.target.onerror = null
+                                e.target.src = "/placeholder.svg"
+                              }}
+                            />
+                            {!coverLoaded[event.id] && (
+                              <div className="absolute inset-0 bg-zinc-900 animate-pulse" />
+                            )}
+                          </>
                         ) : (
                           <div className="w-full h-full bg-gray-800 flex items-center justify-center">
                             <Camera className="w-6 h-6 md:w-12 md:h-12 text-gray-600" />
@@ -179,4 +181,3 @@ useEffect(() => {
     </div>
   )
 }
-
