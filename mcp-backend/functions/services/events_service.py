@@ -21,6 +21,11 @@ class EventsService:
         self.bucket = bucket
         self.collection_name = "events"
         self.logger = logger
+        self.public_field_profiles = {
+            "card": ["title", "date", "startTime", "endTime", "locationHint", "image", "photoPath", "description"],
+            "gallery": ["title", "date", "description", "photoPath", "image"],
+            "ids": ["title"],  # Firestore richiede almeno un campo in select()
+        }
 
     # ----------------------- Date helpers -----------------------
     def _normalize_date_string(self, date_str: str) -> str:
@@ -74,6 +79,34 @@ class EventsService:
                 if key not in payload:
                     payload[key] = value
         return payload
+
+    def _shape_public_event(self, raw: Dict[str, Any], view: Optional[str]):
+        if view == "card":
+            return {
+                "id": raw.get("id"),
+                "title": raw.get("title"),
+                "date": raw.get("date"),
+                "startTime": raw.get("startTime"),
+                "endTime": raw.get("endTime"),
+                "locationHint": raw.get("locationHint"),
+                "image": raw.get("image"),
+                "photoPath": raw.get("photoPath"),
+                "description": raw.get("description"),
+            }
+        if view == "gallery":
+            return {
+                "id": raw.get("id"),
+                "title": raw.get("title"),
+                "date": raw.get("date"),
+                "description": raw.get("description"),
+                "photoPath": raw.get("photoPath"),
+                "image": raw.get("image"),
+            }
+        if view == "ids":
+            return {"id": raw.get("id")}
+
+        event = Event.from_firestore(raw, raw.get("id"))
+        return self._event_to_dict(event, raw)
 
     def _apply_payload_to_event(self, event: Event, payload: Dict[str, Any]):
         field_map = {
@@ -372,14 +405,21 @@ class EventsService:
             return {"error": str(e)}, 400
 
     # ----------------------- Public endpoints -----------------------
-    def list_public_events(self):
+    def list_public_events(self, view: Optional[str] = None):
         """Fetch all events for the public site."""
         try:
-            events = self.db.collection(self.collection_name).stream()
+            base_query = self.db.collection(self.collection_name)
+            selected_fields = self.public_field_profiles.get(view)
+            events = (
+                base_query.select(selected_fields).stream()
+                if selected_fields
+                else base_query.stream()
+            )
             events_list = []
             for snapshot in events:
-                model = self._event_from_snapshot(snapshot)
-                events_list.append(self._event_to_dict(model, snapshot.to_dict()))
+                raw = snapshot.to_dict() or {}
+                raw["id"] = snapshot.id
+                events_list.append(self._shape_public_event(raw, view))
             return jsonify(events_list), 200
         except Exception as e:
             return {"error": str(e)}, 500

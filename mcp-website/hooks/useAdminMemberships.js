@@ -15,7 +15,22 @@ import {
   setMembershipFee
 } from "@/services/admin/memberships";
 
-export function useAdminMemberships() {
+const envMembershipPriceRaw =
+  process.env.NEXT_PUBLIC_MEMBESHIP_PRICE ?? process.env.NEXT_MEMBESHIP_PRICE;
+const parsedEnvMembershipPrice =
+  typeof envMembershipPriceRaw === "string"
+    ? Number.parseFloat(envMembershipPriceRaw)
+    : NaN;
+const hasEnvMembershipPrice =
+  typeof envMembershipPriceRaw === "string" && !Number.isNaN(parsedEnvMembershipPrice);
+
+const buildEnvMembershipPricePayload = () => ({
+  price: parsedEnvMembershipPrice,
+  year: new Date().getFullYear().toString(),
+});
+
+export function useAdminMemberships(options = {}) {
+  const { autoLoadList = true } = options;
   const { setError } = useError();
   const [memberships, setMemberships] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -23,6 +38,7 @@ export function useAdminMemberships() {
   const [membershipPrice, setMembershipPrice] = useState(null); // { price, year }
   const [extrasLoading, setExtrasLoading] = useState(false);
   const loadOneReqRef = useRef(0);
+  const loadAllInitializedRef = useRef(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -211,7 +227,12 @@ export function useAdminMemberships() {
  
 
 
-const getCurrentYearPrice = useCallback(async () => {
+  const getCurrentYearPrice = useCallback(async () => {
+    if (hasEnvMembershipPrice) {
+      setMembershipPrice(buildEnvMembershipPricePayload());
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await getMembershipPrice();
@@ -219,38 +240,41 @@ const getCurrentYearPrice = useCallback(async () => {
         setError(res.error);
         return;
       }
-      setMembershipPrice(res); // <--- IMPORTANTE: deve essere questo
+      setMembershipPrice(res);
     } catch (e) {
       setError("Errore nel recupero del prezzo.");
     } finally {
       setLoading(false);
     }
-  }, [setError]);
-
+  }, [setError, hasEnvMembershipPrice]);
 
   const setCurrentYearPrice = useCallback(async (price) => {
-  if (typeof price !== "number" || isNaN(price)) {
-    setError("⚠️ Prezzo non valido.");
-    return;
-  }
-
-
-  setLoading(true);
-  try {
-    const res = await setMembershipFee(price);
-    if (res?.error) {
-      setError(res.error);
-    } else {
-      await loadAll();
-      await getCurrentYearPrice(); // 🔁 Ricarica anche il prezzo
+    if (hasEnvMembershipPrice) {
+      setError("Il prezzo è gestito dal file .env (NEXT_MEMBESHIP_PRICE). Aggiorna lì il valore.");
+      return;
     }
-  } catch (e) {
-    console.error("❌ Errore durante il settaggio del prezzo:", e);
-    setError("Errore aggiornamento prezzo.");
-  } finally {
-    setLoading(false);
-  }
-}, [loadAll, setError, getCurrentYearPrice]);
+
+    if (typeof price !== "number" || isNaN(price)) {
+      setError("⚠️ Prezzo non valido.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await setMembershipFee(price);
+      if (res?.error) {
+        setError(res.error);
+      } else {
+        //await loadAll();
+        await getCurrentYearPrice(); // 🔁 Ricarica anche il prezzo
+      }
+    } catch (e) {
+      console.error("❌ Errore durante il settaggio del prezzo:", e);
+      setError("Errore aggiornamento prezzo.");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadAll, setError, getCurrentYearPrice, hasEnvMembershipPrice]);
 
 
 
@@ -259,9 +283,14 @@ const getCurrentYearPrice = useCallback(async () => {
 
   
 
+  const isMembershipPriceReadOnly = hasEnvMembershipPrice;
+
   useEffect(() => {
+    if (!autoLoadList) return;
+    if (loadAllInitializedRef.current) return;
+    loadAllInitializedRef.current = true;
     loadAll();
-  }, [loadAll]);
+  }, [loadAll, autoLoadList]);
 
   return {
     memberships,
@@ -280,7 +309,8 @@ const getCurrentYearPrice = useCallback(async () => {
     setCurrentYearPrice,
     getCurrentYearPrice,
     extrasLoading,
-    membershipPrice
+    membershipPrice,
+    isMembershipPriceReadOnly,
 
   };
 }

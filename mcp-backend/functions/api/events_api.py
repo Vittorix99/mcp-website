@@ -14,10 +14,13 @@ def get_all_events(req):
     if req.method != 'GET':
         return 'Invalid request method', 405
 
-    response, status = events_service.list_public_events()
+    view = req.args.get("view")
+    response, status = events_service.list_public_events(view=view)
 
     if status == 200:
         events = response.get_json()
+        if view:
+            return jsonify(events), 200
         sanitized_events = [sanitize_event(event) for event in events]
         return jsonify(sanitized_events), 200
     return response, status

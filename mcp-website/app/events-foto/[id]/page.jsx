@@ -9,7 +9,7 @@ export const dynamicParams = true
 
 export async function generateStaticParams() {
   try {
-    const events = await getAllEvents()
+    const events = await getAllEvents({ view: "ids" })
     if (!events?.success || !events?.events?.length) {
       return []
     }

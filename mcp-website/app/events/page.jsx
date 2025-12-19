@@ -21,7 +21,7 @@ export default function AllEvents() {
 useEffect(() => {
   const fetchEvents = async () => {
     try {
-      const { success, events, error } = await getAllEvents()
+      const { success, events, error } = await getAllEvents({ view: "card" })
 
       if (!success || !events) {
         setError(error || "Impossibile caricare gli eventi.")
@@ -216,4 +216,3 @@ useEffect(() => {
     </div>
   )
 }
-

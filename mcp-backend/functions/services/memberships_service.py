@@ -269,9 +269,16 @@ Il Team MCP
             for pid in purchase_ids:
                 snap = db.collection("purchases").document(pid).get()
                 if snap.exists:
-                    purchase = snap.to_dict()
-                    purchase["id"] = pid
-                    purchases.append(purchase)
+                    purchase = snap.to_dict() or {}
+                    purchases.append({
+                        "id": pid,
+                        "type": purchase.get("type"),
+                        "amount_total": purchase.get("amount_total"),
+                        "currency": purchase.get("currency"),
+                        "timestamp": purchase.get("timestamp"),
+                        "ref_id": purchase.get("ref_id"),
+                        "transaction_id": purchase.get("transaction_id"),
+                    })
 
             return jsonify(purchases), 200
 
@@ -294,9 +301,13 @@ Il Team MCP
             for eid in event_ids:
                 snap = db.collection("events").document(eid).get()
                 if snap.exists:
-                    event = snap.to_dict()
-                    event["id"] = eid
-                    events.append(event)
+                    event = snap.to_dict() or {}
+                    events.append({
+                        "id": eid,
+                        "title": event.get("title"),
+                        "date": event.get("date"),
+                        "image": event.get("image"),
+                    })
 
             return jsonify(events), 200
 
