@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Loader2, X } from "lucide-react"
-import { PURCHASE_MODES } from "@/config/events-utils"
+import { EVENT_STATUSES, PURCHASE_MODES } from "@/config/events-utils"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 
 export function EventModal({
@@ -61,7 +61,7 @@ export function EventModal({
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-3 gap-4">
+      <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="date">Data</Label>
           <Input type="date" id="date" name="date" value={form.date || ""} onChange={onInput} required />
@@ -82,12 +82,20 @@ export function EventModal({
           <Input id="price" name="price" type="number" step="0.01" value={form.price || ""} onChange={onInput} />
         </div>
         <div>
-          <Label htmlFor="membershipFee">Tessera (€)</Label>
-          <Input id="membershipFee" name="membershipFee" type="number" step="0.01" value={form.membershipFee || ""} onChange={onInput} />
-        </div>
-        <div>
           <Label htmlFor="fee">Commissione (€)</Label>
           <Input id="fee" name="fee" type="number" step="0.01" value={form.fee || ""} onChange={onInput} />
+        </div>
+        <div>
+          <Label htmlFor="maxParticipants">Max partecipanti</Label>
+          <Input
+            id="maxParticipants"
+            name="maxParticipants"
+            type="number"
+            min="0"
+            step="1"
+            value={form.maxParticipants ?? ""}
+            onChange={onInput}
+          />
         </div>
       </div>
 
@@ -107,14 +115,21 @@ export function EventModal({
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={form.active || false}
-            onChange={(e) => onCheckbox("active", e.target.checked)}
-          />
-          <span>Evento attivo</span>
-        </label>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="status">Stato evento</Label>
+          <select
+            id="status"
+            name="status"
+            value={form.status || EVENT_STATUSES.ACTIVE}
+            onChange={onInput}
+            className="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1"
+          >
+            <option value={EVENT_STATUSES.COMING_SOON}>Coming soon</option>
+            <option value={EVENT_STATUSES.ACTIVE}>Attivo</option>
+            <option value={EVENT_STATUSES.SOLD_OUT}>Sold out</option>
+            <option value={EVENT_STATUSES.ENDED}>Terminato</option>
+          </select>
+        </div>
         <label className="flex items-center gap-2">
           <input
             type="checkbox"

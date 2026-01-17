@@ -77,6 +77,7 @@ export default function MembershipContent({ id }) {
   }
 
   const {
+    id: membershipId,
     name, surname, email, phone, birthdate,
     start_date, end_date, subscription_valid,
     membership_sent, card_url, purchase_id,
@@ -98,6 +99,7 @@ export default function MembershipContent({ id }) {
           <Card className="bg-zinc-900 border border-zinc-700 shadow-lg">
             <CardHeader><CardTitle>Dettagli Membro</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-base">
+              <div><strong>ID:</strong> {membershipId || "-"}</div>
               <div><strong>Email:</strong> {email}</div>
               <div><strong>Telefono:</strong> {phone || "-"}</div>
               <div><strong>Data di nascita:</strong> {birthdate || "-"}</div>
@@ -134,7 +136,7 @@ export default function MembershipContent({ id }) {
                 </div>
               )}
 
-              {purchase_id && (
+                  {purchase_id && (
                 <div className="col-span-full">
                   <Button
                     size="sm"

@@ -83,19 +83,30 @@ def is_valid_email(email: str) -> bool:
 
 def ensure_event_is_active(event_data: Union[Event, Dict[str, Any]]):
     """
-    Ensure an event (model or raw dict) is active and scheduled in the future.
+    Ensure an event (model or raw dict) is active, not sold out, and scheduled in the future.
     """
     if isinstance(event_data, Event):
-        active = bool(event_data.active)
+        status = event_data.status.value if event_data.status else "active"
         date_str = event_data.date
+        max_participants = event_data.max_participants
+        participants_count = event_data.participants_count
     else:
         if not event_data:
             raise ValueError("Invalid or inactive event")
-        active = bool(event_data.get("active", False))
+        status = str(event_data.get("status") or "active")
         date_str = event_data.get("date")
+        max_participants = event_data.get("maxParticipants") or event_data.get("max_participants")
+        participants_count = event_data.get("participantsCount") or event_data.get("participants_count")
 
-    if not active:
+    if status != "active":
         raise ValueError("Invalid or inactive event")
+
+    if max_participants is not None and participants_count is not None:
+        try:
+            if int(participants_count) >= int(max_participants):
+                raise ValueError("Event is sold out")
+        except (TypeError, ValueError):
+            pass
 
     if not date_str:
         return
@@ -109,33 +120,11 @@ def ensure_event_is_active(event_data: Union[Event, Dict[str, Any]]):
         raise ValueError("Event date has already passed")
 
 
-_LEGACY_PURCHASE_MODE_MAP = {
-    "onlymembers": EventPurchaseAccessType.ONLY_MEMBERS,
-    "only_members": EventPurchaseAccessType.ONLY_MEMBERS,
-    "community": EventPurchaseAccessType.ONLY_MEMBERS,
-    "custom_ep13": EventPurchaseAccessType.ONLY_MEMBERS,
-    "onlyalreadyregisteredmembers": EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS,
-    "only_already_registered_members": EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS,
-    "custom_ep12": EventPurchaseAccessType.PUBLIC,
-    "standard": EventPurchaseAccessType.PUBLIC,
-    "free": EventPurchaseAccessType.PUBLIC,
-    "external": EventPurchaseAccessType.PUBLIC,
-    "external_link": EventPurchaseAccessType.PUBLIC,
-    "private": EventPurchaseAccessType.ON_REQUEST,
-    "onrequest": EventPurchaseAccessType.ON_REQUEST,
-    "on_request": EventPurchaseAccessType.ON_REQUEST,
-}
-
-
 def map_purchase_mode(value: Optional[str]) -> EventPurchaseAccessType:
     if not value:
         return EventPurchaseAccessType.PUBLIC
 
     normalized = str(value).strip()
-    lowered = normalized.lower()
-    if lowered in _LEGACY_PURCHASE_MODE_MAP:
-        return _LEGACY_PURCHASE_MODE_MAP[lowered]
-
     cleaned = normalized.replace("-", "_").replace(" ", "_").upper()
     for candidate in (cleaned, normalized.upper()):
         try:
@@ -148,8 +137,7 @@ def map_purchase_mode(value: Optional[str]) -> EventPurchaseAccessType:
 def build_event_from_data(data: Optional[Dict[str, Any]], doc_id: Optional[str] = None) -> Event:
     payload = data or {}
     event = Event.from_firestore(payload, doc_id)
-    raw_type = payload.get("type") or event.purchase_mode.value
-    event.purchase_mode = map_purchase_mode(raw_type)
+    event.purchase_mode = map_purchase_mode(event.purchase_mode.value if event.purchase_mode else None)
     return event
 
 

@@ -21,6 +21,7 @@ export const Navigation = () => {
   const { user, isAdmin } = useUser()
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
   const isMobile = useIsMobile()
 
   const handleNavClick = () => setOpen(false)
@@ -157,12 +158,22 @@ export const Navigation = () => {
                   </Button>
                 </>
               ) : (
-                <LoginModal />
+                <Button
+                  variant="ghost"
+                  className="text-white hover:text-mcp-orange text-lg flex items-center justify-start"
+                  onClick={() => {
+                    setOpen(false)
+                    setLoginOpen(true)
+                  }}
+                >
+                  LOGIN
+                </Button>
               )}
             </nav>
           </SheetContent>
         </Sheet>
       </div>
+      {!user && <LoginModal open={loginOpen} onOpenChange={setLoginOpen} hideTrigger />}
     </motion.nav>
   )
 }

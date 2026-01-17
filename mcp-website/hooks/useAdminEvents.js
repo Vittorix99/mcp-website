@@ -53,13 +53,8 @@ export function useAdminEvents() {
       output.price = eventData.price !== "" ? parseFloat(eventData.price) : null;
     }
 
-    if (eventData.membershipFee !== undefined) {
-      output.membershipFee =
-        eventData.membershipFee !== "" ? parseFloat(eventData.membershipFee) : null;
-    }
-
-    if (eventData.active !== undefined) {
-      output.active = eventData.active;
+    if (eventData.status !== undefined) {
+      output.status = eventData.status;
     }
 
     return output;
@@ -115,13 +110,13 @@ const maybeUploadImage = async (eventData) => {
         if (res?.error) {
           setError(res.error);
         } else {
-          // Aggiorna subito i campi critici (active/price) per avere feedback istantaneo
+          // Aggiorna subito i campi critici (status/price) per avere feedback istantaneo
           setEvents((prev) =>
             prev.map((ev) => {
               if (ev.id !== eventId) return ev;
               const patch = {};
-              if (Object.prototype.hasOwnProperty.call(payload, "active")) {
-                patch.active = payload.active;
+              if (Object.prototype.hasOwnProperty.call(payload, "status")) {
+                patch.status = payload.status;
               }
               if (Object.prototype.hasOwnProperty.call(payload, "price")) {
                 patch.price = payload.price;

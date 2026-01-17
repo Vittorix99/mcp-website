@@ -104,10 +104,11 @@ def set_membership_price(req):
     data = request.get_json()
     print("Data price is:", data)
     membership_fee = data.get("membership_fee")
+    year = data.get("year")
     if membership_fee is None:
         return {"error": "Missing membership_fee"}, 400
 
-    return memberships_service.set_membership_price(membership_fee)
+    return memberships_service.set_membership_price(membership_fee, year=year)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -116,4 +117,17 @@ def get_membership_price(req):
     if req.method != "GET":
         return "Invalid method", 405
 
-    return memberships_service.get_membership_price()
+    year = req.args.get("year")
+    return memberships_service.get_membership_price(year=year)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def get_memberships_report(req):
+    if req.method != "GET":
+        return "Invalid method", 405
+
+    event_id = req.args.get("event_id")
+    if not event_id:
+        return {"error": "Missing event_id"}, 400
+    return memberships_service.get_memberships_report(event_id=event_id)

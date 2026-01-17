@@ -17,6 +17,13 @@ export function MembershipModal({
   onCheckbox,
 }) {
   const defaultSendCard = !!form.send_card_on_create
+  const defaultSubscriptionValid = form.subscription_valid ?? true
+  const startDateValue = (() => {
+    if (!form.start_date) return ""
+    const parsed = new Date(form.start_date)
+    if (Number.isNaN(parsed.getTime())) return form.start_date
+    return parsed.toISOString().slice(0, 10)
+  })()
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -95,6 +102,32 @@ export function MembershipModal({
               />
               <Label htmlFor="send_card_on_create">Invia tessera al salvataggio</Label>
             </div>
+          )}
+
+          {isEditMode && (
+            <>
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div>
+                  <Label htmlFor="start_date">Data iscrizione</Label>
+                  <Input
+                    id="start_date"
+                    name="start_date"
+                    type="date"
+                    value={startDateValue}
+                    onChange={onInput}
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-6">
+                  <Checkbox
+                    id="subscription_valid"
+                    name="subscription_valid"
+                    checked={defaultSubscriptionValid}
+                    onCheckedChange={(val) => onCheckbox("subscription_valid", val)}
+                  />
+                  <Label htmlFor="subscription_valid">Tessera valida</Label>
+                </div>
+              </div>
+            </>
           )}
 
           <div className="flex justify-end gap-2 pt-4">

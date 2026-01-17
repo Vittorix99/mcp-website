@@ -18,6 +18,11 @@ CREATE_PARTICIPANT_SCHEMA = {
     "phone": {"required": False, "types": str},
     "birthdate": {"required": False, "types": str},
     "membership_included": {"required": False, "types": bool},
+    "payment_method": {
+        "required": False,
+        "types": str,
+        "validator": lambda v: v in {"website", "private_paypal", "iban", "cash", "omaggio"},
+    },
 }
 
 UPDATE_PARTICIPANT_SCHEMA = {
@@ -29,6 +34,11 @@ UPDATE_PARTICIPANT_SCHEMA = {
     "phone": {"required": False, "types": str},
     "birthdate": {"required": False, "types": str},
     "membership_included": {"required": False, "types": bool},
+    "payment_method": {
+        "required": False,
+        "types": str,
+        "validator": lambda v: v in {"website", "private_paypal", "iban", "cash", "omaggio"},
+    },
 }
 
 DELETE_PARTICIPANT_SCHEMA = {

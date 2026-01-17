@@ -12,8 +12,8 @@ import { routes } from "@/config/routes"
 import { useUser } from "@/contexts/userContext"
 import { Loader2, LogIn } from "lucide-react"
 
-export default function LoginModal() {
-  const [isOpen, setIsOpen] = useState(false)
+export default function LoginModal({ open, onOpenChange, hideTrigger = false }) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -54,13 +54,27 @@ export default function LoginModal() {
     transition: { duration: 0.2 },
   }
 
+  const isControlled = typeof open === "boolean"
+  const currentOpen = isControlled ? open : internalOpen
+
+  const handleOpenChange = (nextOpen) => {
+    if (!isControlled) {
+      setInternalOpen(nextOpen)
+    }
+    if (onOpenChange) {
+      onOpenChange(nextOpen)
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" className="text-white hover:text-mcp-orange transition-colors">
-          LOGIN
-        </Button>
-      </DialogTrigger>
+    <Dialog open={currentOpen} onOpenChange={handleOpenChange}>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="ghost" className="text-white hover:text-mcp-orange transition-colors">
+            LOGIN
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px] bg-black border-mcp-orange/50">
         <DialogHeader>
           <DialogTitle className="font-helvetica text-3xl md:text-4xl font-bold  gradient-text tracking-atlantico-wider ">Login to MCP</DialogTitle>
@@ -135,4 +149,3 @@ export default function LoginModal() {
     </Dialog>
   )
 }
-

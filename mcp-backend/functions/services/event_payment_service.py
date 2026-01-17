@@ -68,6 +68,18 @@ class EventPaymentService:
         self.orders_controller: OrdersController = self.paypal_client.orders
         self.debug = os.getenv("EVENT_PAYMENT_DEBUG", "true").lower() in {"1", "true", "yes"}
 
+    def _get_membership_fee(self, year: Optional[int] = None) -> Optional[float]:
+        target_year = str(year or datetime.utcnow().year)
+        doc = db.collection("membership_settings").document("price").get()
+        if not doc.exists:
+            return None
+        price_by_year = doc.to_dict().get("price_by_year", {})
+        fee = price_by_year.get(target_year)
+        try:
+            return float(fee) if fee is not None else None
+        except (TypeError, ValueError):
+            return None
+
     def _debug(self, message: str, *args):
         if self.debug:
             try:
@@ -87,7 +99,7 @@ class EventPaymentService:
             cart_item = cart[0]
             event_id = cart_item.get("eventId")
             participants = cart_item.get("participants", [])
-            membership_fee = cart_item.get("membershipFee")
+            membership_fee = None
 
             if not event_id or not isinstance(participants, list) or not participants:
                 return jsonify({"error": "Missing eventId or participants"}), 400
@@ -113,8 +125,10 @@ class EventPaymentService:
             membership_targets, membership_lookup = self._determine_membership_targets(
                 purchase_mode, normalized_participants, validation_result
             )
-            if membership_targets and membership_fee is None:
-                return jsonify({"error": "Missing membershipFee for membership creation"}), 400
+            if membership_targets:
+                membership_fee = self._get_membership_fee()
+                if membership_fee is None:
+                    return jsonify({"error": "Missing membership fee in settings"}), 400
 
             total = self._compute_total(event_model, normalized_participants, membership_targets, membership_fee)
             formatted_total = f"{total:.2f}"
@@ -205,6 +219,21 @@ class EventPaymentService:
                     order_data,
                     purchase_ref,
                 )
+
+            membership_ids = {
+                payload.get("id")
+                for payload in existing_memberships.values()
+                if isinstance(payload, dict) and payload.get("id")
+            }
+            membership_ids.update(
+                ref.get("membership_id") for ref in membership_refs if ref.get("membership_id")
+            )
+            db.collection("purchases").document(purchase_ref.id).update(
+                {
+                    "participants_count": len(participants),
+                    "membership_ids": sorted(membership_ids),
+                }
+            )
 
             self.handle_event_participants(
                 event_id,
@@ -380,14 +409,53 @@ class EventPaymentService:
         membership_refs = []
         fee_value = float(membership_fee) if membership_fee is not None else None
         for person in targets:
+            normalized_email = normalize_email(person.get("email"))
+            existing = []
+            if normalized_email:
+                existing = (
+                    db.collection("memberships")
+                    .where("email", "==", normalized_email)
+                    .limit(1)
+                    .get()
+                )
+
             end_date = calculate_end_of_year(capture_time)
             if not end_date:
                 fallback_year = datetime.utcnow().year
                 end_date = f"31-12-{fallback_year}"
+
+            if existing:
+                doc = existing[0]
+                doc_data = doc.to_dict() or {}
+                update_payload = {
+                    "subscription_valid": True,
+                    "start_date": capture_time,
+                    "end_date": end_date,
+                    "membership_sent": False,
+                    "send_card_on_create": True,
+                    "membership_type": PurchaseTypes.EVENT.value,
+                    "membership_fee": fee_value,
+                    "purchases": firestore.ArrayUnion([purchase_ref.id]),
+                }
+                if not doc_data.get("purchase_id"):
+                    update_payload["purchase_id"] = purchase_ref.id
+                if person.get("name") and not doc_data.get("name"):
+                    update_payload["name"] = person.get("name")
+                if person.get("surname") and not doc_data.get("surname"):
+                    update_payload["surname"] = person.get("surname")
+                if person.get("phone") and not doc_data.get("phone"):
+                    update_payload["phone"] = person.get("phone")
+                if person.get("birthdate") and not doc_data.get("birthdate"):
+                    update_payload["birthdate"] = person.get("birthdate")
+
+                doc.reference.update(update_payload)
+                membership_refs.append({"email": normalized_email, "membership_id": doc.id})
+                continue
+
             membership = Membership(
                 name=person.get("name"),
                 surname=person.get("surname"),
-                email=person.get("email"),
+                email=normalized_email,
                 phone=person.get("phone"),
                 birthdate=person.get("birthdate"),
                 start_date=capture_time,
@@ -402,7 +470,7 @@ class EventPaymentService:
                 membership_fee=fee_value,
             )
             ref = db.collection("memberships").add(membership.to_firestore(include_none=True))[1]
-            membership_refs.append({"email": normalize_email(person.get("email")), "membership_id": ref.id})
+            membership_refs.append({"email": normalized_email, "membership_id": ref.id})
         return membership_refs
 
     def handle_event_participants(self, event_id, participants, membership_refs, purchase_ref, price, existing_memberships):
@@ -427,6 +495,7 @@ class EventPaymentService:
                 location_sent=False,
                 purchase_id=purchase_ref.id,
                 price=price,
+                payment_method="website",
                 newsletter_consent=p.get("newsletterConsent", False),
                 created_at=firestore.SERVER_TIMESTAMP,
             )

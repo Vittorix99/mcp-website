@@ -1,6 +1,6 @@
 from .base import FirestoreModel
 from .contact_message import ContactMessage
-from .enums import EventPurchaseAccessType, PurchaseTypes
+from .enums import EventPurchaseAccessType, EventStatus, PaymentMethod, PurchaseTypes
 from .event import Event
 from .event_participant import EventParticipant
 from .event_purchase import EventPurchase
@@ -14,6 +14,8 @@ from .purchase import Purchase
 __all__ = [
     "FirestoreModel",
     "EventPurchaseAccessType",
+    "EventStatus",
+    "PaymentMethod",
     "PurchaseTypes",
     "Event",
     "EventParticipant",

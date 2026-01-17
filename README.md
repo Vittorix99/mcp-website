@@ -70,6 +70,46 @@ Crea e popola i seguenti file con le tue credenziali:
 * `mcp-backend/functions/service_account.json` (Firebase service account)
 * `mcp-backend/functions/service_mail.json` (Google mail service account)
 
+### Selezione DB (prod / test / locale)
+
+Il backend sceglie il Firestore in base a queste variabili:
+
+* **`FIRESTORE_EMULATOR_HOST`**: se settata, usa sempre il DB locale dell’emulatore.
+* **`GOOGLE_APPLICATION_CREDENTIALS`**: se settata, usa il service account indicato (prod o test).
+* **Default**: se `GOOGLE_APPLICATION_CREDENTIALS` non è settata, usa `mcp-backend/functions/service_account.json` (prod).
+
+#### DB prod (cloud)
+```bash
+unset FIRESTORE_EMULATOR_HOST
+export GOOGLE_APPLICATION_CREDENTIALS="/percorso/service_account.json"
+firebase emulators:start --only functions --project <PROJECT_ID_PROD>
+```
+
+#### DB test (cloud)
+```bash
+unset FIRESTORE_EMULATOR_HOST
+export GOOGLE_APPLICATION_CREDENTIALS="/percorso/service_.account_test.json"
+firebase emulators:start --only functions --project <PROJECT_ID_TEST>
+```
+
+#### DB locale (emulatore)
+```bash
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+firebase emulators:start --only functions,firestore
+```
+
+### Auth emulator (opzionale)
+
+Se vuoi usare l’Auth emulator con le funzioni locali:
+```bash
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+firebase emulators:start --only functions,auth --project <PROJECT_ID_TEST>
+```
+
+Nel frontend:
+* `NEXT_PUBLIC_AUTH_EMULATOR_HOST=127.0.0.1:9099`
+* riavvia `npm run dev`
+
 ### Deploy Backend
 
 Usa Firebase CLI per deployare:
@@ -107,6 +147,12 @@ Crea il file `.env` nella cartella del frontend:
 NEXT_PUBLIC_ENV=local
 NEXT_PUBLIC_BASE_URL=http://127.0.0.1:5001/mcp-website-2a1ad/us-central1
 # Aggiungi ulteriori variabili necessarie
+```
+
+Se usi il Functions emulator con progetto test:
+```
+NEXT_PUBLIC_BASE_URL=http://127.0.0.1:5002/<PROJECT_ID_TEST>/us-central1
+NEXT_PUBLIC_AUTH_EMULATOR_HOST=127.0.0.1:9099
 ```
 
 ### Esecuzione in locale

@@ -20,6 +20,12 @@ export default function MembershipStats({ stats, totalTesseramenti, onRefresh })
       </Card>
       <Card className="flex-1 bg-zinc-900 border border-zinc-700">
         <CardContent className="p-4">
+          <p className="text-sm text-gray-400">Membri onorari</p>
+          <p className="text-2xl font-bold">{stats.manual}</p>
+        </CardContent>
+      </Card>
+      <Card className="flex-1 bg-zinc-900 border border-zinc-700">
+        <CardContent className="p-4">
           <p className="text-sm text-gray-400">Totale incassato</p>
           <p className="text-2xl font-bold">{totalTesseramenti.toFixed(2)} €</p>
         </CardContent>

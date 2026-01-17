@@ -37,14 +37,20 @@ export async function getMembershipEvents(membership_id) {
   const endpointUrl = `${endpoints.admin.getMembershipEvents}?id=${membership_id}`;
   return safeFetch(endpointUrl, "GET");
 }
-export async function setMembershipFee(membership_fee) {
+export async function setMembershipFee(membership_fee, year) {
   if (typeof membership_fee !== "number" || isNaN(membership_fee)) {
     console.error(" membership_fee non valido:", membership_fee);
     return { error: "Prezzo non valido" };
   }
 
-  return safeFetch(endpoints.admin.setMembershipPrice, "POST", { membership_fee });
+  return safeFetch(endpoints.admin.setMembershipPrice, "POST", { membership_fee, year });
 }
-export async function getMembershipPrice() {
-  return safeFetch(endpoints.admin.getMembershipPrice, "GET");
+export async function getMembershipPrice(year) {
+  const url = year ? `${endpoints.admin.getMembershipPrice}?year=${encodeURIComponent(year)}` : endpoints.admin.getMembershipPrice;
+  return safeFetch(url, "GET");
+}
+
+export async function getMembershipsReport(event_id) {
+  const endpointUrl = `${endpoints.admin.getMembershipsReport}?event_id=${event_id}`;
+  return safeFetch(endpointUrl, "GET");
 }

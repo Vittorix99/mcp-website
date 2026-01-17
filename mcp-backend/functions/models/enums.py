@@ -15,6 +15,21 @@ class EventPurchaseAccessType(str, Enum):
 
 
 
+class EventStatus(str, Enum):
+    COMING_SOON = "coming_soon"
+    ACTIVE = "active"
+    SOLD_OUT = "sold_out"
+    ENDED = "ended"
+
+
+class PaymentMethod(str, Enum):
+    WEBSITE = "website"
+    PRIVATE_PAYPAL = "private_paypal"
+    IBAN = "iban"
+    CASH = "cash"
+    OMAGGIO = "omaggio"
+
+
 class PurchaseTypes(str, Enum):
     EVENT = "event"
     MEMBERSHIP = "membership" 

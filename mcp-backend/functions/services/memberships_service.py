@@ -6,12 +6,13 @@ from io import BytesIO
 
 from firebase_admin import firestore
 from flask import jsonify
+from google.cloud.firestore_v1 import FieldFilter
 
 from config.firebase_config import bucket, db
 from models import Membership
 from services.mail_service import gmail_send_email_template
 from utils.email_templates import get_membership_email_template
-from utils.events_utils import calculate_end_of_year_membership, is_minor
+from utils.events_utils import calculate_end_of_year_membership, is_minor, normalize_email, normalize_phone
 from utils.membership_cards import process_new_membership, update_membership_card
 
 
@@ -33,6 +34,56 @@ class MembershipsService:
         data = membership.to_firestore(include_none=True)
         data["id"] = membership.id
         return data
+
+    def _parse_iso_date(self, value):
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value.replace(tzinfo=None)
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return parsed.replace(tzinfo=None)
+        except ValueError:
+            return None
+
+    def _normalize_name(self, value):
+        return (value or "").strip().lower()
+
+    def _format_timestamp(self, value):
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
+
+    def _parse_amount(self, value):
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _safe_divide_amount(self, amount, count):
+        if amount is None or not count:
+            return None
+        return amount / count
+
+    def _membership_from_id(self, membership_id):
+        if not membership_id:
+            return None
+        snap = self.collection.document(membership_id).get()
+        if not snap.exists:
+            return None
+        data = snap.to_dict() or {}
+        data["id"] = membership_id
+        return data
+
+    def _chunked(self, items, size=10):
+        if not items:
+            return
+        for i in range(0, len(items), size):
+            yield items[i:i + size]
 
     def get_all(self):
         try:
@@ -63,20 +114,19 @@ class MembershipsService:
             if not birthdate or is_minor(birthdate):
                 return {'error': 'Utente minorenne non ammesso'}, 403
 
-            email = data.get("email")
-            phone = data.get("phone")
+            email = normalize_email(data.get("email"))
+            phone = normalize_phone(data.get("phone"))
             if not email and not phone:
                 return {'error': 'Email o telefono obbligatorio'}, 400
 
-            existing_query = self.collection.where("subscription_valid", "==", True)
             if email:
-                existing_query = existing_query.where("email", "==", email)
+                existing = self.collection.where("email", "==", email).limit(1).get()
+                if existing:
+                    return {'error': 'Email già registrata'}, 409
             if phone:
-                existing_query = existing_query.where("phone", "==", phone)
-
-            existing = existing_query.get()
-            if existing:
-                return {'error': 'Utente già tesserato'}, 409
+                existing = self.collection.where("phone", "==", phone).limit(1).get()
+                if existing:
+                    return {'error': 'Telefono già registrato'}, 409
 
             now = datetime.now(timezone.utc)
             start_date = now.isoformat()
@@ -127,21 +177,24 @@ class MembershipsService:
             if not birthdate or is_minor(birthdate):
                 return {'error': 'Utente minorenne non ammesso'}, 403
 
-            email = updated_data.get("email")
-            phone = updated_data.get("phone")
+            email = normalize_email(updated_data.get("email"))
+            phone = normalize_phone(updated_data.get("phone"))
+            updated_data["email"] = email or None
+            updated_data["phone"] = phone or None
 
             if not email and not phone:
                 return {'error': 'Email o telefono obbligatorio'}, 400
 
-            query = self.collection.where("subscription_valid", "==", True)
-            potential_duplicates = query.get()
-
-            for doc in potential_duplicates:
-                if doc.id == membership_id:
-                    continue
-                other = doc.to_dict()
-                if (email and other.get("email") == email) or (phone and other.get("phone") == phone):
-                    return {'error': 'Email o telefono già registrato per un altro membro attivo'}, 409
+            if email:
+                potential_duplicates = self.collection.where("email", "==", email).get()
+                for doc in potential_duplicates:
+                    if doc.id != membership_id:
+                        return {'error': 'Email già registrata per un altro membro'}, 409
+            if phone:
+                potential_duplicates = self.collection.where("phone", "==", phone).get()
+                for doc in potential_duplicates:
+                    if doc.id != membership_id:
+                        return {'error': 'Telefono già registrato per un altro membro'}, 409
             print("Updated Data:",updated_data )
             if email and email != current_data.get("email"):
                 updated_result = update_membership_card(membership_id, updated_data)
@@ -314,9 +367,9 @@ Il Team MCP
         except Exception as e:
             self.logger.exception("[get_events]")
             return {'error': str(e)}, 500
-    def set_membership_price(self, price):
+    def set_membership_price(self, price, year=None):
         try:
-            year = str(datetime.now().year)
+            year = str(year or datetime.now().year)
             self.settings_collection.document("price").set({
                 "price_by_year": {year: price}
             }, merge=True)
@@ -325,9 +378,9 @@ Il Team MCP
             self.logger.error(f"[set_membership_price] {e}")
             return {"error": str(e)}, 500
     
-    def get_membership_price(self):
+    def get_membership_price(self, year=None):
         try:
-            year = str(datetime.now().year)
+            year = str(year or datetime.now().year)
             doc = self.settings_collection.document("price").get()
 
             if not doc.exists:
@@ -342,6 +395,168 @@ Il Team MCP
             return jsonify({"year": year, "price": price}), 200
         except Exception as e:
             self.logger.error(f"[get_membership_price] {e}")
+            return {"error": str(e)}, 500
+
+    def get_memberships_report(self, event_id):
+        try:
+            if not event_id:
+                return {"error": "Missing event_id"}, 400
+
+            event_snap = db.collection("events").document(event_id).get()
+            if not event_snap.exists:
+                return {"error": "Evento non trovato"}, 404
+
+            event_data = event_snap.to_dict() or {}
+            # Membership fee used to compute quota variabile for new associates.
+            membership_fee = None
+            price_doc = self.settings_collection.document("price").get()
+            if price_doc.exists:
+                year = str(datetime.now().year)
+                price_data = price_doc.to_dict().get("price_by_year", {})
+                membership_fee = self._parse_amount(price_data.get(year))
+
+            # Load all purchases for the event.
+            purchase_snaps = (
+                db.collection("purchases")
+                .where(filter=FieldFilter("ref_id", "==", event_id))
+                .stream()
+            )
+            purchases = {}
+            total_net_collected = 0.0
+            for snap in purchase_snaps:
+                purchase_data = snap.to_dict() or {}
+                purchases[snap.id] = purchase_data
+                net_amount = self._parse_amount(purchase_data.get("net_amount")) or 0.0
+                total_net_collected += net_amount
+            print(f"[get_memberships_report] event_id={event_id} purchases={len(purchases)}")
+
+            memberships_by_purchase = {}
+            membership_cache = {}
+            new_member_ids = set()
+
+            # Resolve new associates: memberships created by each purchase.
+            purchase_ids = list(purchases.keys())
+            for batch in self._chunked(purchase_ids, 10):
+                membership_snaps = (
+                    self.collection
+                    .where(filter=FieldFilter("purchase_id", "in", batch))
+                    .stream()
+                )
+                for m_snap in membership_snaps:
+                    m_data = m_snap.to_dict() or {}
+                    m_data["id"] = m_snap.id
+                    purchase_id = m_data.get("purchase_id")
+                    if purchase_id:
+                        memberships_by_purchase.setdefault(purchase_id, []).append(m_data)
+                    membership_cache[m_snap.id] = m_data
+                    new_member_ids.add(m_snap.id)
+
+            rows = []
+
+            # Load participants for the event to include already-associated members.
+            participants_snaps = (
+                db.collection("participants")
+                .document(event_id)
+                .collection("participants_event")
+                .stream()
+            )
+
+            participants_by_purchase = {}
+            participant_membership_ids = set()
+            for snap in participants_snaps:
+                data = snap.to_dict() or {}
+                membership_id = data.get("membershipId") or data.get("membership_id")
+                purchase_id = data.get("purchase_id")
+                if not membership_id or not purchase_id:
+                    continue
+                participants_by_purchase.setdefault(purchase_id, []).append(membership_id)
+                participant_membership_ids.add(membership_id)
+            print(
+                f"[get_memberships_report] participants={len(participant_membership_ids)} "
+                f"participants_purchases={len(participants_by_purchase)}"
+            )
+
+            missing_member_ids = [
+                mid for mid in participant_membership_ids if mid not in membership_cache
+            ]
+            for batch in self._chunked(missing_member_ids, 10):
+                doc_refs = [self.collection.document(member_id) for member_id in batch]
+                member_snaps = (
+                    self.collection
+                    .where(filter=FieldFilter("__name__", "in", doc_refs))
+                    .stream()
+                )
+                for m_snap in member_snaps:
+                    m_data = m_snap.to_dict() or {}
+                    m_data["id"] = m_snap.id
+                    membership_cache[m_snap.id] = m_data
+
+            # Build rows for new associates (Associato = Si).
+            for purchase_id, members in memberships_by_purchase.items():
+                purchase = purchases.get(purchase_id, {})
+                net_amount = self._parse_amount(purchase.get("net_amount"))
+                participants = participants_by_purchase.get(purchase_id)
+                total_participants = len(participants) if participants else len(members)
+                net_per_member = self._safe_divide_amount(net_amount, total_participants)
+
+                for member in members:
+                    quota_variabile = net_per_member
+                    if net_per_member is not None and membership_fee is not None:
+                        quota_variabile = net_per_member - membership_fee
+
+                    rows.append({
+                        "data_iscrizione": member.get("start_date"),
+                        "name": member.get("name", ""),
+                        "surname": member.get("surname", ""),
+                        "email": member.get("email", ""),
+                        "associato": "Si",
+                        "netto_pagato": net_per_member,
+                        "quota_variabile": quota_variabile,
+                    })
+
+            # Build rows for existing associates (Associato = No).
+            existing_associates_count = 0
+            for purchase_id, membership_ids in participants_by_purchase.items():
+                purchase = purchases.get(purchase_id, {})
+                net_amount = self._parse_amount(purchase.get("net_amount"))
+                net_per_participant = self._safe_divide_amount(net_amount, len(membership_ids))
+
+                for membership_id in membership_ids:
+                    if membership_id in new_member_ids:
+                        continue
+                    member = membership_cache.get(membership_id)
+                    if not member:
+                        continue
+
+                    rows.append({
+                        "data_iscrizione": member.get("start_date"),
+                        "name": member.get("name", ""),
+                        "surname": member.get("surname", ""),
+                        "email": member.get("email", ""),
+                        "associato": "No",
+                        "netto_pagato": net_per_participant,
+                        "quota_variabile": net_per_participant,
+                    })
+                    existing_associates_count += 1
+
+            # Sort by membership start date.
+            rows.sort(
+                key=lambda r: self._parse_iso_date(r.get("data_iscrizione")) or datetime.max
+            )
+
+            response = {
+                "event_id": event_id,
+                "new_associates_count": len(new_member_ids),
+                "existing_associates_count": existing_associates_count,
+                "total_net_collected": total_net_collected,
+                "rows": rows,
+            }
+            print(
+                f"[get_memberships_report] rows={len(rows)} new_associates={len(new_member_ids)}"
+            )
+            return jsonify(response), 200
+        except Exception as e:
+            self.logger.exception("[get_memberships_report]")
             return {"error": str(e)}, 500
     
     

@@ -10,7 +10,6 @@ class EventDTO:
 
     id: Optional[str] = None
     title: str = ""
-    description: str = ""
     date: str = ""
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -19,9 +18,9 @@ class EventDTO:
     price: Optional[float] = None
     fee: Optional[float] = None
     max_participants: Optional[int] = None
-    active: bool = True
+    status: str = "active"
     image: Optional[str] = None
-    lineup: List[str] = field(default_factory=list)
+    lineup: Optional[List[str]] = None
     note: str = ""
     photo_path: Optional[str] = None
     purchase_mode: Optional[str] = None
@@ -30,7 +29,6 @@ class EventDTO:
     only_females: bool = False
     participants_count: int = 0
     external_link: Optional[str] = None
-    membership_fee: Optional[float] = None
     created_at: Optional[Any] = None
     created_by: Optional[str] = None
     updated_at: Optional[Any] = None
@@ -41,7 +39,6 @@ class EventDTO:
         dto = cls(
             id=event.id,
             title=event.title,
-            description=event.description,
             date=event.date,
             start_time=event.start_time,
             end_time=event.end_time,
@@ -50,7 +47,7 @@ class EventDTO:
             price=event.price,
             fee=event.fee,
             max_participants=event.max_participants,
-            active=event.active,
+            status=event.status.value if event.status else "active",
             image=event.image,
             lineup=event.lineup or [],
             note=event.note,
@@ -61,7 +58,6 @@ class EventDTO:
             only_females=event.only_females,
             participants_count=event.participants_count,
             external_link=event.external_link,
-            membership_fee=event.membership_fee,
             created_at=event.created_at,
             created_by=event.created_by,
             updated_at=event.updated_at,
@@ -73,7 +69,6 @@ class EventDTO:
         payload: Dict[str, Any] = {
             "id": self.id,
             "title": self.title,
-            "description": self.description,
             "date": self.date,
             "startTime": self.start_time,
             "endTime": self.end_time,
@@ -82,7 +77,7 @@ class EventDTO:
             "price": self.price,
             "fee": self.fee,
             "maxParticipants": self.max_participants,
-            "active": self.active,
+            "status": self.status,
             "image": self.image,
             "lineup": self.lineup,
             "note": self.note,
@@ -93,7 +88,6 @@ class EventDTO:
             "onlyFemales": self.only_females,
             "participantsCount": self.participants_count,
             "externalLink": self.external_link,
-            "membershipFee": self.membership_fee,
             "createdAt": self.created_at,
             "createdBy": self.created_by,
             "updatedAt": self.updated_at,
@@ -106,7 +100,6 @@ class EventDTO:
         return cls(
             id=payload.get("id"),
             title=payload.get("title", ""),
-            description=payload.get("description", ""),
             date=payload.get("date", ""),
             start_time=payload.get("startTime") or payload.get("start_time"),
             end_time=payload.get("endTime") or payload.get("end_time"),
@@ -115,9 +108,9 @@ class EventDTO:
             price=payload.get("price"),
             fee=payload.get("fee"),
             max_participants=payload.get("maxParticipants") or payload.get("max_participants"),
-            active=payload.get("active", True),
+            status=payload.get("status", "active"),
             image=payload.get("image"),
-            lineup=payload.get("lineup") or [],
+            lineup=payload.get("lineup") if "lineup" in payload else None,
             note=payload.get("note", ""),
             photo_path=payload.get("photoPath") or payload.get("photo_path"),
             purchase_mode=payload.get("purchaseMode") or payload.get("purchase_mode"),
@@ -126,7 +119,6 @@ class EventDTO:
             only_females=payload.get("onlyFemales") if "onlyFemales" in payload else payload.get("only_females", False),
             participants_count=payload.get("participantsCount") or payload.get("participants_count", 0),
             external_link=payload.get("externalLink") or payload.get("external_link"),
-            membership_fee=payload.get("membershipFee") or payload.get("membership_fee"),
             created_at=payload.get("createdAt") or payload.get("created_at"),
             created_by=payload.get("createdBy") or payload.get("created_by"),
             updated_at=payload.get("updatedAt") or payload.get("updated_at"),

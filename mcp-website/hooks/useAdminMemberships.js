@@ -24,9 +24,9 @@ const parsedEnvMembershipPrice =
 const hasEnvMembershipPrice =
   typeof envMembershipPriceRaw === "string" && !Number.isNaN(parsedEnvMembershipPrice);
 
-const buildEnvMembershipPricePayload = () => ({
+const buildEnvMembershipPricePayload = (year) => ({
   price: parsedEnvMembershipPrice,
-  year: new Date().getFullYear().toString(),
+  year: (year || new Date().getFullYear()).toString(),
 });
 
 export function useAdminMemberships(options = {}) {
@@ -227,15 +227,20 @@ export function useAdminMemberships(options = {}) {
  
 
 
-  const getCurrentYearPrice = useCallback(async () => {
+  const getMembershipPriceForYear = useCallback(async (year) => {
     if (hasEnvMembershipPrice) {
-      setMembershipPrice(buildEnvMembershipPricePayload());
+      const currentYear = new Date().getFullYear().toString();
+      if (String(year) === currentYear) {
+        setMembershipPrice(buildEnvMembershipPricePayload(year));
+      } else {
+        setMembershipPrice({ year: String(year), price: null });
+      }
       return;
     }
 
     setLoading(true);
     try {
-      const res = await getMembershipPrice();
+      const res = await getMembershipPrice(year);
       if (res?.error) {
         setError(res.error);
         return;
@@ -248,7 +253,7 @@ export function useAdminMemberships(options = {}) {
     }
   }, [setError, hasEnvMembershipPrice]);
 
-  const setCurrentYearPrice = useCallback(async (price) => {
+  const setMembershipPriceForYear = useCallback(async (year, price) => {
     if (hasEnvMembershipPrice) {
       setError("Il prezzo è gestito dal file .env (NEXT_MEMBESHIP_PRICE). Aggiorna lì il valore.");
       return;
@@ -261,12 +266,12 @@ export function useAdminMemberships(options = {}) {
 
     setLoading(true);
     try {
-      const res = await setMembershipFee(price);
+      const res = await setMembershipFee(price, year);
       if (res?.error) {
         setError(res.error);
       } else {
         //await loadAll();
-        await getCurrentYearPrice(); // 🔁 Ricarica anche il prezzo
+        await getMembershipPriceForYear(year); // 🔁 Ricarica anche il prezzo
       }
     } catch (e) {
       console.error("❌ Errore durante il settaggio del prezzo:", e);
@@ -274,7 +279,7 @@ export function useAdminMemberships(options = {}) {
     } finally {
       setLoading(false);
     }
-  }, [loadAll, setError, getCurrentYearPrice, hasEnvMembershipPrice]);
+  }, [loadAll, setError, getMembershipPriceForYear, hasEnvMembershipPrice]);
 
 
 
@@ -306,8 +311,8 @@ export function useAdminMemberships(options = {}) {
     fetchMembershipPurchases,
     fetchMembershipEvents,
     setError,
-    setCurrentYearPrice,
-    getCurrentYearPrice,
+    setMembershipPriceForYear,
+    getMembershipPriceForYear,
     extrasLoading,
     membershipPrice,
     isMembershipPriceReadOnly,

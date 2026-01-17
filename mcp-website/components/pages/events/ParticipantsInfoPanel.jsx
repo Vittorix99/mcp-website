@@ -40,7 +40,7 @@ function OnlyMembersPanel() {
   )
 }
 
-function MembershipIncludedPanel({ membershipFee, quantity }) {
+function MembershipIncludedPanel() {
   return (
     <PanelBox>
       <p>
@@ -56,7 +56,7 @@ function MembershipIncludedPanel({ membershipFee, quantity }) {
   )
 }
 
-export default function ParticipantsInfoPanel({ event, quantity = 1, purchaseMode }) {
+export default function ParticipantsInfoPanel({ event, purchaseMode }) {
   const mode = purchaseMode || resolvePurchaseMode(event)
 
   if (mode === PURCHASE_MODES.ONLY_ALREADY_REGISTERED_MEMBERS) {
@@ -64,7 +64,7 @@ export default function ParticipantsInfoPanel({ event, quantity = 1, purchaseMod
   }
 
   if (mode === PURCHASE_MODES.ONLY_MEMBERS) {
-    return <MembershipIncludedPanel membershipFee={event?.membershipFee} quantity={quantity} />
+    return <MembershipIncludedPanel />
   }
 
   if (mode === PURCHASE_MODES.PUBLIC) {

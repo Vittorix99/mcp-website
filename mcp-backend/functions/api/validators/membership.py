@@ -11,6 +11,7 @@ UPDATE_MEMBERSHIP_SCHEMA = {
     "email": {"required": False, "types": str},
     "phone": {"required": False, "types": str},
     "birthdate": {"required": False, "types": str},
+    "subscription_valid": {"required": False, "types": bool},
 }
 
 CREATE_MEMBERSHIP_SCHEMA = {
@@ -35,6 +36,10 @@ SET_PRICE_SCHEMA = {
         "required": True,
         "types": (int, float),
         "error": "membership_fee deve essere un numero",
+    },
+    "year": {
+        "required": False,
+        "types": (str, int),
     },
 }
 

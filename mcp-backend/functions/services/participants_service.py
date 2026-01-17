@@ -7,7 +7,13 @@ from google.cloud import firestore
 from config.firebase_config import db
 from models import EventParticipant, EventPurchaseAccessType, Membership
 from services.ticket_service import process_new_ticket
-from utils.events_utils import calculate_end_of_year_membership, is_minor
+from utils.events_utils import (
+    calculate_end_of_year_membership,
+    is_minor,
+    map_purchase_mode,
+    normalize_email,
+    normalize_phone,
+)
 from utils.participant_rules import run_basic_checks
 
 
@@ -16,6 +22,7 @@ class ParticipantsService:
         self.logger = logging.getLogger("ParticipantsService")
         self.collection_name = "participants"
         self.db = db
+        self.allowed_payment_methods = {"website", "private_paypal", "iban", "cash", "omaggio"}
 
     def _get_collection(self, event_id):
         return self.db.collection(f"{self.collection_name}/{event_id}/participants_event")
@@ -48,6 +55,8 @@ class ParticipantsService:
             "newsletterConsent": "newsletter_consent",
             "newsletter_consent": "newsletter_consent",
             "price": "price",
+            "payment_method": "payment_method",
+            "paymentMethod": "payment_method",
         }
 
         for key, value in updates.items():
@@ -87,36 +96,70 @@ class ParticipantsService:
             if not birthdate or is_minor(birthdate):
                 return {"error": "Partecipante minorenne non consentito"}, 403
 
-            email = participant_data.get("email", "").lower().strip()
-            phone = participant_data.get("phone", "").strip()
+            email = normalize_email(participant_data.get("email"))
+            phone = normalize_phone(participant_data.get("phone"))
             membership_included = participant_data.get("membership_included", False)
+            payment_method = participant_data.get("payment_method") or participant_data.get("paymentMethod")
+            payment_method = (payment_method or "").strip().lower()
+            purchase_id = participant_data.get("purchase_id")
+            price = participant_data.get("price")
+            try:
+                price_value = float(price) if price not in (None, "") else None
+            except (TypeError, ValueError):
+                price_value = None
+
+            if purchase_id:
+                payment_method = "website"
+            elif price_value == 0:
+                payment_method = "omaggio"
+            elif not payment_method:
+                return {"error": "Missing payment_method"}, 400
+            elif payment_method not in self.allowed_payment_methods:
+                return {"error": "Invalid payment_method"}, 400
 
             membership_id = None
             is_member = False
 
-            existing = (
-                self.db.collection("memberships")
-                .where("subscription_valid", "==", True)
-                .where("email", "==", email)
-                .get()
-            )
+            existing = []
+            if email:
+                existing = (
+                    self.db.collection("memberships")
+                    .where("email", "==", email)
+                    .limit(1)
+                    .get()
+                )
 
             if not existing and phone:
                 existing = (
                     self.db.collection("memberships")
-                    .where("subscription_valid", "==", True)
                     .where("phone", "==", phone)
+                    .limit(1)
                     .get()
                 )
 
             if existing:
-                is_member = True
-                membership_id = existing[0].id
+                member_doc = existing[0]
+                member_data = member_doc.to_dict() or {}
+                membership_id = member_doc.id
+                is_member = bool(member_data.get("subscription_valid"))
 
             if membership_included and is_member:
                 return {"error": "Questo utente è già un membro attivo"}, 409
 
-            if membership_included and not is_member:
+            if membership_included and not is_member and membership_id:
+                now = datetime.now(timezone.utc)
+                end_date = calculate_end_of_year_membership(now)
+                update_payload = {
+                    "subscription_valid": True,
+                    "start_date": now.isoformat(),
+                    "end_date": end_date,
+                    "membership_sent": False,
+                    "membership_type": "manual",
+                }
+                self.db.collection("memberships").document(membership_id).update(update_payload)
+                is_member = True
+
+            if membership_included and not is_member and not membership_id:
                 now = datetime.now(timezone.utc)
                 end_date = calculate_end_of_year_membership(now)
 
@@ -155,11 +198,12 @@ class ParticipantsService:
                 birthdate=birthdate,
                 membership_included=bool(membership_id or membership_included),
                 membership_id=membership_id,
+                payment_method=payment_method or "website",
                 ticket_sent=participant_data.get("ticket_sent", False),
                 location_sent=participant_data.get("location_sent", False),
                 newsletter_consent=participant_data.get("newsletterConsent", False),
                 price=participant_data.get("price"),
-                purchase_id=participant_data.get("purchase_id"),
+                purchase_id=purchase_id,
                 created_at=firestore.SERVER_TIMESTAMP,
             )
 
@@ -186,6 +230,9 @@ class ParticipantsService:
                 return jsonify({"error": "Participant not found"}), 404
 
             participant = self._participant_from_snapshot(snapshot, event_id)
+
+            if participant.purchase_id and "payment_method" in data:
+                return jsonify({"error": "Cannot change payment_method for website purchase"}), 400
 
             if participant.purchase_id and "price" in data:
                 return jsonify({"error": "Modifica del prezzo non permessa: purchase già registrato"}), 400
@@ -238,11 +285,7 @@ class ParticipantsService:
                 return jsonify({"error": "Evento non trovato"}), 404
             event_data = event_doc.to_dict() or {}
 
-            purchase_mode_raw = (event_data.get("type") or "").upper()
-            try:
-                purchase_mode = EventPurchaseAccessType(purchase_mode_raw)
-            except Exception:
-                purchase_mode = EventPurchaseAccessType.PUBLIC
+            purchase_mode = map_purchase_mode(event_data.get("type"))
 
             result = run_basic_checks(event_id, participants, event_data)
             if result.errors:

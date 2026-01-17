@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { routes } from "@/config/routes"
 import { EventModal } from "@/components/admin/events/EventModal"
-import { PURCHASE_MODES, resolvePurchaseMode } from "@/config/events-utils"
+import { EVENT_STATUSES, PURCHASE_MODES, resolvePurchaseMode } from "@/config/events-utils"
 import { EventThumbnail } from "@/components/admin/events/EventThumbnail"
 
 export default function EventsPage() {
@@ -31,10 +31,9 @@ export default function EventsPage() {
     endTime: "",
     price: "",
     fee: "",
-    membershipFee: "",
     note: "",
     lineup: "",
-    active: true,
+    status: EVENT_STATUSES.ACTIVE,
     purchaseMode: PURCHASE_MODES.PUBLIC,
     image: null,
     allowDuplicates: false,
@@ -70,10 +69,9 @@ export default function EventsPage() {
         endTime: ev.endTime,
         price: ev.price?.toString() || "",
         fee: ev.fee?.toString() || "",
-        membershipFee: ev.membershipFee?.toString() || "",
         note: ev.note || "",
         lineup: (ev.lineup || []).join("\n"),
-        active: !!ev.active,
+        status: ev.status || EVENT_STATUSES.ACTIVE,
         allowDuplicates: !!ev.allowDuplicates,
         purchaseMode: resolvePurchaseMode(ev),
         onlyFemales: !!ev.onlyFemales,
@@ -142,9 +140,12 @@ export default function EventsPage() {
     now.setHours(0, 0, 0, 0)
     const dt = new Date(y, m - 1, d)
     if (isNaN(dt.getTime())) return { label: "Data errata", color: "bg-red-500" }
-    if (!ev.active) return { label: "Non Attivo", color: "bg-neutral-500" }
-    if (dt < now) return { label: "Terminato", color: "bg-gray-500" }
-    return { label: "Attivo", color: "bg-green-600" }
+    const status = ev.status || EVENT_STATUSES.ACTIVE
+    if (status === EVENT_STATUSES.COMING_SOON) return { label: "Coming soon", color: "bg-blue-500" }
+    if (status === EVENT_STATUSES.SOLD_OUT) return { label: "Sold out", color: "bg-orange-600" }
+    if (status === EVENT_STATUSES.ENDED || dt < now) return { label: "Terminato", color: "bg-gray-500" }
+    if (status === EVENT_STATUSES.ACTIVE) return { label: "Attivo", color: "bg-green-600" }
+    return { label: "Sconosciuto", color: "bg-neutral-500" }
   }
 
   const filtered = useMemo(() => {

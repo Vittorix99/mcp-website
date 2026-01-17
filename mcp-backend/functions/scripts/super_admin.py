@@ -8,7 +8,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 IS_EMULATOR = os.environ.get("FIRESTORE_EMULATOR_HOST") == 'true'
 print("🔥 Firestore emulatore rilevato!" if IS_EMULATOR else "⚠️ Nessuna emulazione Firestore, connessione a Firestore cloud.")
 
-cred = credentials.Certificate("service_account.json")  # Path al file JSON
+cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
+cred = credentials.Certificate(cred_path)  # Path al file JSON
 firebase_admin.initialize_app(cred, {
     'storageBucket': os.environ.get('STORAGE_BUCKET')
 })

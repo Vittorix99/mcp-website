@@ -27,6 +27,7 @@ class EventParticipantDTO:
     gender_probability: Optional[float] = None
     newsletter_consent: bool = False
     price: Optional[float] = None
+    payment_method: Optional[str] = None
     purchase_id: Optional[str] = None
     created_at: Optional[Any] = None
 
@@ -52,6 +53,7 @@ class EventParticipantDTO:
             gender_probability=participant.gender_probability,
             newsletter_consent=participant.newsletter_consent,
             price=participant.price,
+            payment_method=participant.payment_method.value if participant.payment_method else None,
             purchase_id=participant.purchase_id,
             created_at=participant.created_at,
         )
@@ -77,6 +79,7 @@ class EventParticipantDTO:
             "gender_probability": self.gender_probability,
             "newsletterConsent": self.newsletter_consent,
             "price": self.price,
+            "payment_method": self.payment_method,
             "purchase_id": self.purchase_id,
             "createdAt": self.created_at,
         }

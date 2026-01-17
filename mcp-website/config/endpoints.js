@@ -56,10 +56,11 @@ export const endpoints = {
     updateMembership: make("update_membership"),
     deleteMembership: make("delete_membership"),
     sendMembershipCard: make("send_membership_card"),
-      getMembershipPurchases: make("get_membership_purchases"),
+    getMembershipPurchases: make("get_membership_purchases"),
     getMembershipEvents: make("get_membership_events"),
     setMembershipPrice: make("set_membership_price"),
     getMembershipPrice: make("get_membership_price"),
+    getMembershipsReport: make("get_memberships_report"),
 
     getAllPurchases: make("get_all_purchases"),
     getPurchase: make("get_purchase"),

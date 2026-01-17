@@ -15,7 +15,7 @@ import { PayPalSection } from "@/components/pages/events/PayPalSection"
 import ParticipantsModal from "@/components/pages/events/modals/ParticipantsModal"
 import EventImage from "@/components/pages/events/EventImage"
 import { SelectParticipants } from "@/components/pages/events/SelectParticipants"
-import { resolvePurchaseMode, PURCHASE_MODES, ensureMembershipFee } from "@/config/events-utils"
+import { resolvePurchaseMode, PURCHASE_MODES } from "@/config/events-utils"
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -29,7 +29,8 @@ const splitLines = (txt = "") =>
     .split("\n")
     .filter((line) => line.trim().length)
 
-const isEventActive = (event) => Boolean(event?.active) && typeof event?.price === "number"
+const isEventActive = (event) =>
+  (event?.status || "active") === "active" && typeof event?.price === "number"
 
 const isEventPast = (event) => {
   if (!event?.date) return false
@@ -67,6 +68,11 @@ export default function EventPurchaseContent({ id, event, settings }) {
   const purchaseMode = resolvePurchaseMode(event)
   const active = isEventActive(event)
   const past = isEventPast(event)
+  const status = event?.status || "active"
+  const isEnded = status === "ended" || past
+  const isComingSoon = status === "coming_soon"
+  const isSoldOut = status === "sold_out"
+  const hasPricing = typeof event?.price === "number"
   const paymentBlocked = Boolean(settings?.payment_blocked)
   const iban = settings?.company_iban || ""
   const intestatario = settings?.company_intestatario || ""
@@ -94,7 +100,6 @@ export default function EventPurchaseContent({ id, event, settings }) {
       participants: participantsPayload,
       price,
       fee,
-      membershipFee: ensureMembershipFee(event?.membershipFee),
       total: (price + fee) * quantity,
       eventMeta,
       purchaseMode,
@@ -122,11 +127,11 @@ export default function EventPurchaseContent({ id, event, settings }) {
             className="bg-black/80 backdrop-blur-md border border-mcp-orange/20 p-6 rounded-lg"
           >
             <div className="text-center mb-4 space-y-3">
-              {active && !past ? (
+              {hasPricing ? (
                 <>
                   <div className="flex items-baseline gap-2 justify-center flex-wrap">
                     <div className="font-atlantico text-4xl text-mcp-orange">
-                      {typeof event.price === "number" ? `${event.price}€` : "--"}
+                      {`${event.price}€`}
                     </div>
                     {typeof event.fee === "number" && event.fee > 0 && (
                       <div className="text-sm text-white tracking-wide uppercase">+ {event.fee}€ Fee</div>
@@ -175,7 +180,7 @@ export default function EventPurchaseContent({ id, event, settings }) {
               </div>
             )}
 
-            {active && event.note && (
+            {(active || isSoldOut) && event.note && (
               <div className="bg-mcp-orange/10 border border-mcp-orange/20 rounded-md p-4 mb-6 text-white font-helvetica text-sm">
                 {splitLines(event.note).map((line, idx) => (
                   <p key={idx} className="mb-2 last:mb-0">
@@ -185,7 +190,7 @@ export default function EventPurchaseContent({ id, event, settings }) {
               </div>
             )}
 
-            {isOnRequest ? (
+            {isOnRequest && active && !past ? (
               <Alert className="bg-mcp-orange/10 border-mcp-orange/40 text-white">
                 <AlertDescription className="space-y-3 text-center">
                   <p className="uppercase tracking-wide text-sm text-mcp-orange">
@@ -200,9 +205,9 @@ export default function EventPurchaseContent({ id, event, settings }) {
                   </p>
                 </AlertDescription>
               </Alert>
-            ) : paymentBlocked ? (
+            ) : paymentBlocked && active && !past ? (
               <PaymentBlockedWarning price={event.price ?? 18} iban={iban} intestatario={intestatario} />
-            ) : past ? (
+            ) : isEnded ? (
               <div className="text-center mt-10">
                 <div className="italic text-white mb-4">Evento concluso</div>
                 {event.photosReady && (
@@ -214,9 +219,13 @@ export default function EventPurchaseContent({ id, event, settings }) {
                   </Link>
                 )}
               </div>
-            ) : !active ? (
+            ) : isComingSoon ? (
               <div className="flex justify-center mt-12">
-                <div className="bg-white text-black px-4 py-3 rounded-md text-sm">Evento non ancora disponibile</div>
+                <div className="bg-white text-black px-4 py-3 rounded-md text-sm">Evento in arrivo</div>
+              </div>
+            ) : isSoldOut ? (
+              <div className="flex justify-center mt-12">
+                <div className="bg-white text-black px-4 py-3 rounded-md text-sm">Evento sold out</div>
               </div>
             ) : (
               <>
@@ -226,7 +235,7 @@ export default function EventPurchaseContent({ id, event, settings }) {
                   disabled={formComplete}
                 />
 
-                <ParticipantsInfoPanel event={{ ...event, membershipFee: ensureMembershipFee(event?.membershipFee) }} quantity={quantity} purchaseMode={purchaseMode} />
+                <ParticipantsInfoPanel event={event} purchaseMode={purchaseMode} />
 
                 {formComplete && participants.length === quantity ? (
                   <>

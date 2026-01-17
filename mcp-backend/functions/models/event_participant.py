@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from .base import FirestoreModel
+from .enums import PaymentMethod
 
 
 @dataclass
@@ -26,5 +27,9 @@ class EventParticipant(FirestoreModel):
     gender_probability: Optional[float] = None
     newsletter_consent: bool = field(default=False, metadata={"firestore_name": "newsletterConsent"})
     price: Optional[float] = None
+    payment_method: PaymentMethod = field(
+        default=PaymentMethod.WEBSITE,
+        metadata={"firestore_name": "payment_method", "enum": PaymentMethod},
+    )
     purchase_id: Optional[str] = field(default=None, metadata={"firestore_name": "purchase_id"})
     created_at: Optional[Any] = field(default=None, metadata={"firestore_name": "createdAt"})

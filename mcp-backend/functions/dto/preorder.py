@@ -12,7 +12,6 @@ def _build_participants(value: Any) -> List[Dict[str, Any]]:
 class PreOrderCartItemDTO:
     eventId: str
     participants: List[Dict[str, Any]] = field(default_factory=list)
-    membershipFee: Optional[float] = None
     eventMeta: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -20,7 +19,6 @@ class PreOrderCartItemDTO:
         return cls(
             eventId=payload.get("eventId", ""),
             participants=_build_participants(payload.get("participants")),
-            membershipFee=payload.get("membershipFee"),
             eventMeta=payload.get("eventMeta") or {},
         )
 
@@ -28,7 +26,6 @@ class PreOrderCartItemDTO:
         payload: Dict[str, Any] = {
             "eventId": self.eventId,
             "participants": self.participants,
-            "membershipFee": self.membershipFee,
             "eventMeta": self.eventMeta,
         }
         return {k: v for k, v in payload.items() if v not in ({}, None) or k == "participants"}

@@ -58,6 +58,15 @@ export default function EventCard({ event }) {
   }
 
   const past = isPastEvent()
+  const status = event.status || (past ? "ended" : "active")
+  const statusLabel =
+    status === "coming_soon"
+      ? "Coming soon"
+      : status === "sold_out"
+        ? "Sold out"
+        : status === "ended"
+          ? "Ended"
+          : null
 
   const publicLocation = event.locationHint || event.location || "Private Location (PA)"
 
@@ -84,6 +93,11 @@ export default function EventCard({ event }) {
               onLoadingComplete={handleImageLoad}
               onError={() => setIsLoading(false)}
             />
+            {statusLabel && (
+              <div className="absolute top-3 left-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
+                {statusLabel}
+              </div>
+            )}
           </div>
           <div className="p-4 space-y-3 flex-grow">
             <h3 className="text-xl font-bold text-mcp-orange line-clamp-2">{event.title}</h3>

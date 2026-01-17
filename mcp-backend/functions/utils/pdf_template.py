@@ -10,16 +10,13 @@ from config.firebase_config import bucket
 from io import BytesIO
 from weasyprint import HTML
 from models import EventPurchaseAccessType
+from utils.events_utils import map_purchase_mode
 
 
 
 def generate_ticket_pdf(ticket_data, event_data, logo_path):
     print("Event data is:", event_data)
-    raw_mode = (event_data.get("type") or "").upper()
-    try:
-        purchase_mode = EventPurchaseAccessType(raw_mode)
-    except Exception:
-        purchase_mode = EventPurchaseAccessType.PUBLIC
+    purchase_mode = map_purchase_mode(event_data.get("purchaseMode") or event_data.get("type"))
 
     if purchase_mode in (
         EventPurchaseAccessType.ONLY_MEMBERS,

@@ -23,7 +23,8 @@ import {
   BadgeIcon as IdCard,
   Users,
   StickyNote,
-  X
+  X,
+  FileText,
 } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -59,6 +60,7 @@ import { LocationModal } from "@/components/admin/events/LocationModal"
 import { EventStats } from "@/components/admin/events/EventStats"
 import { exportParticipantsToExcel } from "@/lib/excel" // ✅ NUOVO IMPORT
 import { resolvePurchaseMode } from "@/config/events-utils"
+import { getMembershipPrice } from "@/services/admin/memberships"
 
 export default function EventContent({ id: eventId }) {
   const router = useRouter()
@@ -80,9 +82,10 @@ export default function EventContent({ id: eventId }) {
     jobFailed,
   } = useAdminParticipants(eventId)
   const isJobActive = jobStatus === "running" || jobStatus === "queued";
-
   const [event, setEvent] = useState(null)
   const [imageUrl, setImageUrl] = useState(null)
+  const [membershipPrice, setMembershipPrice] = useState(null)
+  const filtersKey = `mcp_admin_participants_filters_${eventId || "unknown"}`
   const [search, setSearch] = useState("")
   const [genderFilter, setGenderFilter] = useState("all") // all | male | female | nd
   const [locationFilter, setLocationFilter] = useState("all") // all | yes | no
@@ -109,6 +112,46 @@ export default function EventContent({ id: eventId }) {
   useEffect(() => {
     loadAll()
   }, [eventId, loadAll])
+
+  const filtersLoadedRef = useRef(false)
+  useEffect(() => {
+    if (!eventId || typeof window === "undefined") return
+    if (filtersLoadedRef.current) return
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(filtersKey) || "{}")
+      if (stored.search != null) setSearch(stored.search)
+      if (stored.genderFilter) setGenderFilter(stored.genderFilter)
+      if (stored.locationFilter) setLocationFilter(stored.locationFilter)
+      if (stored.memberFilter) setMemberFilter(stored.memberFilter)
+      if (stored.pageSize) setPageSize(stored.pageSize)
+    } catch {}
+    filtersLoadedRef.current = true
+  }, [eventId, filtersKey])
+
+  useEffect(() => {
+    if (!eventId || typeof window === "undefined") return
+    const payload = {
+      search,
+      genderFilter,
+      locationFilter,
+      memberFilter,
+      pageSize,
+    }
+    window.localStorage.setItem(filtersKey, JSON.stringify(payload))
+  }, [eventId, filtersKey, search, genderFilter, locationFilter, memberFilter, pageSize])
+
+  useEffect(() => {
+    let isMounted = true
+    getMembershipPrice()
+      .then((res) => {
+        if (!isMounted || res?.error) return
+        setMembershipPrice(res)
+      })
+      .catch(() => {})
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const targetEvent = useMemo(() => events.find((e) => e.id === eventId) || null, [events, eventId])
 
@@ -148,6 +191,7 @@ export default function EventContent({ id: eventId }) {
     { key: "gender", label: "Genere" },
     { key: "price", label: "Prezzo (€)" },
     { key: "createdAt", label: "Data Acquisto" },
+    { key: "payment_method", label: "Metodo" },
     { key: "membershipId", label: "Membro", badge: true },
     { key: "location_sent", label: "Posizione", badge: true },
     { key: "ticket_sent", label: "Biglietto", badge: true },
@@ -203,6 +247,35 @@ export default function EventContent({ id: eventId }) {
     exportParticipantsToExcel(sorted, event?.title, eventId)
   }
 
+  const exportToTxt = () => {
+    if (!participants.length) return
+
+    const alphabetical = [...participants].sort((a, b) => {
+      const aKey = `${(a.surname || "").toLowerCase()} ${(a.name || "").toLowerCase()}`
+      const bKey = `${(b.surname || "").toLowerCase()} ${(b.name || "").toLowerCase()}`
+      return aKey.localeCompare(bKey)
+    })
+
+    const lines = alphabetical.map((p) => {
+      const priceNum = Number(p.price)
+      const isFree = !Number.isNaN(priceNum) && priceNum === 0
+      const displayName = `${p.name || ""} ${p.surname || ""}`.trim() || `Partecipante`
+      return `${displayName}${isFree ? " - OMAGGIO" : ""}`
+    })
+
+    const content = lines.join("\n")
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    const safeTitle = event?.title ? event.title.replace(/\s+/g, "_").toLowerCase() : "evento"
+    link.download = `partecipanti_${safeTitle}_${eventId}.txt`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   const openParticipantModal = (p = null) => {
     if (p) {
       setEditMode(true)
@@ -218,6 +291,7 @@ export default function EventContent({ id: eventId }) {
         birthdate: "",
         gender: "",
         price: "",
+        payment_method: "cash",
         membership_included: false,
         send_ticket_on_create: false,
       })
@@ -285,6 +359,7 @@ export default function EventContent({ id: eventId }) {
   }, [jobStatus, jobProgressDismissed])
 
   const purchaseMode = resolvePurchaseMode(event)
+  const eventStatus = event?.status || "active"
   const eventDateObj = useMemo(() => {
     if (!event?.date) return null
     const [d, m, y] = event.date.split("-").map(Number)
@@ -351,19 +426,23 @@ export default function EventContent({ id: eventId }) {
                   </p>
                 )}
                 <p className="flex items-center gap-3">
+                  <IdCard size={20} />
+                  <strong>Tessera:</strong>{" "}
+                  {membershipPrice?.price != null ? `${membershipPrice.price} €` : "N/A"}
+                  {membershipPrice?.year ? ` (${membershipPrice.year})` : ""}
+                </p>
+                <p className="flex items-center gap-3">
                   <Info size={20} />
                   <strong>Purchase mode:</strong> {purchaseMode}
                 </p>
-                <p className="flex items-center gap-3">
-                  <IdCard size={20} />
-                  <strong>Tessera:</strong> {event.membershipFee ?? "N/A"} €
-                </p>
-
                 <div className="flex items-center gap-3">
                   <Users size={20} />
                   <strong>Stato:</strong>
-                  <Badge variant={event.active ? "success" : "secondary"} className="text-sm px-2 py-0.5">
-                    {event.active ? "Attivo" : "Non attivo"}
+                  <Badge variant={eventStatus === "active" ? "success" : "secondary"} className="text-sm px-2 py-0.5">
+                    {eventStatus === "coming_soon" && "Coming soon"}
+                    {eventStatus === "sold_out" && "Sold out"}
+                    {eventStatus === "ended" && "Terminato"}
+                    {eventStatus === "active" && "Attivo"}
                   </Badge>
                 </div>
 
@@ -390,15 +469,21 @@ export default function EventContent({ id: eventId }) {
             </Card>
           </div>
 
-          {(!event.active || isPastEvent) && (
+          {(eventStatus !== "active" || isPastEvent) && (
             <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-4 text-center">
               <p className="text-lg font-semibold text-white">
-                {isPastEvent ? "Evento terminato" : "Evento in arrivo"}
+                {eventStatus === "sold_out"
+                  ? "Evento sold out"
+                  : eventStatus === "coming_soon"
+                    ? "Evento in arrivo"
+                    : "Evento terminato"}
               </p>
               <p className="text-sm text-gray-400">
-                {isPastEvent
-                  ? "Questo evento è già stato completato. Puoi comunque gestire i partecipanti e le statistiche."
-                  : "L’evento non è ancora attivo. Aggiorna lo stato quando sarà pronto per la vendita."}
+                {eventStatus === "sold_out"
+                  ? "Capienza massima raggiunta. Puoi comunque gestire i partecipanti e le statistiche."
+                  : eventStatus === "coming_soon"
+                    ? "L’evento non è ancora attivo. Aggiorna lo stato quando sarà pronto per la vendita."
+                    : "Questo evento è già stato completato. Puoi comunque gestire i partecipanti e le statistiche."}
               </p>
             </div>
           )}
@@ -462,6 +547,9 @@ export default function EventContent({ id: eventId }) {
                 <Button onClick={exportToExcel} disabled={!sorted.length}>
                   <Download className="mr-2" /> Esporta
                 </Button>
+                <Button onClick={exportToTxt} disabled={!participants.length}>
+                  <FileText className="mr-2" /> TXT
+                </Button>
                 <Button variant="secondary"   onClick={() => router.push(routes.admin.checkin(eventId))}
 >
                   In the event
@@ -485,15 +573,14 @@ export default function EventContent({ id: eventId }) {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="text-center">Modifica</TableHead>
-                          {visibleCols.map((c) => (
-                            <TableHead key={c.key}>{c.label}</TableHead>
-                          ))}
-                          <TableHead className="text-center">Ingresso</TableHead>
-                          <TableHead className="text-center">Azioni</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                      <TableHead className="text-center">Modifica</TableHead>
+                      {visibleCols.map((c) => (
+                        <TableHead key={c.key}>{c.label}</TableHead>
+                      ))}
+                      <TableHead className="text-center">Azioni</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                         {pageRows.map((p) => (
                           <TableRow key={p.id}>
                             <TableCell className="text-center">
@@ -528,6 +615,7 @@ export default function EventContent({ id: eventId }) {
                             </TableCell>
                             <TableCell>{p.price ?? "-"}</TableCell>
                             <TableCell>{p.createdAt || "-"}</TableCell>
+                            <TableCell>{p.payment_method || p.paymentMethod || "-"}</TableCell>
                             {/* Badge Membro cliccabile */}
                             <TableCell className="text-center">
                               {p.membershipId ? (
@@ -569,29 +657,13 @@ export default function EventContent({ id: eventId }) {
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  const qs = new URLSearchParams({ purchaseId: String(p.purchase_id || "") });
-                                  console.debug("[navigate]", routes.admin.purchases + "?" + qs.toString());
-                                  router.push(`${routes.admin.purchases}?${qs.toString()}`);
+                                  router.push(routes.admin.purchasesDetails(p.purchase_id));
                                 }}
                               >
                                 Vai
                               </Button>
                               ) : (
                                 "-"
-                              )}
-                            </TableCell>
-                            {/* Ingresso (check-in) column */}
-                            <TableCell className="text-center">
-                              {p.entered ? (
-                                <div className="flex items-center justify-center gap-2">
-                                  <Badge variant="success">Entrato</Badge>
-                                  <Button variant="outline" size="sm" onClick={() => update(p.id, { entered: false })}>Annulla</Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-center gap-2">
-                                  <Badge variant="secondary">No</Badge>
-                                  <Button size="sm" onClick={() => update(p.id, { entered: true, entered_at: new Date().toISOString() })}>Entra</Button>
-                                </div>
                               )}
                             </TableCell>
                             <TableCell className="text-right space-x-1 whitespace-nowrap">

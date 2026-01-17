@@ -43,7 +43,6 @@ def _validate_against_schema(payload: Any, schema: Dict[str, ValidationRule]) ->
 CART_ITEM_SCHEMA = {
     "eventId": {"required": True, "validator": _is_non_empty_str},
     "participants": {"required": True, "validator": _validate_participants},
-    "membershipFee": {"required": False, "types": (int, float, str)},
     "eventMeta": {"required": False, "types": dict},
 }
 

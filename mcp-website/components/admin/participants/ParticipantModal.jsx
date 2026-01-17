@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 import { Loader2, X } from "lucide-react"
 
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "website", label: "Website" },
+  { value: "private_paypal", label: "Private PayPal" },
+  { value: "iban", label: "IBAN" },
+  { value: "cash", label: "Cash" },
+]
+
 export function ParticipantModal({
   isOpen,
   onClose,
@@ -115,6 +122,24 @@ export function ParticipantModal({
           <Label htmlFor="price">Prezzo (€)</Label>
           <Input id="price" name="price" type="number" value={form.price || ""} onChange={onInput} />
         </div>
+      </div>
+
+      <div>
+        <Label htmlFor="payment_method">Metodo di pagamento</Label>
+        <select
+          id="payment_method"
+          name="payment_method"
+          value={form.payment_method || ""}
+          onChange={onInput}
+          className="w-full mt-1 rounded border border-zinc-700 bg-zinc-800 p-2 text-white"
+        >
+          <option value="">Seleziona metodo</option>
+          {PAYMENT_METHOD_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="flex flex-wrap items-center gap-4 pt-2">

@@ -85,6 +85,10 @@ export function useAdminAlbums() {
           console.log(`[DEBUG] Evento collegato per ${photoPath}:`, linked.id);
         }
 
+        if (!linked) {
+          continue;
+        }
+
         result.push({ photoPath, folder, event: linked });
       }
 

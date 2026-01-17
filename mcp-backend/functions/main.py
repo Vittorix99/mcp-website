@@ -69,7 +69,8 @@ from api.admin.members_api import (
     get_membership_events,
     get_membership_purchases,
     get_membership_price,
-    set_membership_price
+    set_membership_price,
+    get_memberships_report
 )
 
 # === API Admin: Purchases ===

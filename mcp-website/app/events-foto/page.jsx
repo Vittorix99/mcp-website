@@ -158,9 +158,9 @@ useEffect(() => {
                             {formatDate(event.date)}
                           </div>
                         </div>
-                        {event.description && (
+                        {event.note && (
                           <p className="font-helvetica text-xs md:text-sm text-gray-400 line-clamp-2 md:line-clamp-3 mt-2 md:mt-3">
-                            {event.description}
+                            {event.note}
                           </p>
                         )}
                       </div>

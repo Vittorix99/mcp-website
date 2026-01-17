@@ -159,7 +159,7 @@ export function NextEventSection({ event }) {
                     )}
                   </div>
 
-                  {event.active ? (
+                  {event.status === "active" ? (
                     <Link
                       href={getRoute(routes.events.details, event.id)}
                       className="block w-full"
@@ -173,7 +173,7 @@ export function NextEventSection({ event }) {
                       className="font-helvetica bg-gray-700 cursor-not-allowed text-gray-300 font-bold py-2 md:py-3 px-6 md:px-8 rounded-md text-sm md:text-base h-12 md:h-14 w-full mt-3 md:mt-5"
                       disabled
                     >
-                      Coming Soon
+                      {event.status === "sold_out" ? "Sold out" : event.status === "ended" ? "Ended" : "Coming Soon"}
                     </Button>
                   )}
                 </div>

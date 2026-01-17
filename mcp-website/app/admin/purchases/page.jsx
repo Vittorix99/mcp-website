@@ -10,46 +10,62 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardContent, CardTitle, CardFooter } from "@/components/ui/card"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import { useAdminPurchases } from "@/hooks/useAdminPurchases"
+import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { PurchaseModal } from "@/components/admin/purchases/PurchaseModal"
 
 export default function PurchasesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const purchaseIdParam = searchParams.get("purchaseId")
-
+  const legacyPurchaseId = searchParams.get("purchaseId")
   const { purchases, loading, loadAll } = useAdminPurchases()
+  const { events } = useAdminEvents()
 
-  const [search, setSearch] = useState("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
-  const [manualId, setManualId] = useState("")
-  const [selectedPurchase, setSelectedPurchase] = useState(null)
+  const filtersKey = "mcp_admin_purchases_filters"
+  const readFilters = () => {
+    if (typeof window === "undefined") return {}
+    try {
+      return JSON.parse(window.localStorage.getItem(filtersKey) || "{}")
+    } catch {
+      return {}
+    }
+  }
+  const stored = readFilters()
+
+  const [search, setSearch] = useState(stored.search || "")
+  const [dateFrom, setDateFrom] = useState(stored.dateFrom || "")
+  const [dateTo, setDateTo] = useState(stored.dateTo || "")
+  const [manualId, setManualId] = useState(stored.manualId || "")
+  const [eventFilter, setEventFilter] = useState(stored.eventFilter || "all")
+  const [dateSort, setDateSort] = useState(stored.dateSort || "desc")
   const [notFoundMsg, setNotFoundMsg] = useState("")
+  const [selectedPurchase, setSelectedPurchase] = useState(null)
 
   useEffect(() => {
     loadAll()
   }, [loadAll])
 
   useEffect(() => {
-    if (!purchaseIdParam || purchases.length === 0) return
-    const found = purchases.find(
-      p => p.id === purchaseIdParam ||
-           p.transaction_id === purchaseIdParam ||
-           p.ref_id === purchaseIdParam
-    )
-    if (found) {
-      setSelectedPurchase(found)
-      setSearch(found.payer_email)
-      setDateFrom("")
-      setDateTo("")
-      setNotFoundMsg("")
-    } else {
-      setNotFoundMsg(`Nessun acquisto trovato per ID "${purchaseIdParam}"`)
+    if (legacyPurchaseId) {
+      router.replace(routes.admin.purchasesDetails(legacyPurchaseId))
     }
-  }, [purchaseIdParam, purchases])
+  }, [legacyPurchaseId, router])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const payload = {
+      search,
+      dateFrom,
+      dateTo,
+      manualId,
+      eventFilter,
+      dateSort,
+    }
+    window.localStorage.setItem(filtersKey, JSON.stringify(payload))
+  }, [search, dateFrom, dateTo, manualId, eventFilter, dateSort])
 
   const handleManualIdSearch = () => {
     if (!manualId) return
@@ -59,7 +75,6 @@ export default function PurchasesPage() {
            p.ref_id === manualId
     )
     if (found) {
-      setSelectedPurchase(found)
       setSearch(found.payer_email)
       setDateFrom("")
       setDateTo("")
@@ -70,9 +85,6 @@ export default function PurchasesPage() {
   }
 
   const filtered = useMemo(() => {
-    if (selectedPurchase && !search && !dateFrom && !dateTo)
-      return [selectedPurchase]
-
     return purchases
       .filter(p => {
         const q = search.toLowerCase()
@@ -81,6 +93,8 @@ export default function PurchasesPage() {
           p.payer_surname.toLowerCase().includes(q) ||
           p.payer_email.toLowerCase().includes(q)
         )) return false
+
+        if (eventFilter !== "all" && p.ref_id !== eventFilter) return false
 
         const ts = new Date(p.timestamp)
         if (dateFrom) {
@@ -95,8 +109,11 @@ export default function PurchasesPage() {
         }
         return true
       })
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)) // ordina per data decrescente
-  }, [purchases, search, dateFrom, dateTo, selectedPurchase])
+      .sort((a, b) => {
+        const diff = new Date(a.timestamp) - new Date(b.timestamp)
+        return dateSort === "asc" ? diff : -diff
+      })
+  }, [purchases, search, dateFrom, dateTo, eventFilter, dateSort])
 
   const stats = useMemo(() => {
     const totalGross = filtered.reduce((sum, p) => sum + parseFloat(p.amount_total || "0"), 0)
@@ -115,7 +132,8 @@ export default function PurchasesPage() {
     setDateFrom("")
     setDateTo("")
     setManualId("")
-    setSelectedPurchase(null)
+    setEventFilter("all")
+    setDateSort("desc")
     setNotFoundMsg("")
     router.push(routes.admin.purchases)
   }
@@ -156,6 +174,19 @@ export default function PurchasesPage() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Filtra per evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli eventi</SelectItem>
+                  {(events || []).map(ev => (
+                    <SelectItem key={ev.id} value={ev.id}>
+                      {ev.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 type="date"
                 className="flex-1"
@@ -168,6 +199,15 @@ export default function PurchasesPage() {
                 value={dateTo}
                 onChange={e => setDateTo(e.target.value)}
               />
+              <Select value={dateSort} onValueChange={setDateSort}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Ordina per data" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Data: più recenti</SelectItem>
+                  <SelectItem value="asc">Data: meno recenti</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col md:flex-row gap-4">
               <Input
@@ -215,9 +255,18 @@ export default function PurchasesPage() {
                           <TableCell>{parseFloat(p.amount_total).toFixed(2)} {p.currency}</TableCell>
                           <TableCell>{formatDate(p.timestamp)}</TableCell>
                           <TableCell className="text-right">
-                            <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
-                              <Eye className="h-4 w-4"/>
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
+                                <Eye className="h-4 w-4"/>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => router.push(routes.admin.purchasesDetails(p.id))}
+                              >
+                                Dettagli
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -233,9 +282,18 @@ export default function PurchasesPage() {
                           <h3 className="font-bold">{p.payer_name} {p.payer_surname}</h3>
                           <p className="text-sm text-gray-400">{p.payer_email}</p>
                         </div>
-                        <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
-                          <Eye className="h-5 w-5"/>
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
+                            <Eye className="h-5 w-5"/>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(routes.admin.purchasesDetails(p.id))}
+                          >
+                            Dettagli
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent className="p-4 pt-0 grid grid-cols-2 gap-4 text-sm">
                         <div>
@@ -266,7 +324,6 @@ export default function PurchasesPage() {
             purchase={selectedPurchase}
             onClose={() => {
               setSelectedPurchase(null)
-              if (purchaseIdParam) resetFilters()
             }}
           />
         )}

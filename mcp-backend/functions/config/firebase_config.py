@@ -7,7 +7,9 @@ from firebase_functions import options
 
 region = "us-central1"
 
-_cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
+_env = os.environ.get("MCP_ENV", "").strip().lower()
+_default_cred = "service_.account_test.json" if _env == "test" else "service_account.json"
+_cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", _default_cred)
 
 
 def _load_credentials():
@@ -28,17 +30,22 @@ def _load_credentials():
 
 if not firebase_admin._apps:
     cred = _load_credentials()
-    firebase_admin.initialize_app(cred, {"storageBucket": os.environ.get("STORAGE_BUCKET")})
+    storage_bucket = os.environ.get("STORAGE_BUCKET")
+    init_opts = {"storageBucket": storage_bucket} if storage_bucket else {}
+    firebase_admin.initialize_app(cred, init_opts)
 else:
     cred = None
 
 db = firestore.client()
-bucket = storage.bucket()
+bucket = storage.bucket() if os.environ.get("STORAGE_BUCKET") else None
 
 if os.environ.get("FIRESTORE_EMULATOR_HOST"):
     print(f"Using Firestore emulator at {os.environ['FIRESTORE_EMULATOR_HOST']}")
 else:
-    print("Using Firestore production project.")
+    print(
+        "Using Firestore cloud project "
+        f"(env={_env or 'prod'}, cred={_cred_path}, project={db.project})"
+    )
 
 cors = options.CorsOptions(
     cors_origins="*",

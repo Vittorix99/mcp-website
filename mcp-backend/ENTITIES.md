@@ -1,0 +1,331 @@
+# Backend Entities Reference
+
+This document lists backend entities, fields, types, origins, and validations.
+Sources: models (`mcp-backend/functions/models`), DTOs (`mcp-backend/functions/dto`), validators (`mcp-backend/functions/api/validators`), and service logic.
+
+## Enums
+
+### EventPurchaseAccessType
+Location: `mcp-backend/functions/models/enums.py`
+- `PUBLIC`: Open to all.
+- `ONLY_ALREADY_REGISTERED_MEMBERS`: Only existing members.
+- `ONLY_MEMBERS`: Members only; non-members get membership created.
+- `ON_REQUEST`: Purchase is not allowed without approval.
+
+### EventStatus
+Location: `mcp-backend/functions/models/enums.py`
+- `coming_soon`
+- `active`
+- `sold_out`
+- `ended`
+
+### PaymentMethod
+Location: `mcp-backend/functions/models/enums.py`
+- `website`
+- `private_paypal`
+- `iban`
+- `cash`
+
+### PurchaseTypes
+Location: `mcp-backend/functions/models/enums.py`
+- `EVENT`
+- `MEMBERSHIP`
+
+## Firestore Models (Collections)
+
+### Event (`events`)
+Model: `mcp-backend/functions/models/event.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Required for updates. |
+| title | string | Event title. | Firestore `title`. | Required on create (validator + service). |
+| date | string | Event date in `DD-MM-YYYY`. | Firestore `date`. | Required on create; normalized from `DD-MM-YYYY`, `DD/MM/YYYY`, or `YYYY-MM-DD`. |
+| start_time | string | Start time (HH:MM). | Firestore `startTime`. | Required on create. |
+| end_time | string | End time (HH:MM or label). | Firestore `endTime`. | Optional. |
+| location | string | Full location (admin). | Firestore `location`. | Required on create. |
+| location_hint | string | Public location hint. | Firestore `locationHint`. | Required on create. |
+| price | number | Ticket price. | Firestore `price`. | Optional; validated numeric if present. |
+| fee | number | Fee amount. | Firestore `fee`. | Optional; validated numeric if present. |
+| max_participants | number | Max participants. | Firestore `maxParticipants`. | Optional; validated integer if present. |
+| status | enum | Event status. | Firestore `status`. | Values: `coming_soon`, `active`, `sold_out`, `ended`. |
+| image | string | Image filename (no extension). | Firestore `image`. | Optional; set by upload flow. |
+| lineup | string[] | Lineup list. | Firestore `lineup`. | Optional. |
+| note | string | Admin note. | Firestore `note`. | Optional. |
+| photo_path | string | Photo album path. | Firestore `photoPath`. | Optional; used by albums. |
+| purchase_mode | enum | Purchase mode enum. | Firestore `type` (enum). | Normalized via `map_purchase_mode`. |
+| allow_duplicates | boolean | Allow duplicate purchases. | Firestore `allowDuplicates`. | Optional. |
+| over21_only | boolean | Enforce over-21. | Firestore `over21Only`. | Optional. |
+| only_females | boolean | Female-only event. | Firestore `onlyFemales`. | Optional. |
+| participants_count | number | Cached participant count. | Firestore `participantsCount`. | Optional. |
+| external_link | string | External link for purchase. | Firestore `externalLink`. | Optional. |
+| created_at | timestamp | Created timestamp. | Firestore `createdAt`. | Set by server. |
+| created_by | string | Admin uid. | Firestore `createdBy`. | Set by server. |
+| updated_at | timestamp | Updated timestamp. | Firestore `updatedAt`. | Set by server. |
+| updated_by | string | Admin uid. | Firestore `updatedBy`. | Set by server. |
+
+Additional rules:
+- `_validate_event_data` removes empty string fields on update and validates types.
+- `map_purchase_mode` normalizes `purchaseMode` for updates.
+
+### EventParticipant (`participants/{eventId}/participants_event`)
+Model: `mcp-backend/functions/models/event_participant.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Required for updates. |
+| event_id | string | Event id. | Firestore `event_id`. | Required on create/update. |
+| name | string | Participant name. | Firestore `name`. | Optional. |
+| surname | string | Participant surname. | Firestore `surname`. | Optional. |
+| email | string | Participant email. | Firestore `email`. | Optional; normalized lower/trimmed in service. |
+| phone | string | Participant phone. | Firestore `phone`. | Optional. |
+| birthdate | string | Birthdate (DD-MM-YYYY). | Firestore `birthdate`. | Required on create; must be adult (`is_minor` false). |
+| membership_id | string | Linked membership id. | Firestore `membershipId`. | Optional. |
+| membership_included | boolean | Whether membership is included. | Firestore `membership_included`. | Optional. |
+| ticket_pdf_url | string | Ticket PDF URL. | Firestore `ticket_pdf_url`. | Optional. |
+| ticket_sent | boolean | Ticket sent flag. | Firestore `ticket_sent`. | Optional. |
+| send_ticket_on_create | boolean | Send ticket on create. | Firestore `send_ticket_on_create`. | Optional. |
+| location_sent | boolean | Location sent flag. | Firestore `location_sent`. | Optional. |
+| location_sent_at | timestamp | Location sent timestamp. | Firestore `location_sent_at`. | Optional. |
+| location_job_id | string | Location job id. | Firestore `location_job_id`. | Optional. |
+| gender | string | Gender label. | Firestore `gender`. | Optional. |
+| gender_probability | number | Gender confidence. | Firestore `gender_probability`. | Optional. |
+| newsletter_consent | boolean | Newsletter consent. | Firestore `newsletterConsent`. | Optional. |
+| price | number | Participant price. | Firestore `price`. | Optional; cannot change if `purchase_id` exists. |
+| payment_method | enum | Payment method used for the participant. | Firestore `payment_method`. | Values: `website`, `private_paypal`, `iban`, `cash`. |
+| purchase_id | string | Purchase id. | Firestore `purchase_id`. | Optional. |
+| created_at | timestamp | Created timestamp. | Firestore `createdAt`. | Set by server. |
+
+Additional rules (service):
+- If `membership_included` is true, a membership may be created.
+- For community-type events, membership is required (legacy check in service).
+- If `purchase_id` exists, price cannot be updated.
+
+### Purchase (`purchases`)
+Model: `mcp-backend/functions/models/purchase.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Required for updates. |
+| payer_name | string | Payer first name. | Firestore `payer_name`. | Required on create. |
+| payer_surname | string | Payer surname. | Firestore `payer_surname`. | Required on create. |
+| payer_email | string | Payer email. | Firestore `payer_email`. | Required on create. |
+| amount_total | string | Total amount. | Firestore `amount_total`. | Required on create. |
+| currency | string | Currency code. | Firestore `currency`. | Required on create. |
+| paypal_fee | string | PayPal fee. | Firestore `paypal_fee`. | Optional. |
+| net_amount | string | Net amount. | Firestore `net_amount`. | Optional. |
+| transaction_id | string | Payment transaction id. | Firestore `transaction_id`. | Required on create. |
+| order_id | string | Order id. | Firestore `order_id`. | Required on create. |
+| status | string | Payment status. | Firestore `status`. | Optional. |
+| timestamp | string/number | Payment timestamp. | Firestore `timestamp`. | Required on create. |
+| purchase_type | enum | Purchase type. | Firestore `type`. | Required on create. |
+| ref_id | string | Reference id (event id). | Firestore `ref_id`. | Optional. |
+| payment_method | string | Payment method. | Firestore `payment_method`. | Optional (set by capture flow). |
+| capture_status | string | Capture status. | Firestore `capture_status`. | Optional. |
+| participants_count | number | Number of participants in the purchase. | Firestore `participants_count`. | Set on capture (event purchases). |
+| membership_ids | string[] | Membership ids tied to the purchase. | Firestore `membership_ids`. | Set on capture (event purchases). |
+
+### EventPurchase (`purchases`)
+Model: `mcp-backend/functions/models/event_purchase.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| purchase_type | enum | Always `EVENT`. | Firestore `type`. | Set by model. |
+| event_id | string | Event id. | Firestore `event_id`. | Optional. |
+| event_purchase_type | enum | Purchase mode at time of purchase. | Firestore `eventPurchaseType`. | Optional. |
+| participants_count | number | Number of participants in the purchase. | Firestore `participants_count`. | Set on capture. |
+| membership_ids | string[] | Membership ids tied to the purchase. | Firestore `membership_ids`. | Set on capture. |
+
+### Membership (`memberships`)
+Model: `mcp-backend/functions/models/membership.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Required for updates. |
+| name | string | Member name. | Firestore `name`. | Optional. |
+| surname | string | Member surname. | Firestore `surname`. | Optional. |
+| email | string | Member email. | Firestore `email`. | Required if phone missing. |
+| phone | string | Member phone. | Firestore `phone`. | Required if email missing. |
+| birthdate | string | Birthdate (DD-MM-YYYY). | Firestore `birthdate`. | Required; must be adult (`is_minor` false). |
+| start_date | string | Membership start (ISO). | Firestore `start_date`. | Set on create. |
+| end_date | string | Membership end (DD-MM-YYYY). | Firestore `end_date`. | Set on create. |
+| subscription_valid | boolean | Active membership flag. | Firestore `subscription_valid`. | Set on create; editable in admin update. |
+| membership_sent | boolean | Card sent flag. | Firestore `membership_sent`. | Set on create. |
+| membership_type | string | Membership source/type. | Firestore `membership_type`. | Default `manual`. |
+| purchase_id | string | Purchase id. | Firestore `purchase_id`. | Protected (cannot be changed). |
+| purchases | string[] | Purchase ids. | Firestore `purchases`. | Optional. |
+| attended_events | string[] | Event ids. | Firestore `attended_events`. | Optional. |
+| card_url | string | Card URL. | Firestore `card_url`. | Cannot be edited directly. |
+| card_storage_path | string | Storage path. | Firestore `card_storage_path`. | Protected (cannot be changed). |
+| send_card_on_create | boolean | Send card on create. | Firestore `send_card_on_create`. | Optional. |
+| membership_fee | number | Membership fee charged. | Firestore `membership_fee`. | Optional (set in purchase flows). |
+
+Additional rules (service):
+- On create/update: must not be minor, must have email or phone.
+- No duplicate active member with same email/phone.
+- Changing email regenerates membership card and resets `membership_sent`.
+
+### Order (`orders`)
+Model: `mcp-backend/functions/models/order.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Internal. |
+| order_id | string | PayPal order id. | Firestore `orderId`. | Required for capture. |
+| order_status | string | PayPal order status. | Firestore `orderStatus`. | Default `CREATED`. |
+| purchase_type | enum | Purchase type. | Firestore `purchase_type`. | Default `EVENT`. |
+| cart | object[] | Cart items. | Firestore `cart`. | Validated by event_payment schema. |
+| total | number | Total amount. | Firestore `total`. | Computed. |
+| reference_id | string | Reference id (event id). | Firestore `reference_id`. | Optional. |
+| event_meta | object | Extra metadata. | Firestore `eventMeta`. | Optional. |
+| created_at | timestamp | Created timestamp. | Firestore `createdAt`. | Optional. |
+
+### EventOrder (`orders`)
+Model: `mcp-backend/functions/models/order.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| event_id | string | Event id. | Firestore `eventId`. | Required for event orders. |
+| participants | object[] | Participants payload. | Firestore `participants`. | Validated by event_payment schema. |
+| event_price | number | Event price. | Firestore `eventPrice`. | Computed. |
+| event_fee | number | Event fee. | Firestore `eventFee`. | Computed. |
+| membership_targets | object[] | Non-member participants to be created. | Firestore `membershipTargets`. | Computed. |
+| membership_fee | number | Membership fee used. | Firestore `membershipFee`. | Computed from settings. |
+| purchase_mode | enum | Purchase mode used. | Firestore `purchaseMode`. | Computed from event. |
+| membership_lookup | object | Existing members by email. | Firestore `membershipLookup`. | Computed. |
+| event_meta | object | Extra metadata. | Firestore `eventMeta`. | Optional. |
+
+### ContactMessage (`contact_message`)
+Model: `mcp-backend/functions/models/contact_message.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Used for admin delete/reply. |
+| name | string | Sender name. | Firestore `name`. | Optional. |
+| email | string | Sender email. | Firestore `email`. | Optional. |
+| message | string | Message body. | Firestore `message`. | Optional. |
+| subject | string | Subject. | Firestore `subject`. | Optional. |
+| answered | boolean | Reply sent flag. | Firestore `answered`. | Optional. |
+| participant_id | string | Related participant. | Firestore `participant_id`. | Optional. |
+| event_id | string | Related event. | Firestore `event_id`. | Optional. |
+| error_message | string | Error note. | Firestore `error_message`. | Optional. |
+| timestamp | timestamp | Created timestamp. | Firestore `timestamp`. | Optional. |
+
+### NewsletterConsent (`newsletter_consents`)
+Model: `mcp-backend/functions/models/newsletter_consent.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Optional. |
+| name | string | Name. | Firestore `name`. | Optional. |
+| surname | string | Surname. | Firestore `surname`. | Optional. |
+| email | string | Email. | Firestore `email`. | Optional. |
+| phone | string | Phone. | Firestore `phone`. | Optional. |
+| birthdate | string | Birthdate. | Firestore `birthdate`. | Optional. |
+| gender | string | Gender. | Firestore `gender`. | Optional. |
+| gender_probability | number | Gender confidence. | Firestore `gender_probability`. | Optional. |
+| event_id | string | Event id. | Firestore `event_id`. | Optional. |
+| participant_id | string | Participant id. | Firestore `participant_id`. | Optional. |
+| timestamp | timestamp | Created timestamp. | Firestore `timestamp`. | Set on write. |
+| source | string | Source label. | Firestore `source`. | Default `participant_event`. |
+
+### NewsletterSignup (`newsletter_signups`)
+Model: `mcp-backend/functions/models/newsletter_signup.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id. | Firestore doc id. | Required for update/delete. |
+| email | string | Email address. | Firestore `email`. | Required in signup. |
+| timestamp | timestamp | Created timestamp. | Firestore `timestamp`. | Set on create. |
+| active | boolean | Active flag. | Firestore `active`. | Default true. |
+| source | string | Source label. | Firestore `source`. | Optional. |
+
+### Setting (`settings`)
+Model: `mcp-backend/functions/models/settings.py`
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| key | string | Document id used as key. | Firestore doc id. | Required on set. |
+| value | any | Stored value. | Firestore `value`. | Required on set. |
+
+Related settings:
+- `membership_settings/price` doc stores `price_by_year` (year -> fee).
+
+## DTOs (API Payloads)
+
+### EventDTO
+Location: `mcp-backend/functions/dto/event.py`
+- Mirrors Event fields, with API names (e.g., `startTime`, `locationHint`, `purchaseMode`).
+- `from_payload` accepts `purchaseMode` (or `purchase_mode`) and `lineup` only if provided.
+
+### MembershipDTO
+Location: `mcp-backend/functions/dto/membership.py`
+- Mirrors Membership fields.
+
+### EventParticipantDTO
+Location: `mcp-backend/functions/dto/participant.py`
+- API payload uses `membershipId`, `newsletterConsent`, `createdAt`.
+
+### ContactMessageDTO
+Location: `mcp-backend/functions/dto/message.py`
+- Mirrors ContactMessage fields.
+
+### NewsletterSignupDTO / NewsletterConsentDTO
+Location: `mcp-backend/functions/dto/newsletter.py`
+- Signup uses `email`, `active`, `source`.
+- Consent mirrors NewsletterConsent fields.
+
+### ParticipantsCheckDTO
+Location: `mcp-backend/functions/dto/participant_check.py`
+- Fields: `eventId`, `participants` (array of objects).
+
+### PreOrderDTO / PreOrderCartItemDTO / OrderCaptureDTO
+Location: `mcp-backend/functions/dto/preorder.py`
+- `PreOrderDTO.cart`: array with exactly one item.
+- `PreOrderCartItemDTO`: `eventId`, `participants`, `eventMeta`.
+- `OrderCaptureDTO`: `order_id`.
+
+### PurchaseDTO
+Location: `mcp-backend/functions/dto/purchase.py`
+- Mirrors Purchase fields; `type` is `purchase_type`.
+
+## API Validation Schemas (Highlights)
+
+### Events
+Location: `mcp-backend/functions/api/validators/events.py`
+- Create requires: `title`, `location`, `locationHint`, `date`, `startTime`.
+- Update requires: `id`.
+- `price`/`fee` must be numeric if provided.
+
+### Memberships
+Location: `mcp-backend/functions/api/validators/membership.py`
+- Create requires `birthdate`, optional `send_card_on_create`.
+- Update requires `membership_id`.
+- `membership_fee` for settings must be numeric.
+
+### Participants
+Location: `mcp-backend/functions/api/validators/participants.py`
+- Create/update require `event_id`.
+- Check participants requires `eventId` and non-empty participants array.
+
+### Purchases
+Location: `mcp-backend/functions/api/validators/purchases.py`
+- Create requires: payer info, amounts, `transaction_id`, `order_id`, `timestamp`, `type`.
+
+### Event Payment
+Location: `mcp-backend/functions/api/validators/event_payment.py`
+- `cart` must contain exactly one item with `eventId` and `participants`.
+- `order_id` required for capture.
+
+### Messages
+Location: `mcp-backend/functions/api/validators/messages.py`
+- `message_id` required for delete/reply; reply requires `email` and `body`.
+
+### Newsletter
+Location: `mcp-backend/functions/api/validators/newsletter.py`
+- Signup requires `email`.
+- Participants import requires non-empty array of objects.
+
+### Settings
+Location: `mcp-backend/functions/api/validators/settings.py`
+- `set` requires `key` and `value`.

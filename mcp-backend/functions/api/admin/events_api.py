@@ -68,8 +68,13 @@ def admin_update_event(req, id, event_dto):
         event_id = id
         admin_uid = req.admin_token["uid"]
         logger.debug(f"Updating event {event_id} by admin {admin_uid}")
+        raw_payload = req.get_json(silent=True) or {}
         payload = event_dto.to_payload()
-        print(f"[admin_update_event] raw request json (id={event_id}):", req.get_json(silent=True))
+        if "photoPath" in raw_payload and raw_payload.get("photoPath") is None:
+            payload["photoPath"] = None
+        if "photo_path" in raw_payload and raw_payload.get("photo_path") is None:
+            payload["photoPath"] = None
+        print(f"[admin_update_event] raw request json (id={event_id}):", raw_payload)
         print(f"[admin_update_event] dto payload (id={event_id}):", payload)
         response, status = events_service.update_event(event_id, payload, admin_uid)
         logger.info(f"Event {event_id} updated successfully")

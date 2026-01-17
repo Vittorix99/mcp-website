@@ -1,5 +1,11 @@
 """Validation schemas for event endpoints."""
 
+
+def _validate_status(value):
+    if not isinstance(value, str):
+        return False
+    return value in {"coming_soon", "active", "sold_out", "ended"}
+
 EVENT_ID_QUERY_SCHEMA = {
     "id": {
         "required": True,
@@ -17,8 +23,7 @@ CREATE_EVENT_SCHEMA = {
     "endTime": {"required": False, "types": str},
     "price": {"required": False, "types": (int, float)},
     "fee": {"required": False, "types": (int, float)},
-    "membershipFee": {"required": False, "types": (int, float)},
-    "active": {"required": False, "types": bool},
+    "status": {"required": False, "types": str, "validator": _validate_status},
     "purchaseMode": {"required": False, "types": str},
 }
 
@@ -32,8 +37,7 @@ UPDATE_EVENT_SCHEMA = {
     "endTime": {"required": False, "types": str},
     "price": {"required": False, "types": (int, float)},
     "fee": {"required": False, "types": (int, float)},
-    "membershipFee": {"required": False, "types": (int, float)},
-    "active": {"required": False, "types": bool},
+    "status": {"required": False, "types": str, "validator": _validate_status},
     "purchaseMode": {"required": False, "types": str},
 }
 

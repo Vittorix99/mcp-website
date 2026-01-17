@@ -1,6 +1,6 @@
 // firebase.js
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { GoogleAuthProvider } from "firebase/auth";
@@ -22,6 +22,11 @@ import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const authEmulatorHost = process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST;
+const env = process.env.NEXT_PUBLIC_ENV || "local";
+if (typeof window !== "undefined" && authEmulatorHost && env !== "production") {
+  connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
+}
 const db = getFirestore(app);
 const functions = getFunctions(app);
  const storageBucket = getStorage(app);

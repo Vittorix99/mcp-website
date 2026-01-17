@@ -17,6 +17,13 @@ export function EventStats({ participants, onRefresh }) {
     return sum + (isNaN(price) ? 0 : price)
   }, 0)
 
+  const nonPaypalRevenue = participants.reduce((sum, p) => {
+    const method = (p.payment_method || "").toLowerCase()
+    if (!["private_paypal", "iban", "cash"].includes(method)) return sum
+    const price = Number.parseFloat(p.price)
+    return sum + (isNaN(price) ? 0 : price)
+  }, 0)
+
   const omaggiCount = participants.filter((p) => Number.parseFloat(p.price) === 0).length
 
   const [isMobile, setIsMobile] = useState(false)
@@ -176,7 +183,7 @@ export function EventStats({ participants, onRefresh }) {
   return (
     <div className="space-y-4">
       {/* Statistiche esistenti */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="bg-zinc-900 border border-zinc-700 text-white shadow-md">
           <CardContent className="p-4">
             <p className="text-sm text-gray-400">Partecipanti totali</p>
@@ -193,6 +200,12 @@ export function EventStats({ participants, onRefresh }) {
           <CardContent className="p-4">
             <p className="text-sm text-gray-400">Totale incassato</p>
             <p className="text-2xl font-bold">{totalRevenue.toFixed(2)} €</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900 border border-zinc-700 text-white shadow-md">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-400">Non PayPal</p>
+            <p className="text-2xl font-bold">{nonPaypalRevenue.toFixed(2)} €</p>
           </CardContent>
         </Card>
         <Card className="bg-zinc-900 border border-zinc-700 text-white shadow-md">

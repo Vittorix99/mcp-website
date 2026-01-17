@@ -22,8 +22,8 @@ class EventsService:
         self.collection_name = "events"
         self.logger = logger
         self.public_field_profiles = {
-            "card": ["title", "date", "startTime", "endTime", "locationHint", "image", "photoPath", "description"],
-            "gallery": ["title", "date", "description", "photoPath", "image"],
+            "card": ["title", "date", "startTime", "endTime", "locationHint", "image", "photoPath", "status"],
+            "gallery": ["title", "date", "photoPath", "image", "status"],
             "ids": ["title"],  # Firestore richiede almeno un campo in select()
         }
 
@@ -65,8 +65,7 @@ class EventsService:
     def _event_from_snapshot(self, snapshot) -> Event:
         data = snapshot.to_dict() or {}
         event = Event.from_firestore(data, snapshot.id)
-        legacy_type = data.get("type")
-        event.purchase_mode = map_purchase_mode(legacy_type or event.purchase_mode.value)
+        event.purchase_mode = map_purchase_mode(event.purchase_mode.value if event.purchase_mode else None)
         return event
 
     def _event_to_dict(self, event: Event, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -91,16 +90,16 @@ class EventsService:
                 "locationHint": raw.get("locationHint"),
                 "image": raw.get("image"),
                 "photoPath": raw.get("photoPath"),
-                "description": raw.get("description"),
+                "status": raw.get("status"),
             }
         if view == "gallery":
             return {
                 "id": raw.get("id"),
                 "title": raw.get("title"),
                 "date": raw.get("date"),
-                "description": raw.get("description"),
                 "photoPath": raw.get("photoPath"),
                 "image": raw.get("image"),
+                "status": raw.get("status"),
             }
         if view == "ids":
             return {"id": raw.get("id")}
@@ -121,13 +120,14 @@ class EventsService:
             "location_hint": "location_hint",
             "price": "price",
             "fee": "fee",
-            "membershipFee": "membership_fee",
             "maxParticipants": "max_participants",
             "max_participants": "max_participants",
-            "active": "active",
+            "status": "status",
             "image": "image",
             "lineup": "lineup",
             "note": "note",
+            "photoPath": "photo_path",
+            "photo_path": "photo_path",
             "allowDuplicates": "allow_duplicates",
             "allow_duplicates": "allow_duplicates",
             "over21Only": "over21_only",
@@ -155,8 +155,6 @@ class EventsService:
             setattr(event, attr, value)
 
         purchase_value = payload.get("purchaseMode")
-        if purchase_value is None and "type" in payload:
-            purchase_value = payload["type"]
         if purchase_value is not None:
             event.purchase_mode = map_purchase_mode(purchase_value)
 

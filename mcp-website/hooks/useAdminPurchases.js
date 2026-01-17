@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useError } from "@/contexts/errorContext";
 import {
   getAllPurchases,
-  getPurchase,
+  getPurchaseById,
   createPurchase as createPurchaseService,
   deletePurchase as deletePurchaseService
 } from "@/services/admin/purchases";
@@ -40,7 +40,7 @@ export function useAdminPurchases() {
     }
     setLoading(true);
     try {
-      const res = await getPurchase(purchaseId);
+      const res = await getPurchaseById(purchaseId);
       if (res?.error) {
         setError(res.error);
         setSelected(null);
