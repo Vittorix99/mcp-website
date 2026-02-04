@@ -10,13 +10,12 @@ export const routes = {
   events: {
     foto: {
       gallery: '/events-foto',
-      details: (id) => `/events-foto/${id}`,
+      details: (slug) => `/events-foto/${slug}`,
     },
-    details: (id) => `/events/${id}`,
+    details: (slug) => `/events/${slug}`,
     allevents: '/events',
   },
 
-  subscribe: '/subscribe',
 
   error: {
     notAdmin: '/error/not-admin',

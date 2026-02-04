@@ -32,6 +32,7 @@ from utils.events_utils import (
     normalize_email,
     normalize_phone,
 )
+from utils.slug_utils import build_slug
 from utils.participant_rules import run_basic_checks
 
 logging.basicConfig(level=logging.DEBUG)
@@ -401,7 +402,9 @@ class EventPaymentService:
             event_purchase_type=purchase_mode,
         )
 
-        purchase_ref = db.collection("purchases").add(purchase.to_firestore(include_none=True))[1]
+        purchase_ref = db.collection("purchases").document()
+        purchase.slug = build_slug(payer_name, payer_surname, suffix=purchase_ref.id[-6:])
+        purchase_ref.set(purchase.to_firestore(include_none=True))
         return purchase.to_firestore(include_none=True), purchase_ref
 
     def create_memberships_for_targets(self, targets, membership_fee, order_data, purchase_ref):
@@ -469,7 +472,9 @@ class EventPaymentService:
                 attended_events=[],
                 membership_fee=fee_value,
             )
-            ref = db.collection("memberships").add(membership.to_firestore(include_none=True))[1]
+            ref = db.collection("memberships").document()
+            membership.slug = build_slug(membership.name, membership.surname, suffix=ref.id[-6:])
+            ref.set(membership.to_firestore(include_none=True))
             membership_refs.append({"email": normalized_email, "membership_id": ref.id})
         return membership_refs
 

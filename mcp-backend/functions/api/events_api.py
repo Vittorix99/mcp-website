@@ -46,10 +46,11 @@ def get_event_by_id(req):
         return 'Invalid request method', 405
 
     event_id = req.args.get('id')
-    if not event_id:
-        return {'error': 'Missing event ID'}, 400
-
-    response, status = events_service.get_public_event_by_id(event_id)
+    slug = req.args.get('slug')
+    if not event_id and not slug:
+        return {'error': 'Missing event ID or slug'}, 400
+    print(f"Fetching event with ID: {event_id} slug: {slug}")
+    response, status = events_service.get_public_event_by_id(event_id, slug=slug)
 
     if status == 200:
         event = response.get_json()

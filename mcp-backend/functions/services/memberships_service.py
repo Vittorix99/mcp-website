@@ -14,6 +14,7 @@ from services.mail_service import gmail_send_email_template
 from utils.email_templates import get_membership_email_template
 from utils.events_utils import calculate_end_of_year_membership, is_minor, normalize_email, normalize_phone
 from utils.membership_cards import process_new_membership, update_membership_card
+from utils.slug_utils import build_slug
 
 
 PROTECTED_FIELDS = ["card_storage_path", "purchase_id"]
@@ -94,10 +95,16 @@ class MembershipsService:
             self.logger.error(f"[get_all] {e}")
             return {'error': str(e)}, 500
 
-    def get_by_id(self, membership_id):
+    def get_by_id(self, membership_id, slug: str = None):
         try:
-            doc = self.collection.document(membership_id).get()
-            if not doc.exists:
+            doc = None
+            if slug:
+                matches = self.collection.where("slug", "==", slug).limit(1).get()
+                if matches:
+                    doc = matches[0]
+            if doc is None and membership_id:
+                doc = self.collection.document(membership_id).get()
+            if not doc or not doc.exists:
                 return {'error': 'Membership not found'}, 404
             membership = self._membership_from_snapshot(doc)
             return jsonify(self._serialize_membership(membership)), 200
@@ -147,9 +154,12 @@ class MembershipsService:
                 send_card_on_create=data.get("send_card_on_create", False),
             )
 
-            ref = self.collection.add(membership.to_firestore(include_none=True))[1]
-            self.logger.info(f"[create] Membership created with ID: {ref.id}")
-            return jsonify({'message': 'Membership created', 'id': ref.id}), 201
+            doc_ref = self.collection.document()
+            membership_id = doc_ref.id
+            membership.slug = build_slug(membership.name, membership.surname, suffix=membership_id[-6:])
+            doc_ref.set(membership.to_firestore(include_none=True))
+            self.logger.info(f"[create] Membership created with ID: {membership_id}")
+            return jsonify({'message': 'Membership created', 'id': membership_id}), 201
 
         except Exception as e:
             self.logger.error(f"[create] {e}")

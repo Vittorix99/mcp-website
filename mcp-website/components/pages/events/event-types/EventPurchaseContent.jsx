@@ -212,7 +212,7 @@ export default function EventPurchaseContent({ id, event, settings }) {
                 <div className="italic text-white mb-4">Evento concluso</div>
                 {event.photosReady && (
                   <Link
-                    href={`/events-foto/${event.id}`}
+                    href={`/events-foto/${event.slug}`}
                     className="bg-white text-black px-6 py-2 rounded-md font-semibold hover:bg-gray-200"
                   >
                     Guarda le foto
@@ -251,7 +251,7 @@ export default function EventPurchaseContent({ id, event, settings }) {
                         />
                         <span>
                           Acconsento a ricevere comunicazioni promozionali via email, come descritto nella nostra{" "}
-                          <a href="/privacy" target="_blank" className="underline">
+                          <a href="https://www.iubenda.com/privacy-policy/78147975" target="_blank" className="underline" rel="noopener noreferrer">
                             informativa sulla privacy
                           </a>
                           .

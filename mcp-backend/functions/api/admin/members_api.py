@@ -22,9 +22,10 @@ def get_membership(req):
     if req.method != "GET":
         return "Invalid method", 405
     membership_id = req.args.get("id")
-    if not membership_id:
-        return {"error": "Missing membership ID"}, 400
-    return memberships_service.get_by_id(membership_id)
+    slug = req.args.get("slug")
+    if not membership_id and not slug:
+        return {"error": "Missing membership ID or slug"}, 400
+    return memberships_service.get_by_id(membership_id, slug=slug)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
@@ -76,9 +77,15 @@ def get_membership_purchases(req):
         return "Invalid method", 405
 
     membership_id = req.args.get("id")
-    if not membership_id:
-        return {"error": "Missing membership_id"}, 400
-
+    slug = req.args.get("slug")
+    if not membership_id and not slug:
+        return {"error": "Missing membership_id or slug"}, 400
+    if not membership_id and slug:
+        resolved = memberships_service.get_by_id(None, slug=slug)
+        if isinstance(resolved, tuple) and resolved[1] == 200:
+            membership_id = resolved[0].get_json().get("id")
+        else:
+            return resolved
     return memberships_service.get_purchases(membership_id)
 
 
@@ -89,9 +96,15 @@ def get_membership_events(req):
         return "Invalid method", 405
 
     membership_id = req.args.get("id")
-    if not membership_id:
-        return {"error": "Missing membership_id"}, 400
-
+    slug = req.args.get("slug")
+    if not membership_id and not slug:
+        return {"error": "Missing membership_id or slug"}, 400
+    if not membership_id and slug:
+        resolved = memberships_service.get_by_id(None, slug=slug)
+        if isinstance(resolved, tuple) and resolved[1] == 200:
+            membership_id = resolved[0].get_json().get("id")
+        else:
+            return resolved
     return memberships_service.get_events(membership_id)
 
 

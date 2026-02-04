@@ -3,12 +3,10 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { routes } from "@/config/routes";
 import { useRouter } from "next/navigation";
 
 export const LogoSection = () => {
   const router = useRouter();
-  const isMembershipActive = process.env.NEXT_PUBLIC_MEMBERSHIP_PAGE_ACTIVE === "true";
 
   const fadeInUp = {
     initial: { opacity: 0, y: 20 },
@@ -48,19 +46,6 @@ export const LogoSection = () => {
         Connect with the community.
       </motion.p>
 
-      {isMembershipActive && (
-        <motion.div variants={fadeInUp}>
-          <Button
-            size="lg"
-            className="tracking-wider bg-mcp-gradient hover:opacity-90 text-white border-0 text-sm md:text-base h-10 md:h-12"
-            onClick={() => {
-              router.push(routes.subscribe);
-            }}
-          >
-            Join Our Community
-          </Button>
-        </motion.div>
-      )}
     </motion.div>
   );
 };

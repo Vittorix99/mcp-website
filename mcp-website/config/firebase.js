@@ -55,14 +55,17 @@ export async function login(email, password) {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
-    
-    const token = await user.getIdToken();
 
-    
+    const token = await user.getIdToken();
     localStorage.setItem('token', token);
-    return user;
+
+    return { user };
   } catch (error) {
-    console.error('Error logging in:', error);
+    const code = error?.code;
+    if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+      return { error: "Utente o password errati" };
+    }
+    console.error("Error logging in:", error);
     throw error;
   }
 }

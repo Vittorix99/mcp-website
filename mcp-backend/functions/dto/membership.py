@@ -11,6 +11,7 @@ class MembershipDTO:
     id: Optional[str] = None
     name: str = ""
     surname: str = ""
+    slug: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     birthdate: Optional[str] = None
@@ -33,6 +34,7 @@ class MembershipDTO:
             id=membership.id,
             name=membership.name,
             surname=membership.surname,
+            slug=membership.slug,
             email=membership.email,
             phone=membership.phone,
             birthdate=membership.birthdate,
@@ -55,6 +57,7 @@ class MembershipDTO:
             "id": self.id,
             "name": self.name,
             "surname": self.surname,
+            "slug": self.slug,
             "email": self.email,
             "phone": self.phone,
             "birthdate": self.birthdate,

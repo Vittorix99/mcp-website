@@ -10,6 +10,7 @@ class Event(FirestoreModel):
     """Represents an event document stored in the ``events`` collection."""
 
     title: str = ""
+    slug: Optional[str] = field(default=None, metadata={"firestore_name": "slug"})
     date: str = ""
     start_time: Optional[str] = field(default=None, metadata={"firestore_name": "startTime"})
     end_time: Optional[str] = field(default=None, metadata={"firestore_name": "endTime"})

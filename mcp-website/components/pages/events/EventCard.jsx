@@ -121,7 +121,7 @@ export default function EventCard({ event }) {
           <div className="mt-auto bottom-0">
 
           <Link
-            href={getRoute(routes.events.details, event.id)}
+            href={getRoute(routes.events.details, event.slug)}
             className="block w-full text-center py-3 bg-gradient-to-r from-mcp-orange to-mcp-red text-white font-bold text-sm hover:opacity-90 transition-opacity"
             >
             View Details

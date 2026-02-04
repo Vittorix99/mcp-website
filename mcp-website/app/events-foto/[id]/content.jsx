@@ -11,6 +11,7 @@ import { SectionTitle } from "@/components/ui/section-title"
 
 const CACHE_KEY_PREFIX = "event-photos-cache-v1"
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6 // 6 ore
+const PREFETCH_COUNT = 20
 
 export function EventContent({ id, initialEvent = null }) {
   const [event, setEvent] = useState(initialEvent)
@@ -112,6 +113,19 @@ export function EventContent({ id, initialEvent = null }) {
               if (!cancelled) setImagesLoading(false)
             }
             img.src = formattedImageUrls[0]?.src
+
+            // Prefetch prime N immagini (preview) per alleggerire il carico percepito
+            const prefetch = () => {
+              formattedImageUrls.slice(0, PREFETCH_COUNT).forEach((item) => {
+                const pre = new Image()
+                pre.src = item?.src
+              })
+            }
+            if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+              window.requestIdleCallback(prefetch)
+            } else {
+              setTimeout(prefetch, 0)
+            }
           } else {
             setImagesLoading(false)
           }

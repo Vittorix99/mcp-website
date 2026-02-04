@@ -27,7 +27,12 @@ export default function LoginModal({ open, onOpenChange, hideTrigger = false }) 
     setIsLoading(true)
 
     try {
-      const user = await login(email, password)
+      const result = await login(email, password)
+      if (result?.error) {
+        setError(result.error)
+        return
+      }
+      const user = result?.user
       const token = await getIdTokenResult()
 
       setUser(user)
@@ -40,7 +45,7 @@ export default function LoginModal({ open, onOpenChange, hideTrigger = false }) 
         router.push(routes.home)
       }
     } catch (error) {
-      setError("Invalid email or password")
+      setError("Si è verificato un errore durante il login")
       console.error("Login error:", error)
     } finally {
       setIsLoading(false)

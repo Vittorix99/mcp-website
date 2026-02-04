@@ -5,6 +5,7 @@ from flask import jsonify
 
 from config.firebase_config import db
 from models import Purchase
+from utils.slug_utils import build_slug
 
 
 class PurchasesService:
@@ -27,10 +28,16 @@ class PurchasesService:
             self.logger.error(f"[get_all] {e}")
             return {"error": str(e)}, 500
 
-    def get_by_id(self, purchase_id):
+    def get_by_id(self, purchase_id, slug: str = None):
         try:
-            doc = self.collection.document(purchase_id).get()
-            if not doc.exists:
+            doc = None
+            if slug:
+                matches = self.collection.where("slug", "==", slug).limit(1).get()
+                if matches:
+                    doc = matches[0]
+            if doc is None and purchase_id:
+                doc = self.collection.document(purchase_id).get()
+            if not doc or not doc.exists:
                 return {"error": "Purchase not found"}, 404
             purchase = Purchase.from_firestore(doc.to_dict() or {}, doc.id)
             return jsonify(self._serialize(purchase)), 200
@@ -71,9 +78,16 @@ class PurchasesService:
                 ref_id=data.get("ref_id"),
             )
 
-            ref = self.collection.add(purchase.to_firestore(include_none=True))[1]
-            self.logger.info(f"[create] New purchase saved: {ref.id}")
-            return jsonify({"message": "Purchase created", "id": ref.id}), 201
+            doc_ref = self.collection.document()
+            purchase_id = doc_ref.id
+            purchase.slug = build_slug(
+                purchase.payer_name,
+                purchase.payer_surname,
+                suffix=purchase_id[-6:],
+            )
+            doc_ref.set(purchase.to_firestore(include_none=True))
+            self.logger.info(f"[create] New purchase saved: {purchase_id}")
+            return jsonify({"message": "Purchase created", "id": purchase_id}), 201
 
         except Exception as e:
             self.logger.error(f"[create] {e}")

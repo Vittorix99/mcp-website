@@ -10,6 +10,7 @@ class Membership(FirestoreModel):
 
     name: str = ""
     surname: str = ""
+    slug: Optional[str] = field(default=None, metadata={"firestore_name": "slug"})
     email: Optional[str] = None
     phone: Optional[str] = None
     birthdate: Optional[str] = None

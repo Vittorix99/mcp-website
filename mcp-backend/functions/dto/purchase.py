@@ -8,6 +8,7 @@ from models import Purchase
 class PurchaseDTO:
     payer_name: Optional[str] = None
     payer_surname: Optional[str] = None
+    slug: Optional[str] = None
     payer_email: Optional[str] = None
     amount_total: Optional[str] = None
     currency: Optional[str] = None
@@ -25,6 +26,7 @@ class PurchaseDTO:
         return cls(
             payer_name=purchase.payer_name,
             payer_surname=purchase.payer_surname,
+            slug=purchase.slug,
             payer_email=purchase.payer_email,
             amount_total=purchase.amount_total,
             currency=purchase.currency,
@@ -42,6 +44,7 @@ class PurchaseDTO:
         payload: Dict[str, Any] = {
             "payer_name": self.payer_name,
             "payer_surname": self.payer_surname,
+            "slug": self.slug,
             "payer_email": self.payer_email,
             "amount_total": self.amount_total,
             "currency": self.currency,

@@ -161,7 +161,7 @@ export function NextEventSection({ event }) {
 
                   {event.status === "active" ? (
                     <Link
-                      href={getRoute(routes.events.details, event.id)}
+                      href={getRoute(routes.events.details, event.slug)}
                       className="block w-full"
                     >
                       <Button className="font-atlantico tracking-wider mt-3 md:mt-5 bg-mcp-gradient hover:opacity-90 text-white py-2 md:py-3 px-6 md:px-8 rounded-md transition-all duration-300 transform hover:scale-105 uppercase text-sm md:text-base h-12 md:h-14 w-full">

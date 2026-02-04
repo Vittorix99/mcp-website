@@ -22,9 +22,10 @@ def get_purchase(req):
     if req.method != "GET":
         return "Invalid method", 405
     purchase_id = req.args.get("id")
-    if not purchase_id:
-        return {"error": "Missing purchase_id"}, 400
-    return purchases_service.get_by_id(purchase_id)
+    slug = req.args.get("slug")
+    if not purchase_id and not slug:
+        return {"error": "Missing purchase_id or slug"}, 400
+    return purchases_service.get_by_id(purchase_id, slug=slug)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin

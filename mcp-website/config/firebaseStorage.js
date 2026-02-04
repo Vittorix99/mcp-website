@@ -55,6 +55,7 @@ export async function uploadImageToStorage(folderPath, fileName, file) {
 
     const snapshot = await uploadBytes(fileRef, file, {
       contentType: file.type,
+      cacheControl: "public, max-age=31536000, immutable",
     });
 
     const downloadURL = await getDownloadURL(snapshot.ref);
@@ -94,7 +95,10 @@ export async function deleteFiles(refs) {
 
 export async function uploadCover(folderPath, coverFile) {
   const fileRef = ref(storageBucket, `${folderPath}/cover.jpg`);
-  await uploadBytes(fileRef, coverFile, { contentType: coverFile.type });
+  await uploadBytes(fileRef, coverFile, {
+    contentType: coverFile.type,
+    cacheControl: "public, max-age=31536000, immutable",
+  });
   return getDownloadURL(fileRef);
 }
 

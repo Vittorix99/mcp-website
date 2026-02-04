@@ -10,6 +10,7 @@ class EventDTO:
 
     id: Optional[str] = None
     title: str = ""
+    slug: Optional[str] = None
     date: str = ""
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -39,6 +40,7 @@ class EventDTO:
         dto = cls(
             id=event.id,
             title=event.title,
+            slug=event.slug,
             date=event.date,
             start_time=event.start_time,
             end_time=event.end_time,
@@ -69,6 +71,7 @@ class EventDTO:
         payload: Dict[str, Any] = {
             "id": self.id,
             "title": self.title,
+            "slug": self.slug,
             "date": self.date,
             "startTime": self.start_time,
             "endTime": self.end_time,
@@ -100,6 +103,7 @@ class EventDTO:
         return cls(
             id=payload.get("id"),
             title=payload.get("title", ""),
+            slug=payload.get("slug"),
             date=payload.get("date", ""),
             start_time=payload.get("startTime") or payload.get("start_time"),
             end_time=payload.get("endTime") or payload.get("end_time"),

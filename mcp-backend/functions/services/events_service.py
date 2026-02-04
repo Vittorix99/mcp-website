@@ -5,11 +5,13 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from firebase_admin import firestore
+from google.cloud.firestore_v1 import FieldFilter
 from flask import jsonify
 
 from config.firebase_config import bucket, db
 from models import Event
 from utils.events_utils import map_purchase_mode
+from utils.slug_utils import build_slug
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("EventsService")
@@ -22,9 +24,9 @@ class EventsService:
         self.collection_name = "events"
         self.logger = logger
         self.public_field_profiles = {
-            "card": ["title", "date", "startTime", "endTime", "locationHint", "image", "photoPath", "status"],
-            "gallery": ["title", "date", "photoPath", "image", "status"],
-            "ids": ["title"],  # Firestore richiede almeno un campo in select()
+            "card": ["title", "slug", "date", "startTime", "endTime", "locationHint", "image", "photoPath", "status"],
+            "gallery": ["title", "slug", "date", "photoPath", "image", "status"],
+            "ids": ["title", "slug"],  # Firestore richiede almeno un campo in select()
         }
 
     # ----------------------- Date helpers -----------------------
@@ -83,6 +85,7 @@ class EventsService:
         if view == "card":
             return {
                 "id": raw.get("id"),
+                "slug": raw.get("slug"),
                 "title": raw.get("title"),
                 "date": raw.get("date"),
                 "startTime": raw.get("startTime"),
@@ -95,6 +98,7 @@ class EventsService:
         if view == "gallery":
             return {
                 "id": raw.get("id"),
+                "slug": raw.get("slug"),
                 "title": raw.get("title"),
                 "date": raw.get("date"),
                 "photoPath": raw.get("photoPath"),
@@ -102,7 +106,7 @@ class EventsService:
                 "status": raw.get("status"),
             }
         if view == "ids":
-            return {"id": raw.get("id")}
+            return {"id": raw.get("id"), "slug": raw.get("slug")}
 
         event = Event.from_firestore(raw, raw.get("id"))
         return self._event_to_dict(event, raw)
@@ -247,8 +251,11 @@ class EventsService:
             )
             self._apply_payload_to_event(event, event_data)
 
-            doc_ref = self.db.collection(self.collection_name).add(event.to_firestore(include_none=True))
-            event_id = doc_ref[1].id
+            doc_ref = self.db.collection(self.collection_name).document()
+            event_id = doc_ref.id
+            slug_seed = f"{event.title} {event.date}".strip()
+            event.slug = build_slug(slug_seed, suffix=event_id[-6:])
+            doc_ref.set(event.to_firestore(include_none=True))
             self.logger.info(f"Event created: {event_id}")
 
             return jsonify({"message": "Event created", "eventId": event_id}), 201
@@ -346,7 +353,15 @@ class EventsService:
             event = event_ref.get()
 
             if not event.exists:
-                return {"error": f"Event with ID {event_id} not found"}, 404
+                matches = (
+                    self.db.collection(self.collection_name)
+                    .where(filter=FieldFilter("slug", "==", event_id))
+                    .limit(1)
+                    .get()
+                )
+                if not matches:
+                    return {"error": f"Event with ID {event_id} not found"}, 404
+                event = matches[0]
 
             model = self._event_from_snapshot(event)
             event_payload = self._event_to_dict(model, event.to_dict())
@@ -461,13 +476,25 @@ class EventsService:
         except Exception as e:
             return {"error": str(e)}, 500
 
-    def get_public_event_by_id(self, event_id: str):
+    def get_public_event_by_id(self, event_id: str = None, slug: str = None):
         try:
-            event_ref = self.db.collection(self.collection_name).document(event_id)
-            event = event_ref.get()
+            event = None
+            if slug:
+                matches = (
+                    self.db.collection(self.collection_name)
+                    .where(filter=FieldFilter("slug", "==", slug))
+                    .limit(1)
+                    .get()
+                )
+                if matches:
+                    event = matches[0]
 
-            if not event.exists:
-                return {"error": f"Event with ID {event_id} not found"}, 404
+            if event is None and event_id:
+                event_ref = self.db.collection(self.collection_name).document(event_id)
+                event = event_ref.get()
+
+            if not event or not event.exists:
+                return {"error": "Event not found"}, 404
 
             model = self._event_from_snapshot(event)
             payload = self._event_to_dict(model, event.to_dict())

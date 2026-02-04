@@ -131,8 +131,8 @@ def admin_get_all_events(req):
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
 @validate_query_params(EVENT_ID_QUERY_SCHEMA, allow_extra=False)
-@inject_query_params(["id"])
-def admin_get_event_by_id(req, id):
+@inject_query_params(["id", "slug"], allow_missing=True)
+def admin_get_event_by_id(req, id=None, slug=None):
     logger.debug("admin_get_event_by_id called")
 
     if req.method != 'GET':
@@ -140,10 +140,12 @@ def admin_get_event_by_id(req, id):
         return 'Invalid request method', 405
 
     event_id = id
-    logger.debug(f"Query param eventId: {event_id}")
+    logger.debug(f"Query param eventId: {event_id} slug: {slug}")
+    if not event_id and not slug:
+        return jsonify({"error": "Missing event ID or slug"}), 400
 
     try:
-        response, status = events_service.get_event_by_id(event_id)
+        response, status = events_service.get_event_by_id(slug or event_id)
         logger.info(f"Event {event_id} fetched successfully")
         return response, status
     except Exception as e:

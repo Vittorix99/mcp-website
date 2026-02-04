@@ -1,0 +1,168 @@
+"use client"
+
+import { useState } from "react"
+import EventCard from "@/components/pages/events/EventCard"
+import { SectionTitle } from "@/components/ui/section-title"
+import { Loader2, ArrowLeft, ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { motion } from "framer-motion"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
+
+export default function EventsClient({ initialEvents, initialError }) {
+  const [events, setEvents] = useState(() => initialEvents || [])
+  const [loading] = useState(false)
+  const [error] = useState(initialError)
+  const [activeFilter, setActiveFilter] = useState("upcoming")
+  const [scrollPosition, setScrollPosition] = useState(0)
+  const scrollAmount = 300 // Quantità di scroll per ogni click
+  const isDesktop = useMediaQuery("(min-width: 1024px)")
+
+  // Funzione per convertire la data nel formato "DD-MM-YYYY" in un oggetto Date
+  const parseEventDate = (dateString) => {
+    try {
+      const [day, month, year] = dateString.split("-").map(Number)
+      return new Date(year, month - 1, day)
+    } catch (e) {
+      return new Date(0) // Fallback a una data molto vecchia in caso di errore
+    }
+  }
+
+  const sortedEvents = [...events].sort((a, b) => {
+    const dateA = parseEventDate(a.date)
+    const dateB = parseEventDate(b.date)
+    return dateB - dateA
+  })
+
+  const filteredEvents = sortedEvents.filter((event) => {
+    const eventDate = parseEventDate(event.date)
+    const today = new Date()
+
+    if (activeFilter === "upcoming") {
+      return eventDate >= today
+    } else if (activeFilter === "past") {
+      return eventDate < today
+    }
+    return true // "all" filter
+  })
+
+  const scrollLeft = () => {
+    const container = document.getElementById("events-container")
+    if (container) {
+      const newPosition = Math.max(0, scrollPosition - scrollAmount)
+      container.scrollTo({ left: newPosition, behavior: "smooth" })
+      setScrollPosition(newPosition)
+    }
+  }
+
+  const scrollRight = () => {
+    const container = document.getElementById("events-container")
+    if (container) {
+      const newPosition = scrollPosition + scrollAmount
+      container.scrollTo({ left: newPosition, behavior: "smooth" })
+      setScrollPosition(newPosition)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="h-24"></div>
+        <Loader2 className="w-8 h-8 text-mcp-orange animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="h-24"></div>
+        <div className="container mx-auto px-4 md:px-6 pt-16">
+          <div className="text-center text-red-500 font-helvetica">{error}</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-black space-y-4">
+      {/* Spacer div to push content below navbar */}
+      <div className="h-24"></div>
+
+      <div className="container mx-auto px-4">
+        <SectionTitle as="h1" className="">
+          ALL EVENTS
+        </SectionTitle>
+
+        {/* Filtri */}
+        <div className="flex justify-center mb-8 mt-12 ">
+          <div className="inline-flex bg-black/30 backdrop-blur-sm rounded-lg p-1">
+            <button
+              onClick={() => setActiveFilter("upcoming")}
+              className={`font-helvetica px-4 py-2 rounded-md text-sm transition-colors ${
+                activeFilter === "upcoming" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Upcoming
+            </button>
+            <button
+              onClick={() => setActiveFilter("past")}
+              className={`font-helvetica px-4 py-2 rounded-md text-sm transition-colors ${
+                activeFilter === "past" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Past
+            </button>
+            <button
+              onClick={() => setActiveFilter("all")}
+              className={`font-helvetica px-4 py-2 rounded-md text-sm transition-colors ${
+                activeFilter === "all" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
+              }`}
+            >
+              All
+            </button>
+          </div>
+        </div>
+
+        {/* Eventi */}
+        <div className="relative">
+          {isDesktop && filteredEvents.length > 0 && (
+            <>
+              <Button
+                onClick={scrollLeft}
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <Button
+                onClick={scrollRight}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
+              >
+                <ArrowRight className="h-5 w-5" />
+              </Button>
+            </>
+          )}
+
+          <div
+            id="events-container"
+            className={`grid gap-6 ${
+              isDesktop
+                ? "grid-flow-col auto-cols-[minmax(300px,1fr)] overflow-x-auto pb-4 scrollbar-hide"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+            }`}
+          >
+            {filteredEvents.map((event) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <EventCard event={event} />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -8,10 +8,15 @@ def _validate_status(value):
 
 EVENT_ID_QUERY_SCHEMA = {
     "id": {
-        "required": True,
+        "required": False,
         "types": str,
         "error": "Missing event ID",
-    }
+    },
+    "slug": {
+        "required": False,
+        "types": str,
+        "error": "Missing event slug",
+    },
 }
 
 CREATE_EVENT_SCHEMA = {

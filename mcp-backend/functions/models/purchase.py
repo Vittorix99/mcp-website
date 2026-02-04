@@ -11,6 +11,7 @@ class Purchase(FirestoreModel):
 
     payer_name: str = field(default="", metadata={"firestore_name": "payer_name"})
     payer_surname: str = field(default="", metadata={"firestore_name": "payer_surname"})
+    slug: Optional[str] = field(default=None, metadata={"firestore_name": "slug"})
     payer_email: str = field(default="", metadata={"firestore_name": "payer_email"})
     amount_total: str = field(default="", metadata={"firestore_name": "amount_total"})
     currency: str = ""

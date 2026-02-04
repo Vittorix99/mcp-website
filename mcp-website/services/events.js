@@ -11,8 +11,9 @@ export async function getNextEvent() {
   return { success: true, events }
 }
 
-export async function getEventById(eventId) {
-  const url = `${endpoints.getEventById}?id=${encodeURIComponent(eventId)}`
+export async function getEventById(eventIdOrSlug) {
+  const key = encodeURIComponent(eventIdOrSlug)
+  const url = `${endpoints.getEventById}?slug=${key}&id=${key}`
   const res = await safePublicFetch(url, "GET")
   if (!res.success) {
     return { success: false, error: res.error }
