@@ -10,9 +10,9 @@ const SETTINGS_REVALIDATE_SECONDS = 120
 const SETTING_KEYS = ["payment_blocked", "company_iban", "company_intestatario"]
 
 
-async function fetchEvent(eventId) {
+async function fetchEvent(eventSlug) {
   try {
-    const key = encodeURIComponent(eventId)
+    const key = encodeURIComponent(eventSlug)
     const url = `${endpoints.getEventById}?slug=${key}&id=${key}`
     const res = await fetch(url, {
       next: { revalidate: EVENT_REVALIDATE_SECONDS },
@@ -32,14 +32,14 @@ async function fetchEvent(eventId) {
 }
 
 export async function generateMetadata({ params }) {
-  const { id } = await params
-  const result = await fetchEvent(id)
+  const { slug } = await params
+  const result = await fetchEvent(slug)
   const title = result?.event?.title ? `${result.event.title} | MCP Event` : "Event | Music Connecting People"
   const description = result?.event?.locationHint
     ? `${result.event.locationHint} · ${result.event.date || ""}`.trim()
     : "Discover events by Music Connecting People."
   const baseUrl = await getBaseUrlFromHeaders()
-  const canonical = baseUrl ? `${baseUrl}/events/${id}` : undefined
+  const canonical = baseUrl ? `${baseUrl}/events/${slug}` : undefined
 
   return {
     title,
@@ -81,14 +81,14 @@ async function fetchSettings() {
 }
 
 export default async function EventPage({ params }) {
-  const { id } = await params
+  const { slug } = await params
 
-  const [eventResult, settings] = await Promise.all([fetchEvent(id), fetchSettings()])
+  const [eventResult, settings] = await Promise.all([fetchEvent(slug), fetchSettings()])
   const baseUrl = await getBaseUrlFromHeaders()
   const jsonLd = eventResult?.event
     ? buildEventJsonLd({
         event: eventResult.event,
-        url: baseUrl ? `${baseUrl}/events/${id}` : undefined,
+        url: baseUrl ? `${baseUrl}/events/${slug}` : undefined,
         siteUrl: baseUrl,
       })
     : null
@@ -101,7 +101,7 @@ export default async function EventPage({ params }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      <EventContent id={id} event={eventResult.event} settings={settings} error={eventResult.error} />
+      <EventContent id={slug} event={eventResult.event} settings={settings} error={eventResult.error} />
     </>
   )
 }

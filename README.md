@@ -16,6 +16,7 @@ MCP-WEB-PROJECT/
 ├── mcp-backend/
 │   └── functions/
 │       ├── service_account.json
+│       ├── service_account_test.json
 │       ├── service_mail.json
 │       ├── requirements.txt
 │       ├── .env
@@ -68,6 +69,7 @@ Crea e popola i seguenti file con le tue credenziali:
 
 * `mcp-backend/functions/.env`
 * `mcp-backend/functions/service_account.json` (Firebase service account)
+* `mcp-backend/functions/service_account_test.json` (Firebase service account - test)
 * `mcp-backend/functions/service_mail.json` (Google mail service account)
 
 ### Selezione DB (prod / test / locale)
@@ -81,15 +83,15 @@ Il backend sceglie il Firestore in base a queste variabili:
 #### DB prod (cloud)
 ```bash
 unset FIRESTORE_EMULATOR_HOST
-export GOOGLE_APPLICATION_CREDENTIALS="/percorso/service_account.json"
-firebase emulators:start --only functions --project <PROJECT_ID_PROD>
+export GOOGLE_APPLICATION_CREDENTIALS="./mcp-backend/functions/service_account.json"
+firebase emulators:start --only functions --project mcp-website-2a1ad
 ```
 
 #### DB test (cloud)
 ```bash
 unset FIRESTORE_EMULATOR_HOST
-export GOOGLE_APPLICATION_CREDENTIALS="/percorso/service_.account_test.json"
-firebase emulators:start --only functions --project <PROJECT_ID_TEST>
+export GOOGLE_APPLICATION_CREDENTIALS="./mcp-backend/functions/service_account_test.json"
+firebase emulators:start --only functions --project mcp-website-dev-39539
 ```
 
 #### DB locale (emulatore)
@@ -103,7 +105,7 @@ firebase emulators:start --only functions,firestore
 Se vuoi usare l’Auth emulator con le funzioni locali:
 ```bash
 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
-firebase emulators:start --only functions,auth --project <PROJECT_ID_TEST>
+firebase emulators:start --only functions,auth --project mcp-website-dev-39539
 ```
 
 Nel frontend:
@@ -151,7 +153,7 @@ NEXT_PUBLIC_BASE_URL=http://127.0.0.1:5001/mcp-website-2a1ad/us-central1
 
 Se usi il Functions emulator con progetto test:
 ```
-NEXT_PUBLIC_BASE_URL=http://127.0.0.1:5002/<PROJECT_ID_TEST>/us-central1
+NEXT_PUBLIC_BASE_URL=http://127.0.0.1:5002/mcp-website-dev-39539/us-central1
 NEXT_PUBLIC_AUTH_EMULATOR_HOST=127.0.0.1:9099
 ```
 
@@ -162,6 +164,63 @@ Per avviare il frontend in modalità sviluppo:
 ```bash
 npm run dev
 ```
+
+## Bash Scripts (project root)
+
+Bash scripts are available in the project root to quickly start the frontend and emulators without editing `.env` each time.
+
+### Frontend
+
+Start the frontend with environment variables set via flags:
+
+```bash
+# Dev with development env
+./frontend-dev.sh --development=true
+
+# Dev with production env
+./frontend-dev.sh --development=false
+
+# Dev + Auth emulator (sets NEXT_PUBLIC_AUTH_EMULATOR_HOST)
+./frontend-dev.sh --development=true --auth-emulator=true
+```
+
+Notes:
+* `frontend-dev.sh` enters `mcp-website` and runs `npm run dev`.
+* `NEXT_PUBLIC_ENV` and `NEXT_PUBLIC_PAYPAL_ENV` are set based on the `--development` flag.
+* If you use the Auth emulator, it sets `NEXT_PUBLIC_AUTH_EMULATOR_HOST=127.0.0.1:9099`.
+
+### Build (production)
+
+```bash
+./frontend-build.sh
+```
+
+Notes:
+* `frontend-build.sh` forces `NEXT_PUBLIC_ENV=production` and `NEXT_PUBLIC_PAYPAL_ENV=production`.
+
+### Firebase Emulators
+
+The `emulator.sh` script supports three DB modes and optional Auth emulator.
+
+```bash
+# Local DB (Firestore emulator)
+./emulator.sh --db=local
+
+# Test DB (cloud)
+./emulator.sh --db=test --project=mcp-website-dev-39539 --creds=./mcp-backend/functions/service_account_test.json
+
+# Prod DB (cloud)
+./emulator.sh --db=prod --project=mcp-website-2a1ad --creds=./mcp-backend/functions/service_account.json
+
+# Test DB + Auth emulator
+./emulator.sh --db=test --auth=true --project=mcp-website-dev-39539 --creds=./mcp-backend/functions/service_account_test.json
+```
+
+Notes:
+* For `--db=test` and `--db=prod`, it runs `firebase emulators:start --only functions` and **does NOT** use the local Firestore emulator.
+* You can also export `PROJECT_ID_TEST`, `PROJECT_ID_PROD`, and `GOOGLE_APPLICATION_CREDENTIALS` instead of passing flags.
+* For `--db=local`, it sets `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080` and starts `functions,firestore` (with `auth` if requested).
+* When `--auth=true`, emulator data is exported on exit to `./emulator-data` (and auto-imported on next start if present).
 
 ## Descrizione Generale del Progetto
 

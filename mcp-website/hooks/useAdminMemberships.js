@@ -133,7 +133,11 @@ export function useAdminMemberships(options = {}) {
   const create = useCallback(async (data) => {
     setLoading(true);
     try {
-      const res = await createMembershipService(data);
+      const payload = {
+        ...data,
+        send_card_on_create: !!data?.send_card_on_create,
+      };
+      const res = await createMembershipService(payload);
       if (res?.error) setError(res.error);
       else await loadAll();
     } catch (e) {

@@ -16,7 +16,7 @@ export function MembershipModal({
   onInput,
   onCheckbox,
 }) {
-  const defaultSendCard = !!form.send_card_on_create
+  const defaultSendCard = form.send_card_on_create === true
   const defaultSubscriptionValid = form.subscription_valid ?? true
   const startDateValue = (() => {
     if (!form.start_date) return ""
@@ -98,7 +98,7 @@ export function MembershipModal({
                 id="send_card_on_create"
                 name="send_card_on_create"
                 checked={defaultSendCard}
-                onCheckedChange={(val) => onCheckbox("send_card_on_create", val)}
+                onCheckedChange={(val) => onCheckbox("send_card_on_create", val === true)}
               />
               <Label htmlFor="send_card_on_create">Invia tessera al salvataggio</Label>
             </div>

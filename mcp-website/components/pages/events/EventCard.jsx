@@ -1,18 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { Calendar, MapPin, Clock, Loader2 } from "lucide-react"
 import { getImageUrl } from "@/config/firebaseStorage"
 import { routes, getRoute } from "@/config/routes"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { motion } from "framer-motion"
 
-export default function EventCard({ event }) {
+export default function EventCard({ event, onCoverLoaded }) {
   const [imageUrl, setImageUrl] = useState(null)
   const [imageAspectRatio, setImageAspectRatio] = useState(4 / 5) // Default aspect ratio
   const [isLoading, setIsLoading] = useState(true)
+  const notifiedRef = useRef(false)
+  const imgRef = useRef(null)
 
   useEffect(() => {
     async function fetchImageUrl() {
@@ -24,18 +25,41 @@ export default function EventCard({ event }) {
         } catch (error) {
           console.error("Error loading image:", error)
           setIsLoading(false)
+          if (onCoverLoaded && !notifiedRef.current) {
+            notifiedRef.current = true
+            onCoverLoaded(event.id || event.slug || event.title)
+          }
         }
       } else {
         setIsLoading(false)
+        if (onCoverLoaded && !notifiedRef.current) {
+          notifiedRef.current = true
+          onCoverLoaded(event.id || event.slug || event.title)
+        }
       }
     }
     fetchImageUrl()
-  }, [event.image])
+    return () => {
+      notifiedRef.current = false
+    }
+  }, [event.image, onCoverLoaded])
 
   const handleImageLoad = ({ naturalWidth, naturalHeight }) => {
     setImageAspectRatio(naturalWidth / naturalHeight)
     setIsLoading(false)
+    if (onCoverLoaded && !notifiedRef.current) {
+      notifiedRef.current = true
+      onCoverLoaded(event.id || event.slug || event.title)
+    }
   }
+
+  useEffect(() => {
+    if (!imgRef.current) return
+    if (!isLoading) return
+    if (imgRef.current.complete) {
+      handleImageLoad(imgRef.current)
+    }
+  }, [imageUrl, isLoading])
 
   // Verifica se l'evento è passato
   const isPastEvent = () => {
@@ -85,13 +109,21 @@ export default function EventCard({ event }) {
                 <Loader2 className="w-8 h-8 text-mcp-orange animate-spin" />
               </div>
             )}
-            <Image
+            <img
+              ref={imgRef}
               src={imageUrl || "/placeholder.svg"}
               alt={event.title}
-              layout="fill"
-              objectFit="cover"
-              onLoadingComplete={handleImageLoad}
-              onError={() => setIsLoading(false)}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="eager"
+              decoding="async"
+              onLoad={(e) => handleImageLoad(e.currentTarget)}
+              onError={() => {
+                setIsLoading(false)
+                if (onCoverLoaded && !notifiedRef.current) {
+                  notifiedRef.current = true
+                  onCoverLoaded(event.id || event.slug || event.title)
+                }
+              }}
             />
             {statusLabel && (
               <div className="absolute top-3 left-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">

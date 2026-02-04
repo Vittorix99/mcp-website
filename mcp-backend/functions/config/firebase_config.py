@@ -8,21 +8,52 @@ from firebase_functions import options
 region = "us-central1"
 
 _env = os.environ.get("MCP_ENV", "").strip().lower()
-_default_cred = "service_.account_test.json" if _env == "test" else "service_account.json"
-_cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", _default_cred)
+_default_cred = "service_account_test.json" if _env == "test" else "service_account.json"
+_explicit_cred = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+_raw_cred = _explicit_cred or _default_cred
+_base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_repo_root = os.path.abspath(os.path.join(_base_dir, "..", ".."))
+
+
+def _resolve_cred_path(path: str) -> str:
+    if not path:
+        return path
+    if os.path.isabs(path):
+        return path
+    candidates = [
+        os.path.abspath(path),
+        os.path.abspath(os.path.join(_base_dir, path)),
+        os.path.abspath(os.path.join(_repo_root, path)),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    # Fall back to a deterministic location to improve error messages
+    return os.path.abspath(os.path.join(_base_dir, path))
+
+
+_cred_path = _resolve_cred_path(_raw_cred)
 
 
 def _load_credentials():
     """Return a firebase_admin credential, supporting both service accounts and ADC files."""
     # Prefer explicit service-account JSON path/file
-    if _cred_path and os.path.exists(_cred_path):
-        try:
-            with open(_cred_path, "r", encoding="utf-8") as handle:
-                payload = json.load(handle)
-            if payload.get("type") == "service_account":
-                return credentials.Certificate(payload)
-        except ValueError:
-            pass  # Fall back to Application Default
+    if _cred_path:
+        if not os.path.exists(_cred_path):
+            if _explicit_cred:
+                raise FileNotFoundError(
+                    f"Service account not found: {_cred_path} "
+                    f"(from GOOGLE_APPLICATION_CREDENTIALS='{_explicit_cred}')"
+                )
+        else:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _cred_path
+            try:
+                with open(_cred_path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                if payload.get("type") == "service_account":
+                    return credentials.Certificate(payload)
+            except ValueError:
+                pass  # Fall back to Application Default
 
     # Fallback: try Application Default Credentials (e.g. gcloud user credentials)
     return credentials.ApplicationDefault()

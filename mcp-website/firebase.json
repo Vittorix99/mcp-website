@@ -40,7 +40,17 @@
     ],
     "frameworksBackend": {
       "region": "us-central1"
-    }
+    },
+    "rewrites": [
+      {
+        "source": "/",
+        "function": "ssrmcpwebsite2a1ad"
+      },
+      {
+        "source": "/**",
+        "function": "ssrmcpwebsite2a1ad"
+      }
+    ]
   
   },
   "storage": {

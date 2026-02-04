@@ -139,6 +139,8 @@ class MembershipsService:
             start_date = now.isoformat()
             end_date = calculate_end_of_year_membership(now)
 
+            send_card_on_create = data.get("send_card_on_create") is True
+
             membership = Membership(
                 name=data.get("name", ""),
                 surname=data.get("surname", ""),
@@ -151,7 +153,7 @@ class MembershipsService:
                 membership_sent=False,
                 membership_type=data.get("membership_type", "manual"),
                 purchase_id=None,
-                send_card_on_create=data.get("send_card_on_create", False),
+                send_card_on_create=send_card_on_create,
             )
 
             doc_ref = self.collection.document()

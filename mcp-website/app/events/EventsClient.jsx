@@ -1,21 +1,50 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import EventCard from "@/components/pages/events/EventCard"
 import { SectionTitle } from "@/components/ui/section-title"
 import { Loader2, ArrowLeft, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
+import { getAllEvents } from "@/services/events"
 
 export default function EventsClient({ initialEvents, initialError }) {
   const [events, setEvents] = useState(() => initialEvents || [])
-  const [loading] = useState(false)
-  const [error] = useState(initialError)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(initialError)
   const [activeFilter, setActiveFilter] = useState("upcoming")
   const [scrollPosition, setScrollPosition] = useState(0)
+  const [coverLoaded, setCoverLoaded] = useState({})
+  const [coversReady, setCoversReady] = useState(false)
   const scrollAmount = 300 // Quantità di scroll per ogni click
   const isDesktop = useMediaQuery("(min-width: 1024px)")
+
+  useEffect(() => {
+    if (Array.isArray(initialEvents) && initialEvents.length > 0) return
+    let cancelled = false
+    setLoading(true)
+    ;(async () => {
+      try {
+        const { success, events: fetched, error: fetchError } = await getAllEvents({ view: "card" })
+        if (cancelled) return
+        if (!success || !Array.isArray(fetched)) {
+          setError(fetchError || "Impossibile caricare gli eventi.")
+          setEvents([])
+          return
+        }
+        setEvents(fetched)
+        setError(null)
+      } catch {
+        if (!cancelled) setError("Errore imprevisto durante il recupero degli eventi.")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [initialEvents])
 
   // Funzione per convertire la data nel formato "DD-MM-YYYY" in un oggetto Date
   const parseEventDate = (dateString) => {
@@ -44,6 +73,22 @@ export default function EventsClient({ initialEvents, initialError }) {
     }
     return true // "all" filter
   })
+
+  const handleCoverLoaded = useCallback((eventKey) => {
+    setCoverLoaded((prev) => (prev[eventKey] ? prev : { ...prev, [eventKey]: true }))
+  }, [])
+
+  useEffect(() => {
+    if (!filteredEvents.length) {
+      setCoversReady(false)
+      return
+    }
+    const loadedCount = filteredEvents.filter((event) => {
+      const key = event.id || event.slug || event.title
+      return coverLoaded[key]
+    }).length
+    setCoversReady(loadedCount === filteredEvents.length)
+  }, [filteredEvents, coverLoaded])
 
   const scrollLeft = () => {
     const container = document.getElementById("events-container")
@@ -125,41 +170,58 @@ export default function EventsClient({ initialEvents, initialError }) {
 
         {/* Eventi */}
         <div className="relative">
-          {isDesktop && filteredEvents.length > 0 && (
-            <>
-              <Button
-                onClick={scrollLeft}
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <Button
-                onClick={scrollRight}
-                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
-              >
-                <ArrowRight className="h-5 w-5" />
-              </Button>
-            </>
+          {activeFilter === "upcoming" && filteredEvents.length === 0 && (
+            <div className="text-center text-gray-400 font-helvetica py-12">
+              No upcoming events scheduled
+            </div>
           )}
 
-          <div
-            id="events-container"
-            className={`grid gap-6 ${
-              isDesktop
-                ? "grid-flow-col auto-cols-[minmax(300px,1fr)] overflow-x-auto pb-4 scrollbar-hide"
-                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-            }`}
-          >
-            {filteredEvents.map((event) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <EventCard event={event} />
-              </motion.div>
-            ))}
+          {filteredEvents.length > 0 && !coversReady && (
+            <div className="mt-6 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-mcp-orange animate-spin" />
+            </div>
+          )}
+
+          <div className={coversReady ? "opacity-100" : "opacity-0 pointer-events-none"}>
+            {isDesktop && filteredEvents.length > 0 && (
+              <>
+                <Button
+                  onClick={scrollLeft}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Button
+                  onClick={scrollRight}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
+                >
+                  <ArrowRight className="h-5 w-5" />
+                </Button>
+              </>
+            )}
+
+            <div
+              id="events-container"
+              className={`grid gap-6 ${
+                isDesktop
+                  ? "grid-flow-col auto-cols-[minmax(300px,1fr)] overflow-x-auto pb-4 scrollbar-hide"
+                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+              }`}
+            >
+              {filteredEvents.map((event) => {
+                const key = event.id || event.slug || event.title
+                return (
+                  <motion.div
+                    key={key}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <EventCard event={event} onCoverLoaded={handleCoverLoaded} />
+                  </motion.div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>

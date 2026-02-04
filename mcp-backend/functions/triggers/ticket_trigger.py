@@ -21,22 +21,22 @@ from config.external_services import GENDER_API_URL
 
 @on_document_created(document="participants/{eventId}/participants_event/{participantId}", region=region)
 def on_participant_created(event: Event[DocumentSnapshot | None]):
-    print("🔔 New participant document created!")
+    print("New participant document created")
 
     snapshot = event.data
     if snapshot is None:
-        print("❌ Document snapshot is empty!")
+        print("Document snapshot is empty")
         return
 
     try:
         participant_id = event.params["participantId"]
         event_id = event.params["eventId"]
-        print(f"📌 New participant registered: {participant_id} for event {event_id}")
+        print(f"New participant registered: {participant_id} for event {event_id}")
 
         participant_data = snapshot.to_dict()
-        print(f"✅ Participant data: {participant_data}")
+        print(f"Participant data: {participant_data}")
 
-        # 👉 Gender detection
+        # Gender detection
         name = participant_data.get("name", "").split(" ")[0].strip().lower()
         gender = "N/A"
         probability = 0.0
@@ -44,7 +44,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         if name == "andrea":
             gender = "male"
             probability = 1.0
-            print("🎯 Name is 'andrea' → gender forced to 'male'")
+            print("Name is 'andrea' -> gender forced to 'male'")
         elif name:
             try:
                 response = requests.get("https://api.genderize.io", params={"name": name})
@@ -56,22 +56,22 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
             except Exception as e:
                 print(f"[ERROR] Gender API failed: {str(e)}")
 
-        # ✍️ Update gender in Firestore
+        # Update gender in Firestore
         snapshot.reference.update({
             "gender": gender,
             "gender_probability": probability
         })
-        print(f"✅ Gender saved: {gender} ({probability})")
+        print(f"Gender saved: {gender} ({probability})")
 
-        # 🎫 Ticket sending
+        # Ticket sending
         send = participant_data.get("send_ticket_on_create", True)
         if not send:
-            print("⏭️ Skipping ticket send")
+            print("Skipping ticket send")
         result = process_new_ticket(participant_id, participant_data, send)
         if not result.get("success", False):
             log_failed_ticket_email(participant_id, participant_data, result.get("error", "Unknown error"))
 
-        # 📧 Newsletter consent handling
+        # Newsletter consent handling
         email = participant_data.get("email", "").strip().lower()
         newsletter_consent = participant_data.get("newsletterConsent", False)
 
@@ -93,14 +93,14 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
                         "source": "participant_event",
                     }
                 newsletter_ref.add(full_data)
-                print(f"📬 Added to newsletter_consents: {email}")
+                print(f"Added to newsletter_consents: {email}")
             else:
-                print(f"⚠️ Already subscribed: {email}")
+                print(f"Already subscribed: {email}")
         else:
-            print("❎ No consent or invalid email")
+            print("No consent or invalid email")
 
     except Exception as e:
-        print(f"❌ Error in participant trigger: {str(e)}")
+        print(f"Error in participant trigger: {str(e)}")
         log_failed_ticket_email(participant_id, snapshot.to_dict() if snapshot else {}, str(e))
 
 
@@ -108,28 +108,30 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
 @on_document_created(document="memberships/{membershipId}", region=region)
 def on_membership_created(event: Event[DocumentSnapshot | None]):
     """Trigger when a new membership is created."""
-    print("🔔 New membership document created!")
+    print("New membership document created")
 
     snapshot = event.data
     if snapshot is None:
-        print("❌ Document snapshot is empty!")
+        print("Document snapshot is empty")
         return
 
     try:
         membership_id = event.params["membershipId"]
         membership_data = snapshot.to_dict()
 
-        print(f"✅ Membership data for {membership_id}: {membership_data}")
+        print(f"Membership data for {membership_id}: {membership_data}")
 
-        # 🔍 Determina se inviare la tessera basandosi sul campo `send_card_on_create`
-        send_card = membership_data.get("send_card_on_create", True)
+        # Determine whether to send the card based on `send_card_on_create`
+        send_card = membership_data.get("send_card_on_create") is True
+        if not send_card:
+            print("Skipping membership email send (send_card_on_create=False)")
 
-        result = process_new_membership(membership_id, membership_data, sent_on_create=True)
+        result = process_new_membership(membership_id, membership_data, sent_on_create=send_card)
 
         if not result.get("success", False):
-            print(f"❌ Failed to process membership: {result.get('error', 'Unknown error')}")
+            print(f"Failed to process membership: {result.get('error', 'Unknown error')}")
         else:
-            print(f"✅ Membership processed successfully, PDF URL: {result['pdf_url']}")
+            print(f"Membership processed successfully, PDF URL: {result['pdf_url']}")
 
     except Exception as e:
-        print(f"❌ Error handling membership creation: {str(e)}")
+        print(f"Error handling membership creation: {str(e)}")

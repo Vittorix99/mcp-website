@@ -10,6 +10,7 @@ import { AnimatedSectionDivider } from "@/components/AnimatedSectionDivider"
 import { SectionTitle } from "@/components/ui/section-title"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Volume, VolumeX } from "lucide-react"
+import { getNextEvent } from "@/services/events"
 
 /* -------------------------------------------------------
    MOBILE HERO → VIDEO (smooth + autoplay iOS)
@@ -236,10 +237,34 @@ function MobileHeroVideoSmooth() {
   )
 }
 
-export default function HomeClient({ nextEvent, hasNextEvent }) {
+export default function HomeClient({ nextEvent = null, hasNextEvent = false } = {}) {
   const isMobile = useIsMobile()
+  const [clientNextEvent, setClientNextEvent] = useState(nextEvent || null)
+  const [clientHasNextEvent, setClientHasNextEvent] = useState(!!hasNextEvent)
+  const fetchStartedRef = useRef(false)
 
   const pageClass = useMemo(() => `min-h-screen font-helvetica`, [])
+
+  useEffect(() => {
+    if (clientHasNextEvent || clientNextEvent || fetchStartedRef.current) return
+    fetchStartedRef.current = true
+    let alive = true
+    ;(async () => {
+      try {
+        const { success, events } = await getNextEvent()
+        if (!alive) return
+        if (success && Array.isArray(events) && events.length > 0) {
+          setClientNextEvent(events[0])
+          setClientHasNextEvent(true)
+        }
+      } catch {
+        // No-op: landing can render without next event
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [clientHasNextEvent, clientNextEvent])
 
   return (
     <div className={pageClass}>
@@ -253,11 +278,11 @@ export default function HomeClient({ nextEvent, hasNextEvent }) {
 
       <AnimatedSectionDivider color="ORANGE" />
 
-      {hasNextEvent && (
+      {clientHasNextEvent && (
         <>
           <section className="py-12 md:py-24 relative">
             <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-mcp-orange/5 to-black/0" />
-            <NextEventSection event={nextEvent} />
+            <NextEventSection event={clientNextEvent} />
           </section>
           <AnimatedSectionDivider color="RED" />
         </>
