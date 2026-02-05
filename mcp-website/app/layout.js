@@ -1,6 +1,6 @@
 
 import { charter, helveticaNeue, atlantico } from "./fonts";
-import { Navigation } from "@/components/Navigation";
+import { TopBar } from "@/components/TopBar";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { UserProvider } from "@/contexts/userContext";
@@ -37,12 +37,12 @@ export default function RootLayout({ children }) {
         {/* pattern sottile opzionale */}
         <div className="wave-pattern fixed inset-0 opacity-10 pointer-events-none" />
 
-        {/* Background animato full-viewport */}
-        <AnimatedBackground />
+        {/* Background animato full-viewport (disattivato temporaneamente) */}
+        {false && <AnimatedBackground />}
 
         <UserProvider>
           <ConsoleErrorSilencer />
-          <Navigation />
+          <TopBar />
 
           <div className="min-h-[calc(var(--vh,1vh)*100)] pb-0">{children}</div>
 

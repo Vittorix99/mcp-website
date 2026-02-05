@@ -56,9 +56,15 @@ export function Footer() {
 
   // Newsletter section - used in both mobile and desktop layouts
   const newsletterSection = (
-    <div className={isMobile ? "w-full mb-2" : "w-1/4 pr-4"}>
+    <div className={isMobile ? "w-full mb-2" : "w-1/4 px-2"}>
       <div className="flex items-center gap-2 mb-2">
-        <Image src="/secondaryLogo.png" alt="MCP Logo" width={50} height={50} className="h-auto" />
+        <Image
+          src="/secondaryLogo.png"
+          alt="MCP Logo"
+          width={50}
+          height={50}
+          className="h-auto footer-logo--invert"
+        />
         <p className="font-helvetica text-xs">Stay updated with our news</p>
       </div>
       <form onSubmit={handleNewsletter} className="flex gap-2 mb-1">
@@ -67,13 +73,13 @@ export function Footer() {
           placeholder="enter your email@email.com"
           value={emailNewsLetter}
           onChange={(e) => setEmailNewsLetter(e.target.value)}
-          className="font-helvetica flex-1 bg-black text-white placeholder:text-gray-300 text-xs border-none h-8"
+          className="font-helvetica flex-1 bg-black/30 text-white placeholder:text-gray-300 text-xs border border-white/15 h-8"
           required
           disabled={loading}
         />
         <Button
           type="submit"
-          className="bg-white text-black h-8 px-2 hover:opacity-90 transition-all"
+          className="footer-modern__cta h-8 px-2"
           disabled={loading}
         >
           {loading ? (
@@ -93,8 +99,10 @@ export function Footer() {
 
   // Social section - used in both mobile and desktop layouts
   const socialSection = (
-    <div className={isMobile ? "w-1/3 text-center" : "w-1/4 text-center"}>
-      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1">SOCIAL</h3>
+    <div className={isMobile ? "w-1/3 text-center" : "w-1/4 px-2 text-center"}>
+      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1 footer-modern__label">
+        SOCIAL
+      </h3>
       <div className="flex gap-2 md:gap-6 justify-center">
         <a href={socialLinks.instagram} target="_blank" rel="noopener noreferrer" className="hover:text-white">
           <Instagram size={isMobile ? 16 : 24} />
@@ -108,8 +116,10 @@ export function Footer() {
 
   // Legal info section - used in both mobile and desktop layouts
   const legalInfoSection = (
-    <div className={isMobile ? "w-1/3 px-1" : "w-1/4 pl-4"}>
-      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1">INFORMATIVA LEGALE</h3>
+    <div className={isMobile ? "w-1/3 px-1" : "w-1/4 px-2"}>
+      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1 footer-modern__label">
+        LEGAL INFO
+      </h3>
       <div className="font-helvetica text-[8px] md:text-xs space-y-0 md:space-y-1">
         <p>{legalInfo.name}</p>
         <p>{legalInfo.address}</p>
@@ -126,8 +136,10 @@ export function Footer() {
 
   // Links section - used in both mobile and desktop layouts
   const linksSection = (
-    <div className={isMobile ? "w-1/3 pl-1" : "w-1/4 pl-4"}>
-      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1">LINK UTILI</h3>
+    <div className={isMobile ? "w-1/3 pl-1" : "w-1/4 px-2"}>
+      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1 footer-modern__label">
+        USEFUL LINKS
+      </h3>
       <div className="font-helvetica text-[8px] md:text-xs space-y-0.5 md:space-y-2">
         <a
           href={iubendaLinks.privacyPolicy}
@@ -150,8 +162,8 @@ export function Footer() {
   )
 
   return (
-    <footer className="bg-mcp-gradient text-black relative z-10">
-      <div className="container mx-auto px-4 py-2 max-w-7xl">
+    <footer className="footer-modern text-white relative z-10">
+      <div className="container mx-auto px-4 py-2 max-w-7xl footer-modern__inner">
         {isMobile ? (
           // Mobile layout: Newsletter in first row, then three columns below
           <div className="flex flex-col">

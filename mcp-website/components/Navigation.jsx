@@ -5,24 +5,20 @@ import { useState, useEffect } from "react"
 import { DialogTitle } from "@/components/ui/dialog"
 
 import { motion } from "framer-motion"
-import { Menu, LogOut, User, Calendar, Image as ImageIcon } from "lucide-react"
+import { Menu, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetOverlay } from "@/components/ui/sheet"
 import Link from "next/link"
 import LoginModal from "@/components/auth/LoginModal"
 import { useUser } from "@/contexts/userContext"
 import { logout } from "@/config/firebase"
-import { useRouter } from "next/navigation"
 import { routes } from "@/config/routes"
-import { useIsMobile } from "@/hooks/use-mobile"
 
 export const Navigation = () => {
   const [isScrolled, setIsScrolled] = useState(false)
   const { user, isAdmin } = useUser()
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
-  const isMobile = useIsMobile()
 
   const handleNavClick = () => setOpen(false)
 
@@ -42,84 +38,96 @@ export const Navigation = () => {
 
   const profileLink = user ? (isAdmin ? routes.admin.dashboard : routes.user.profile) : null
 
-  // Mobile sempre trasparente; Desktop cambia con scroll
-  const navBg = isMobile
-    ? "bg-transparent"
-    : isScrolled
-    ? "bg-black/80 backdrop-blur-md"
-    : "bg-transparent"
+  // Fondo gestito via CSS per avere un effetto "pill" più ricco
+  const navBg = isScrolled ? "nav-shell--scrolled" : ""
 
   return (
     <motion.nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}
+      className="relative w-full z-50 transition-all duration-300 bg-transparent"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="container px-4 mx-auto py-4 flex justify-between items-center">
-        {/* Logo (dimensioni invariate) */}
-        <Link href="/" className="text-2xl font-bold gradient-text hover:opacity-80 transition-opacity">
-          <Image
-            src="/secondaryLogoWhite.png"
-            alt="MCP Logo"
-            width={80}
-            height={60}
-            className="h-auto"
-            priority
-          />
-        </Link>
-
-        {/* Navbar links (desktop) */}
-        <div className="flex items-center space-x-6 lg:ml-auto ml-auto hidden md:flex">
-          <NavLink href={routes.events.foto.gallery}>
-            <ImageIcon className="mr-2 h-4 w-4" />
-            Photos
-          </NavLink>
-          <NavLink href={routes.events.allevents}>
-            <Calendar className="mr-2 h-4 w-4" />
-            Events
-          </NavLink>
-          {user ? (
-            <>
-              {profileLink && (
-                <NavLink href={profileLink}>
-                  <User className="mr-2 h-4 w-4" />
-                  {isAdmin ? "Admin" : "Profile"}
-                </NavLink>
-              )}
-              <Button
-                variant="ghost"
-                className="text-white hover:text-mcp-orange text-sm uppercase tracking-wider flex items-center"
-                onClick={handleLogout}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                LOGOUT
-              </Button>
-            </>
-          ) : (
-            <LoginModal />
-          )}
-        </div>
-
-        {/* Menu Mobile */}
+      <div className="container px-4 mx-auto py-2">
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden text-white hover:text-mcp-orange">
-              <Menu className="h-6 w-6" />
-            </Button>
-          </SheetTrigger>
+          <div className="nav-mobile-bar lg:hidden">
+            <Link href="/" className="nav-brand hover:opacity-80 transition-opacity">
+              <Image
+                src="/secondaryLogoWhite.png"
+                alt="MCP Logo"
+                width={72}
+                height={52}
+                className="h-auto"
+                priority
+              />
+            </Link>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="nav-burger">
+                <Menu className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
+          </div>
 
-          {/* Overlay opaco e con blur leggero (non trasparente “totale”) */}
-          <SheetOverlay className="fixed inset-0 bg-black/60 supports-[backdrop-filter]:backdrop-blur-sm z-[190]" />
+          <div className={`nav-shell ${navBg} hidden lg:block`}>
+            <div className="nav-shell__inner">
+              {/* Logo */}
+              <Link href="/" className="nav-brand hover:opacity-80 transition-opacity">
+                <Image
+                  src="/secondaryLogoWhite.png"
+                  alt="MCP Logo"
+                  width={86}
+                  height={60}
+                  className="h-auto"
+                  priority
+                />
+              </Link>
 
-          {/* Drawer con background SOLIDO */}
-          <SheetContent
-            side="right"
-            className="z-[200] w-[300px] bg-black text-white border-mcp-orange/20 backdrop-blur-none"
-          >
+              {/* Navbar links (desktop) */}
+              <div className="nav-links hidden lg:flex">
+                <NavLink href={routes.events.foto.gallery}>Photos</NavLink>
+                <NavLink href={routes.events.allevents}>Events</NavLink>
+                <NavLink href="/#about">About</NavLink>
+                <NavLink href="/#contact-section">Contact</NavLink>
+              </div>
+
+              <div className="nav-actions hidden lg:flex">
+                {user ? (
+                  <>
+                    {profileLink && (
+                      <NavLink href={profileLink} compact>
+                        <User className="h-4 w-4" />
+                        {isAdmin ? "Admin" : "Profile"}
+                      </NavLink>
+                    )}
+                    <Button variant="ghost" className="nav-action-btn" onClick={handleLogout}>
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </Button>
+                  </>
+                ) : (
+                  <LoginModal />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <SheetOverlay className="fixed inset-0 bg-black/70 supports-[backdrop-filter]:backdrop-blur-md z-[190]" />
+
+              <SheetContent side="right" className="z-[200] w-full sm:w-[380px] nav-drawer">
             <DialogTitle className="sr-only">Navigation Menu</DialogTitle>
 
-            <nav className="flex flex-col space-y-6 mt-12">
+                <div className="nav-drawer__header">
+                  <Image src="/secondaryLogoWhite.png" alt="MCP Logo" width={84} height={60} priority />
+                  <p className="nav-drawer__tagline">Culture • Events • Community</p>
+                </div>
+
+                <nav className="nav-drawer__links">
+              <NavLink href={routes.events.foto.gallery} mobile onClick={handleNavClick}>
+                Photos
+              </NavLink>
+              <NavLink href="/events" mobile onClick={handleNavClick}>
+                Events
+              </NavLink>
               <NavLink href="/#about" mobile onClick={handleNavClick}>
                 About
               </NavLink>
@@ -129,38 +137,26 @@ export const Navigation = () => {
               <NavLink href="/#contact-section" mobile onClick={handleNavClick}>
                 Contact
               </NavLink>
+            </nav>
 
-              <NavLink href={routes.events.foto.gallery} mobile onClick={handleNavClick}>
-                <ImageIcon className="mr-2 h-4 w-4" />
-                Photos
-              </NavLink>
-
-              <NavLink href="/events" mobile onClick={handleNavClick}>
-                <Calendar className="mr-2 h-4 w-4" />
-                Events
-              </NavLink>
-
+            <div className="nav-drawer__footer">
               {user ? (
                 <>
                   {profileLink && (
                     <NavLink href={profileLink} mobile>
-                      <User className="mr-2 h-4 w-4" />
-                      {isAdmin ? "ADMIN" : "PROFILE"}
+                      <User className="h-5 w-5" />
+                      {isAdmin ? "Admin" : "Profile"}
                     </NavLink>
                   )}
-                  <Button
-                    variant="ghost"
-                    className="text-white hover:text-mcp-orange text-lg flex items-center justify-start"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="mr-2 h-5 w-5" />
+                  <Button variant="ghost" className="nav-drawer__action" onClick={handleLogout}>
+                    <LogOut className="h-5 w-5" />
                     Logout
                   </Button>
                 </>
               ) : (
                 <Button
                   variant="ghost"
-                  className="text-white hover:text-mcp-orange text-lg flex items-center justify-start"
+                  className="nav-drawer__action"
                   onClick={() => {
                     setOpen(false)
                     setLoginOpen(true)
@@ -169,7 +165,7 @@ export const Navigation = () => {
                   LOGIN
                 </Button>
               )}
-            </nav>
+            </div>
           </SheetContent>
         </Sheet>
       </div>
@@ -178,21 +174,14 @@ export const Navigation = () => {
   )
 }
 
-const NavLink = ({ href, children, mobile, onClick }) => (
+const NavLink = ({ href, children, mobile, compact, onClick }) => (
   <Link
     href={href}
     onClick={onClick}
-    className={`relative text-white hover:text-mcp-orange transition-all duration-300 ${
-      mobile ? "text-lg" : "text-sm uppercase tracking-wider"
-    } group inline-flex items-center`}
+    className={`nav-link ${mobile ? "nav-link--mobile" : ""} ${compact ? "nav-link--compact" : ""}`}
   >
     <span className="relative z-10 flex items-center gap-2">{children}</span>
-    <motion.span
-      className="absolute inset-x-0 bottom-0 h-0.5 bg-mcp-orange"
-      initial={{ scaleX: 0 }}
-      whileHover={{ scaleX: 1 }}
-      transition={{ duration: 0.3 }}
-    />
+    <span className="nav-link__underline" />
   </Link>
 )
 

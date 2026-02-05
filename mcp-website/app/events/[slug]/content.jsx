@@ -19,7 +19,7 @@ const Spinner = () => (
 
 const ErrorBanner = ({ msg }) => (
   <div className="min-h-screen bg-black">
-    <div className="h-24" />
+    <div className="h-10" />
     <div className="container mx-auto px-4 pt-16">
       <Alert className="bg-mcp-orange/10 border-mcp-orange/20">
         <AlertDescription className="text-white text-center text-lg font-helvetica">
@@ -56,7 +56,7 @@ export function EventContent({ id, event, settings, error }) {
 
   return (
     <div className="min-h-screen bg-black">
-      <div className="h-24" />
+      <div className="h-10" />
       <Suspense fallback={<Spinner />}>
         <StaticHeader event={event} />
         <Content id={id} event={event} settings={settings} />

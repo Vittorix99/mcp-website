@@ -137,9 +137,7 @@ export function MasonryGallery({
                 alt={image?.alt || ""}
                 fill
                 sizes="(max-width: 1024px) 50vw, 25vw"
-                className={`object-cover transition duration-500 ${
-                  isLoaded ? "opacity-100" : "opacity-0 scale-105"
-                }`}
+                className={`object-cover ${isLoaded ? "opacity-100" : "opacity-0"}`}
                 loading="eager"
                 unoptimized
                 onLoad={() => markLoaded(key)}

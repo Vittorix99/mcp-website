@@ -36,7 +36,7 @@ export default function LoginModal({ open, onOpenChange, hideTrigger = false }) 
       const token = await getIdTokenResult()
 
       setUser(user)
-      setIsOpen(false)
+      handleOpenChange(false)
 
       if (!!token.claims.admin) {
         setIsAdmin(token.claims.admin)
@@ -80,9 +80,11 @@ export default function LoginModal({ open, onOpenChange, hideTrigger = false }) 
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[425px] bg-black border-mcp-orange/50">
+      <DialogContent className="sm:max-w-[430px] bg-black/90 border-white/10 login-modal">
         <DialogHeader>
-          <DialogTitle className="font-helvetica text-3xl md:text-4xl font-bold  gradient-text tracking-atlantico-wider ">Login to MCP</DialogTitle>
+          <DialogTitle className="font-helvetica text-3xl md:text-4xl font-bold tracking-atlantico-wider login-modal__title">
+            Login to MCP
+          </DialogTitle>
         </DialogHeader>
         <motion.form
           onSubmit={handleEmailLogin}
@@ -101,7 +103,7 @@ export default function LoginModal({ open, onOpenChange, hideTrigger = false }) 
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-black/30 border-mcp-orange/50 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300"
+              className="bg-black/40 border-white/15 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300 login-modal__input"
               placeholder="Enter your email"
               required
             />
@@ -115,7 +117,7 @@ export default function LoginModal({ open, onOpenChange, hideTrigger = false }) 
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-black/30 border-mcp-orange/50 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300"
+              className="bg-black/40 border-white/15 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300 login-modal__input"
               placeholder="Enter your password"
               required
             />
@@ -134,7 +136,7 @@ export default function LoginModal({ open, onOpenChange, hideTrigger = false }) 
           </AnimatePresence>
           <Button
             type="submit"
-            className="w-full bg-mcp-gradient hover:opacity-90 text-white  py-2 rounded-md transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
+            className="w-full login-modal__cta py-2 rounded-full transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center"
             disabled={isLoading}
           >
             {isLoading ? (

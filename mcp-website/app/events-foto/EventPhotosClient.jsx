@@ -6,7 +6,7 @@ import { motion } from "framer-motion"
 import { getImageUrl } from "@/config/firebaseStorage"
 import { Loader2, Camera, Calendar } from "lucide-react"
 import { routes, getRoute } from "@/config/routes"
-import { SectionTitle } from "@/components/ui/section-title"
+import { PageHeader } from "@/components/PageHeader"
 import { AnimatedSectionDivider } from "@/components/AnimatedSectionDivider"
 import { parseEventDate } from "@/lib/utils"
 import { getAllEvents } from "@/services/events"
@@ -105,9 +105,12 @@ export default function EventPhotosClient({ initialEvents, initialError }) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black py-12 md:py-24 pt-20 md:pt-40">
-        <div className="container mx-auto px-3 md:px-4">
-          <div className="text-center text-mcp-orange text-sm md:text-xl font-helvetica">{error}</div>
+      <div className="min-h-screen bg-black py-8 md:py-16 pt-10">
+        <div className="container mx-auto px-4">
+          <PageHeader title="Event Photos" />
+          <div className="mt-8 text-center text-mcp-orange text-sm md:text-xl font-helvetica">
+            {error}
+          </div>
         </div>
       </div>
     )
@@ -115,13 +118,8 @@ export default function EventPhotosClient({ initialEvents, initialError }) {
 
   return (
     <div className="min-h-screen bg-black">
-      {/* Spacer div to push content below navbar */}
-      <div className="h-24 "></div>
-
       <div className="container mx-auto px-4">
-        <SectionTitle as="h1" className="mt-8 md:mt-8 text-2xl md:text-5xl">
-          Event Photos
-        </SectionTitle>
+        <PageHeader title="Event Photos" />
 
         {(loading || (events.length > 0 && !coversReady)) && (
           <div className="mt-6 flex items-center justify-center">

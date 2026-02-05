@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { LogoSection } from "@/components/pages/Logo"
 import { NextEventSection } from "@/components/pages/NextEventSection"
 import { AboutUs } from "@/components/pages/AboutUs"
+import { ContactUs } from "@/components/pages/ContactUs"
 import { AnimatedSectionDivider } from "@/components/AnimatedSectionDivider"
 import { SectionTitle } from "@/components/ui/section-title"
-import { useIsMobile } from "@/hooks/use-mobile"
+ 
 import { Volume, VolumeX } from "lucide-react"
 import { getNextEvent } from "@/services/events"
 
@@ -238,7 +239,6 @@ function MobileHeroVideoSmooth() {
 }
 
 export default function HomeClient({ nextEvent = null, hasNextEvent = false } = {}) {
-  const isMobile = useIsMobile()
   const [clientNextEvent, setClientNextEvent] = useState(nextEvent || null)
   const [clientHasNextEvent, setClientHasNextEvent] = useState(!!hasNextEvent)
   const fetchStartedRef = useRef(false)
@@ -268,13 +268,12 @@ export default function HomeClient({ nextEvent = null, hasNextEvent = false } = 
 
   return (
     <div className={pageClass}>
-      {isMobile ? (
+      <div className="block md:hidden">
         <MobileHeroVideoSmooth />
-      ) : (
-        <section className="relative h-screen flex items-center justify-center">
-          <LogoSection />
-        </section>
-      )}
+      </div>
+      <section className="relative h-screen items-center justify-center hidden md:flex">
+        <LogoSection />
+      </section>
 
       <AnimatedSectionDivider color="ORANGE" />
 
@@ -294,6 +293,9 @@ export default function HomeClient({ nextEvent = null, hasNextEvent = false } = 
 
       <AnimatedSectionDivider color="ORANGE" />
 
+      <section id="contact-section" className="relative py-12 md:py-24">
+        <ContactUs />
+      </section>
     </div>
   )
 }

@@ -79,7 +79,7 @@ export default function AdminLayout({ children }) {
                 initial="initial"
                 animate="animate"
                 variants={fadeIn}
-                className="flex-1 overflow-y-auto mx-2 p-4 sm:px-6 md:py-0 md:gap-8 admin-content md:mt-12"
+                className="flex-1 overflow-y-auto mx-2 p-4 sm:px-6 md:py-0 md:gap-8 admin-content md:mt-6"
               >
                 {children}
               </motion.main>

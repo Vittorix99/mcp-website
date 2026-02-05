@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import EventCard from "@/components/pages/events/EventCard"
-import { SectionTitle } from "@/components/ui/section-title"
+import { PageHeader } from "@/components/PageHeader"
 import { Loader2, ArrowLeft, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
-import { useMediaQuery } from "@/hooks/useMediaQuery"
 import { getAllEvents } from "@/services/events"
 
 export default function EventsClient({ initialEvents, initialError }) {
@@ -18,7 +17,6 @@ export default function EventsClient({ initialEvents, initialError }) {
   const [coverLoaded, setCoverLoaded] = useState({})
   const [coversReady, setCoversReady] = useState(false)
   const scrollAmount = 300 // Quantità di scroll per ogni click
-  const isDesktop = useMediaQuery("(min-width: 1024px)")
 
   useEffect(() => {
     if (Array.isArray(initialEvents) && initialEvents.length > 0) return
@@ -110,33 +108,34 @@ export default function EventsClient({ initialEvents, initialError }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="h-24"></div>
+    <div className="min-h-screen bg-black">
+      <div className="container mx-auto px-4">
+        <PageHeader title="ALL EVENTS" />
+      </div>
+      <div className="flex items-center justify-center pt-10">
         <Loader2 className="w-8 h-8 text-mcp-orange animate-spin" />
       </div>
+    </div>
     )
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black">
-        <div className="h-24"></div>
-        <div className="container mx-auto px-4 md:px-6 pt-16">
-          <div className="text-center text-red-500 font-helvetica">{error}</div>
-        </div>
+    <div className="min-h-screen bg-black">
+      <div className="container mx-auto px-4">
+        <PageHeader title="ALL EVENTS" />
       </div>
+      <div className="container mx-auto px-4 md:px-6 pt-10">
+        <div className="text-center text-red-500 font-helvetica">{error}</div>
+      </div>
+    </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-black space-y-4">
-      {/* Spacer div to push content below navbar */}
-      <div className="h-24"></div>
-
       <div className="container mx-auto px-4">
-        <SectionTitle as="h1" className="">
-          ALL EVENTS
-        </SectionTitle>
+        <PageHeader title="ALL EVENTS" />
 
         {/* Filtri */}
         <div className="flex justify-center mb-8 mt-12 ">
@@ -183,8 +182,8 @@ export default function EventsClient({ initialEvents, initialError }) {
           )}
 
           <div className={coversReady ? "opacity-100" : "opacity-0 pointer-events-none"}>
-            {isDesktop && filteredEvents.length > 0 && (
-              <>
+            {filteredEvents.length > 0 && (
+              <div className="hidden lg:block">
                 <Button
                   onClick={scrollLeft}
                   className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
@@ -197,17 +196,29 @@ export default function EventsClient({ initialEvents, initialError }) {
                 >
                   <ArrowRight className="h-5 w-5" />
                 </Button>
-              </>
+              </div>
             )}
 
             <div
               id="events-container"
-              className={`grid gap-6 ${
-                isDesktop
-                  ? "grid-flow-col auto-cols-[minmax(300px,1fr)] overflow-x-auto pb-4 scrollbar-hide"
-                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-              }`}
+              className="hidden lg:grid grid-flow-col auto-cols-[minmax(300px,1fr)] overflow-x-auto pb-4 scrollbar-hide gap-6"
             >
+              {filteredEvents.map((event) => {
+                const key = event.id || event.slug || event.title
+                return (
+                  <motion.div
+                    key={key}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <EventCard event={event} onCoverLoaded={handleCoverLoaded} />
+                  </motion.div>
+                )
+              })}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:hidden gap-6">
               {filteredEvents.map((event) => {
                 const key = event.id || event.slug || event.title
                 return (

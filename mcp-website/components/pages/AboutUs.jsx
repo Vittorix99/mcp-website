@@ -66,7 +66,7 @@ export function AboutUs() {
       <div className="container mx-auto px-4 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
           {/* Image Gallery */}
-          <div className="relative aspect-square w-full overflow-hidden rounded-lg shadow-lg">
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl shadow-2xl border border-white/10 about-card">
             <AnimatePresence initial={false} custom={currentImageIndex}>
               {images[currentImageIndex] && (
                 <motion.div
@@ -88,12 +88,13 @@ export function AboutUs() {
                 </motion.div>
               )}
             </AnimatePresence>
+            <div className="about-card__overlay" />
           </div>
 
           {/* Content */}
           <div className="space-y-6">
             <motion.h2
-              className="font-atlantico text-5xl md:text-5xl font-bold mb-8 gradient-text text-center"
+              className="font-atlantico text-5xl md:text-6xl font-bold mb-6 text-center about-title"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -103,7 +104,7 @@ export function AboutUs() {
             </motion.h2>
 
             <motion.p
-              className="font-helvetica text-lg md:text-xl text-gray-300 text-center"
+              className="font-helvetica text-lg md:text-xl text-gray-200 text-center leading-relaxed"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -113,7 +114,7 @@ export function AboutUs() {
               of partying.
             </motion.p>
             <motion.p
-              className="font-helvetica text-lg md:text-xl text-gray-300 text-center"
+              className="font-helvetica text-lg md:text-xl text-gray-200 text-center leading-relaxed"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -125,7 +126,7 @@ export function AboutUs() {
             </motion.p>
 
             <motion.p
-              className="font-charter italic text-lg md:text-xl text-orange-300 text-center"
+              className="font-charter italic text-lg md:text-xl text-orange-200/90 text-center leading-relaxed about-quote"
               initial="initial"
               whileInView="animate"
               viewport={{ once: true }}
@@ -142,4 +143,3 @@ export function AboutUs() {
     </section>
   )
 }
-

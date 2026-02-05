@@ -104,10 +104,10 @@ export function NextEventSection({ event }) {
   const publicLocation = event.locationHint || event.location
 
   return (
-    <section className="py-12 md:py-24 md:bg-black/50 md:backdrop-blur-md relative">
+    <section className="py-12 md:py-24 relative next-event">
       <div className="container mx-auto px-3 md:px-4 relative z-10 pt-6 md:pt-16">
         <motion.h2
-          className="font-atlantico text-3xl md:text-5xl text-center text-orange-500 uppercase mb-6 md:mb-12"
+          className="font-atlantico text-3xl md:text-5xl text-center text-orange-500 uppercase mb-6 md:mb-12 next-event__title"
           initial="initial"
           animate="animate"
           variants={fadeInUp}
@@ -116,15 +116,15 @@ export function NextEventSection({ event }) {
         </motion.h2>
 
         <motion.div initial="initial" animate="animate" variants={fadeInUp}>
-          <Card className="max-w-4xl mx-auto bg-black/70 border border-mcp-orange/50 overflow-hidden">
+          <Card className="max-w-5xl mx-auto overflow-hidden next-event__card">
             <CardContent className="p-4 md:p-8">
               <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-center">
                 <div className="space-y-4 md:space-y-6 order-2 md:order-1">
-                  <h3 className="font-charter text-2xl md:text-3xl font-bold gradient-text">
+                  <h3 className="font-charter text-2xl md:text-3xl font-bold next-event__headline">
                     {event.title}
                   </h3>
 
-                  <div className="font-helvetica space-y-1.5 md:space-y-2 text-gray-300 text-sm md:text-base">
+                  <div className="font-helvetica space-y-1.5 md:space-y-2 text-gray-200 text-sm md:text-base">
                     <p className="flex items-center">
                       <Calendar className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
                       {formattedDate}
@@ -133,7 +133,7 @@ export function NextEventSection({ event }) {
                       <Clock className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
                       {event.startTime} - {event.endTime}
                     </p>
-    {publicLocation && (
+                    {publicLocation && (
                       <p className="flex items-center">
                         <MapPin className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
                         {publicLocation}
@@ -142,7 +142,7 @@ export function NextEventSection({ event }) {
                   </div>
 
                   <div className="space-y-1.5 md:space-y-2">
-                    <p className="font-helvetica text-gray-300 flex items-center text-sm md:text-base">
+                    <p className="font-helvetica text-gray-200 flex items-center text-sm md:text-base">
                       <Music className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
                       Featuring:
                     </p>
@@ -164,7 +164,7 @@ export function NextEventSection({ event }) {
                       href={getRoute(routes.events.details, event.slug)}
                       className="block w-full"
                     >
-                      <Button className="font-atlantico tracking-wider mt-3 md:mt-5 bg-mcp-gradient hover:opacity-90 text-white py-2 md:py-3 px-6 md:px-8 rounded-md transition-all duration-300 transform hover:scale-105 uppercase text-sm md:text-base h-12 md:h-14 w-full">
+                      <Button className="font-atlantico tracking-wider mt-3 md:mt-5 next-event__cta uppercase text-sm md:text-base h-12 md:h-14 w-full">
                         Tickets & Info
                       </Button>
                     </Link>
@@ -185,11 +185,11 @@ export function NextEventSection({ event }) {
                       alt={event.title}
                       width={800}
                       height={500}
-                      className="rounded-lg w-full h-auto"
+                      className="rounded-2xl w-full h-auto next-event__image"
                       onError={() => setImageError(true)}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-2xl">
                       <p className="font-helvetica text-gray-400 text-xs md:text-sm italic">
                         Image not available
                       </p>
