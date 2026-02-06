@@ -138,7 +138,7 @@ function MobileHeroVideoSmooth() {
     return () => io.disconnect()
   }, [])
 
-  // 🔇 Mute forzato quando il logo è ancora ben visibile
+  //  Mute forzato quando il logo è ancora ben visibile
   useEffect(() => {
     if (progress < AUDIO_UNLOCK_PROGRESS && !isMuted) {
       setIsMuted(true)
@@ -151,7 +151,7 @@ function MobileHeroVideoSmooth() {
   }
 
   return (
-    <section ref={wrapperRef} className="relative h-[230vh] w-full">
+    <section ref={wrapperRef} className="relative h-[120svh] w-full">
       <div ref={stickyRef} className="sticky top-0 h-screen w-full z-[70]">
         {/* LOGO layer */}
         <div
