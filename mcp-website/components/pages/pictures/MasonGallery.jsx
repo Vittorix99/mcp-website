@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Download } from "lucide-react"
 import Image from "next/image"
@@ -29,7 +29,7 @@ async function safeDownload(src, filename = "image.jpg") {
   }
 }
 
-export function MasonryGallery({
+export const MasonryGallery = memo(function MasonryGallery({
   images = [],
   onAllLoaded,
   onImageClick,
@@ -206,4 +206,6 @@ export function MasonryGallery({
       </AnimatePresence>
     </>
   )
-}
+})
+
+MasonryGallery.displayName = "MasonryGallery"

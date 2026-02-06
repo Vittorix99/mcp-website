@@ -1,0 +1,142 @@
+/* Logo hero */
+.logo-hero {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 107, 0, 0.25);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.logo-hero__frame {
+  position: absolute;
+  inset: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.logo-hero__img {
+  position: relative;
+  z-index: 1;
+}
+
+.logo-hero-wrap {
+  position: relative;
+}
+
+.logo-hero-wrap::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50rem;
+  height: 26rem;
+  transform: translate(-50%, -55%);
+  background:
+    radial-gradient(circle at 38% 42%, rgba(255, 107, 0, 0.34), transparent 56%),
+    radial-gradient(circle at 62% 58%, rgba(255, 107, 0, 0.24), transparent 62%),
+    radial-gradient(circle at 50% 50%, rgba(255, 107, 0, 0.18), transparent 72%);
+  filter: blur(8px);
+  opacity: 0.95;
+  border-radius: 58% 42% 62% 38% / 52% 60% 40% 48%;
+  pointer-events: none;
+  animation: logoGlow 2.2s ease-out forwards;
+}
+
+.logo-hero-wrap::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 120px);
+  width: 220px;
+  height: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(255, 107, 0, 0.7), transparent);
+  opacity: 0.8;
+  pointer-events: none;
+  animation: logoLine 2.2s ease-out forwards;
+}
+
+@media (max-width: 767px) {
+  .logo-hero-wrap::before {
+    width: 450px;
+    height: 320px;
+    transform: translate(-50%, -55%);
+  }
+
+  .logo-hero-wrap::after {
+    top: calc(50% + 120px);
+    width: 160px;
+  }
+
+  .logo-hero-wrap {
+    transform: none;
+  }
+
+  .logo-hero-shift {
+    margin-top: -290px;
+  }
+}
+
+@media (min-width: 768px) {
+  .logo-hero-wrap::before {
+    animation: logoGlow 2.8s ease-out forwards;
+  }
+
+  .logo-hero-wrap::after {
+    animation: logoLine 2.8s ease-out forwards;
+  }
+
+  .logo-pulse {
+    animation: logoPulse 2.8s ease-out forwards;
+  }
+}
+
+.logo-pulse {
+  animation: logoPulse 2.8s ease-out forwards;
+  transform-origin: center;
+}
+
+@keyframes logoPulse {
+  0%,
+  70% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255, 107, 0, 0));
+  }
+  100% {
+    transform: scale(1.02);
+    filter: drop-shadow(0 14px 44px rgba(255, 107, 0, 0.5));
+  }
+}
+
+@keyframes logoGlow {
+  0% {
+    opacity: 0.4;
+    transform: translate(-50%, -55%) scale(0.85);
+  }
+  70% {
+    opacity: 0.85;
+    transform: translate(-50%, -55%) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -55%) scale(1.15);
+  }
+}
+
+@keyframes logoLine {
+  0%,
+  70% {
+    opacity: 0.5;
+    transform: translateX(-50%) scaleX(0.9);
+  }
+  100% {
+    opacity: 0.9;
+    transform: translateX(-50%) scaleX(1.05);
+  }
+}

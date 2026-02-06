@@ -62,7 +62,7 @@ export const Navigation = () => {
               />
             </Link>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="nav-burger">
+              <Button variant="ghost" size="icon" className="nav-burger mb-3">
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>

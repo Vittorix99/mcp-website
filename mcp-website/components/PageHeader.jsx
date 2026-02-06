@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Home } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { SectionTitle } from "@/components/ui/section-title"
@@ -24,6 +24,14 @@ export const PageHeader = ({ title }) => {
       <SectionTitle as="h1" className="page-header__title">
         {title}
       </SectionTitle>
+      <Button
+        variant="ghost"
+        className="home-pill mt-2"
+        onClick={() => router.push("/")}
+        aria-label="Go to home"
+      >
+        <Home className="h-6 w-6" />
+      </Button>
     </div>
   )
 }

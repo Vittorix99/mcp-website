@@ -41,6 +41,18 @@ export function EventContent({
     })
   }, [prefetchUrls])
 
+  const downloadImage = (image) => {
+    const src = image?.fullSrc || image?.src
+    if (!src) return
+    const link = document.createElement("a")
+    link.href = src
+    link.download = `${event?.title || "event"}_photo.jpg`
+    link.rel = "noopener"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   // Wrapper a prova di overflow su mobile (navbar/pagine che strabordano)
   const MobileSafe = ({ children }) => (
     <div className="w-full overflow-x-hidden sm:overflow-x-visible">{children}</div>
@@ -139,7 +151,7 @@ export function EventContent({
                     key={image?.id || image?.src || `img-${index}`}
                     image={image}
                     loadedUrlsRef={loadedUrlsRef}
-                    onOpen={() => setSelectedImage(image)}
+                    onOpen={() => downloadImage(image)}
                   />
                 ))}
               </div>

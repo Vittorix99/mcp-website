@@ -20,41 +20,22 @@ const formatDate = (d) => {
 
 export default function StaticHeader({ event }) {
   return (
-    <>
-      {/* NAVBAR spacer già gestito dal wrapper */}
-      <div className="container mx-auto px-4 pt-12">
-        {/* Title */}
-        <motion.h1
-          className="font-atlantico tracking-atlantico-wide text-4xl md:text-5xl text-center text-mcp-orange mb-6"
-          initial="initial" animate="animate" variants={fadeInUp}
-        >
-          {event.title || "Event"}
-        </motion.h1>
-
-        {/* Meta info (date – place – time) */}
-        <motion.div
-          className="flex flex-wrap justify-center gap-6 mb-12"
-          initial="initial" animate="animate" variants={fadeInUp}
-        >
-          <Meta icon={Calendar}>{formatDate(event.date)}</Meta>
-
-        <Meta icon={MapPin}>{event.locationHint || event.location || "Location to be announced"}</Meta>
-
-          {event.startTime && (
-            <Meta icon={Clock}>
-              {event.startTime}
-              {event.endTime ? ` - ${event.endTime}` : ""}
-            </Meta>
-          )}
-        </motion.div>
-      </div>
-    </>
+    <motion.div className="event-meta-strip" initial="initial" animate="animate" variants={fadeInUp}>
+      <Meta icon={Calendar}>{formatDate(event.date)}</Meta>
+      <Meta icon={MapPin}>{event.locationHint || event.location || "Location to be announced"}</Meta>
+      {event.startTime && (
+        <Meta icon={Clock}>
+          {event.startTime}
+          {event.endTime ? ` - ${event.endTime}` : ""}
+        </Meta>
+      )}
+    </motion.div>
   )
 }
 
 const Meta = ({ icon: Icon, children }) => (
-  <div className="flex items-center text-mcp-orange">
-    <Icon className="w-5 h-5 mr-2" />
+  <div className="event-meta-strip__chip">
+    <Icon className="w-4 h-4" />
     <span className="font-helvetica">{children}</span>
   </div>
 )

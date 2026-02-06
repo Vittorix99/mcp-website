@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { EVENT_CONTENT_COMPONENT, resolvePurchaseMode } from "@/config/events-utils"
 import StaticHeader from "@/components/pages/events/StaticHeader"
+import { PageHeader } from "@/components/PageHeader"
 import { analytics } from "@/config/firebase"
 import { logEvent } from "firebase/analytics"
 import PaymentWarningModal from "@/components/popups/PaymentWarningModal"
@@ -56,9 +57,11 @@ export function EventContent({ id, event, settings, error }) {
 
   return (
     <div className="min-h-screen bg-black">
-      <div className="h-10" />
       <Suspense fallback={<Spinner />}>
-        <StaticHeader event={event} />
+        <div className="container mx-auto px-4">
+          <PageHeader title={event.title || "Event"} />
+          <StaticHeader event={event} />
+        </div>
         <Content id={id} event={event} settings={settings} />
       </Suspense>
 

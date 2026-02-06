@@ -101,48 +101,48 @@ export default function EventCard({ event, onCoverLoaded }) {
       transition={{ duration: 0.6 }}
       className="h-full"
     >
-      <Card className="bg-black border border-mcp-orange/20 overflow-hidden h-full flex flex-col">
-      <CardContent className="p-0 flex flex-col flex-grow">
-          <div className="relative" style={{ paddingBottom: `${(1 / imageAspectRatio) * 100}%` }}>
+      <Card className="event-card">
+        <CardContent className="p-0 flex flex-col flex-grow">
+          <div className="relative event-card__media" style={{ paddingBottom: `${(1 / imageAspectRatio) * 100}%` }}>
             {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <div className="absolute inset-0 event-card__skeleton">
                 <Loader2 className="w-8 h-8 text-mcp-orange animate-spin" />
               </div>
             )}
-            <img
-              ref={imgRef}
-              src={imageUrl || "/placeholder.svg"}
-              alt={event.title}
-              className="absolute inset-0 w-full h-full object-cover"
-              loading="eager"
-              decoding="async"
-              onLoad={(e) => handleImageLoad(e.currentTarget)}
-              onError={() => {
-                setIsLoading(false)
-                if (onCoverLoaded && !notifiedRef.current) {
-                  notifiedRef.current = true
-                  onCoverLoaded(event.id || event.slug || event.title)
-                }
-              }}
-            />
-            {statusLabel && (
-              <div className="absolute top-3 left-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
-                {statusLabel}
-              </div>
+            {imageUrl ? (
+              <img
+                ref={imgRef}
+                src={imageUrl}
+                alt={event.title}
+                className="absolute inset-0 w-full h-full object-cover"
+                loading="eager"
+                decoding="async"
+                onLoad={(e) => handleImageLoad(e.currentTarget)}
+                onError={() => {
+                  setIsLoading(false)
+                  if (onCoverLoaded && !notifiedRef.current) {
+                    notifiedRef.current = true
+                    onCoverLoaded(event.id || event.slug || event.title)
+                  }
+                }}
+              />
+            ) : (
+              <div className="absolute inset-0 event-card__skeleton" aria-hidden="true" />
             )}
+            {statusLabel && <div className="event-card__badge">{statusLabel}</div>}
           </div>
           <div className="p-4 space-y-3 flex-grow">
-            <h3 className="text-xl font-bold text-mcp-orange line-clamp-2">{event.title}</h3>
-            <div className="space-y-2">
-              <div className="flex items-center text-gray-300 text-sm">
+            <h3 className="event-card__title line-clamp-2">{event.title}</h3>
+            <div className="space-y-2 event-card__meta">
+              <div className="flex items-center text-sm">
                 <Calendar className="w-4 h-4 mr-2 text-mcp-orange flex-shrink-0" />
                 <span>{formatDate(event.date)}</span>
               </div>
-              <div className="flex items-center text-gray-300 text-sm">
+              <div className="flex items-center text-sm">
                 <MapPin className="w-4 h-4 mr-2 text-mcp-orange flex-shrink-0" />
                 <span className="truncate">{publicLocation}</span>
               </div>
-              <div className="flex items-center text-gray-300 text-sm">
+              <div className="flex items-center text-sm">
                 <Clock className="w-4 h-4 mr-2 text-mcp-orange flex-shrink-0" />
                 <span className="truncate">
                   {event.startTime} - {event.endTime || "TILL THE END"}
@@ -151,13 +151,9 @@ export default function EventCard({ event, onCoverLoaded }) {
             </div>
           </div>
           <div className="mt-auto bottom-0">
-
-          <Link
-            href={getRoute(routes.events.details, event.slug)}
-            className="block w-full text-center py-3 bg-gradient-to-r from-mcp-orange to-mcp-red text-white font-bold text-sm hover:opacity-90 transition-opacity"
-            >
-            View Details
-          </Link>
+            <Link href={getRoute(routes.events.details, event.slug)} className="event-card__cta">
+              View Details
+            </Link>
           </div>
         </CardContent>
       </Card>

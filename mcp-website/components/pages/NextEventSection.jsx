@@ -143,7 +143,6 @@ export function NextEventSection({ event }) {
 
                   <div className="space-y-1.5 md:space-y-2">
                     <p className="font-helvetica text-gray-200 flex items-center text-sm md:text-base">
-                      <Music className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
                       Featuring:
                     </p>
                     {filteredLineup.length > 0 ? (

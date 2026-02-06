@@ -1,23 +1,34 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { X, Download, ZoomIn } from "lucide-react"
+import { X, Download } from "lucide-react"
 import { useState, useEffect } from "react"
-import Image from "next/image"
+import NextImage from "next/image"
 
 const ImageModal = ({ imageUrl, onClose, onDownload }) => {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isFullSize, setIsFullSize] = useState(false)
 
   useEffect(() => {
-    const img = new Image()
-    img.onload = () => setImageLoaded(true)
-    img.src = imageUrl
+    if (!imageUrl) {
+      setImageLoaded(true)
+      return
+    }
+    try {
+      const ImgCtor = typeof window !== "undefined" ? window.Image : null
+      if (!ImgCtor) {
+        setImageLoaded(true)
+        return
+      }
+      const img = new ImgCtor()
+      img.onload = () => setImageLoaded(true)
+      img.onerror = () => setImageLoaded(true)
+      img.src = imageUrl
+    } catch {
+      setImageLoaded(true)
+    }
   }, [imageUrl])
 
-  const toggleFullSize = () => {
-    setIsFullSize(!isFullSize)
-  }
 
   return (
     <motion.div
@@ -36,11 +47,11 @@ const ImageModal = ({ imageUrl, onClose, onDownload }) => {
       >
         <div className="relative w-full h-full flex justify-center items-center overflow-hidden bg-black bg-opacity-50 rounded-lg p-2">
           {imageLoaded ? (
-            <Image
+            <NextImage
               src={imageUrl || "/placeholder.svg"}
               alt="Event photo"
-              layout="fill"
-              objectFit="contain"
+              fill
+              className="object-contain"
               quality={isFullSize ? 100 : 75}
             />
           ) : (
@@ -52,12 +63,6 @@ const ImageModal = ({ imageUrl, onClose, onDownload }) => {
           className="absolute top-2 right-2 text-white hover:text-mcp-orange transition-colors bg-black bg-opacity-50 rounded-full p-2"
         >
           <X size={24} />
-        </button>
-        <button
-          onClick={toggleFullSize}
-          className="absolute top-2 left-2 text-white hover:text-mcp-orange transition-colors bg-black bg-opacity-50 rounded-full p-2"
-        >
-          <ZoomIn size={24} />
         </button>
         <button
           onClick={onDownload}
@@ -72,4 +77,3 @@ const ImageModal = ({ imageUrl, onClose, onDownload }) => {
 }
 
 export default ImageModal
-

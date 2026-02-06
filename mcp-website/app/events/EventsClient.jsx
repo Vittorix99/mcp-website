@@ -1,22 +1,25 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import EventCard from "@/components/pages/events/EventCard"
 import { PageHeader } from "@/components/PageHeader"
-import { Loader2, ArrowLeft, ArrowRight } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import { getAllEvents } from "@/services/events"
+import { getImageUrl } from "@/config/firebaseStorage"
+import { useRouter } from "next/navigation"
 
 export default function EventsClient({ initialEvents, initialError }) {
   const [events, setEvents] = useState(() => initialEvents || [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(initialError)
   const [activeFilter, setActiveFilter] = useState("upcoming")
-  const [scrollPosition, setScrollPosition] = useState(0)
   const [coverLoaded, setCoverLoaded] = useState({})
   const [coversReady, setCoversReady] = useState(false)
-  const scrollAmount = 300 // Quantità di scroll per ogni click
+  const [heroImageUrl, setHeroImageUrl] = useState(null)
+  const [heroLoading, setHeroLoading] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     if (Array.isArray(initialEvents) && initialEvents.length > 0) return
@@ -54,6 +57,15 @@ export default function EventsClient({ initialEvents, initialError }) {
     }
   }
 
+  const formatDate = (dateString) => {
+    try {
+      const [day, month, year] = dateString?.split("-").map(Number)
+      return `${day.toString().padStart(2, "0")}-${month.toString().padStart(2, "0")}-${year}`
+    } catch (e) {
+      return dateString || "Date to be announced"
+    }
+  }
+
   const sortedEvents = [...events].sort((a, b) => {
     const dateA = parseEventDate(a.date)
     const dateB = parseEventDate(b.date)
@@ -88,22 +100,67 @@ export default function EventsClient({ initialEvents, initialError }) {
     setCoversReady(loadedCount === filteredEvents.length)
   }, [filteredEvents, coverLoaded])
 
-  const scrollLeft = () => {
-    const container = document.getElementById("events-container")
-    if (container) {
-      const newPosition = Math.max(0, scrollPosition - scrollAmount)
-      container.scrollTo({ left: newPosition, behavior: "smooth" })
-      setScrollPosition(newPosition)
+  const nextUpcomingEvent = useMemo(() => {
+    const today = new Date()
+    return sortedEvents.find((event) => parseEventDate(event.date) >= today) || null
+  }, [sortedEvents])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadHero = async () => {
+      if (!nextUpcomingEvent?.image) {
+        setHeroImageUrl(null)
+        return
+      }
+      setHeroLoading(true)
+      try {
+        const url = await getImageUrl("events", `${nextUpcomingEvent.image}.jpg`)
+        if (!cancelled) setHeroImageUrl(url)
+      } catch {
+        if (!cancelled) setHeroImageUrl(null)
+      } finally {
+        if (!cancelled) setHeroLoading(false)
+      }
     }
+    loadHero()
+    return () => {
+      cancelled = true
+    }
+  }, [nextUpcomingEvent])
+
+  const getSeason = (date) => {
+    const month = date.getMonth()
+    if (month <= 1 || month === 11) return "Winter"
+    if (month <= 4) return "Spring"
+    if (month <= 7) return "Summer"
+    return "Autumn"
   }
 
-  const scrollRight = () => {
-    const container = document.getElementById("events-container")
-    if (container) {
-      const newPosition = scrollPosition + scrollAmount
-      container.scrollTo({ left: newPosition, behavior: "smooth" })
-      setScrollPosition(newPosition)
-    }
+  const groupedEvents = useMemo(() => {
+    const groups = new Map()
+    filteredEvents.forEach((event) => {
+      const date = parseEventDate(event.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      const label = `${date.toLocaleString("en-US", { month: "long" })} ${date.getFullYear()}`
+      const season = getSeason(date)
+      if (!groups.has(monthKey)) {
+        groups.set(monthKey, { key: monthKey, label, season, items: [] })
+      }
+      groups.get(monthKey).items.push(event)
+    })
+    return Array.from(groups.values())
+  }, [filteredEvents])
+
+  const gridVariants = {
+    hidden: {},
+    show: {
+      transition: { staggerChildren: 0.08 },
+    },
+  }
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 18 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
   }
 
   if (loading) {
@@ -133,16 +190,45 @@ export default function EventsClient({ initialEvents, initialError }) {
   }
 
   return (
-    <div className="min-h-screen bg-black space-y-4">
+    <div className="min-h-screen bg-black space-y-4 events-page">
       <div className="container mx-auto px-4">
         <PageHeader title="ALL EVENTS" />
 
+        {activeFilter !== "past" && nextUpcomingEvent && (
+          <motion.section
+            className="events-hero"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="events-hero__media">
+              {heroImageUrl ? (
+                <img src={heroImageUrl} alt={nextUpcomingEvent.title} className="events-hero__img" />
+              ) : (
+                <div className="events-hero__placeholder" />
+              )}
+              {heroLoading && <div className="events-hero__loading" />}
+            </div>
+            <div className="events-hero__content">
+              <p className="events-hero__eyebrow">Next Event</p>
+              <h2 className="events-hero__title">{nextUpcomingEvent.title}</h2>
+              <p className="events-hero__meta">{formatDate(nextUpcomingEvent.date)}</p>
+              <Button
+                onClick={() => router.push(`/events/${nextUpcomingEvent.slug}`)}
+                className="events-hero__cta"
+              >
+                View Details
+              </Button>
+            </div>
+          </motion.section>
+        )}
+
         {/* Filtri */}
-        <div className="flex justify-center mb-8 mt-12 ">
-          <div className="inline-flex bg-black/30 backdrop-blur-sm rounded-lg p-1">
+        <div className="flex justify-center mb-8 mt-10 events-page__filters">
+          <div className="inline-flex bg-black/40 backdrop-blur-sm rounded-full p-1 border border-white/10">
             <button
               onClick={() => setActiveFilter("upcoming")}
-              className={`font-helvetica px-4 py-2 rounded-md text-sm transition-colors ${
+              className={`font-helvetica px-4 py-2 rounded-full text-sm transition-colors ${
                 activeFilter === "upcoming" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
               }`}
             >
@@ -150,7 +236,7 @@ export default function EventsClient({ initialEvents, initialError }) {
             </button>
             <button
               onClick={() => setActiveFilter("past")}
-              className={`font-helvetica px-4 py-2 rounded-md text-sm transition-colors ${
+              className={`font-helvetica px-4 py-2 rounded-full text-sm transition-colors ${
                 activeFilter === "past" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
               }`}
             >
@@ -158,7 +244,7 @@ export default function EventsClient({ initialEvents, initialError }) {
             </button>
             <button
               onClick={() => setActiveFilter("all")}
-              className={`font-helvetica px-4 py-2 rounded-md text-sm transition-colors ${
+              className={`font-helvetica px-4 py-2 rounded-full text-sm transition-colors ${
                 activeFilter === "all" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
               }`}
             >
@@ -182,57 +268,30 @@ export default function EventsClient({ initialEvents, initialError }) {
           )}
 
           <div className={coversReady ? "opacity-100" : "opacity-0 pointer-events-none"}>
-            {filteredEvents.length > 0 && (
-              <div className="hidden lg:block">
-                <Button
-                  onClick={scrollLeft}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
+            {groupedEvents.map((group) => (
+              <section key={group.key} className="events-month">
+                <div className="events-month__header">
+                  <h3 className="events-month__title">{group.label}</h3>
+                  <span className="events-month__season">{group.season}</span>
+                </div>
+                <motion.div
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 events-grid"
+                  variants={gridVariants}
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={{ once: true, amount: 0.2 }}
                 >
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <Button
-                  onClick={scrollRight}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full w-10 h-10 p-0 bg-black/50 hover:bg-black/80"
-                >
-                  <ArrowRight className="h-5 w-5" />
-                </Button>
-              </div>
-            )}
-
-            <div
-              id="events-container"
-              className="hidden lg:grid grid-flow-col auto-cols-[minmax(300px,1fr)] overflow-x-auto pb-4 scrollbar-hide gap-6"
-            >
-              {filteredEvents.map((event) => {
-                const key = event.id || event.slug || event.title
-                return (
-                  <motion.div
-                    key={key}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <EventCard event={event} onCoverLoaded={handleCoverLoaded} />
-                  </motion.div>
-                )
-              })}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:hidden gap-6">
-              {filteredEvents.map((event) => {
-                const key = event.id || event.slug || event.title
-                return (
-                  <motion.div
-                    key={key}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <EventCard event={event} onCoverLoaded={handleCoverLoaded} />
-                  </motion.div>
-                )
-              })}
-            </div>
+                  {group.items.map((event) => {
+                    const key = event.id || event.slug || event.title
+                    return (
+                      <motion.div key={key} variants={cardVariants}>
+                        <EventCard event={event} onCoverLoaded={handleCoverLoaded} />
+                      </motion.div>
+                    )
+                  })}
+                </motion.div>
+              </section>
+            ))}
           </div>
         </div>
       </div>
