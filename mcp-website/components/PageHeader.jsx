@@ -26,7 +26,7 @@ export const PageHeader = ({ title }) => {
       </SectionTitle>
       <Button
         variant="ghost"
-        className="home-pill mt-2"
+        className="home-pill"
         onClick={() => router.push("/")}
         aria-label="Go to home"
       >

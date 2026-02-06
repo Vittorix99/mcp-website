@@ -81,65 +81,77 @@ export function EventContent({
   const skeletonCount = Math.max(1, Math.min(pageSize, remaining || pageSize))
 
   return (
-    <div className="bg-black py-16">
+    <div className="bg-black py-8">
       <MobileSafe>
         <div className="container mx-auto px-4">
           <PageHeader title="Event Photos" />
 
           {!hasPhotos ? (
-            <div className="mt-6 text-center text-gray-400">No photos available.</div>
+            <div className="mt-6 mx-2 text-center text-gray-400">No photos available.</div>
           ) : (
             <>
-              <div className="flex items-center justify-between mt-4 mb-4">
-                <div className="text-sm text-gray-400">
+              <div className="flex items-center justify-center gap-4 sm:gap-6 mt-4 mb-4 text-center">
+                <div className="hidden sm:block text-sm text-gray-400">
                   Mostrando <span className="text-white">{images.length}</span> su {totalLength}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 flex-nowrap text-xs sm:text-sm">
                   {canPrev ? (
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm"  asChild>
                       <Link href={pageHref(1)} prefetch={false}>
-                        « Inizio
+                        <span className="sm:hidden">«</span>
+                        <span className="hidden sm:inline">« Inizio</span>
                       </Link>
                     </Button>
                   ) : (
                     <Button variant="outline" size="sm" disabled>
-                      « Inizio
+                      <span className="sm:hidden">«</span>
+                      <span className="hidden sm:inline">« Inizio</span>
                     </Button>
                   )}
                   {canPrev ? (
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" className="ml-2" asChild>
                       <Link href={pageHref(currentPage - 1)} prefetch={false}>
-                        ‹ Precedente
+                        <span className="sm:hidden">‹</span>
+                        <span className="hidden sm:inline">‹ Precedente</span>
                       </Link>
                     </Button>
                   ) : (
-                    <Button variant="outline" size="sm" disabled>
-                      ‹ Precedente
+                    <Button variant="outline" size="sm" className="ml-2" disabled>
+                      <span className="sm:hidden">‹</span>
+                      <span className="hidden sm:inline">‹ Precedente</span>
                     </Button>
                   )}
-                  <span className="text-sm text-gray-300">
-                    Pagina <span className="text-white">{currentPage}</span> / {totalPages}
+                  <span className="text-gray-300 whitespace-nowrap mx-6">
+                    <span className="hidden sm:inline">Pagina </span>
+                    <span className="text-white">{currentPage}</span>
+                    <span className="hidden sm:inline"> / </span>
+                    <span className="sm:hidden">/</span>
+                    {totalPages}
                   </span>
                   {canNext ? (
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" className="mr-2" asChild>
                       <Link href={pageHref(currentPage + 1)} prefetch={false}>
-                        Successiva ›
+                        <span className="sm:hidden">›</span>
+                        <span className="hidden sm:inline">Successiva ›</span>
                       </Link>
                     </Button>
                   ) : (
-                    <Button variant="outline" size="sm" disabled>
-                      Successiva ›
+                    <Button variant="outline" size="sm" className="" disabled>
+                      <span className="sm:hidden">›</span>
+                      <span className="hidden sm:inline">Successiva ›</span>
                     </Button>
                   )}
                   {canLast ? (
                     <Button variant="outline" size="sm" asChild>
                       <Link href={pageHref(totalPages)} prefetch={false}>
-                        Fine »
+                        <span className="sm:hidden">»</span>
+                        <span className="hidden sm:inline">Fine »</span>
                       </Link>
                     </Button>
                   ) : (
-                    <Button variant="outline" size="sm" disabled>
-                      Fine »
+                    <Button variant="outline" size="sm" className="gap-4" disabled>
+                      <span className="sm:hidden">»</span>
+                      <span className="hidden sm:inline">Fine »</span>
                     </Button>
                   )}
                 </div>
@@ -160,7 +172,7 @@ export function EventContent({
               </div>
 
               {totalPages > 1 && (
-                <div className="mt-6 flex items-center justify-between">
+                <div className="mt-6 flex items-center justify-center gap-4 sm:gap-6 text-center">
                   <div className="text-sm text-gray-400">
                     Pagina <span className="text-white">{currentPage}</span> di {totalPages}
                   </div>
