@@ -151,7 +151,7 @@ function MobileHeroVideoSmooth() {
   }
 
   return (
-    <section ref={wrapperRef} className="relative h-[120svh] w-full">
+    <section ref={wrapperRef} className="relative h-[140svh] w-full">
       <div ref={stickyRef} className="sticky top-0 h-screen w-full z-[70]">
         {/* LOGO layer */}
         <div
