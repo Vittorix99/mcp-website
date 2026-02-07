@@ -46,7 +46,12 @@ export default function HomeClient({ nextEvent = null, hasNextEvent = false } = 
         <LogoSection />
       </section>
 
-      <AnimatedSectionDivider color="ORANGE" />
+      
+    
+      <AnimatedSectionDivider
+        color="ORANGE"
+        className="relative z-[80]  md:mt-0"
+      />
 
       {clientHasNextEvent && (
         <>

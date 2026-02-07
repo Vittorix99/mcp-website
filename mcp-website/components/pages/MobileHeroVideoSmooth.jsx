@@ -5,6 +5,22 @@ import { Button } from "@/components/ui/button"
 import { LogoSection } from "@/components/pages/Logo"
 import { Volume, VolumeX } from "lucide-react"
 
+const CONFIG = {
+  wrapperHeight: "120svh",
+  audioUnlockProgress: 0.3,
+  logoFadeMultiplier: 3.5,
+  videoStartOffset: 0.05,
+  videoFadeMultiplier: 1.7,
+  logoTranslateY: 40,
+  videoScaleRange: 0.03,
+  hintFadeMultiplier: 1,
+  heroCompleteVideoOpacity: 0.98,
+  heroCompleteLogoOpacity: 0.02,
+  intersectionThreshold: 0.05,
+  overlayGradient:
+    "linear-gradient(to bottom, rgba(0,0,0,0.15), rgba(0,0,0,0.25))",
+}
+
 /* -------------------------------------------------------
    MOBILE HERO → VIDEO (smooth + autoplay iOS)
    - progress senza reflow (scrollY/offsetTop)
@@ -22,8 +38,7 @@ export function MobileHeroVideoSmooth() {
   const [isMuted, setIsMuted] = useState(true)
 
   // ---- CONFIG: soglia oltre la quale è permesso togliere il mute ----
-  const AUDIO_UNLOCK_PROGRESS = 0.55 // ~seconda metà: video domina
-  const canToggleAudio = progress >= AUDIO_UNLOCK_PROGRESS
+  const canToggleAudio = progress >= CONFIG.audioUnlockProgress
 
   // cache viewport height e offsetTop (evita reflow continui)
   const vhRef = useRef(1)
@@ -77,14 +92,17 @@ export function MobileHeroVideoSmooth() {
   const clamp = (v, min = 0, max = 1) => Math.min(max, Math.max(min, v))
 
   // mappa 2 fasi
-  const logoPhase = 1 - clamp(progress * 3.4) // 0..0.5
-  const videoPhase = clamp((progress - 0.1) * 1.1765) // 0.15..1 → 0..1 (fade più lento)
+  const logoPhase = 1 - clamp(progress * CONFIG.logoFadeMultiplier) // 0..0.5
+  const videoPhase = clamp(
+    (progress - CONFIG.videoStartOffset) * CONFIG.videoFadeMultiplier
+  ) // 0.15..1 → 0..1 (fade più lento)
   const logoOpacity = reduceMotion ? 0 : logoPhase
-  const logoTranslateY = reduceMotion ? 0 : (1 - logoPhase) * -40
+  const logoTranslateY = reduceMotion ? 0 : (1 - logoPhase) * -CONFIG.logoTranslateY
   const videoOpacity = reduceMotion ? 1 : Math.max(0.001, videoPhase)
-  const videoScale = reduceMotion ? 1 : 1 + (1 - videoPhase) * 0.03
-  const hintOpacity = clamp(1 - progress * 2)
-  const isHeroComplete = reduceMotion || (videoOpacity >= 0.98 && logoOpacity <= 0.02)
+  const videoScale =
+    reduceMotion ? 1 : 1 + (1 - videoPhase) * CONFIG.videoScaleRange
+  const hintOpacity = clamp(1 - progress * CONFIG.hintFadeMultiplier)
+  const isVideoFullyVisible = reduceMotion || videoPhase >= 1
 
   // Autoplay iOS: set attr + tryPlay
   useEffect(() => {
@@ -128,7 +146,7 @@ export function MobileHeroVideoSmooth() {
       ([entry]) => {
         if (!entry.isIntersecting) setIsMuted(true)
       },
-      { threshold: 0.05 }
+      { threshold: CONFIG.intersectionThreshold }
     )
     io.observe(el)
     return () => io.disconnect()
@@ -136,7 +154,7 @@ export function MobileHeroVideoSmooth() {
 
   // Mute forzato quando il logo è ancora ben visibile
   useEffect(() => {
-    if (progress < AUDIO_UNLOCK_PROGRESS && !isMuted) {
+    if (progress < CONFIG.audioUnlockProgress && !isMuted) {
       setIsMuted(true)
     }
   }, [progress, isMuted])
@@ -149,7 +167,7 @@ export function MobileHeroVideoSmooth() {
   // Blocca lo scroll oltre l'hero finché il video ha sostituito il logo
   useEffect(() => {
     const clampScroll = () => {
-      if (isHeroComplete) return
+      if (isVideoFullyVisible) return
       const maxY = topRef.current + scrollRangeRef.current
       if (window.scrollY > maxY) {
         window.scrollTo(0, maxY)
@@ -158,10 +176,14 @@ export function MobileHeroVideoSmooth() {
     clampScroll()
     window.addEventListener("scroll", clampScroll, { passive: true })
     return () => window.removeEventListener("scroll", clampScroll)
-  }, [isHeroComplete])
+  }, [isVideoFullyVisible])
 
   return (
-    <section ref={wrapperRef} className="relative h-[140svh] w-full">
+    <section
+      ref={wrapperRef}
+      className="relative w-full"
+      style={{ height: CONFIG.wrapperHeight }}
+    >
       <div ref={stickyRef} className="sticky top-0 h-screen w-full z-[70]">
         {/* LOGO layer */}
         <div
@@ -176,7 +198,7 @@ export function MobileHeroVideoSmooth() {
         </div>
 
         {/* VIDEO layer */}
-        <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0   h-[110svh] overflow-hidden">
           <video
             ref={videoEl}
             className="absolute inset-0 w-full h-full object-cover"
@@ -206,7 +228,7 @@ export function MobileHeroVideoSmooth() {
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              background: "linear-gradient(to bottom, rgba(0,0,0,0.15), rgba(0,0,0,0.25))",
+              background: CONFIG.overlayGradient,
               opacity: videoOpacity,
             }}
           />
@@ -236,13 +258,7 @@ export function MobileHeroVideoSmooth() {
           </div>
         </div>
 
-        {/* Hint scroll */}
-        <div
-          className="absolute bottom-5 left-1/2 -translate-x-1/2 text-[10px] tracking-widest text-white/70"
-          style={{ opacity: hintOpacity, transform: "translateZ(0)" }}
-        >
-          SCROLL
-        </div>
+     
       </div>
     </section>
   )
