@@ -1,8 +1,9 @@
 import { headers } from "next/headers"
 import { getAllEvents } from "@/services/events"
+import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
 
 async function getBaseUrl() {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL
+  const envUrl = getBaseUrlFromEnv()
   if (envUrl) return envUrl.replace(/\/$/, "")
 
   const h = await headers()

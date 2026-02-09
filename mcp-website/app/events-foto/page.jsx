@@ -1,15 +1,17 @@
 import EventPhotosClient from "./EventPhotosClient"
 import { buildEventPhotosCollectionJsonLd } from "@/lib/seo/jsonld"
+import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
 
+const baseUrl = getBaseUrlFromEnv()
 export const metadata = {
   title: "Event Photos | Music Connecting People",
   description: "Browse photo galleries from Music Connecting People events.",
+  alternates: baseUrl ? { canonical: `${baseUrl}/events-foto` } : undefined,
 }
 
 export const revalidate = 300
 
 export default function EventPhotosPage() {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || ""
   const jsonLd = buildEventPhotosCollectionJsonLd({
     items: [],
     baseUrl,

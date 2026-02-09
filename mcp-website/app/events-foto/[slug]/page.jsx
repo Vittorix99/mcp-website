@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react"
 import { getAllEvents } from "@/services/events"
 import { endpoints } from "@/config/endpoints"
 import { getFolderPage } from "@/config/firebaseStorage"
+import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
 
 export const revalidate = 3600
 const PAGE_SIZE = 16
@@ -60,7 +61,7 @@ export async function generateMetadata({ params }) {
   const description = event?.date
     ? `Photo gallery from ${event.title} · ${event.date}`
     : "Browse photo galleries from Music Connecting People events."
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || ""
+  const baseUrl = getBaseUrlFromEnv()
   const canonical = baseUrl ? `${baseUrl}/events-foto/${slug}` : undefined
 
   return {

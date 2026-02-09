@@ -9,9 +9,12 @@ import { Footer } from "@/components/Footer";
 import Script from "next/script";
 import { ConsoleErrorSilencer } from "./suppress-errors";
 import { MetaPixel } from "@/config/metaPixel";
+import { getBaseUrlFromEnv } from "@/lib/seo/base-url";
 
 // Next.js App Router: viewport metadata (include viewport-fit=cover)
+const siteUrl = getBaseUrlFromEnv();
 export const metadata = {
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: "Music Connecting People",
   description: "Experience the rhythm. Connect with the community.",
 };
