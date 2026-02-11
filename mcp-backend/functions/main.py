@@ -82,7 +82,7 @@ from api.admin.purchases_api import (
 )
 
 # === Triggers ===
-from triggers.ticket_trigger import (
+from triggers.registration_trigger import (
     on_participant_created,
     on_membership_created
 )
@@ -91,3 +91,29 @@ from api.admin.stats_api import admin_get_general_stats
 
 from api.admin.setting_api import get_settings, set_settings
 from triggers.jobs_trigger import process_send_location_job
+
+# === API Admin: MailerLite ===
+from api.admin.mailer_lite.groups_api import (
+    admin_mailerlite_groups,
+    admin_mailerlite_group_subscribers,
+    admin_mailerlite_group_assign_subscriber,
+    admin_mailerlite_group_unassign_subscriber,
+)
+from api.admin.mailer_lite.subscribers_api import (
+    admin_mailerlite_subscribers,
+    admin_mailerlite_subscriber_forget,
+)
+from api.admin.mailer_lite.campaigns_api import (
+    admin_mailerlite_campaigns,
+    admin_mailerlite_campaign_schedule,
+    admin_mailerlite_campaign_cancel_ready,
+)
+from api.admin.mailer_lite.fields_api import admin_mailerlite_fields
+from api.admin.mailer_lite.automations_api import (
+    admin_mailerlite_automations,
+    admin_mailerlite_automation_activity,
+)
+from api.admin.mailer_lite.segments_api import (
+    admin_mailerlite_segments,
+    admin_mailerlite_segment_subscribers,
+)

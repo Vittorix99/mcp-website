@@ -17,6 +17,7 @@ import datetime
 from config.firebase_config import region, db
 from utils.events_utils import is_valid_email
 from config.external_services import GENDER_API_URL
+from services.mailer_lite import SubscribersClient
 
 
 @on_document_created(document="participants/{eventId}/participants_event/{participantId}", region=region)
@@ -47,7 +48,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
             print("Name is 'andrea' -> gender forced to 'male'")
         elif name:
             try:
-                response = requests.get("https://api.genderize.io", params={"name": name})
+                response = requests.get(GENDER_API_URL, params={"name": name})
                 response.raise_for_status()
                 gender_info = response.json()
                 gender = gender_info.get("gender") or "N/A"
@@ -75,29 +76,36 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         email = participant_data.get("email", "").strip().lower()
         newsletter_consent = participant_data.get("newsletterConsent", False)
 
+        consent_timestamp = None
         if newsletter_consent and is_valid_email(email):
-            newsletter_ref = db.collection("newsletter_consents")
-            existing = newsletter_ref.where("email", "==", email).limit(1).get()
-            if not existing:
-                full_data = {
-                        "name": participant_data.get("name"),
-                        "surname": participant_data.get("surname"),
-                        "email": participant_data.get("email"),
-                        "phone": participant_data.get("phone"),
-                        "birthdate": participant_data.get("birthdate"),
-                        "gender": gender,
-                        "gender_probability": probability,
-                        "event_id": event_id,
-                        "participant_id": participant_id,
-                        "timestamp": firestore.SERVER_TIMESTAMP,
-                        "source": "participant_event",
-                    }
-                newsletter_ref.add(full_data)
-                print(f"Added to newsletter_consents: {email}")
-            else:
-                print(f"Already subscribed: {email}")
+            # Newsletter consents insertion disabled for now.
+            print("Skipping newsletter_consents insert")
         else:
             print("No consent or invalid email")
+
+        # MailerLite sync for newsletter consent
+        if newsletter_consent and is_valid_email(email):
+            try:
+                sync_service = SubscribersClient()
+                membership_id = participant_data.get("membershipId") or participant_data.get("membership_id")
+                fields = {
+                    "name": participant_data.get("name"),
+                    "last_name": participant_data.get("surname"),
+                    "phone": participant_data.get("phone"),
+                    "birthdate": participant_data.get("birthdate"),
+                    "gender": gender,
+                    "membership_id": membership_id,
+                    "participant_id": participant_id,
+                }
+                opted_in_at = None
+                if consent_timestamp:
+                    try:
+                        opted_in_at = consent_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        opted_in_at = None
+                sync_service.sync_newsletter_consent(email, fields, opted_in_at=opted_in_at)
+            except Exception as e:
+                print(f"MailerLite sync failed for {email}: {e}")
 
     except Exception as e:
         print(f"Error in participant trigger: {str(e)}")
@@ -132,6 +140,22 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
             print(f"Failed to process membership: {result.get('error', 'Unknown error')}")
         else:
             print(f"Membership processed successfully, PDF URL: {result['pdf_url']}")
+
+        # MailerLite sync for memberships
+        try:
+            email = (membership_data.get("email") or "").strip().lower()
+            if is_valid_email(email):
+                sync_service = SubscribersClient()
+                fields = {
+                    "name": membership_data.get("name"),
+                    "last_name": membership_data.get("surname"),
+                    "phone": membership_data.get("phone"),
+                    "birthdate": membership_data.get("birthdate"),
+                    "membership_id": membership_id,
+                }
+                sync_service.sync_membership(email, fields)
+        except Exception as e:
+            print(f"MailerLite sync failed for membership {membership_id}: {e}")
 
     except Exception as e:
         print(f"Error handling membership creation: {str(e)}")
