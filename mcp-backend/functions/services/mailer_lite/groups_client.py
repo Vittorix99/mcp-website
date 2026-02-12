@@ -26,7 +26,10 @@ class GroupsClient:
 
     def delete(self, group_id: str) -> Any:
         group_id = self._to_int(group_id, "group_id")
-        return self.client.call(self.client.sdk.groups.delete, group_id)
+        response = self.client.call(self.client.sdk.groups.delete, group_id)
+        if isinstance(response, (bool, int)):
+            return {"status": response}
+        return response
 
     def subscribers(self, group_id: str, params: Optional[Dict[str, Any]] = None) -> Any:
         kwargs = filter_kwargs(params, {"page", "limit", "filter"})
@@ -36,13 +39,19 @@ class GroupsClient:
     def assign_subscriber(self, subscriber_id: str, group_id: str) -> Any:
         subscriber_id = self._to_int(subscriber_id, "subscriber_id")
         group_id = self._to_int(group_id, "group_id")
-        return self.client.call(
+        response = self.client.call(
             self.client.sdk.subscribers.assign_subscriber_to_group, subscriber_id, group_id
         )
+        if isinstance(response, (bool, int)):
+            return {"status": response}
+        return response
 
     def unassign_subscriber(self, subscriber_id: str, group_id: str) -> Any:
         subscriber_id = self._to_int(subscriber_id, "subscriber_id")
         group_id = self._to_int(group_id, "group_id")
-        return self.client.call(
+        response = self.client.call(
             self.client.sdk.subscribers.unassign_subscriber_from_group, subscriber_id, group_id
         )
+        if isinstance(response, (bool, int)):
+            return {"status": response}
+        return response

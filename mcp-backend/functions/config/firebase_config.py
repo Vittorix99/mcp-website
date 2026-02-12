@@ -7,10 +7,8 @@ from firebase_functions import options
 
 region = "us-central1"
 
-_env = os.environ.get("MCP_ENV", "").strip().lower()
-_default_cred = "service_account_test.json" if _env == "test" else "service_account.json"
 _explicit_cred = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-_raw_cred = _explicit_cred or _default_cred
+_raw_cred = _explicit_cred or "service_account.json"
 _base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _repo_root = os.path.abspath(os.path.join(_base_dir, "..", ".."))
 
@@ -75,7 +73,7 @@ if os.environ.get("FIRESTORE_EMULATOR_HOST"):
 else:
     print(
         "Using Firestore cloud project "
-        f"(env={_env or 'prod'}, cred={_cred_path}, project={db.project})"
+        f"(cred={_cred_path}, project={db.project})"
     )
 
 cors = options.CorsOptions(

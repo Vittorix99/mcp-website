@@ -5,11 +5,31 @@ MAILERLITE_GROUP_NEWSLETTER = "newsletter"
 MAILERLITE_GROUP_MEMBERSHIPS = "memberships"
 from utils.events_utils import normalize_email
 
-from .client import MailerLiteClient, filter_kwargs
+from .client import MailerLiteClient, MailerLiteError, filter_kwargs
 from .groups_client import GroupsClient
 from .subscribers_registry import MailerLiteSubscribersRegistry
 
 logger = logging.getLogger("MailerLiteSubscribersClient")
+
+DEFAULT_FIELDS = {
+    "name",
+    "last_name",
+    "phone",
+    "company",
+    "city",
+    "country",
+    "state",
+    "z_i_p",
+}
+
+CUSTOM_FIELDS = {
+    "birthdate",
+    "gender",
+    "membership_id",
+    "participant_id",
+}
+
+ALLOWED_FIELDS = DEFAULT_FIELDS | CUSTOM_FIELDS
 
 
 class SubscribersClient:
@@ -23,7 +43,15 @@ class SubscribersClient:
         kwargs = filter_kwargs(params, {"limit", "cursor", "filter"})
         return self.client.call(self.client.sdk.subscribers.list, **kwargs)
 
+    def _to_int(self, value: Any, label: str) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{label} must be int-compatible, got {value!r}")
+
     def create(self, email: str, payload: Optional[Dict[str, Any]] = None) -> Any:
+        fields = payload.get("fields") if payload else None
+        self._validate_fields(fields)
         kwargs = filter_kwargs(
             payload,
             {
@@ -38,9 +66,20 @@ class SubscribersClient:
                 "optin_ip",
             },
         )
-        return self.client.call(self.client.sdk.subscribers.create, email, **kwargs)
+        normalized = normalize_email(email)
+        create_email = normalized or email
+        response = self.client.call(self.client.sdk.subscribers.create, create_email, **kwargs)
+        try:
+            subscriber_id = self._extract_id(response)
+            if subscriber_id and normalized:
+                self.registry.upsert(normalized, str(subscriber_id))
+        except Exception as e:
+            logger.warning("Unable to store MailerLite subscriber %s: %s", email, e)
+        return response
 
     def update(self, email: str, payload: Optional[Dict[str, Any]] = None) -> Any:
+        fields = payload.get("fields") if payload else None
+        self._validate_fields(fields)
         kwargs = filter_kwargs(
             payload,
             {
@@ -61,10 +100,26 @@ class SubscribersClient:
         return self.client.call(self.client.sdk.subscribers.get, email)
 
     def delete_subscriber(self, subscriber_id: str) -> Any:
-        return self.client.call(self.client.sdk.subscribers.delete, subscriber_id)
+        subscriber_id = self._to_int(subscriber_id, "subscriber_id")
+        response = self.client.call(self.client.sdk.subscribers.delete, subscriber_id)
+        try:
+            self.registry.delete_by_mailerlite_id(subscriber_id)
+        except Exception as e:
+            logger.warning("Unable to remove registry entry for %s: %s", subscriber_id, e)
+        if isinstance(response, int):
+            return {"status": response}
+        return response
 
     def forget_subscriber(self, subscriber_id: str) -> Any:
-        return self.client.call(self.client.sdk.subscribers.forget, subscriber_id)
+        subscriber_id = self._to_int(subscriber_id, "subscriber_id")
+        response = self.client.call(self.client.sdk.subscribers.forget, subscriber_id)
+        try:
+            self.registry.delete_by_mailerlite_id(subscriber_id)
+        except Exception as e:
+            logger.warning("Unable to remove registry entry for %s: %s", subscriber_id, e)
+        if isinstance(response, int):
+            return {"status": response}
+        return response
 
     def _compact_fields(self, fields: Dict[str, Any]) -> Dict[str, Any]:
         return {key: value for key, value in fields.items() if value not in (None, "")}
@@ -94,6 +149,26 @@ class SubscribersClient:
             return payload
         return {}
 
+    def _extract_id(self, payload: Any) -> Optional[Any]:
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, dict) and data.get("id") is not None:
+                return data.get("id")
+            if payload.get("id") is not None:
+                return payload.get("id")
+        return None
+
+    def _validate_fields(self, fields: Optional[Dict[str, Any]]) -> None:
+        if not fields:
+            return
+        invalid = sorted(set(fields.keys()) - ALLOWED_FIELDS)
+        if invalid:
+            raise MailerLiteError(
+                "Invalid subscriber fields",
+                status=400,
+                payload={"invalid_fields": invalid},
+            )
+
     def _resolve_group_id(self, group_name: str) -> int:
         if group_name in self._group_cache:
             return self._group_cache[group_name]
@@ -122,21 +197,34 @@ class SubscribersClient:
             try:
                 response = self.get(normalized)
                 self._log_debug(f"subscribers.get email={normalized}", response)
-                return self._extract_data(response)
+                data = self._extract_data(response)
+                if data.get("id"):
+                    return data
             except Exception:
-                return {"id": str(cached.get("mailerlite_id")), "email": normalized}
+                pass
+            return {"id": str(cached.get("mailerlite_id")), "email": normalized}
 
         try:
             response = self.get(normalized)
             self._log_debug(f"subscribers.get email={normalized}", response)
-            return self._extract_data(response)
+            data = self._extract_data(response)
+            if data.get("id"):
+                return data
         except Exception:
             pass
 
         try:
             response = self.create(normalized, {"fields": fields})
             self._log_debug(f"subscribers.create email={normalized}", response)
-            return self._extract_data(response)
+            data = self._extract_data(response)
+            if not data.get("id"):
+                try:
+                    refreshed = self.get(normalized)
+                    self._log_debug(f"subscribers.get email={normalized} (post-create)", refreshed)
+                    data = self._extract_data(refreshed)
+                except Exception:
+                    pass
+            return data
         except Exception as e:
             logger.warning("Unable to create subscriber %s: %s", normalized, e)
             return None
@@ -166,6 +254,11 @@ class SubscribersClient:
         group_id = self._resolve_group_id(MAILERLITE_GROUP_NEWSLETTER)
 
         compact_fields = self._compact_fields(fields)
+        try:
+            self._validate_fields(compact_fields)
+        except MailerLiteError as e:
+            logger.warning("Invalid fields for %s: %s", email, e.payload or e)
+            return None
         subscriber = self._get_or_create_subscriber(email, compact_fields)
         if not subscriber:
             return None
@@ -205,6 +298,11 @@ class SubscribersClient:
         group_id = self._resolve_group_id(MAILERLITE_GROUP_MEMBERSHIPS)
 
         compact_fields = self._compact_fields(fields)
+        try:
+            self._validate_fields(compact_fields)
+        except MailerLiteError as e:
+            logger.warning("Invalid fields for %s: %s", email, e.payload or e)
+            return None
         subscriber = self._get_or_create_subscriber(email, compact_fields)
         if not subscriber:
             return None
