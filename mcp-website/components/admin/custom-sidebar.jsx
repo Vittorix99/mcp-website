@@ -41,7 +41,9 @@ const navigationSections = [
     title: "Comunicazioni",
     items: [
       { title: "Messaggi", url: routes.admin.messages, icon: MessageSquare },
-      { title: "Newsletter", url: routes.admin.newsletter, icon: Mail },
+      { title: "Subscribers", url: routes.admin.subscribers, icon: UserPlus },
+      { title: "Campaigns", url: routes.admin.campaigns, icon: Mail },
+      { title: "Automations", url: routes.admin.automations, icon: Layers },
     ],
   },
   {

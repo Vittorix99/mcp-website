@@ -20,7 +20,7 @@ class SubscribersClient:
         self._group_cache: Dict[str, int] = {}
 
     def list(self, params: Optional[Dict[str, Any]] = None) -> Any:
-        kwargs = filter_kwargs(params, {"limit", "page", "filter"})
+        kwargs = filter_kwargs(params, {"limit", "cursor", "filter"})
         return self.client.call(self.client.sdk.subscribers.list, **kwargs)
 
     def create(self, email: str, payload: Optional[Dict[str, Any]] = None) -> Any:

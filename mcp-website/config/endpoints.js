@@ -80,6 +80,23 @@ export const endpoints = {
     getSetting: make("get_settings"),
     setSetting: make("set_settings"),
 
+    mailerLite: {
+      subscribers: make("admin_mailerlite_subscribers"),
+      subscriberForget: make("admin_mailerlite_subscriber_forget"),
+      groups: make("admin_mailerlite_groups"),
+      groupSubscribers: make("admin_mailerlite_group_subscribers"),
+      groupAssignSubscriber: make("admin_mailerlite_group_assign_subscriber"),
+      groupUnassignSubscriber: make("admin_mailerlite_group_unassign_subscriber"),
+      fields: make("admin_mailerlite_fields"),
+      segments: make("admin_mailerlite_segments"),
+      segmentSubscribers: make("admin_mailerlite_segment_subscribers"),
+      campaigns: make("admin_mailerlite_campaigns"),
+      campaignSchedule: make("admin_mailerlite_campaign_schedule"),
+      campaignCancelReady: make("admin_mailerlite_campaign_cancel_ready"),
+      automations: make("admin_mailerlite_automations"),
+      automationActivity: make("admin_mailerlite_automation_activity"),
+    },
+
 
   
   },

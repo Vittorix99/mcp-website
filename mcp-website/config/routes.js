@@ -37,7 +37,9 @@ export const routes = {
     settings: '/admin/settings',
     checkin: (id) => `/admin/events/${id}/checkin`,
     
-    newsletter: '/admin/newsletter',
+    subscribers: '/admin/subscribers',
+    campaigns: '/admin/campaigns',
+    automations: '/admin/automations',
     signupRequests: '/admin/signup-requests',
     messages: '/admin/messages',
   },

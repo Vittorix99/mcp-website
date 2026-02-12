@@ -2,10 +2,11 @@
 
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
+import { Button } from "@/components/ui/button"
+import { routes } from "@/config/routes"
 
-export default function NewsletterPage() {
+export default function CampaignsPage() {
   const router = useRouter()
 
   return (
@@ -15,17 +16,14 @@ export default function NewsletterPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Button variant="ghost" onClick={() => router.back()}>
+      <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
         <ArrowLeft className="mr-2 h-4 w-4" />
-        Torna indietro
+        Torna admin
       </Button>
 
-      <h1 className="text-3xl font-bold">Newsletter</h1>
+      <h1 className="text-3xl font-bold">Campaigns</h1>
       <p className="text-lg text-gray-400">
-        Questa sezione non è ancora disponibile.
-      </p>
-      <p className="text-md text-gray-500">
-        Sarà attivata nella prossima release della piattaforma MCP Admin.
+        Questa sezione è in sviluppo.
       </p>
     </motion.div>
   )
