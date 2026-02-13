@@ -5,7 +5,7 @@ class DummyRequest:
         self.args = args or {}
         self.headers = headers or {"Authorization": "Bearer test-token"}
 
-    def get_json(self):
+    def get_json(self, *args, **kwargs):
         return self._json
 
 

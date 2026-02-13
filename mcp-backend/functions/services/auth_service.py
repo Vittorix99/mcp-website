@@ -1,7 +1,11 @@
 from firebase_admin import auth
 from functools import wraps
 from firebase_functions import https_fn
-from config.firebase_config import db
+
+from repositories.user_repository import UserRepository
+
+
+user_repository = UserRepository()
 
 
 def verify_admin_token(id_token):
@@ -43,8 +47,7 @@ def verify_admin_service(req: https_fn.CallableRequest) -> dict:
         return {"isAdmin": False}
 
     try:
-        user_ref = db.collection("users").document(req.auth.uid)
-        user_data = user_ref.get().to_dict() or {}
+        user_data = user_repository.get_by_id(req.auth.uid) or {}
 
         return {
             "isAdmin": user_data.get("isAdmin", False),

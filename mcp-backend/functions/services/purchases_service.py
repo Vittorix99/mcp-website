@@ -1,109 +1,75 @@
 import logging
-from typing import Dict
+from typing import Dict, List, Optional
 
-from flask import jsonify
-
-from config.firebase_config import db
+from dto import PurchaseDTO
 from models import Purchase
-from utils.slug_utils import build_slug
+from models.enums import PurchaseTypes
+from repositories.purchase_repository import PurchaseRepository
+from services.service_errors import NotFoundError, ValidationError
 
 
 class PurchasesService:
     def __init__(self):
-        self.db = db
-        self.collection = db.collection("purchases")
         self.logger = logging.getLogger("PurchasesService")
+        self.purchase_repository = PurchaseRepository()
 
     def _serialize(self, purchase: Purchase) -> Dict:
-        payload = purchase.to_firestore(include_none=True)
+        payload = PurchaseDTO.from_model(purchase).to_payload()
         payload["id"] = purchase.id
         return payload
 
-    def get_all(self):
+    def _parse_purchase_type(self, value: Optional[str]) -> PurchaseTypes:
+        if not value:
+            return PurchaseTypes.EVENT
         try:
-            docs = self.collection.stream()
-            purchases = [self._serialize(Purchase.from_firestore(doc.to_dict() or {}, doc.id)) for doc in docs]
-            return jsonify(purchases), 200
-        except Exception as e:
-            self.logger.error(f"[get_all] {e}")
-            return {"error": str(e)}, 500
+            return PurchaseTypes(str(value))
+        except ValueError:
+            return PurchaseTypes.EVENT
 
-    def get_by_id(self, purchase_id, slug: str = None):
-        try:
-            doc = None
-            if slug:
-                matches = self.collection.where("slug", "==", slug).limit(1).get()
-                if matches:
-                    doc = matches[0]
-            if doc is None and purchase_id:
-                doc = self.collection.document(purchase_id).get()
-            if not doc or not doc.exists:
-                return {"error": "Purchase not found"}, 404
-            purchase = Purchase.from_firestore(doc.to_dict() or {}, doc.id)
-            return jsonify(self._serialize(purchase)), 200
-        except Exception as e:
-            self.logger.error(f"[get_by_id] {e}")
-            return {"error": str(e)}, 500
+    def get_all(self) -> List[Dict]:
+        purchases = [self._serialize(model) for model in self.purchase_repository.stream_models()]
+        return purchases
 
-    def create(self, data: Dict):
-        try:
-            required_fields = [
-                "payer_name",
-                "payer_surname",
-                "payer_email",
-                "amount_total",
-                "currency",
-                "transaction_id",
-                "order_id",
-                "timestamp",
-                "type",
-            ]
-            missing_fields = [f for f in required_fields if f not in data]
-            if missing_fields:
-                return {"error": f"Missing fields: {', '.join(missing_fields)}"}, 400
+    def get_by_id(self, purchase_id: Optional[str], slug: Optional[str] = None) -> Dict:
+        model = None
+        if slug:
+            model = self.purchase_repository.get_model_by_slug(slug)
+        if model is None and purchase_id:
+            model = self.purchase_repository.get_model(purchase_id)
+        if not model:
+            raise NotFoundError("Purchase not found")
+        return self._serialize(model)
 
-            purchase = Purchase(
-                payer_name=data["payer_name"],
-                payer_surname=data["payer_surname"],
-                payer_email=data["payer_email"],
-                amount_total=data["amount_total"],
-                currency=data["currency"],
-                paypal_fee=data.get("paypal_fee"),
-                net_amount=data.get("net_amount"),
-                transaction_id=data["transaction_id"],
-                order_id=data["order_id"],
-                status=data.get("status", "COMPLETED"),
-                timestamp=data["timestamp"],
-                purchase_type=data.get("type"),
-                ref_id=data.get("ref_id"),
-            )
+    def create(self, dto: PurchaseDTO) -> Dict:
+        error = dto.validate(is_update=False)
+        if error:
+            raise ValidationError(error)
 
-            doc_ref = self.collection.document()
-            purchase_id = doc_ref.id
-            purchase.slug = build_slug(
-                purchase.payer_name,
-                purchase.payer_surname,
-                suffix=purchase_id[-6:],
-            )
-            doc_ref.set(purchase.to_firestore(include_none=True))
-            self.logger.info(f"[create] New purchase saved: {purchase_id}")
-            return jsonify({"message": "Purchase created", "id": purchase_id}), 201
+        purchase = Purchase(
+            payer_name=dto.payer_name or "",
+            payer_surname=dto.payer_surname or "",
+            payer_email=dto.payer_email or "",
+            amount_total=dto.amount_total or "",
+            currency=dto.currency or "",
+            paypal_fee=dto.paypal_fee,
+            net_amount=dto.net_amount,
+            transaction_id=dto.transaction_id or "",
+            order_id=dto.order_id or "",
+            status=dto.status or "COMPLETED",
+            timestamp=dto.timestamp,
+            purchase_type=self._parse_purchase_type(dto.type),
+            ref_id=dto.ref_id,
+            payment_method=dto.payment_method,
+            capture_status=dto.capture_status,
+        )
 
-        except Exception as e:
-            self.logger.error(f"[create] {e}")
-            return {"error": str(e)}, 500
+        purchase_id = self.purchase_repository.create_from_model(purchase)
+        self.logger.info("New purchase saved: %s", purchase_id)
+        return {"message": "Purchase created", "id": purchase_id}
 
-    def delete(self, purchase_id):
-        try:
-            doc_ref = self.collection.document(purchase_id)
-            doc = doc_ref.get()
-            if not doc.exists:
-                return {"error": "Purchase not found"}, 404
-
-            doc_ref.delete()
-            self.logger.info(f"[delete] Purchase deleted: {purchase_id}")
-            return jsonify({"message": "Purchase deleted"}), 200
-
-        except Exception as e:
-            self.logger.error(f"[delete] {e}")
-            return {"error": str(e)}, 500
+    def delete(self, purchase_id: str) -> Dict:
+        deleted = self.purchase_repository.delete(purchase_id)
+        if not deleted:
+            raise NotFoundError("Purchase not found")
+        self.logger.info("Purchase deleted: %s", purchase_id)
+        return {"message": "Purchase deleted"}

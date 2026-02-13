@@ -26,3 +26,9 @@ class Membership(FirestoreModel):
     card_storage_path: Optional[str] = None
     send_card_on_create: bool = field(default=False, metadata={"firestore_name": "send_card_on_create"})
     membership_fee: Optional[float] = field(default=None, metadata={"firestore_name": "membership_fee"})
+
+
+@dataclass(frozen=True)
+class MembershipRef:
+    email: str
+    membership_id: str

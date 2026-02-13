@@ -7,7 +7,14 @@ from services.mailer_lite import CampaignsClient, MailerLiteError
 from .helpers import get_payload, get_query_params, pick, handle_mailerlite_error
 
 
-campaigns_client = CampaignsClient()
+campaigns_client = None
+
+
+def _get_campaigns_client():
+    global campaigns_client
+    if campaigns_client is None:
+        campaigns_client = CampaignsClient()
+    return campaigns_client
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -16,13 +23,14 @@ def admin_mailerlite_campaigns(req):
     if req.method == "GET":
         params = get_query_params(req)
         campaign_id = pick(params, "id", "campaign_id", "campaignId")
+        client = campaigns_client or _get_campaigns_client()
         if campaign_id:
             try:
-                return campaigns_client.get(campaign_id), 200
+                return client.get(campaign_id), 200
             except MailerLiteError as e:
                 return handle_mailerlite_error(e)
         try:
-            return campaigns_client.list(params=params), 200
+            return client.list(params=params), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -30,8 +38,9 @@ def admin_mailerlite_campaigns(req):
         payload = get_payload(req)
         if not payload:
             return {"error": "Missing payload"}, 400
+        client = campaigns_client or _get_campaigns_client()
         try:
-            return campaigns_client.create(payload), 200
+            return client.create(payload), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -43,8 +52,9 @@ def admin_mailerlite_campaigns(req):
         payload.pop("id", None)
         payload.pop("campaign_id", None)
         payload.pop("campaignId", None)
+        client = campaigns_client or _get_campaigns_client()
         try:
-            return campaigns_client.update(campaign_id, payload), 200
+            return client.update(campaign_id, payload), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -53,8 +63,9 @@ def admin_mailerlite_campaigns(req):
         campaign_id = pick(payload, "id", "campaign_id", "campaignId") or req.args.get("id")
         if not campaign_id:
             return {"error": "Missing campaign id"}, 400
+        client = campaigns_client or _get_campaigns_client()
         try:
-            return campaigns_client.delete(campaign_id), 200
+            return client.delete(campaign_id), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -76,8 +87,9 @@ def admin_mailerlite_campaign_schedule(req):
     payload.pop("campaign_id", None)
     payload.pop("campaignId", None)
 
+    client = campaigns_client or _get_campaigns_client()
     try:
-        return campaigns_client.schedule(campaign_id, payload), 200
+        return client.schedule(campaign_id, payload), 200
     except MailerLiteError as e:
         return handle_mailerlite_error(e)
 
@@ -93,7 +105,8 @@ def admin_mailerlite_campaign_cancel_ready(req):
     if not campaign_id:
         return {"error": "Missing campaign id"}, 400
 
+    client = campaigns_client or _get_campaigns_client()
     try:
-        return campaigns_client.cancel_ready(campaign_id), 200
+        return client.cancel_ready(campaign_id), 200
     except MailerLiteError as e:
         return handle_mailerlite_error(e)

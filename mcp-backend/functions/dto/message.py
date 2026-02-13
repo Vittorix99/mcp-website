@@ -34,6 +34,28 @@ class ContactMessageDTO:
             timestamp=message.timestamp,
         )
 
+    @classmethod
+    def from_payload(cls, payload: Dict[str, Any]) -> "ContactMessageDTO":
+        def pick(key, alternate=None):
+            if key in payload:
+                return payload.get(key)
+            if alternate and alternate in payload:
+                return payload.get(alternate)
+            return None
+
+        return cls(
+            id=payload.get("id"),
+            name=pick("name"),
+            email=pick("email"),
+            message=pick("message"),
+            subject=pick("subject"),
+            answered=bool(payload.get("answered")) if "answered" in payload else False,
+            participant_id=pick("participant_id", "participantId"),
+            event_id=pick("event_id", "eventId"),
+            error_message=pick("error_message", "errorMessage"),
+            timestamp=pick("timestamp"),
+        )
+
     def to_payload(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
             "id": self.id,

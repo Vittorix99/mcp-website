@@ -35,7 +35,7 @@ def generate_ticket_pdf(ticket_data, event_data, logo_path):
 
 def generate_membership_pdf(membership_data, logo_path, pattern_path):
     if not membership_data.get("subscription_valid"):
-        print("❌ Subscription is not valid, no membership card generated.")
+        print("Subscription is not valid, no membership card generated.")
         return None
 
 

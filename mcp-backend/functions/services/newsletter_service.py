@@ -6,8 +6,8 @@ from firebase_admin import firestore
 
 from config.firebase_config import db
 from models import NewsletterSignup
-from services.mail_service import gmail_send_email_template
-from utils.email_templates import get_newsletter_signup_template, get_newsletter_signup_text
+from services.mail_service import EmailMessage, mail_service
+from utils.templates_mail import get_newsletter_signup_template, get_newsletter_signup_text
 
 logger = logging.getLogger("NewsletterService")
 
@@ -43,7 +43,14 @@ class NewsletterService:
 
             subject = "Welcome to MCP Newsletter!"
 
-            gmail_send_email_template(email, subject, text, html)
+            mail_service.send(
+                EmailMessage(
+                    to_email=email,
+                    subject=subject,
+                    text_content=text,
+                    html_content=html,
+                )
+            )
             self.logger.info("Newsletter email sent to %s", email)
 
             return {"message": "Signed up for newsletter successfully"}, 200

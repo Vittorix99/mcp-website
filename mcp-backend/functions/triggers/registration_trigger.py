@@ -10,14 +10,20 @@ from firebase_functions.firestore_fn import (
 import requests
 
 from google.cloud import firestore
-from services.ticket_service import process_new_ticket, log_failed_ticket_email
-
-from utils.membership_cards import process_new_membership
+from services.ticket_service import TicketService
+from services.documents_service import DocumentsService
+from services.mail_service import EmailAttachment, EmailMessage, mail_service
+from io import BytesIO
 import datetime
 from config.firebase_config import region, db
+from dto import MembershipDTO
 from utils.events_utils import is_valid_email
+from utils.templates_mail import get_membership_email_template, get_membership_email_text
 from config.external_services import GENDER_API_URL
 from services.mailer_lite import SubscribersClient
+
+
+ticket_service = TicketService()
 
 
 @on_document_created(document="participants/{eventId}/participants_event/{participantId}", region=region)
@@ -68,9 +74,13 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         send = participant_data.get("send_ticket_on_create", True)
         if not send:
             print("Skipping ticket send")
-        result = process_new_ticket(participant_id, participant_data, send)
+        result = ticket_service.process_new_ticket(participant_id, participant_data, send)
         if not result.get("success", False):
-            log_failed_ticket_email(participant_id, participant_data, result.get("error", "Unknown error"))
+            ticket_service.log_failed_ticket_email(
+                participant_id,
+                participant_data,
+                result.get("error", "Unknown error"),
+            )
 
         # Newsletter consent handling
         email = participant_data.get("email", "").strip().lower()
@@ -109,7 +119,11 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
 
     except Exception as e:
         print(f"Error in participant trigger: {str(e)}")
-        log_failed_ticket_email(participant_id, snapshot.to_dict() if snapshot else {}, str(e))
+        ticket_service.log_failed_ticket_email(
+            participant_id,
+            snapshot.to_dict() if snapshot else {},
+            str(e),
+        )
 
 
 
@@ -134,12 +148,69 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
         if not send_card:
             print("Skipping membership email send (send_card_on_create=False)")
 
-        result = process_new_membership(membership_id, membership_data, sent_on_create=send_card)
+        membership_dto = MembershipDTO.from_payload(membership_data)
+        documents_service = DocumentsService()
+        document = None
+        card_url = membership_data.get("card_url")
+        storage_path = membership_data.get("card_storage_path")
 
-        if not result.get("success", False):
-            print(f"Failed to process membership: {result.get('error', 'Unknown error')}")
+        if not card_url:
+            try:
+                document = documents_service.create_membership_card(membership_id, membership_dto)
+            except Exception as exc:
+                print(f"Failed to generate membership card: {exc}")
+            else:
+                card_url = document.public_url
+                storage_path = document.storage_path
+                snapshot.reference.update(
+                    {
+                        "card_url": card_url,
+                        "card_storage_path": storage_path,
+                        "membership_sent": False,
+                    }
+                )
+                print(f"Membership processed successfully, PDF URL: {card_url}")
         else:
-            print(f"Membership processed successfully, PDF URL: {result['pdf_url']}")
+            print("Membership already has a card_url, skipping card generation")
+
+        if send_card and card_url:
+            payload = membership_dto.to_payload()
+            payload["membership_id"] = membership_id
+            subject = "Tessera Associativa MCP"
+            html_content = get_membership_email_template(payload)
+            text_content = get_membership_email_text(payload)
+
+            pdf_buffer = document.buffer if document and document.buffer else None
+            if pdf_buffer is None:
+                if not storage_path and "memberships/cards/" in card_url:
+                    storage_path = card_url[card_url.find("memberships/cards/"):]
+                if storage_path:
+                    blob = documents_service.storage.blob(storage_path)
+                    pdf_buffer = BytesIO(blob.download_as_bytes())
+
+            if pdf_buffer:
+                attachment = None
+                if pdf_buffer:
+                    attachment = EmailAttachment(
+                        content=pdf_buffer.getvalue(),
+                        filename=f"{membership_data.get('name', 'user')}_{membership_data.get('surname', '')}_{membership_id}_tessera.pdf",
+                    )
+                sent = mail_service.send(
+                    EmailMessage(
+                        to_email=membership_data.get("email"),
+                        subject=subject,
+                        text_content=text_content,
+                        html_content=html_content,
+                        attachment=attachment,
+                    )
+                )
+                if sent:
+                    snapshot.reference.update({"membership_sent": True})
+                    print(f"Membership card sent to {membership_data.get('email')}")
+                else:
+                    print("Membership card email failed to send")
+            else:
+                print("Missing membership card PDF buffer for email send")
 
         # MailerLite sync for memberships
         try:

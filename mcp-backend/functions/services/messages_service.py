@@ -1,107 +1,100 @@
 import logging
 import os
-from typing import Any, Dict
 
-from flask import jsonify
 from google.cloud import firestore
 
-from config.firebase_config import db
+from dto import ContactMessageDTO
 from models import ContactMessage
-from services.mail_service import gmail_send_email
+from repositories.message_repository import MessageRepository
+from services.mail_service import EmailMessage, mail_service
+from services.service_errors import ExternalServiceError, NotFoundError, ValidationError
 
 logger = logging.getLogger("MessagesService")
 
 
 class MessagesService:
     def __init__(self):
-        self.db = db
-        self.collection = self.db.collection("contact_message")
+        self.message_repository = MessageRepository()
         self.logger = logger
 
-    def _serialize(self, message: ContactMessage) -> Dict[str, Any]:
-        payload = message.to_firestore(include_none=True)
-        payload["id"] = message.id
-        return payload
-
     def get_all(self):
-        try:
-            self.logger.debug("Fetching all contact messages from Firestore.")
-            messages = self.collection.order_by("name").stream()
-            result = [self._serialize(ContactMessage.from_firestore(doc.to_dict() or {}, doc.id)) for doc in messages]
-            self.logger.debug("Found %s messages.", len(result))
-            return jsonify(result), 200
-        except Exception as e:
-            self.logger.error(f"[get_all] {e}")
-            return {"error": str(e)}, 500
+        self.logger.debug("Fetching all contact messages from Firestore.")
+        messages = self.message_repository.list_ordered_by_name()
+        result = [message.to_payload() for message in messages]
+        self.logger.debug("Found %s messages.", len(result))
+        return result
 
     def delete_by_id(self, message_id: str):
-        try:
-            self.logger.debug("Deleting contact message with ID: %s", message_id)
-            if not message_id:
-                return {"error": "Message ID is required"}, 400
-
-            self.collection.document(message_id).delete()
-            return jsonify({"success": True, "deletedId": message_id}), 200
-        except Exception as e:
-            self.logger.error(f"[delete_by_id] {e}")
-            return {"error": str(e)}, 500
+        self.logger.debug("Deleting contact message with ID: %s", message_id)
+        if not message_id:
+            raise ValidationError("Message ID is required")
+        existing = self.message_repository.get(message_id)
+        if not existing:
+            raise NotFoundError("Message not found")
+        self.message_repository.delete(message_id)
+        return {"success": True, "deletedId": message_id}
 
     def reply(self, to: str, subject: str, body: str, message_id: str):
-        try:
-            self.logger.debug("Sending email reply to: %s, subject: %s", to, subject)
+        self.logger.debug("Sending email reply to: %s, subject: %s", to, subject)
 
-            if not to or not body or not message_id:
-                return {"error": "Missing required fields"}, 400
+        if not to or not body or not message_id:
+            raise ValidationError("Missing required fields")
 
-            gmail_send_email(
+        sent = mail_service.send(
+            EmailMessage(
                 to_email=to,
                 subject=subject or "Risposta al tuo messaggio",
-                body=body,
+                text_content=body,
             )
+        )
+        if not sent:
+            raise ExternalServiceError("Failed to send reply email")
 
-            self.collection.document(message_id).update({"answered": True})
-            self.logger.info("Marked message %s as answered", message_id)
-            return jsonify({"success": True, "emailSentTo": to}), 200
-        except Exception as e:
-            self.logger.error(f"[reply] {e}")
-            return {"error": str(e)}, 500
+        self.message_repository.update(message_id, ContactMessageDTO(answered=True))
+        self.logger.info("Marked message %s as answered", message_id)
+        return {"success": True, "emailSentTo": to}
 
-    def submit_contact_message(self, data: Dict[str, Any]):
-        try:
-            required = {"name", "email", "message"}
-            if not required.issubset(data.keys()):
-                return {"error": "Missing required fields"}, 400
+    def submit_contact_message(self, dto: ContactMessageDTO, send_copy: bool = False):
+        if not dto.name or not dto.email or not dto.message:
+            raise ValidationError("Missing required fields")
 
-            name = data["name"]
-            email = data["email"]
-            message_text = data["message"]
-            send_copy = data.get("send_copy")
+        to_email = os.environ.get("USER_EMAIL")
+        if not to_email:
+            raise ValidationError("Missing destination email")
 
-            to_email = os.environ.get("USER_EMAIL")
-            subject = f"Contact Us Form Submission from {name}"
-            body = f"Name: {name}\nEmail: {email}\n\n{message_text}"
+        subject = f"Contact Us Form Submission from {dto.name}"
+        body = f"Name: {dto.name}\nEmail: {dto.email}\n\n{dto.message}"
 
-            sent = gmail_send_email(to_email, subject, body)
-            if not sent:
-                return {"error": "Failed to send message"}, 500
-
-            message = ContactMessage(
-                name=name,
-                email=email,
-                message=message_text,
-                answered=False,
-                timestamp=firestore.SERVER_TIMESTAMP,
+        sent = mail_service.send(
+            EmailMessage(
+                to_email=to_email,
+                subject=subject,
+                text_content=body,
             )
-            doc_ref = self.collection.add(message.to_firestore(include_none=True))[1]
-            self.logger.info("Contact message stored with id %s", doc_ref.id)
+        )
+        if not sent:
+            raise ExternalServiceError("Failed to send message")
 
-            if send_copy:
-                gmail_send_email(
-                    to_email=email,
+        message = ContactMessage(
+            name=dto.name,
+            email=dto.email,
+            message=dto.message,
+            answered=False,
+            subject=dto.subject,
+            participant_id=dto.participant_id,
+            event_id=dto.event_id,
+            error_message=dto.error_message,
+            timestamp=firestore.SERVER_TIMESTAMP,
+        )
+        doc_id = self.message_repository.create_from_model(message)
+        self.logger.info("Contact message stored with id %s", doc_id)
+
+        if send_copy:
+            mail_service.send(
+                EmailMessage(
+                    to_email=dto.email,
                     subject="Copia del tuo messaggio",
-                    body=body,
+                    text_content=body,
                 )
-            return {"message": "Message sent successfully"}, 200
-        except Exception as e:
-            self.logger.error(f"[submit_contact_message] {e}")
-            return {"error": f"ERROR IN SENDING MAIL: {str(e)}"}, 500
+            )
+        return {"message": "Message sent successfully"}

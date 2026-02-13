@@ -7,7 +7,14 @@ from services.mailer_lite import GroupsClient, MailerLiteError
 from .helpers import get_payload, get_query_params, pick, handle_mailerlite_error
 
 
-groups_client = GroupsClient()
+groups_client = None
+
+
+def _get_groups_client():
+    global groups_client
+    if groups_client is None:
+        groups_client = GroupsClient()
+    return groups_client
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -15,8 +22,9 @@ groups_client = GroupsClient()
 def admin_mailerlite_groups(req):
     if req.method == "GET":
         params = get_query_params(req)
+        client = groups_client or _get_groups_client()
         try:
-            return groups_client.list(params=params), 200
+            return client.list(params=params), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -25,8 +33,9 @@ def admin_mailerlite_groups(req):
         name = pick(payload, "name", "group_name", "groupName")
         if not name:
             return {"error": "Missing group name"}, 400
+        client = groups_client or _get_groups_client()
         try:
-            return groups_client.create(name), 200
+            return client.create(name), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -38,8 +47,9 @@ def admin_mailerlite_groups(req):
             return {"error": "Missing group id"}, 400
         if not name:
             return {"error": "Missing group name"}, 400
+        client = groups_client or _get_groups_client()
         try:
-            return groups_client.update(group_id, name), 200
+            return client.update(group_id, name), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -48,8 +58,9 @@ def admin_mailerlite_groups(req):
         group_id = pick(data, "id", "group_id", "groupId") or req.args.get("id")
         if not group_id:
             return {"error": "Missing group id"}, 400
+        client = groups_client or _get_groups_client()
         try:
-            return groups_client.delete(group_id), 200
+            return client.delete(group_id), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -70,8 +81,9 @@ def admin_mailerlite_group_subscribers(req):
     params.pop("group_id", None)
     params.pop("groupId", None)
     params.pop("id", None)
+    client = groups_client or _get_groups_client()
     try:
-        return groups_client.subscribers(group_id, params=params), 200
+        return client.subscribers(group_id, params=params), 200
     except MailerLiteError as e:
         return handle_mailerlite_error(e)
 
@@ -88,8 +100,9 @@ def admin_mailerlite_group_assign_subscriber(req):
     if not group_id or not subscriber_id:
         return {"error": "Missing group_id or subscriber_id"}, 400
 
+    client = groups_client or _get_groups_client()
     try:
-        return groups_client.assign_subscriber(subscriber_id, group_id), 200
+        return client.assign_subscriber(subscriber_id, group_id), 200
     except MailerLiteError as e:
         return handle_mailerlite_error(e)
 
@@ -106,7 +119,8 @@ def admin_mailerlite_group_unassign_subscriber(req):
     if not group_id or not subscriber_id:
         return {"error": "Missing group_id or subscriber_id"}, 400
 
+    client = groups_client or _get_groups_client()
     try:
-        return groups_client.unassign_subscriber(subscriber_id, group_id), 200
+        return client.unassign_subscriber(subscriber_id, group_id), 200
     except MailerLiteError as e:
         return handle_mailerlite_error(e)

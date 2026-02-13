@@ -1,311 +1,239 @@
 import logging
 from datetime import datetime, timezone
+from typing import Any, Optional, List
 
-from flask import jsonify
 from google.cloud import firestore
 
-from config.firebase_config import db
-from models import EventParticipant, EventPurchaseAccessType, Membership
-from services.ticket_service import process_new_ticket
+from dto import EventDTO, EventParticipantDTO, MembershipDTO
+from dto.preorder import CheckoutParticipantDTO
+from models import EventParticipant, EventPurchaseAccessType, Membership, PaymentMethod
+from repositories.event_repository import EventRepository
+from repositories.membership_repository import MembershipRepository
+from repositories.participant_repository import ParticipantRepository
+from services.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError, ForbiddenError
+from services.ticket_service import TicketService
 from utils.events_utils import (
     calculate_end_of_year_membership,
     is_minor,
-    map_purchase_mode,
     normalize_email,
     normalize_phone,
 )
-from utils.participant_rules import run_basic_checks
+from domain.participant_rules import run_basic_checks
 
 
 class ParticipantsService:
     def __init__(self):
         self.logger = logging.getLogger("ParticipantsService")
-        self.collection_name = "participants"
-        self.db = db
-        self.allowed_payment_methods = {"website", "private_paypal", "iban", "cash", "omaggio"}
+        self.event_repository = EventRepository()
+        self.membership_repository = MembershipRepository()
+        self.participant_repository = ParticipantRepository()
+        self.allowed_payment_methods = {method.value for method in PaymentMethod}
+        self.ticket_service = TicketService()
 
-    def _get_collection(self, event_id):
-        return self.db.collection(f"{self.collection_name}/{event_id}/participants_event")
+    def _normalize_price(self, price: Optional[Any]) -> Optional[float]:
+        if price in (None, ""):
+            return None
+        try:
+            return float(price)
+        except (TypeError, ValueError):
+            return None
 
-    def _participant_from_snapshot(self, snapshot, event_id) -> EventParticipant:
-        participant = EventParticipant.from_firestore(snapshot.to_dict() or {}, snapshot.id)
-        participant.event_id = participant.event_id or event_id
-        return participant
+    def _resolve_payment_method(
+        self,
+        payment_method: Optional[str],
+        price_value: Optional[float],
+        purchase_id: Optional[str],
+    ) -> str:
+        method = (payment_method or "").strip().lower()
+        if purchase_id:
+            return PaymentMethod.WEBSITE.value
+        if price_value == 0:
+            return PaymentMethod.OMAGGIO.value
+        if not method:
+            raise ValidationError("Missing payment_method")
+        if method not in self.allowed_payment_methods:
+            raise ValidationError("Invalid payment_method")
+        return method
 
-    def _serialize(self, participant: EventParticipant):
-        payload = participant.to_firestore(include_none=True)
-        payload["id"] = participant.id
-        return payload
-
-    def _apply_updates(self, participant: EventParticipant, updates: dict):
-        mapping = {
-            "name": "name",
-            "surname": "surname",
-            "email": "email",
-            "phone": "phone",
-            "birthdate": "birthdate",
-            "membershipId": "membership_id",
-            "membership_id": "membership_id",
-            "membership_included": "membership_included",
-            "membershipIncluded": "membership_included",
-            "ticket_sent": "ticket_sent",
-            "ticketSent": "ticket_sent",
-            "location_sent": "location_sent",
-            "locationSent": "location_sent",
-            "newsletterConsent": "newsletter_consent",
-            "newsletter_consent": "newsletter_consent",
-            "price": "price",
-            "payment_method": "payment_method",
-            "paymentMethod": "payment_method",
-        }
-
-        for key, value in updates.items():
-            attr = mapping.get(key, key)
-            if hasattr(participant, attr):
-                setattr(participant, attr, value)
+    def _find_membership(self, email: str, phone: str) -> Optional[Membership]:
+        membership = self.membership_repository.find_model_by_email(email) if email else None
+        if not membership and phone:
+            membership = self.membership_repository.find_model_by_phone(phone)
+        return membership
 
     def get_all(self, event_id):
-        try:
-            docs = self._get_collection(event_id).stream()
-            participants = [self._serialize(self._participant_from_snapshot(doc, event_id)) for doc in docs]
-            return jsonify(participants), 200
-        except Exception as e:
-            self.logger.error(f"[get_all] {e}")
-            return {"error": str(e)}, 500
+        participants = self.participant_repository.list(event_id)
+        return [participant.to_payload() for participant in participants]
 
     def get_by_id(self, event_id, participant_id):
-        try:
-            ref = self._get_collection(event_id).document(participant_id)
-            doc = ref.get()
-            if not doc.exists:
-                return {"error": "Participant not found"}, 404
-
-            participant = self._participant_from_snapshot(doc, event_id)
-            return jsonify(self._serialize(participant)), 200
-        except Exception as e:
-            self.logger.error(f"[get_by_id] {e}")
-            return {"error": str(e)}, 500
+        participant = self.participant_repository.get(event_id, participant_id)
+        if not participant:
+            raise NotFoundError("Participant not found")
+        return participant.to_payload()
 
     def create(self, participant_data):
-        try:
-            event_id = participant_data.get("event_id")
-            if not event_id:
-                return {"error": "event_id is required"}, 400
+        dto = participant_data if isinstance(participant_data, EventParticipantDTO) else EventParticipantDTO.from_payload(participant_data)
+        event_id = dto.event_id
+        if not event_id:
+            raise ValidationError("event_id is required")
 
-            birthdate = participant_data.get("birthdate")
-            if not birthdate or is_minor(birthdate):
-                return {"error": "Partecipante minorenne non consentito"}, 403
+        birthdate = dto.birthdate
+        if not birthdate or is_minor(birthdate):
+            raise ForbiddenError("Partecipante minorenne non consentito")
 
-            email = normalize_email(participant_data.get("email"))
-            phone = normalize_phone(participant_data.get("phone"))
-            membership_included = participant_data.get("membership_included", False)
-            payment_method = participant_data.get("payment_method") or participant_data.get("paymentMethod")
-            payment_method = (payment_method or "").strip().lower()
-            purchase_id = participant_data.get("purchase_id")
-            price = participant_data.get("price")
-            try:
-                price_value = float(price) if price not in (None, "") else None
-            except (TypeError, ValueError):
-                price_value = None
+        email = normalize_email(dto.email)
+        phone = normalize_phone(dto.phone)
+        membership_included = bool(dto.membership_included)
+        purchase_id = dto.purchase_id
+        price_value = self._normalize_price(dto.price)
+        payment_method = self._resolve_payment_method(dto.payment_method, price_value, purchase_id)
 
-            if purchase_id:
-                payment_method = "website"
-            elif price_value == 0:
-                payment_method = "omaggio"
-            elif not payment_method:
-                return {"error": "Missing payment_method"}, 400
-            elif payment_method not in self.allowed_payment_methods:
-                return {"error": "Invalid payment_method"}, 400
+        membership_id = None
+        is_member = False
+        membership = self._find_membership(email, phone)
+        if membership:
+            membership_id = membership.id
+            is_member = bool(membership.subscription_valid)
 
-            membership_id = None
-            is_member = False
+        if membership_included and is_member:
+            raise ConflictError("Questo utente è già un membro attivo")
 
-            existing = []
-            if email:
-                existing = (
-                    self.db.collection("memberships")
-                    .where("email", "==", email)
-                    .limit(1)
-                    .get()
-                )
+        if membership_included and not is_member and membership_id:
+            now = datetime.now(timezone.utc)
+            end_date = calculate_end_of_year_membership(now)
+            update_dto = MembershipDTO(
+                subscription_valid=True,
+                start_date=now.isoformat(),
+                end_date=end_date,
+                membership_sent=False,
+                membership_type="manual",
+            )
+            self.membership_repository.update_from_model(membership_id, update_dto)
+            is_member = True
 
-            if not existing and phone:
-                existing = (
-                    self.db.collection("memberships")
-                    .where("phone", "==", phone)
-                    .limit(1)
-                    .get()
-                )
+        if membership_included and not is_member and not membership_id:
+            now = datetime.now(timezone.utc)
+            end_date = calculate_end_of_year_membership(now)
 
-            if existing:
-                member_doc = existing[0]
-                member_data = member_doc.to_dict() or {}
-                membership_id = member_doc.id
-                is_member = bool(member_data.get("subscription_valid"))
-
-            if membership_included and is_member:
-                return {"error": "Questo utente è già un membro attivo"}, 409
-
-            if membership_included and not is_member and membership_id:
-                now = datetime.now(timezone.utc)
-                end_date = calculate_end_of_year_membership(now)
-                update_payload = {
-                    "subscription_valid": True,
-                    "start_date": now.isoformat(),
-                    "end_date": end_date,
-                    "membership_sent": False,
-                    "membership_type": "manual",
-                }
-                self.db.collection("memberships").document(membership_id).update(update_payload)
-                is_member = True
-
-            if membership_included and not is_member and not membership_id:
-                now = datetime.now(timezone.utc)
-                end_date = calculate_end_of_year_membership(now)
-
-                membership = Membership(
-                    name=participant_data.get("name", ""),
-                    surname=participant_data.get("surname", ""),
-                    email=email,
-                    phone=phone,
-                    birthdate=birthdate,
-                    start_date=now.isoformat(),
-                    end_date=end_date,
-                    subscription_valid=True,
-                    membership_sent=False,
-                    membership_type="manual",
-                    purchase_id=None,
-                )
-
-                ref = self.db.collection("memberships").add(membership.to_firestore(include_none=True))[1]
-                membership_id = ref.id
-                self.logger.info(f"✅ Nuova membership creata: {membership_id}")
-
-            event_doc = self.db.collection("events").document(event_id).get()
-            if not event_doc.exists:
-                return {"error": "Evento non trovato"}, 404
-
-            event_type = event_doc.to_dict().get("type", "")
-            if event_type == "community" and not (membership_id or is_member):
-                return {"error": "Per eventi community è richiesta la membership attiva"}, 403
-
-            participant = EventParticipant(
-                event_id=event_id,
-                name=participant_data.get("name", ""),
-                surname=participant_data.get("surname", ""),
+            membership_model = Membership(
+                name=dto.name or "",
+                surname=dto.surname or "",
                 email=email,
                 phone=phone,
                 birthdate=birthdate,
-                membership_included=bool(membership_id or membership_included),
-                membership_id=membership_id,
-                payment_method=payment_method or "website",
-                ticket_sent=participant_data.get("ticket_sent", False),
-                location_sent=participant_data.get("location_sent", False),
-                newsletter_consent=participant_data.get("newsletterConsent", False),
-                price=participant_data.get("price"),
-                purchase_id=purchase_id,
-                created_at=firestore.SERVER_TIMESTAMP,
+                start_date=now.isoformat(),
+                end_date=end_date,
+                subscription_valid=True,
+                membership_sent=False,
+                membership_type="manual",
+                purchase_id=None,
             )
 
-            doc_ref = self._get_collection(event_id).add(participant.to_firestore(include_none=True))
-            participant_id = doc_ref[1].id
-            self.logger.info(f"👤 Partecipante creato: {participant_id}")
+            membership_id = self.membership_repository.create_from_model(membership_model)
+            self.logger.info("Nuova membership creata: %s", membership_id)
 
-            if membership_id:
-                self.db.collection("memberships").document(membership_id).update(
-                    {"attended_events": firestore.ArrayUnion([event_id])}
-                )
+        event_model = self.event_repository.get_model(event_id)
+        if not event_model:
+            raise NotFoundError("Evento non trovato")
 
-            return jsonify({"message": "Participant created", "id": participant_id}), 201
+        purchase_mode = event_model.purchase_mode or EventPurchaseAccessType.PUBLIC
+        if purchase_mode == EventPurchaseAccessType.ONLY_MEMBERS and not (membership_id or is_member):
+            raise ForbiddenError("Per eventi riservati ai membri è richiesta la membership attiva")
 
-        except Exception as e:
-            self.logger.error(f"[create] {e}")
-            return {"error": str(e)}, 500
+        try:
+            payment_enum = PaymentMethod(payment_method)
+        except ValueError as exc:
+            raise ValidationError("Invalid payment_method") from exc
+
+        participant = EventParticipant(
+            event_id=event_id,
+            name=dto.name or "",
+            surname=dto.surname or "",
+            email=email,
+            phone=phone,
+            birthdate=birthdate,
+            membership_included=bool(membership_id or membership_included),
+            membership_id=membership_id,
+            payment_method=payment_enum,
+            ticket_sent=bool(dto.ticket_sent) if dto.ticket_sent is not None else False,
+            location_sent=bool(dto.location_sent) if dto.location_sent is not None else False,
+            newsletter_consent=bool(dto.newsletter_consent) if dto.newsletter_consent is not None else False,
+            price=price_value,
+            purchase_id=purchase_id,
+            created_at=firestore.SERVER_TIMESTAMP,
+        )
+
+        participant_id = self.participant_repository.create_from_model(event_id, participant)
+        self.logger.info("Partecipante creato: %s", participant_id)
+
+        if membership_id:
+            self.membership_repository.add_attended_event(membership_id, event_id)
+
+        return {"message": "Participant created", "id": participant_id}
 
     def update(self, event_id, participant_id, data):
-        try:
-            doc_ref = self._get_collection(event_id).document(participant_id)
-            snapshot = doc_ref.get()
-            if not snapshot.exists:
-                return jsonify({"error": "Participant not found"}), 404
+        participant = self.participant_repository.get(event_id, participant_id)
+        if not participant:
+            raise NotFoundError("Participant not found")
 
-            participant = self._participant_from_snapshot(snapshot, event_id)
+        update_dto = data if isinstance(data, EventParticipantDTO) else EventParticipantDTO.from_payload(data)
 
-            if participant.purchase_id and "payment_method" in data:
-                return jsonify({"error": "Cannot change payment_method for website purchase"}), 400
+        if participant.purchase_id and update_dto.payment_method is not None:
+            raise ValidationError("Cannot change payment_method for website purchase")
 
-            if participant.purchase_id and "price" in data:
-                return jsonify({"error": "Modifica del prezzo non permessa: purchase già registrato"}), 400
+        if participant.purchase_id and update_dto.price is not None:
+            raise ValidationError("Modifica del prezzo non permessa: purchase già registrato")
 
-            if participant.purchase_id and "price" in data:
-                data.pop("price", None)
-
-            self._apply_updates(participant, data)
-            doc_ref.set(participant.to_firestore(include_none=True))
-            return jsonify({"message": "Participant updated"}), 200
-
-        except Exception as e:
-            self.logger.error(f"[update] {e}")
-            return {"error": str(e)}, 500
+        self.participant_repository.update(event_id, participant_id, update_dto)
+        return {"message": "Participant updated"}
 
     def delete(self, event_id, participant_id):
-        try:
-            self._get_collection(event_id).document(participant_id).delete()
-            return jsonify({"message": "Participant deleted"}), 200
-        except Exception as e:
-            self.logger.error(f"[delete] {e}")
-            return {"error": str(e)}, 500
+        self.participant_repository.delete(event_id, participant_id)
+        return {"message": "Participant deleted"}
 
     def send_ticket(self, event_id, participant_id):
-        try:
-            doc_ref = self._get_collection(event_id).document(participant_id)
-            doc = doc_ref.get()
+        participant = self.participant_repository.get(event_id, participant_id)
+        if not participant:
+            raise NotFoundError("Participant not found")
 
-            if not doc.exists:
-                return {"error": "Participant not found"}, 404
-
-            participant = self._participant_from_snapshot(doc, event_id)
-            result = process_new_ticket(participant_id, self._serialize(participant))
-
-            if result.get("success"):
-                return jsonify({"message": "Ticket inviato con successo"}), 200
-            return {"error": result.get("error", "Errore durante l'invio")}, 500
-
-        except Exception as e:
-            self.logger.error(f"[send_ticket] {e}")
-            return {"error": str(e)}, 500
+        result = self.ticket_service.process_new_ticket(participant_id, participant)
+        if result.get("success"):
+            return {"message": "Ticket inviato con successo"}
+        raise ExternalServiceError(result.get("error", "Errore durante l'invio"))
 
     def check_participants(self, event_id: str, participants: list):
-        try:
-            if not event_id or not isinstance(participants, list) or not participants:
-                return jsonify({"error": "eventId o participants mancanti"}), 400
+        if not event_id or not isinstance(participants, list) or not participants:
+            raise ValidationError("eventId o participants mancanti")
 
-            event_doc = self.db.collection("events").document(event_id).get()
-            if not event_doc.exists:
-                return jsonify({"error": "Evento non trovato"}), 404
-            event_data = event_doc.to_dict() or {}
+        event_model = self.event_repository.get_model(event_id)
+        if not event_model:
+            raise NotFoundError("Evento non trovato")
 
-            purchase_mode = map_purchase_mode(event_data.get("type"))
+        purchase_mode = event_model.purchase_mode or EventPurchaseAccessType.PUBLIC
 
-            result = run_basic_checks(event_id, participants, event_data)
-            if result.errors:
-                return jsonify({"valid": False, "errors": result.errors}), 400
+        normalized_participants: List[CheckoutParticipantDTO] = []
+        for entry in participants:
+            if isinstance(entry, CheckoutParticipantDTO):
+                normalized_participants.append(entry)
+            elif isinstance(entry, dict):
+                normalized_participants.append(CheckoutParticipantDTO.from_payload(entry))
 
-            if purchase_mode == EventPurchaseAccessType.ON_REQUEST:
-                return (
-                    jsonify({"valid": True, "members": result.members, "nonMembers": result.non_members}),
-                    200,
-                )
+        result = run_basic_checks(event_id, normalized_participants, event_model)
+        if result.errors:
+            err = ValidationError("validation_error")
+            err.details = result.errors
+            raise err
 
-            if purchase_mode == EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS and result.non_members:
-                msg = (
-                    "Evento riservato ai membri: i seguenti partecipanti non risultano tesserati o attivi: "
-                    + ", ".join(result.non_members)
-                )
-                return jsonify({"valid": False, "errors": [msg]}), 400
+        if purchase_mode == EventPurchaseAccessType.ON_REQUEST:
+            return {"valid": True, "members": result.members, "nonMembers": result.non_members}
 
-            return jsonify({"valid": True}), 200
+        if purchase_mode == EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS and result.non_members:
+            msg = (
+                "Evento riservato ai membri: i seguenti partecipanti non risultano tesserati o attivi: "
+                + ", ".join(result.non_members)
+            )
+            err = ValidationError("validation_error")
+            err.details = [msg]
+            raise err
 
-        except Exception as e:
-            self.logger.error(f"[check_participants] {e}")
-            return jsonify({"error": "Internal server error"}), 500
+        return {"valid": True}

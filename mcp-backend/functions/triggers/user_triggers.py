@@ -1,7 +1,7 @@
 from firebase_functions import firestore_fn
 from firebase_admin import initialize_app, firestore
-from config.email_templates import get_welcome_email_text, get_welcome_email_template
-from services.mail_service import gmail_send_email_template
+from utils.templates_mail import get_welcome_email_text, get_welcome_email_template
+from services.mail_service import EmailMessage, mail_service
 from config.firebase_config import db, cors, bucket
 
 
@@ -20,7 +20,14 @@ def on_new_user_created(event: firestore_fn.Event[firestore_fn.DocumentSnapshot]
         text_content = get_welcome_email_text(new_user['firstName'])
         subject = "Welcome to MCP Community!"
         
-        email_sent = gmail_send_email_template(new_user['email'], subject, text_content, html_content)
+        email_sent = mail_service.send(
+            EmailMessage(
+                to_email=new_user['email'],
+                subject=subject,
+                text_content=text_content,
+                html_content=html_content,
+            )
+        )
         
         if email_sent:
             print(f"Welcome email sent to {new_user['email']}")

@@ -6,6 +6,7 @@ MAILERLITE_GROUP_MEMBERSHIPS = "memberships"
 from utils.events_utils import normalize_email
 
 from .client import MailerLiteClient, MailerLiteError, filter_kwargs
+from .dto import MailerLiteSubscriberDTO, parse_group_list
 from .groups_client import GroupsClient
 from .subscribers_registry import MailerLiteSubscribersRegistry
 
@@ -70,9 +71,9 @@ class SubscribersClient:
         create_email = normalized or email
         response = self.client.call(self.client.sdk.subscribers.create, create_email, **kwargs)
         try:
-            subscriber_id = self._extract_id(response)
-            if subscriber_id and normalized:
-                self.registry.upsert(normalized, str(subscriber_id))
+            subscriber = self._parse_subscriber(response)
+            if subscriber and subscriber.id_str and normalized:
+                self.registry.upsert(normalized, subscriber.id_str)
         except Exception as e:
             logger.warning("Unable to store MailerLite subscriber %s: %s", email, e)
         return response
@@ -141,22 +142,13 @@ class SubscribersClient:
     def _log_debug(self, label: str, payload: Any) -> None:
         logger.debug("%s -> %s", label, self._response_summary(payload))
 
-    def _extract_data(self, payload: Any) -> Dict[str, Any]:
-        if isinstance(payload, dict):
-            data = payload.get("data")
-            if isinstance(data, dict):
-                return data
-            return payload
-        return {}
+    def _parse_subscriber(self, payload: Any) -> Optional[MailerLiteSubscriberDTO]:
+        return MailerLiteSubscriberDTO.from_response(payload)
 
-    def _extract_id(self, payload: Any) -> Optional[Any]:
-        if isinstance(payload, dict):
-            data = payload.get("data")
-            if isinstance(data, dict) and data.get("id") is not None:
-                return data.get("id")
-            if payload.get("id") is not None:
-                return payload.get("id")
-        return None
+    def _ensure_subscriber(self, payload: Any) -> Optional[MailerLiteSubscriberDTO]:
+        if isinstance(payload, MailerLiteSubscriberDTO):
+            return payload
+        return MailerLiteSubscriberDTO.from_response(payload)
 
     def _validate_fields(self, fields: Optional[Dict[str, Any]]) -> None:
         if not fields:
@@ -177,17 +169,17 @@ class SubscribersClient:
             params={"limit": 1, "page": 1, "filter": {"name": group_name}}
         )
         self._log_debug(f"groups.list filter name={group_name}", response)
-        data = response.get("data") if isinstance(response, dict) else None
-        if not data:
+        groups = parse_group_list(response)
+        if not groups:
             raise ValueError(f"MailerLite group not found: {group_name}")
-        item = data[0] if isinstance(data, list) else data
-        if not isinstance(item, dict) or not item.get("id"):
+        group = groups[0]
+        if group.id is None:
             raise ValueError(f"MailerLite group missing id: {group_name}")
-        group_id = int(item.get("id"))
+        group_id = group.id
         self._group_cache[group_name] = group_id
         return group_id
 
-    def _get_or_create_subscriber(self, email: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _get_or_create_subscriber(self, email: str, fields: Dict[str, Any]) -> Optional[MailerLiteSubscriberDTO]:
         normalized = normalize_email(email)
         if not normalized:
             return None
@@ -197,34 +189,37 @@ class SubscribersClient:
             try:
                 response = self.get(normalized)
                 self._log_debug(f"subscribers.get email={normalized}", response)
-                data = self._extract_data(response)
-                if data.get("id"):
-                    return data
+                subscriber = self._parse_subscriber(response)
+                if subscriber and subscriber.id:
+                    return subscriber
             except Exception:
                 pass
-            return {"id": str(cached.get("mailerlite_id")), "email": normalized}
+            return MailerLiteSubscriberDTO(
+                id=self._to_int(cached.get("mailerlite_id"), "subscriber_id"),
+                email=normalized,
+            )
 
         try:
             response = self.get(normalized)
             self._log_debug(f"subscribers.get email={normalized}", response)
-            data = self._extract_data(response)
-            if data.get("id"):
-                return data
+            subscriber = self._parse_subscriber(response)
+            if subscriber and subscriber.id:
+                return subscriber
         except Exception:
             pass
 
         try:
             response = self.create(normalized, {"fields": fields})
             self._log_debug(f"subscribers.create email={normalized}", response)
-            data = self._extract_data(response)
-            if not data.get("id"):
+            subscriber = self._parse_subscriber(response)
+            if not (subscriber and subscriber.id):
                 try:
                     refreshed = self.get(normalized)
                     self._log_debug(f"subscribers.get email={normalized} (post-create)", refreshed)
-                    data = self._extract_data(refreshed)
+                    subscriber = self._parse_subscriber(refreshed)
                 except Exception:
                     pass
-            return data
+            return subscriber
         except Exception as e:
             logger.warning("Unable to create subscriber %s: %s", normalized, e)
             return None
@@ -237,8 +232,8 @@ class SubscribersClient:
         except Exception as e:
             logger.warning("Unable to store registry for %s: %s", email, e)
 
-    def _activate_if_needed(self, email: str, data: Dict[str, Any]):
-        status = str(data.get("status") or "").lower()
+    def _activate_if_needed(self, email: str, subscriber: MailerLiteSubscriberDTO):
+        status = str(subscriber.status or "").lower()
         if status and status != "active":
             try:
                 self.update(email, {"status": "active", "resubscribe": True})
@@ -260,10 +255,14 @@ class SubscribersClient:
             logger.warning("Invalid fields for %s: %s", email, e.payload or e)
             return None
         subscriber = self._get_or_create_subscriber(email, compact_fields)
+        subscriber = self._ensure_subscriber(subscriber)
         if not subscriber:
             return None
 
-        subscriber_id = subscriber.get("id")
+        subscriber_id = subscriber.id_str
+        if not subscriber_id:
+            logger.warning("Missing subscriber id for %s; skip group assignment", email)
+            return None
         self._store_registry(email, subscriber_id)
         self._activate_if_needed(email, subscriber)
 
@@ -304,10 +303,14 @@ class SubscribersClient:
             logger.warning("Invalid fields for %s: %s", email, e.payload or e)
             return None
         subscriber = self._get_or_create_subscriber(email, compact_fields)
+        subscriber = self._ensure_subscriber(subscriber)
         if not subscriber:
             return None
 
-        subscriber_id = subscriber.get("id")
+        subscriber_id = subscriber.id_str
+        if not subscriber_id:
+            logger.warning("Missing subscriber id for %s; skip group assignment", email)
+            return None
         self._store_registry(email, subscriber_id)
         self._activate_if_needed(email, subscriber)
 

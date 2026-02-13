@@ -8,16 +8,21 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 # === Logging config ===
 logging.basicConfig(level=logging.DEBUG)  # Usa INFO o WARNING in produzione
 
+# === Mail Service init ===
+from services.mail_service import init_mail_service
+
+init_mail_service()
+
 # === Firebase Config ===
 from firebase_admin import credentials, firestore, auth
 from config.firebase_config import db, bucket, cors
 
 # === API Pubbliche ===
-from api.contact_api import  contact_us
-from api.newsletter_api import newsletter_signup
-from api.event_payment_api import create_order_event, capture_order_event
-from api.events_api import get_event_by_id, get_next_event, get_all_events
-from api.events_tickets_api import check_participants
+from api.public.contact_api import contact_us
+from api.public.newsletter_api import newsletter_signup
+from api.public.event_payment_api import create_order_event, capture_order_event
+from api.public.events_api import get_event_by_id, get_next_event, get_all_events
+from api.public.events_tickets_api import check_participants
 
 
 
@@ -42,8 +47,7 @@ from api.admin.events_api import (
     admin_update_event,
     admin_delete_event,
     admin_get_all_events,
-    admin_get_event_by_id,
-    admin_upload_event_photo
+    admin_get_event_by_id
 )
 
 # === API Admin: Participants ===

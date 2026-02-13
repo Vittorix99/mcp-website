@@ -6,15 +6,43 @@ from flask import request, jsonify
 from config.firebase_config import cors
 from services.auth_service import require_admin
 from services.memberships_service import MembershipsService
+from services.membership_reports_service import MembershipReportsService
+from services.service_errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ServiceError,
+    ValidationError,
+)
+from dto import MembershipDTO
 
 memberships_service = MembershipsService()
+membership_reports_service = MembershipReportsService()
+
+
+def _handle_service_error(err: Exception):
+    if isinstance(err, ValidationError):
+        return jsonify({"error": str(err)}), 400
+    if isinstance(err, ForbiddenError):
+        return jsonify({"error": str(err)}), 403
+    if isinstance(err, NotFoundError):
+        return jsonify({"error": str(err)}), 404
+    if isinstance(err, ConflictError):
+        return jsonify({"error": str(err)}), 409
+    if isinstance(err, ServiceError):
+        return jsonify({"error": str(err)}), 500
+    return jsonify({"error": "Internal server error"}), 500
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
 def get_memberships(req):
     if req.method != "GET":
         return "Invalid method", 405
-    return memberships_service.get_all()
+    try:
+        payload = memberships_service.get_all()
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
@@ -25,7 +53,11 @@ def get_membership(req):
     slug = req.args.get("slug")
     if not membership_id and not slug:
         return {"error": "Missing membership ID or slug"}, 400
-    return memberships_service.get_by_id(membership_id, slug=slug)
+    try:
+        payload = memberships_service.get_by_id(membership_id, slug=slug)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
@@ -35,7 +67,12 @@ def create_membership(req):
     data = request.get_json()
     if not data:
         return {"error": "Missing JSON body"}, 400
-    return memberships_service.create(data)
+    dto = MembershipDTO.from_payload(data)
+    try:
+        payload = memberships_service.create(dto)
+        return jsonify(payload), 201
+    except Exception as err:
+        return _handle_service_error(err)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
@@ -46,7 +83,12 @@ def update_membership(req):
     if not data or "membership_id" not in data:
         return {"error": "Missing membership_id or body"}, 400
     membership_id = data.pop("membership_id")
-    return memberships_service.update(membership_id, data)
+    dto = MembershipDTO.from_payload(data)
+    try:
+        payload = memberships_service.update(membership_id, dto)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
@@ -57,7 +99,11 @@ def delete_membership(req):
     membership_id = data.get("membership_id")
     if not membership_id:
         return {"error": "Missing membership_id"}, 400
-    return memberships_service.delete(membership_id)
+    try:
+        payload = memberships_service.delete(membership_id)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
@@ -68,7 +114,11 @@ def send_membership_card(req):
     membership_id = data.get("membership_id")
     if not membership_id:
         return {"error": "Missing membership_id"}, 400
-    return memberships_service.send_card(membership_id)
+    try:
+        payload = memberships_service.send_card(membership_id)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
@@ -81,12 +131,16 @@ def get_membership_purchases(req):
     if not membership_id and not slug:
         return {"error": "Missing membership_id or slug"}, 400
     if not membership_id and slug:
-        resolved = memberships_service.get_by_id(None, slug=slug)
-        if isinstance(resolved, tuple) and resolved[1] == 200:
-            membership_id = resolved[0].get_json().get("id")
-        else:
-            return resolved
-    return memberships_service.get_purchases(membership_id)
+        try:
+            resolved_payload = memberships_service.get_by_id(None, slug=slug)
+            membership_id = resolved_payload.get("id")
+        except Exception as err:
+            return _handle_service_error(err)
+    try:
+        payload = memberships_service.get_purchases(membership_id)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -100,12 +154,16 @@ def get_membership_events(req):
     if not membership_id and not slug:
         return {"error": "Missing membership_id or slug"}, 400
     if not membership_id and slug:
-        resolved = memberships_service.get_by_id(None, slug=slug)
-        if isinstance(resolved, tuple) and resolved[1] == 200:
-            membership_id = resolved[0].get_json().get("id")
-        else:
-            return resolved
-    return memberships_service.get_events(membership_id)
+        try:
+            resolved_payload = memberships_service.get_by_id(None, slug=slug)
+            membership_id = resolved_payload.get("id")
+        except Exception as err:
+            return _handle_service_error(err)
+    try:
+        payload = memberships_service.get_events(membership_id)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -121,7 +179,11 @@ def set_membership_price(req):
     if membership_fee is None:
         return {"error": "Missing membership_fee"}, 400
 
-    return memberships_service.set_membership_price(membership_fee, year=year)
+    try:
+        payload = memberships_service.set_membership_price(membership_fee, year=year)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -131,7 +193,11 @@ def get_membership_price(req):
         return "Invalid method", 405
 
     year = req.args.get("year")
-    return memberships_service.get_membership_price(year=year)
+    try:
+        payload = memberships_service.get_membership_price(year=year)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -143,4 +209,8 @@ def get_memberships_report(req):
     event_id = req.args.get("event_id")
     if not event_id:
         return {"error": "Missing event_id"}, 400
-    return memberships_service.get_memberships_report(event_id=event_id)
+    try:
+        payload = membership_reports_service.get_memberships_report(event_id=event_id)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)

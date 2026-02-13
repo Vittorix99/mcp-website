@@ -4,9 +4,11 @@ from .enums import EventPurchaseAccessType, EventStatus, PaymentMethod, Purchase
 from .event import Event
 from .event_participant import EventParticipant
 from .event_purchase import EventPurchase
-from .membership import Membership
+from .job import Job
+from .membership import Membership, MembershipRef
 from .newsletter_consent import NewsletterConsent
 from .newsletter_signup import NewsletterSignup
+from .paypal import PayPalCaptureInfo, PayPalOrderCreateResponse, PayPalOrderInfo, PayPalPayerInfo
 from .settings import Setting
 from .order import Order, EventOrder
 from .purchase import Purchase
@@ -21,11 +23,17 @@ __all__ = [
     "EventParticipant",
     "Purchase",
     "EventPurchase",
+    "Job",
+    "MembershipRef",
     "Membership",
     "Order",
     "EventOrder",
     "ContactMessage",
     "NewsletterConsent",
     "NewsletterSignup",
+    "PayPalPayerInfo",
+    "PayPalCaptureInfo",
+    "PayPalOrderInfo",
+    "PayPalOrderCreateResponse",
     "Setting",
 ]

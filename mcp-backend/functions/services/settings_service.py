@@ -1,33 +1,27 @@
-from config.firebase_config import db
-from models.settings import Setting
+from dto import SettingDTO
+from repositories.settings_repository import SettingsRepository
+from services.service_errors import NotFoundError, ValidationError
 
 
 class SettingsService:
     def __init__(self):
-        self.collection = db.collection("settings")
+        self.settings_repository = SettingsRepository()
 
     def get_setting(self, key):
-        try:
-            doc = self.collection.document(key).get()
-            if not doc.exists:
-                return None
-            return Setting.from_firestore(doc.to_dict() or {}, doc_id=doc.id)
-        except Exception as e:
-            raise Exception(f"[get_setting] Error fetching {key}: {str(e)}")
+        if not key:
+            raise ValidationError("Missing key")
+        setting = self.settings_repository.get_dto(key)
+        if not setting:
+            raise NotFoundError("Setting not found")
+        return setting
 
     def set_setting(self, key, value):
-        try:
-            setting = Setting(key=key, value=value)
-            self.collection.document(key).set(setting.to_firestore())
-            return setting
-        except Exception as e:
-            raise Exception(f"[set_setting] Error setting {key}: {str(e)}")
+        if not key:
+            raise ValidationError("Missing key")
+        if value is None:
+            raise ValidationError("Missing value")
+        setting = self.settings_repository.save(key, value)
+        return SettingDTO.from_model(setting)
 
     def get_all_settings(self):
-        try:
-            entries = []
-            for doc in self.collection.stream():
-                entries.append(Setting.from_firestore(doc.to_dict() or {}, doc_id=doc.id))
-            return entries
-        except Exception as e:
-            raise Exception(f"[get_all_settings] Error fetching all settings: {str(e)}")
+        return self.settings_repository.list_dtos()

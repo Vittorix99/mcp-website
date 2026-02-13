@@ -16,16 +16,16 @@ class EventParticipantDTO:
     phone: str = ""
     birthdate: Optional[str] = None
     membership_id: Optional[str] = None
-    membership_included: bool = False
+    membership_included: Optional[bool] = None
     ticket_pdf_url: Optional[str] = None
-    ticket_sent: bool = False
-    send_ticket_on_create: bool = True
-    location_sent: bool = False
+    ticket_sent: Optional[bool] = None
+    send_ticket_on_create: Optional[bool] = None
+    location_sent: Optional[bool] = None
     location_sent_at: Optional[Any] = None
     location_job_id: Optional[str] = None
     gender: Optional[str] = None
     gender_probability: Optional[float] = None
-    newsletter_consent: bool = False
+    newsletter_consent: Optional[bool] = None
     price: Optional[float] = None
     payment_method: Optional[str] = None
     purchase_id: Optional[str] = None
@@ -58,6 +58,49 @@ class EventParticipantDTO:
             created_at=participant.created_at,
         )
 
+    @classmethod
+    def from_payload(cls, payload: Dict[str, Any]) -> "EventParticipantDTO":
+        def pick(key, alternate=None):
+            if key in payload:
+                return payload.get(key)
+            if alternate and alternate in payload:
+                return payload.get(alternate)
+            return None
+
+        def pick_bool(key, alternate=None):
+            if key in payload:
+                value = payload.get(key)
+                return None if value is None else bool(value)
+            if alternate and alternate in payload:
+                value = payload.get(alternate)
+                return None if value is None else bool(value)
+            return None
+
+        return cls(
+            id=payload.get("id"),
+            event_id=pick("event_id", "eventId") or "",
+            name=pick("name") or "",
+            surname=pick("surname") or "",
+            email=pick("email") or "",
+            phone=pick("phone") or "",
+            birthdate=pick("birthdate"),
+            membership_id=pick("membership_id", "membershipId"),
+            membership_included=pick_bool("membership_included", "membershipIncluded"),
+            ticket_pdf_url=pick("ticket_pdf_url"),
+            ticket_sent=pick_bool("ticket_sent"),
+            send_ticket_on_create=pick_bool("send_ticket_on_create", "sendTicketOnCreate"),
+            location_sent=pick_bool("location_sent"),
+            location_sent_at=pick("location_sent_at"),
+            location_job_id=pick("location_job_id"),
+            gender=pick("gender"),
+            gender_probability=pick("gender_probability"),
+            newsletter_consent=pick_bool("newsletterConsent", "newsletter_consent"),
+            price=pick("price"),
+            payment_method=pick("payment_method"),
+            purchase_id=pick("purchase_id"),
+            created_at=pick("createdAt", "created_at"),
+        )
+
     def to_payload(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
             "id": self.id,
@@ -84,3 +127,9 @@ class EventParticipantDTO:
             "createdAt": self.created_at,
         }
         return {k: v for k, v in payload.items() if v is not None}
+
+    def to_update_payload(self) -> Dict[str, Any]:
+        payload = self.to_payload()
+        payload.pop("id", None)
+        payload.pop("event_id", None)
+        return {k: v for k, v in payload.items() if not (isinstance(v, str) and v == "")}

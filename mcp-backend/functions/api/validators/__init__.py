@@ -13,7 +13,6 @@ from .events import (
     DELETE_EVENT_SCHEMA,
     EVENT_ID_QUERY_SCHEMA,
     UPDATE_EVENT_SCHEMA,
-    UPLOAD_EVENT_PHOTO_SCHEMA,
 )
 from .messages import DELETE_MESSAGE_SCHEMA, REPLY_MESSAGE_SCHEMA
 from .newsletter import (
@@ -83,7 +82,6 @@ __all__ = [
     "CREATE_EVENT_SCHEMA",
     "UPDATE_EVENT_SCHEMA",
     "DELETE_EVENT_SCHEMA",
-    "UPLOAD_EVENT_PHOTO_SCHEMA",
     "PREORDER_SCHEMA",
     "CAPTURE_ORDER_SCHEMA",
     "require_json_body",

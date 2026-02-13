@@ -3,6 +3,13 @@ from firebase_functions import https_fn
 from config.firebase_config import cors
 from services.auth_service import require_admin
 from services.events_service import EventsService
+from services.service_errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ServiceError,
+    ValidationError,
+)
 from config.firebase_config import region
 
 from flask import jsonify
@@ -11,7 +18,6 @@ from api.validators import (
     DELETE_EVENT_SCHEMA,
     EVENT_ID_QUERY_SCHEMA,
     UPDATE_EVENT_SCHEMA,
-    UPLOAD_EVENT_PHOTO_SCHEMA,
     inject_payload_dto,
     inject_payload_fields,
     inject_query_params,
@@ -23,6 +29,20 @@ from dto import EventDTO
 
 logger = logging.getLogger("AdminEventsAPI")
 events_service = EventsService()
+
+
+def _handle_service_error(err: Exception):
+    if isinstance(err, ValidationError):
+        return jsonify({"error": str(err)}), 400
+    if isinstance(err, ForbiddenError):
+        return jsonify({"error": str(err)}), 403
+    if isinstance(err, NotFoundError):
+        return jsonify({"error": str(err)}), 404
+    if isinstance(err, ConflictError):
+        return jsonify({"error": str(err)}), 409
+    if isinstance(err, ServiceError):
+        return jsonify({"error": str(err)}), 500
+    return jsonify({"error": "Internal server error"}), 500
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -40,15 +60,14 @@ def admin_create_event(req, event_dto):
     try:
         admin_uid = req.admin_token["uid"]
         logger.debug(f"Admin UID: {admin_uid}")
-        payload = event_dto.to_payload()
         print("[admin_create_event] raw request json:", req.get_json(silent=True))
-        print("[admin_create_event] dto payload:", payload)
-        response, status = events_service.create_event(payload, admin_uid)
+        print("[admin_create_event] dto payload:", event_dto.to_payload())
+        payload = events_service.create_event(event_dto, admin_uid)
         logger.info("Event created successfully")
-        return response, status
+        return jsonify(payload), 201
     except Exception as e:
         logger.error(f"[admin_create_event] {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        return _handle_service_error(e)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -69,19 +88,18 @@ def admin_update_event(req, id, event_dto):
         admin_uid = req.admin_token["uid"]
         logger.debug(f"Updating event {event_id} by admin {admin_uid}")
         raw_payload = req.get_json(silent=True) or {}
-        payload = event_dto.to_payload()
-        if "photoPath" in raw_payload and raw_payload.get("photoPath") is None:
-            payload["photoPath"] = None
-        if "photo_path" in raw_payload and raw_payload.get("photo_path") is None:
-            payload["photoPath"] = None
         print(f"[admin_update_event] raw request json (id={event_id}):", raw_payload)
-        print(f"[admin_update_event] dto payload (id={event_id}):", payload)
-        response, status = events_service.update_event(event_id, payload, admin_uid)
+        print(f"[admin_update_event] dto payload (id={event_id}):", event_dto.to_payload())
+        payload = events_service.update_event(
+            event_id,
+            event_dto,
+            admin_uid,
+        )
         logger.info(f"Event {event_id} updated successfully")
-        return response, status
+        return jsonify(payload), 200
     except Exception as e:
         logger.error(f"[admin_update_event] {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        return _handle_service_error(e)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -101,13 +119,13 @@ def admin_delete_event(req, id):
         admin_uid = req.admin_token["uid"]
         logger.debug(f"Deleting event {event_id} by admin {admin_uid}")
 
-        response, status = events_service.delete_event(event_id, admin_uid)
+        payload = events_service.delete_event(event_id, admin_uid)
         logger.info(f"Event {event_id} deleted successfully")
-        return response, status
+        return jsonify(payload), 200
 
     except Exception as e:
         logger.error(f"[admin_delete_event] {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        return _handle_service_error(e)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -120,12 +138,12 @@ def admin_get_all_events(req):
         return 'Invalid request method', 405
 
     try:
-        response, status = events_service.get_all_events()
+        payload = events_service.get_all_events()
         logger.info("Fetched all events successfully")
-        return response, status
+        return jsonify(payload), 200
     except Exception as e:
         logger.error(f"[admin_get_all_events] {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return _handle_service_error(e)
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -145,33 +163,9 @@ def admin_get_event_by_id(req, id=None, slug=None):
         return jsonify({"error": "Missing event ID or slug"}), 400
 
     try:
-        response, status = events_service.get_event_by_id(slug or event_id)
+        payload = events_service.get_event_by_id(event_id, slug=slug)
         logger.info(f"Event {event_id} fetched successfully")
-        return response, status
+        return jsonify(payload), 200
     except Exception as e:
         logger.error(f"[admin_get_event_by_id] {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
-@require_json_body
-@validate_body_fields(UPLOAD_EVENT_PHOTO_SCHEMA, allow_extra=False)
-@inject_payload_fields([("event_id", "eventId"), ("photo_data", "image")])
-def admin_upload_event_photo(req, event_id, photo_data):
-    logger.debug("admin_upload_event_photo called")
-
-    if req.method != "POST":
-        logger.debug("Invalid method for admin_upload_event_photo")
-        return "Invalid request method", 405
-
-    try:
-        # event_id and photo_data provided via decorator
-        admin_uid = req.admin_token["uid"]
-        logger.debug(f"Uploading photo for event {event_id} by admin {admin_uid}")
-        response, status = events_service.upload_event_photo(event_id, photo_data, admin_uid)
-        logger.info(f"Photo uploaded for event {event_id}")
-        return response, status
-    except Exception as e:
-        logger.error(f"[admin_upload_event_photo] {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        return _handle_service_error(e)

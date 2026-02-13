@@ -7,7 +7,14 @@ from services.mailer_lite import FieldsClient, MailerLiteError
 from .helpers import get_payload, get_query_params, pick, handle_mailerlite_error
 
 
-fields_client = FieldsClient()
+fields_client = None
+
+
+def _get_fields_client():
+    global fields_client
+    if fields_client is None:
+        fields_client = FieldsClient()
+    return fields_client
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -15,8 +22,9 @@ fields_client = FieldsClient()
 def admin_mailerlite_fields(req):
     if req.method == "GET":
         params = get_query_params(req)
+        client = fields_client or _get_fields_client()
         try:
-            return fields_client.list(params=params), 200
+            return client.list(params=params), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -26,8 +34,9 @@ def admin_mailerlite_fields(req):
         field_type = pick(payload, "type", "field_type", "fieldType")
         if not name or not field_type:
             return {"error": "Missing field name or type"}, 400
+        client = fields_client or _get_fields_client()
         try:
-            return fields_client.create(name, field_type), 200
+            return client.create(name, field_type), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -39,8 +48,9 @@ def admin_mailerlite_fields(req):
             return {"error": "Missing field id"}, 400
         if not name:
             return {"error": "Missing field name"}, 400
+        client = fields_client or _get_fields_client()
         try:
-            return fields_client.update(field_id, name), 200
+            return client.update(field_id, name), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -49,8 +59,9 @@ def admin_mailerlite_fields(req):
         field_id = pick(payload, "id", "field_id", "fieldId") or req.args.get("id")
         if not field_id:
             return {"error": "Missing field id"}, 400
+        client = fields_client or _get_fields_client()
         try:
-            return fields_client.delete(field_id), 200
+            return client.delete(field_id), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 

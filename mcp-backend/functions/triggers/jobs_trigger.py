@@ -1,6 +1,5 @@
 from firebase_functions import firestore_fn
 from firebase_admin import initialize_app, firestore
-from services.mail_service import gmail_send_email_template
 from config.firebase_config import db, cors, bucket
 
 # Import the LocationService so we can run the long‑running job logic in response

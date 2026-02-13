@@ -7,7 +7,14 @@ from services.mailer_lite import SegmentsClient, MailerLiteError
 from .helpers import get_payload, get_query_params, pick, handle_mailerlite_error
 
 
-segments_client = SegmentsClient()
+segments_client = None
+
+
+def _get_segments_client():
+    global segments_client
+    if segments_client is None:
+        segments_client = SegmentsClient()
+    return segments_client
 
 
 @https_fn.on_request(cors=cors, region=region)
@@ -20,12 +27,14 @@ def admin_mailerlite_segments(req):
             params.pop("id", None)
             params.pop("segment_id", None)
             params.pop("segmentId", None)
+            client = segments_client or _get_segments_client()
             try:
-                return segments_client.get(segment_id, params=params), 200
+                return client.get(segment_id, params=params), 200
             except MailerLiteError as e:
                 return handle_mailerlite_error(e)
+        client = segments_client or _get_segments_client()
         try:
-            return segments_client.list(params=params), 200
+            return client.list(params=params), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -37,8 +46,9 @@ def admin_mailerlite_segments(req):
             return {"error": "Missing segment id"}, 400
         if not name:
             return {"error": "Missing segment name"}, 400
+        client = segments_client or _get_segments_client()
         try:
-            return segments_client.update(segment_id, name), 200
+            return client.update(segment_id, name), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -47,8 +57,9 @@ def admin_mailerlite_segments(req):
         segment_id = pick(payload, "id", "segment_id", "segmentId") or req.args.get("id")
         if not segment_id:
             return {"error": "Missing segment id"}, 400
+        client = segments_client or _get_segments_client()
         try:
-            return segments_client.delete(segment_id), 200
+            return client.delete(segment_id), 200
         except MailerLiteError as e:
             return handle_mailerlite_error(e)
 
@@ -69,7 +80,8 @@ def admin_mailerlite_segment_subscribers(req):
     params.pop("segment_id", None)
     params.pop("segmentId", None)
     params.pop("id", None)
+    client = segments_client or _get_segments_client()
     try:
-        return segments_client.subscribers(segment_id, params=params), 200
+        return client.subscribers(segment_id, params=params), 200
     except MailerLiteError as e:
         return handle_mailerlite_error(e)
