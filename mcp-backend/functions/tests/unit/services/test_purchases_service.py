@@ -12,6 +12,7 @@ class _DummyPurchaseRepo:
         self.by_id = {}
         self.by_slug = {}
         self.deleted = []
+        self.created = []
 
     def stream_models(self):
         return iter(self.models)
@@ -23,6 +24,7 @@ class _DummyPurchaseRepo:
         return self.by_slug.get(slug)
 
     def create_from_model(self, purchase):
+        self.created.append(purchase)
         self.by_id["pur-1"] = purchase
         return "pur-1"
 
@@ -55,6 +57,15 @@ def test_get_by_id_not_found():
     service = _make_service()
     with pytest.raises(NotFoundError):
         service.get_by_id("pur-1")
+
+def test_get_by_id_success():
+    """Fetches purchase by id."""
+    service = _make_service()
+    purchase = Purchase(payer_name="Mario", payer_surname="Rossi")
+    purchase.id = "pur-1"
+    service.purchase_repository.by_id["pur-1"] = purchase
+    payload = service.get_by_id("pur-1")
+    assert payload["id"] == "pur-1"
 
 
 def test_get_by_slug_success():
@@ -91,6 +102,25 @@ def test_create_purchase_happy_path():
     )
     payload = service.create(dto)
     assert payload["id"] == "pur-1"
+
+
+def test_create_purchase_invalid_type_defaults():
+    """Defaults invalid type to EVENT."""
+    service = _make_service()
+    dto = PurchaseDTO(
+        payer_name="Mario",
+        payer_surname="Rossi",
+        payer_email="mario@example.com",
+        amount_total="10.00",
+        currency="EUR",
+        transaction_id="tx-1",
+        order_id="order-1",
+        timestamp="2026-02-13T10:00:00Z",
+        type="invalid-type",
+    )
+    service.create(dto)
+    created = service.purchase_repository.created[0]
+    assert created.purchase_type.value == "event"
 
 
 def test_delete_purchase_not_found():

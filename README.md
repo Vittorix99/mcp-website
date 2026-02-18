@@ -72,9 +72,14 @@ Crea e popola i seguenti file con le tue credenziali:
 * `mcp-backend/functions/service_account_test.json` (Firebase service account - test)
 * `mcp-backend/functions/service_mail.json` (Google mail service account)
 
-### Selezione DB (prod / test / locale)
+### Selezione ambiente (prod / test / locale)
 
-Il backend sceglie il Firestore in base a queste variabili:
+Il backend carica le variabili d'ambiente da:
+
+* `.env.integration` (default)
+* `.env` quando `MCP_ENV=prod`
+
+Il Firestore viene scelto in base a queste variabili:
 
 * **`FIRESTORE_EMULATOR_HOST`**: se settata, usa sempre il DB locale dell’emulatore.
 * **`GOOGLE_APPLICATION_CREDENTIALS`**: se settata, usa il service account indicato (prod o test).
@@ -98,6 +103,21 @@ firebase emulators:start --only functions --project mcp-website-dev-39539
 ```bash
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 firebase emulators:start --only functions,firestore
+```
+
+#### Usare lo script `emulator.sh`
+```bash
+# Test (carica .env.integration e abilita Firestore emulator)
+./emulator.sh --db=test
+
+# Prod (carica .env e disabilita Firestore emulator)
+./emulator.sh --db=prod --prod=true
+
+# Test senza Firestore emulator
+./emulator.sh --db=test --firestore-emulator=false
+
+# Prod con Firestore emulator attivo
+./emulator.sh --db=prod --prod=true --firestore-emulator=true
 ```
 
 ### Auth emulator (opzionale)

@@ -77,6 +77,8 @@ mcp-backend/functions/__pycache__/
 mcp-backend/functions/.env
 mcp-backend/functions/service_account.json
 mcp-backend/functions/service_mail.json
+mcp-backend/functions/service_account_gmail_test.json
+mcp-backend/functions/service_account_gmail_prod.json
 mcp-backend/functions/venv
 mcp-backend/js_functions/.next
 

@@ -22,7 +22,7 @@ def _bypass_admin_auth(monkeypatch):
     monkeypatch.setattr(
         auth_service.auth,
         "verify_id_token",
-        lambda token: {"admin": True},
+        lambda token: {"admin": True, "uid": "test-admin"},
     )
     yield
 

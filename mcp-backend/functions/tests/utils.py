@@ -11,6 +11,10 @@ class DummyRequest:
 
 def unwrap_response(result):
     if isinstance(result, tuple):
+        payload, status = result
+        if hasattr(payload, "get_json") and hasattr(payload, "status_code"):
+            data = payload.get_json(silent=True) or {}
+            return data, status
         return result
     if hasattr(result, "get_json") and hasattr(result, "status_code"):
         payload = result.get_json(silent=True) or {}

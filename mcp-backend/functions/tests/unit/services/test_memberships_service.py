@@ -151,6 +151,22 @@ def _make_service():
     return service
 
 
+def test_get_by_id_not_found():
+    service = _make_service()
+    with pytest.raises(NotFoundError):
+        service.get_by_id("missing")
+
+
+def test_get_by_id_slug_success():
+    service = _make_service()
+    membership = Membership(name="Mario")
+    membership.id = "mem-1"
+    service.membership_repository.by_slug["slug-1"] = membership
+    payload = service.get_by_id(None, slug="slug-1")
+    assert payload["id"] == "mem-1"
+    assert payload["name"] == "Mario"
+
+
 def test_create_rejects_protected_fields():
     service = _make_service()
     dto = MembershipDTO(slug="slug")
@@ -310,6 +326,7 @@ def test_send_card_email_failure(monkeypatch):
         email="test@example.com",
         name="Mario",
         surname="Rossi",
+        end_date="2026-12-31",
         card_url="https://example.com/memberships/cards/mem-1.pdf",
         card_storage_path="memberships/cards/mem-1.pdf",
     )
@@ -327,6 +344,7 @@ def test_send_card_happy_path(monkeypatch):
         email="test@example.com",
         name="Mario",
         surname="Rossi",
+        end_date="2026-12-31",
         card_url="https://example.com/memberships/cards/mem-1.pdf",
         card_storage_path="memberships/cards/mem-1.pdf",
     )

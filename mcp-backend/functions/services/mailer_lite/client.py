@@ -1,12 +1,11 @@
 import logging
 import os
-from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 import mailerlite as MailerLite
-from dotenv import load_dotenv
 
 from config.external_services import MAILERLITE_API_KEY
+from config.environment import load_environment
 
 logger = logging.getLogger("MailerLiteClient")
 
@@ -31,9 +30,7 @@ class MailerLiteClient:
     ):
         resolved_key = api_key or os.environ.get("MAILERLITE_API_KEY") or MAILERLITE_API_KEY
         if not resolved_key:
-            env_path = Path(__file__).resolve().parents[2] / ".env"
-            if env_path.exists():
-                load_dotenv(dotenv_path=env_path, override=False)
+            load_environment()
             resolved_key = api_key or os.environ.get("MAILERLITE_API_KEY") or MAILERLITE_API_KEY
         self.api_key = resolved_key
 

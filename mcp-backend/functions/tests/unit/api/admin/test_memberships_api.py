@@ -29,6 +29,23 @@ def test_get_membership_missing_params():
     assert status == 400
     assert resp["error"] == "Missing membership ID or slug"
 
+def test_get_membership_invalid_method():
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.get_membership(req))
+    assert status == 405
+
+
+def test_get_membership_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(get_by_id=lambda membership_id, slug=None: {"id": membership_id}),
+    )
+    req = DummyRequest(method="GET", args={"id": "mem-1"})
+    resp, status = unwrap_response(members_api.get_membership(req))
+    assert status == 200
+    assert resp["id"] == "mem-1"
+
 
 def test_create_membership_missing_body(monkeypatch):
     monkeypatch.setattr(members_api.request, "get_json", lambda: None)
@@ -71,6 +88,22 @@ def test_update_membership_validation_error(monkeypatch):
     assert status == 400
     assert resp["error"] == "bad"
 
+def test_update_membership_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(update=lambda membership_id, dto: {"id": membership_id}),
+    )
+    monkeypatch.setattr(
+        members_api.request,
+        "get_json",
+        lambda: {"membership_id": "mem-1", "name": "Test"},
+    )
+    req = DummyRequest(method="PUT")
+    resp, status = unwrap_response(members_api.update_membership(req))
+    assert status == 200
+    assert resp["id"] == "mem-1"
+
 
 def test_delete_membership_missing_id(monkeypatch):
     monkeypatch.setattr(members_api.request, "get_json", lambda: {})
@@ -79,6 +112,18 @@ def test_delete_membership_missing_id(monkeypatch):
     assert status == 400
     assert resp["error"] == "Missing membership_id"
 
+def test_delete_membership_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(delete=lambda membership_id: {"id": membership_id}),
+    )
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {"membership_id": "mem-1"})
+    req = DummyRequest(method="DELETE")
+    resp, status = unwrap_response(members_api.delete_membership(req))
+    assert status == 200
+    assert resp["id"] == "mem-1"
+
 
 def test_send_membership_card_missing_id(monkeypatch):
     monkeypatch.setattr(members_api.request, "get_json", lambda: {})
@@ -86,6 +131,18 @@ def test_send_membership_card_missing_id(monkeypatch):
     resp, status = unwrap_response(members_api.send_membership_card(req))
     assert status == 400
     assert resp["error"] == "Missing membership_id"
+
+def test_send_membership_card_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(send_card=lambda membership_id: {"id": membership_id}),
+    )
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {"membership_id": "mem-1"})
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.send_membership_card(req))
+    assert status == 200
+    assert resp["id"] == "mem-1"
 
 
 def test_get_membership_purchases_slug(monkeypatch):
@@ -109,6 +166,31 @@ def test_get_membership_events_missing_params():
     assert status == 400
     assert resp["error"] == "Missing membership_id or slug"
 
+def test_get_membership_events_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(get_events=lambda membership_id: [{"id": "evt-1"}]),
+    )
+    req = DummyRequest(method="GET", args={"id": "mem-1"})
+    resp, status = unwrap_response(members_api.get_membership_events(req))
+    assert status == 200
+    assert resp == [{"id": "evt-1"}]
+
+def test_get_membership_events_slug(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(
+            get_by_id=lambda _id, slug=None: {"id": "mem-1"},
+            get_events=lambda membership_id: [{"id": "evt-1"}],
+        ),
+    )
+    req = DummyRequest(method="GET", args={"slug": "slug-1"})
+    resp, status = unwrap_response(members_api.get_membership_events(req))
+    assert status == 200
+    assert resp == [{"id": "evt-1"}]
+
 
 def test_set_membership_price_missing_fee(monkeypatch):
     monkeypatch.setattr(members_api.request, "get_json", lambda: {})
@@ -117,6 +199,51 @@ def test_set_membership_price_missing_fee(monkeypatch):
     assert status == 400
     assert resp["error"] == "Missing membership_fee"
 
+def test_set_membership_price_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(set_membership_price=lambda fee, year=None: {"fee": fee, "year": year}),
+    )
+    monkeypatch.setattr(
+        members_api.request,
+        "get_json",
+        lambda: {"membership_fee": 10, "year": "2026"},
+    )
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.set_membership_price(req))
+    assert status == 200
+    assert resp["fee"] == 10
+    assert resp["year"] == "2026"
+
+def test_get_membership_price_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(get_membership_price=lambda year=None: {"fee": 10, "year": year}),
+    )
+    req = DummyRequest(method="GET", args={"year": "2026"})
+    resp, status = unwrap_response(members_api.get_membership_price(req))
+    assert status == 200
+    assert resp["fee"] == 10
+    assert resp["year"] == "2026"
+
+def test_get_memberships_report_missing_event_id():
+    req = DummyRequest(method="GET", args={})
+    resp, status = unwrap_response(members_api.get_memberships_report(req))
+    assert status == 400
+    assert resp["error"] == "Missing event_id"
+
+def test_get_memberships_report_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "membership_reports_service",
+        types.SimpleNamespace(get_memberships_report=lambda event_id: {"event_id": event_id}),
+    )
+    req = DummyRequest(method="GET", args={"event_id": "evt-1"})
+    resp, status = unwrap_response(members_api.get_memberships_report(req))
+    assert status == 200
+    assert resp["event_id"] == "evt-1"
 
 def test_set_membership_price_happy_path(monkeypatch):
     monkeypatch.setattr(members_api.request, "get_json", lambda: {"membership_fee": 20, "year": 2026})

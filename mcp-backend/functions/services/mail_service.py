@@ -143,9 +143,26 @@ class GmailMailService(MailService):
 _mail_service: Optional[MailService] = None
 
 
+def _print_mail_config(config: MailConfig) -> None:
+    service_file = os.environ.get("SERVICE_MAIL_FILE", "")
+    gmail_service_file = os.environ.get("GMAIL_SERVICE_FILE_PATH", "")
+    scopes_count = len(config.scopes)
+    print(
+        "Mail config: "
+        f"user={config.user_email}, "
+        f"scopes={scopes_count}, "
+        f"service_file={service_file}, "
+        f"gmail_service_file={gmail_service_file}"
+    )
+
+
 def init_mail_service(service: Optional[MailService] = None) -> MailService:
     global _mail_service
     _mail_service = service or GmailMailService()
+    try:
+        _print_mail_config(get_mail_config())
+    except Exception as exc:
+        logger.debug("Unable to print mail config: %s", exc)
     return _mail_service
 
 

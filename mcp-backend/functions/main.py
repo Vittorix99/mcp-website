@@ -5,6 +5,13 @@ import logging
 # === Path setup (solo se necessario per import locali) ===
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+# === Environment loading ===
+from config import load_environment
+
+_env_path = load_environment()
+_mcp_env = os.environ.get("MCP_ENV", "test")
+print(f"Environment: {_mcp_env} (env_file={_env_path})")
+
 # === Logging config ===
 logging.basicConfig(level=logging.DEBUG)  # Usa INFO o WARNING in produzione
 

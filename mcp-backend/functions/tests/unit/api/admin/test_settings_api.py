@@ -10,7 +10,9 @@ def test_get_settings_with_key(monkeypatch):
     monkeypatch.setattr(
         setting_api,
         "settings_service",
-        types.SimpleNamespace(get_setting=lambda key: SimpleNamespace(to_payload=lambda: {"key": key, "value": 1})),
+        types.SimpleNamespace(
+            get_setting=lambda key: types.SimpleNamespace(to_payload=lambda: {"key": key, "value": 1})
+        ),
     )
     req = DummyRequest(method="GET", args={"key": "theme"})
     resp, status = unwrap_response(setting_api.get_settings(req))
@@ -23,7 +25,11 @@ def test_get_settings_all(monkeypatch):
     monkeypatch.setattr(
         setting_api,
         "settings_service",
-        types.SimpleNamespace(get_all_settings=lambda: [SimpleNamespace(to_payload=lambda: {"key": "k", "value": 1})]),
+        types.SimpleNamespace(
+            get_all_settings=lambda: [
+                types.SimpleNamespace(to_payload=lambda: {"key": "k", "value": 1})
+            ]
+        ),
     )
     req = DummyRequest(method="GET", args={})
     resp, status = unwrap_response(setting_api.get_settings(req))
@@ -62,7 +68,11 @@ def test_set_settings_happy_path(monkeypatch):
     monkeypatch.setattr(
         setting_api,
         "settings_service",
-        types.SimpleNamespace(set_setting=lambda key, value: SimpleNamespace(to_payload=lambda: {"key": key, "value": value})),
+        types.SimpleNamespace(
+            set_setting=lambda key, value: types.SimpleNamespace(
+                to_payload=lambda: {"key": key, "value": value}
+            )
+        ),
     )
     req = DummyRequest(method="POST", json={"key": "theme", "value": "dark"})
     resp, status = unwrap_response(setting_api.set_settings(req))
