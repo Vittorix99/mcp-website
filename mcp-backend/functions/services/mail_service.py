@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -9,6 +10,7 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from google.auth.transport.requests import Request
+from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -26,6 +28,7 @@ class MailConfig:
     client_id: str
     client_secret: str
     service_account_file: Optional[str] = None
+    access_token: Optional[str] = None
 
 
 @dataclass
@@ -43,20 +46,94 @@ class EmailMessage:
     attachment: Optional[EmailAttachment] = None
 
 
+def _split_scopes(raw_value: str) -> List[str]:
+    if not raw_value:
+        return []
+    if "," in raw_value:
+        parts = raw_value.split(",")
+    else:
+        parts = raw_value.split()
+    return [scope.strip() for scope in parts if scope.strip()]
+
+
+def _load_json_file(path: Optional[str]) -> Optional[dict]:
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+
+
+def _extract_oauth_client_info(payload: Optional[dict]) -> Optional[dict]:
+    if not isinstance(payload, dict):
+        return None
+    section = payload.get("web") or payload.get("installed")
+    if not isinstance(section, dict):
+        return None
+    return {
+        "client_id": section.get("client_id"),
+        "client_secret": section.get("client_secret"),
+    }
+
+
 def get_mail_config() -> MailConfig:
-    scopes = [scope for scope in os.environ.get("SCOPES", "").split(",") if scope]
+    service_file = (
+        os.environ.get("SERVICE_MAIL_FILE")
+        or os.environ.get("GMAIL_SERVICE_FILE_PATH")
+    )
+    service_payload = _load_json_file(service_file)
+    oauth_client_info = _extract_oauth_client_info(service_payload)
+    service_account_file = service_file if service_payload and service_payload.get("type") == "service_account" else None
+
+    scopes = _split_scopes(
+        os.environ.get("GMAIL_SCOPES", "")
+        or os.environ.get("GOOGLE_MAIL_SCOPES", "")
+        or os.environ.get("SCOPES", "")
+    )
     return MailConfig(
         scopes=scopes,
-        service_account_file=os.environ.get("SERVICE_MAIL_FILE"),
-        user_email=os.environ.get("USER_EMAIL", ""),
-        refresh_token=os.environ.get("REFRESH_TOKEN", ""),
-        client_id=os.environ.get("CLIENT_ID", ""),
-        client_secret=os.environ.get("CLIENT_SECRET", ""),
+        service_account_file=service_account_file,
+        user_email=os.environ.get("USER_EMAIL", "") or os.environ.get("GMAIL_MAIL", ""),
+        refresh_token=(
+            os.environ.get("REFRESH_TOKEN", "")
+            or os.environ.get("GOOGLE_MAIL_REFRESH_TOKEN", "")
+            or os.environ.get("GMAIL_REFRESH_TOKEN", "")
+        ),
+        client_id=(
+            os.environ.get("CLIENT_ID", "")
+            or os.environ.get("GOOGLE_MAIL_CLIENT_ID", "")
+            or os.environ.get("GMAIL_CLIENT_ID", "")
+            or (oauth_client_info.get("client_id") if oauth_client_info else "")
+        ),
+        client_secret=(
+            os.environ.get("CLIENT_SECRET", "")
+            or os.environ.get("GOOGLE_MAIL_CLIENT_SECRET", "")
+            or os.environ.get("GMAIL_CLIENT_SECRET", "")
+            or (oauth_client_info.get("client_secret") if oauth_client_info else "")
+        ),
+        access_token=(
+            os.environ.get("ACCESS_TOKEN", "")
+            or os.environ.get("GOOGLE_MAIL_ACCESS_TOKEN", "")
+            or os.environ.get("GMAIL_ACCESS_TOKEN", "")
+        ),
     )
 
 
 def _build_credentials(config: MailConfig) -> Credentials:
+    if config.service_account_file:
+        creds = service_account.Credentials.from_service_account_file(
+            config.service_account_file,
+            scopes=config.scopes or None,
+        )
+        if config.user_email:
+            creds = creds.with_subject(config.user_email)
+        return creds
+
     if not config.user_email or not config.refresh_token or not config.client_id or not config.client_secret:
+        if config.access_token:
+            return Credentials(token=config.access_token, scopes=config.scopes or None)
         raise ValueError("Missing Gmail configuration values")
     creds = Credentials(
         None,

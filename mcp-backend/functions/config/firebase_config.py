@@ -66,7 +66,19 @@ def _load_credentials():
 if not firebase_admin._apps:
     cred = _load_credentials()
     storage_bucket = os.environ.get("STORAGE_BUCKET")
-    init_opts = {"storageBucket": storage_bucket} if storage_bucket else {}
+    project_id = os.environ.get("GCLOUD_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if not project_id:
+        raw_config = os.environ.get("FIREBASE_CONFIG")
+        if raw_config:
+            try:
+                project_id = json.loads(raw_config).get("projectId")
+            except (TypeError, ValueError):
+                project_id = None
+    init_opts = {}
+    if storage_bucket:
+        init_opts["storageBucket"] = storage_bucket
+    if project_id:
+        init_opts["projectId"] = project_id
     firebase_admin.initialize_app(cred, init_opts)
 else:
     cred = None

@@ -4,6 +4,8 @@ set -euo pipefail
 ENVIRONMENT="test"   # test | prod
 AUTH=false
 USE_FIRESTORE_EMULATOR=false
+USE_PUBSUB_EMULATOR=false
+PUBSUB_FLAG_SET=false
 EXPORT_DIR="./emulator-data"
 PROJECT_ID=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +48,8 @@ for arg in "$@"; do
     --env=prod) ENVIRONMENT="prod" ;;
     --firestore-emulator=true) USE_FIRESTORE_EMULATOR=true ;;
     --firestore-emulator=false) USE_FIRESTORE_EMULATOR=false ;;
+    --pubsub-emulator=true) USE_PUBSUB_EMULATOR=true; PUBSUB_FLAG_SET=true ;;
+    --pubsub-emulator=false) USE_PUBSUB_EMULATOR=false; PUBSUB_FLAG_SET=true ;;
     --auth=true) AUTH=true ;;
     --auth=false) AUTH=false ;;
     -h|--help) usage; exit 0 ;;
@@ -68,6 +72,10 @@ fi
 if [ "$ENVIRONMENT" = "prod" ] && [ "$USE_FIRESTORE_EMULATOR" = true ]; then
   echo "Firestore emulator can only be enabled in test." >&2
   exit 1
+fi
+
+if [ "$USE_FIRESTORE_EMULATOR" = true ] && [ "$PUBSUB_FLAG_SET" = false ]; then
+  USE_PUBSUB_EMULATOR=true
 fi
 
 IMPORT_FLAG=""
@@ -93,6 +101,13 @@ if [ "$USE_FIRESTORE_EMULATOR" = true ]; then
   ONLY_SERVICES="$ONLY_SERVICES,firestore"
 else
   unset FIRESTORE_EMULATOR_HOST
+fi
+
+if [ "$USE_PUBSUB_EMULATOR" = true ]; then
+  export PUBSUB_EMULATOR_HOST=127.0.0.1:8085
+  ONLY_SERVICES="$ONLY_SERVICES,pubsub"
+else
+  unset PUBSUB_EMULATOR_HOST
 fi
 
 if [ -n "$PROJECT_ID" ]; then

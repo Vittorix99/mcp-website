@@ -1,11 +1,17 @@
 import os
 
 
+def _extract_year(expiry_date: str) -> str:
+    if isinstance(expiry_date, str) and "-" in expiry_date:
+        return expiry_date.split("-")[-1]
+    return "N/A"
+
+
 def get_membership_email_template(membership_data, pdf_url=None):
     full_name = f"{membership_data.get('name', '')} {membership_data.get('surname', '')}".strip()
     membership_id = membership_data.get("membership_id", "")
-    expiry_date = membership_data.get("end_date", "N/A")
-    year = expiry_date.split("-")[2] if expiry_date else "N/A"
+    expiry_date = membership_data.get("end_date") or "N/A"
+    year = _extract_year(expiry_date)
 
     return f"""
     <!DOCTYPE html>
@@ -87,8 +93,8 @@ def get_membership_email_template(membership_data, pdf_url=None):
 def get_membership_email_text(membership_data):
     full_name = f"{membership_data.get('name', '')} {membership_data.get('surname', '')}".strip()
     membership_id = membership_data.get("membership_id", "")
-    expiry_date = membership_data.get("end_date", "N/A")
-    year = expiry_date.split("-")[0] if expiry_date else "N/A"
+    expiry_date = membership_data.get("end_date") or "N/A"
+    year = _extract_year(expiry_date)
 
     return f"""
 Ciao {full_name},

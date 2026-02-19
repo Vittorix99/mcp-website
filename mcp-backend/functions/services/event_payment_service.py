@@ -8,6 +8,7 @@ from google.cloud import firestore
 from paypalserversdk.api_helper import ApiHelper
 from paypalserversdk.configuration import Environment
 from paypalserversdk.controllers.orders_controller import OrdersController
+from paypalserversdk.exceptions.api_exception import ApiException
 from paypalserversdk.http.auth.o_auth_2 import ClientCredentialsAuthCredentials
 from paypalserversdk.models.amount_with_breakdown import AmountWithBreakdown
 from paypalserversdk.models.checkout_payment_intent import CheckoutPaymentIntent
@@ -190,7 +191,13 @@ class EventPaymentService:
                 )
             ],
         )
-        order = self.orders_controller.orders_create({"body": order_request})
+        try:
+            order = self.orders_controller.orders_create({"body": order_request})
+        except ApiException as exc:
+            status = getattr(exc, "response_code", None)
+            raise ExternalServiceError(
+                f"Failed to create PayPal order (status: {status})"
+            ) from exc
         if order.status_code not in (200, 201):
             raise ExternalServiceError("Failed to create PayPal order")
 
@@ -371,7 +378,15 @@ class EventPaymentService:
     # PayPal helpers (reuse existing logic)
     # ------------------------------------------------------------------ #
     def capture_paypal_order(self, order_id):
-        order = self.orders_controller.orders_capture({"id": order_id, "prefer": "return=representation"})
+        try:
+            order = self.orders_controller.orders_capture(
+                {"id": order_id, "prefer": "return=representation"}
+            )
+        except ApiException as exc:
+            status = getattr(exc, "response_code", None)
+            raise ExternalServiceError(
+                f"Failed to capture order (status: {status})"
+            ) from exc
         if not (200 <= order.status_code < 300):
             raise ExternalServiceError(f"Failed to capture order (status: {order.status_code})")
         result = json.loads(ApiHelper.json_serialize(order.body))

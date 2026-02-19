@@ -14,9 +14,18 @@ def _resolve_env_path() -> Path:
     return base_dir / ".env.integration"
 
 
+def _should_override_env(override: bool) -> bool:
+    if override:
+        return True
+    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+        return True
+    if os.environ.get("FIREBASE_EMULATOR_HUB") or os.environ.get("FUNCTIONS_EMULATOR"):
+        return True
+    return False
+
+
 def load_environment(override: bool = False) -> Path:
     env_path = _resolve_env_path()
     if env_path.exists():
-        load_dotenv(dotenv_path=env_path, override=override)
+        load_dotenv(dotenv_path=env_path, override=_should_override_env(override))
     return env_path
-

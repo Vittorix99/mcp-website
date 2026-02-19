@@ -58,7 +58,7 @@ class MessagesService:
         if not dto.name or not dto.email or not dto.message:
             raise ValidationError("Missing required fields")
 
-        to_email = os.environ.get("USER_EMAIL")
+        to_email = os.environ.get("USER_EMAIL") or os.environ.get("GMAIL_MAIL")
         if not to_email:
             raise ValidationError("Missing destination email")
 

@@ -5,15 +5,10 @@ from tests.utils import DummyRequest, unwrap_response
 
 
 @pytest.mark.integration
-def test_settings_api_set_get(settings_repository, setting_key, monkeypatch):
+def test_settings_api_set_get(settings_repository, setting_key):
     """Sets and retrieves settings via API endpoints."""
     try:
-        monkeypatch.setattr(
-            setting_api.request,
-            "get_json",
-            lambda: {"key": setting_key, "value": "value-2"},
-        )
-        set_req = DummyRequest(method="POST")
+        set_req = DummyRequest(method="POST", json={"key": setting_key, "value": "value-2"})
         resp, status = unwrap_response(setting_api.set_settings(set_req))
         assert status == 200
         assert resp.get("setting", {}).get("key") == setting_key

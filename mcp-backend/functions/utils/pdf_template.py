@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
@@ -11,6 +14,22 @@ from io import BytesIO
 from weasyprint import HTML
 from models import EventPurchaseAccessType
 from utils.events_utils import map_purchase_mode
+
+_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
+
+
+def _resolve_local_asset(image_path):
+    if not image_path:
+        return None
+    if os.path.isabs(image_path) and os.path.exists(image_path):
+        return image_path
+    candidate = _ASSETS_DIR / image_path
+    if candidate.exists():
+        return str(candidate)
+    candidate = _ASSETS_DIR / os.path.basename(image_path)
+    if candidate.exists():
+        return str(candidate)
+    return None
 
 
 
@@ -172,8 +191,11 @@ def generate_member_ticket_pdf_html(ticket_data, event_data, logo_url):
 def generate_membership_card_html(member_data, logo_url):
     full_name = f"{member_data.get('name', '')} {member_data.get('surname', '')}".strip()
     membership_id = member_data.get("membership_id", "N/A")
-    expiry_date = member_data.get("end_date", "N/A")
-    expiry_year = expiry_date.split("-")[2] if expiry_date else ""
+    raw_expiry_date = member_data.get("end_date")
+    expiry_date = raw_expiry_date or "N/A"
+    expiry_year = ""
+    if isinstance(raw_expiry_date, str) and "-" in raw_expiry_date:
+        expiry_year = raw_expiry_date.split("-")[-1]
 
     return f"""
 <!DOCTYPE html>
@@ -261,6 +283,10 @@ def generate_membership_card_html(member_data, logo_url):
 </html>
 """
 def download_image_from_firebase(image_path):
+    local_asset = _resolve_local_asset(image_path)
+    if local_asset:
+        return local_asset
+
     blob = bucket.blob(image_path)
     
     _, temp_local_filename = tempfile.mkstemp()
