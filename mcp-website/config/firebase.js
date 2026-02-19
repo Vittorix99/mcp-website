@@ -24,6 +24,10 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const authEmulatorHost = process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST;
 const env = process.env.NEXT_PUBLIC_ENV || "local";
+const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+if (typeof window !== "undefined") {
+  console.log(`[MCP Frontend] Env: ${env} | Project: ${projectId || "unknown"}`);
+}
 if (typeof window !== "undefined" && authEmulatorHost && env !== "production") {
   connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
 }
