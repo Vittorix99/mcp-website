@@ -8,11 +8,10 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { motion } from "framer-motion"
 
-export default function EventCard({ event, onCoverLoaded }) {
+export default function EventCard({ event }) {
   const [imageUrl, setImageUrl] = useState(null)
   const [imageAspectRatio, setImageAspectRatio] = useState(4 / 5) // Default aspect ratio
   const [isLoading, setIsLoading] = useState(true)
-  const notifiedRef = useRef(false)
   const imgRef = useRef(null)
 
   useEffect(() => {
@@ -25,32 +24,19 @@ export default function EventCard({ event, onCoverLoaded }) {
         } catch (error) {
           console.error("Error loading image:", error)
           setIsLoading(false)
-          if (onCoverLoaded && !notifiedRef.current) {
-            notifiedRef.current = true
-            onCoverLoaded(event.id || event.slug || event.title)
-          }
+          setImageUrl(null)
         }
       } else {
         setIsLoading(false)
-        if (onCoverLoaded && !notifiedRef.current) {
-          notifiedRef.current = true
-          onCoverLoaded(event.id || event.slug || event.title)
-        }
+        setImageUrl(null)
       }
     }
     fetchImageUrl()
-    return () => {
-      notifiedRef.current = false
-    }
-  }, [event.image, onCoverLoaded])
+  }, [event.image])
 
   const handleImageLoad = ({ naturalWidth, naturalHeight }) => {
     setImageAspectRatio(naturalWidth / naturalHeight)
     setIsLoading(false)
-    if (onCoverLoaded && !notifiedRef.current) {
-      notifiedRef.current = true
-      onCoverLoaded(event.id || event.slug || event.title)
-    }
   }
 
   useEffect(() => {
@@ -120,14 +106,13 @@ export default function EventCard({ event, onCoverLoaded }) {
                 onLoad={(e) => handleImageLoad(e.currentTarget)}
                 onError={() => {
                   setIsLoading(false)
-                  if (onCoverLoaded && !notifiedRef.current) {
-                    notifiedRef.current = true
-                    onCoverLoaded(event.id || event.slug || event.title)
-                  }
+                  setImageUrl(null)
                 }}
               />
             ) : (
-              <div className="absolute inset-0 event-card__skeleton" aria-hidden="true" />
+              <div className="absolute inset-0 event-card__placeholder" aria-hidden="true">
+                <span>Image unavailable</span>
+              </div>
             )}
             {statusLabel && <div className="event-card__badge">{statusLabel}</div>}
           </div>

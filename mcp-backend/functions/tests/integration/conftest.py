@@ -5,8 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from services.mail_service import get_mail_config, _build_gmail_service
-from tests.integration.gmail_utils import ensure_read_scopes
+from services.mail_service import get_mail_config
 from config.firebase_config import bucket as storage_bucket
 
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
@@ -30,14 +29,16 @@ def _mock_admin_auth(monkeypatch):
 
 @pytest.fixture(scope="session")
 def gmail_service():
-    config = get_mail_config()
-    if not config.user_email:
-        pytest.skip("USER_EMAIL is not set for Gmail integration tests")
-    try:
-        ensure_read_scopes(config.scopes)
-    except RuntimeError as exc:
-        pytest.fail(str(exc))
-    return _build_gmail_service(config)
+    pytest.skip("Gmail integration tests disabled after migration to MailerSend")
+
+
+@pytest.fixture(scope="session")
+def mailersend_api_key():
+    api_key = os.environ.get("MAILERSEND_API_KEY")
+    from_email = os.environ.get("MAILERSEND_FROM_EMAIL")
+    if not api_key or not from_email:
+        pytest.skip("MAILERSEND_API_KEY or MAILERSEND_FROM_EMAIL not set for MailerSend integration tests")
+    return api_key
 
 
 @pytest.fixture(scope="session", autouse=True)

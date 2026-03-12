@@ -1,20 +1,87 @@
-import base64
-import json
 import logging
 import os
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional, Tuple
 
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from google.auth.transport.requests import Request
-from google.oauth2 import service_account
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
+import requests
 
-from config.external_services import GMAIL_TOKEN_URL
+try:
+    from mailersend import MailerSendClient, EmailBuilder
+except ImportError:  # Fallback shim if SDK not installed (e.g., offline emulator)
+    class EmailBuilder:
+        def __init__(self):
+            self._data = {}
+
+        def from_email(self, email: str, name: Optional[str] = None):
+            self._data["from"] = {"email": email}
+            if name:
+                self._data["from"]["name"] = name
+            return self
+
+        def to_many(self, recipients):
+            self._data["to"] = recipients
+            return self
+
+        def subject(self, subject: str):
+            self._data["subject"] = subject
+            return self
+
+        def html(self, html: str):
+            self._data["html"] = html
+            return self
+
+        def text(self, text: str):
+            self._data["text"] = text
+            return self
+
+        def reply_to(self, items):
+            self._data["reply_to"] = items
+            return self
+
+        def attach_file(self, path: str):
+            # store path; sender will open it
+            self._data.setdefault("attachments", []).append(path)
+            return self
+
+        def build(self):
+            return self._data
+
+    class _EmailSender:
+        def __init__(self, api_key: str):
+            self.api_key = api_key
+
+        def send(self, request):
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            }
+            # Convert attachment file paths to API payload
+            payload = request.copy()
+            paths = payload.pop("attachments", [])
+            if paths:
+                payload["attachments"] = []
+                for path in paths:
+                    with open(path, "rb") as fh:
+                        import base64
+                        payload["attachments"].append(
+                            {"content": base64.b64encode(fh.read()).decode("utf-8"), "filename": os.path.basename(path)}
+                        )
+
+            resp = requests.post(os.environ.get("MAILERSEND_API_URL", "https://api.mailersend.com/v1/email"),
+                                 json=payload, headers=headers, timeout=10)
+            class _Resp:
+                def __init__(self, r):
+                    self.status_code = r.status_code
+                    self.data = getattr(r, "json", lambda: {})() or {}
+                    self.success = 200 <= r.status_code < 300
+            return _Resp(resp)
+
+    class MailerSendClient:
+        def __init__(self, api_key: str):
+            self.emails = _EmailSender(api_key)
 
 
 logger = logging.getLogger("MailService")
@@ -22,13 +89,10 @@ logger = logging.getLogger("MailService")
 
 @dataclass
 class MailConfig:
-    scopes: List[str]
-    user_email: str
-    refresh_token: str
-    client_id: str
-    client_secret: str
-    service_account_file: Optional[str] = None
-    access_token: Optional[str] = None
+    api_key: str
+    from_email: str
+    from_name: Optional[str] = None
+    reply_to: Optional[str] = None
 
 
 @dataclass
@@ -44,151 +108,66 @@ class EmailMessage:
     text_content: str
     html_content: Optional[str] = None
     attachment: Optional[EmailAttachment] = None
+    from_email: Optional[str] = None
+    from_name: Optional[str] = None
+    reply_to: Optional[str] = None
+    category: Optional[str] = None  # e.g., memberships, location, events
 
 
-def _split_scopes(raw_value: str) -> List[str]:
-    if not raw_value:
-        return []
-    if "," in raw_value:
-        parts = raw_value.split(",")
-    else:
-        parts = raw_value.split()
-    return [scope.strip() for scope in parts if scope.strip()]
-
-
-def _load_json_file(path: Optional[str]) -> Optional[dict]:
-    if not path:
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            return json.load(handle)
-    except (FileNotFoundError, ValueError, OSError):
-        return None
-
-
-def _extract_oauth_client_info(payload: Optional[dict]) -> Optional[dict]:
-    if not isinstance(payload, dict):
-        return None
-    section = payload.get("web") or payload.get("installed")
-    if not isinstance(section, dict):
-        return None
-    return {
-        "client_id": section.get("client_id"),
-        "client_secret": section.get("client_secret"),
-    }
+def _get_env_any(*keys: str) -> Optional[str]:
+    for key in keys:
+        value = os.environ.get(key)
+        if value:
+            return value
+    return None
 
 
 def get_mail_config() -> MailConfig:
-    service_file = (
-        os.environ.get("SERVICE_MAIL_FILE")
-        or os.environ.get("GMAIL_SERVICE_FILE_PATH")
-    )
-    service_payload = _load_json_file(service_file)
-    oauth_client_info = _extract_oauth_client_info(service_payload)
-    service_account_file = service_file if service_payload and service_payload.get("type") == "service_account" else None
+    api_key = _get_env_any("MAILERSEND_API_KEY", "MAILERSEND_TOKEN", "MAILER_SEND_API_KEY")
+    from_email = _get_env_any("MAILERSEND_FROM_EMAIL", "USER_EMAIL", "GMAIL_MAIL")
+    from_name = _get_env_any("MAILERSEND_FROM_NAME", "SENDER_NAME")
+    reply_to = _get_env_any("MAILERSEND_REPLY_TO")
 
-    scopes = _split_scopes(
-        os.environ.get("GMAIL_SCOPES", "")
-        or os.environ.get("GOOGLE_MAIL_SCOPES", "")
-        or os.environ.get("SCOPES", "")
-    )
+    if not api_key:
+        raise ValueError("Missing MailerSend API key (MAILERSEND_API_KEY).")
+    if not from_email:
+        raise ValueError("Missing sender email (MAILERSEND_FROM_EMAIL or USER_EMAIL).")
+
     return MailConfig(
-        scopes=scopes,
-        service_account_file=service_account_file,
-        user_email=os.environ.get("USER_EMAIL", "") or os.environ.get("GMAIL_MAIL", ""),
-        refresh_token=(
-            os.environ.get("REFRESH_TOKEN", "")
-            or os.environ.get("GOOGLE_MAIL_REFRESH_TOKEN", "")
-            or os.environ.get("GMAIL_REFRESH_TOKEN", "")
-        ),
-        client_id=(
-            os.environ.get("CLIENT_ID", "")
-            or os.environ.get("GOOGLE_MAIL_CLIENT_ID", "")
-            or os.environ.get("GMAIL_CLIENT_ID", "")
-            or (oauth_client_info.get("client_id") if oauth_client_info else "")
-        ),
-        client_secret=(
-            os.environ.get("CLIENT_SECRET", "")
-            or os.environ.get("GOOGLE_MAIL_CLIENT_SECRET", "")
-            or os.environ.get("GMAIL_CLIENT_SECRET", "")
-            or (oauth_client_info.get("client_secret") if oauth_client_info else "")
-        ),
-        access_token=(
-            os.environ.get("ACCESS_TOKEN", "")
-            or os.environ.get("GOOGLE_MAIL_ACCESS_TOKEN", "")
-            or os.environ.get("GMAIL_ACCESS_TOKEN", "")
-        ),
+        api_key=api_key,
+        from_email=from_email,
+        from_name=from_name,
+        reply_to=reply_to,
     )
 
 
-def _build_credentials(config: MailConfig) -> Credentials:
-    if config.service_account_file:
-        creds = service_account.Credentials.from_service_account_file(
-            config.service_account_file,
-            scopes=config.scopes or None,
-        )
-        if config.user_email:
-            creds = creds.with_subject(config.user_email)
-        return creds
+def _encode_attachment(attachment: EmailAttachment) -> dict:
+    # The MailerSend SDK expects a file path via attach_file, so we create a temp file.
+    suffix = os.path.splitext(attachment.filename)[1] or ".bin"
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    temp_file.write(attachment.content)
+    temp_file.flush()
+    temp_file.close()
+    return {"path": temp_file.name}
 
-    if not config.user_email or not config.refresh_token or not config.client_id or not config.client_secret:
-        if config.access_token:
-            return Credentials(token=config.access_token, scopes=config.scopes or None)
-        raise ValueError("Missing Gmail configuration values")
-    creds = Credentials(
-        None,
-        refresh_token=config.refresh_token,
-        client_id=config.client_id,
-        client_secret=config.client_secret,
-        token_uri=GMAIL_TOKEN_URL,
-        scopes=config.scopes or None,
+
+def _sender_for_category(category: Optional[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Resolve per-category sender overrides.
+    Looks for env vars:
+      MAILERSEND_FROM_EMAIL_{CATEGORY}
+      MAILERSEND_FROM_NAME_{CATEGORY}
+      MAILERSEND_REPLY_TO_{CATEGORY}
+    where CATEGORY is upper-cased.
+    """
+    if not category:
+        return None, None, None
+    key = category.upper()
+    return (
+        _get_env_any(f"MAILERSEND_FROM_EMAIL_{key}"),
+        _get_env_any(f"MAILERSEND_FROM_NAME_{key}"),
+        _get_env_any(f"MAILERSEND_REPLY_TO_{key}"),
     )
-    if creds.expired or not creds.valid:
-        creds.refresh(Request())
-    return creds
-
-
-def _build_gmail_service(config: MailConfig):
-    creds = _build_credentials(config)
-    return build("gmail", "v1", credentials=creds)
-
-
-def _encode_message(message: MIMEText) -> str:
-    return base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-
-def _build_plain_message(email: EmailMessage, from_email: str) -> MIMEText:
-    message = MIMEText(email.text_content)
-    message["to"] = email.to_email
-    message["from"] = from_email
-    message["subject"] = email.subject
-    return message
-
-
-def _build_multipart_message(email: EmailMessage, from_email: str) -> MIMEMultipart:
-    message = MIMEMultipart("mixed")
-    message["to"] = email.to_email
-    message["from"] = from_email
-    message["subject"] = email.subject
-
-    msg_alternative = MIMEMultipart("alternative")
-    message.attach(msg_alternative)
-
-    msg_alternative.attach(MIMEText(email.text_content, "plain"))
-    if email.html_content:
-        msg_alternative.attach(MIMEText(email.html_content, "html"))
-
-    if email.attachment:
-        part_pdf = MIMEApplication(email.attachment.content, Name=email.attachment.filename)
-        part_pdf["Content-Disposition"] = f'attachment; filename="{email.attachment.filename}"'
-        message.attach(part_pdf)
-
-    return message
-
-
-def _send_email_message(service, raw_message: str) -> bool:
-    service.users().messages().send(userId="me", body={"raw": raw_message}).execute()
-    return True
 
 
 class MailService(ABC):
@@ -197,45 +176,90 @@ class MailService(ABC):
         raise NotImplementedError
 
 
-class GmailMailService(MailService):
+class MailerSendMailService(MailService):
+    API_URL = os.environ.get("MAILERSEND_API_URL", "https://api.mailersend.com/v1/email")
+
     def send(self, email: EmailMessage) -> bool:
         try:
             config = get_mail_config()
-            service = _build_gmail_service(config)
+        except Exception as exc:  # configuration errors
+            logger.exception("Unable to load MailerSend configuration: %s", exc)
+            return False
 
-            if email.html_content or email.attachment:
-                message = _build_multipart_message(email, config.user_email)
-            else:
-                message = _build_plain_message(email, config.user_email)
+        # Sender selection priority: explicit on message > category override > default config
+        cat_from_email, cat_from_name, cat_reply_to = _sender_for_category(email.category)
+        from_email = email.from_email or cat_from_email or config.from_email
+        from_name = email.from_name or cat_from_name or config.from_name
+        reply_to = email.reply_to or cat_reply_to or config.reply_to
 
-            raw_message = _encode_message(message)
-            _send_email_message(service, raw_message)
-            logger.info("Email sent successfully to %s", email.to_email)
-            return True
+        temp_files = []
+        try:
+            client = MailerSendClient(config.api_key)
+            builder = EmailBuilder().from_email(from_email, from_name)
+            builder = builder.to_many([{"email": email.to_email}])
+            builder = builder.subject(email.subject)
+
+            if email.html_content:
+                builder = builder.html(email.html_content)
+            if email.text_content:
+                builder = builder.text(email.text_content)
+            if not email.html_content and not email.text_content:
+                builder = builder.text("")
+
+            if reply_to and hasattr(builder, "reply_to"):
+                # Some SDK versions support reply_to([{email,name}])
+                try:
+                    builder = builder.reply_to([{"email": reply_to}])
+                except Exception:
+                    logger.debug("Reply-To not supported by current SDK version.")
+
+            if email.attachment:
+                encoded = _encode_attachment(email.attachment)
+                temp_files.append(encoded["path"])
+                builder = builder.attach_file(encoded["path"])
+
+            request = builder.build()
+            response = client.emails.send(request)
+
+            if getattr(response, "success", False):
+                logger.info("Email sent successfully to %s", email.to_email)
+                return True
+
+            status_code = getattr(response, "status_code", "unknown")
+            data_preview = str(getattr(response, "data", ""))[:500]
+            logger.error("MailerSend error status %s for %s: %s", status_code, email.to_email, data_preview)
+            return False
         except Exception as exc:
             logger.exception("Error sending email to %s: %s", email.to_email, exc)
             return False
+        finally:
+            for path in temp_files:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+
+
+# Backward compatibility for existing imports/tests
+GmailMailService = MailerSendMailService
 
 
 _mail_service: Optional[MailService] = None
 
 
 def _print_mail_config(config: MailConfig) -> None:
-    service_file = os.environ.get("SERVICE_MAIL_FILE", "")
-    gmail_service_file = os.environ.get("GMAIL_SERVICE_FILE_PATH", "")
-    scopes_count = len(config.scopes)
     print(
         "Mail config: "
-        f"user={config.user_email}, "
-        f"scopes={scopes_count}, "
-        f"service_file={service_file}, "
-        f"gmail_service_file={gmail_service_file}"
+        f"from={config.from_email}, "
+        f"from_name={config.from_name or '-'}, "
+        f"reply_to={config.reply_to or '-'}, "
+        f"api_key_set={'yes' if config.api_key else 'no'}"
     )
 
 
 def init_mail_service(service: Optional[MailService] = None) -> MailService:
     global _mail_service
-    _mail_service = service or GmailMailService()
+    _mail_service = service or MailerSendMailService()
     try:
         _print_mail_config(get_mail_config())
     except Exception as exc:

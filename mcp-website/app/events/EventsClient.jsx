@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import EventCard from "@/components/pages/events/EventCard"
 import { PageHeader } from "@/components/PageHeader"
 import { Loader2 } from "lucide-react"
@@ -15,8 +15,6 @@ export default function EventsClient({ initialEvents, initialError }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(initialError)
   const [activeFilter, setActiveFilter] = useState("upcoming")
-  const [coverLoaded, setCoverLoaded] = useState({})
-  const [coversReady, setCoversReady] = useState(false)
   const [heroImageUrl, setHeroImageUrl] = useState(null)
   const [heroLoading, setHeroLoading] = useState(false)
   const router = useRouter()
@@ -83,22 +81,6 @@ export default function EventsClient({ initialEvents, initialError }) {
     }
     return true // "all" filter
   })
-
-  const handleCoverLoaded = useCallback((eventKey) => {
-    setCoverLoaded((prev) => (prev[eventKey] ? prev : { ...prev, [eventKey]: true }))
-  }, [])
-
-  useEffect(() => {
-    if (!filteredEvents.length) {
-      setCoversReady(false)
-      return
-    }
-    const loadedCount = filteredEvents.filter((event) => {
-      const key = event.id || event.slug || event.title
-      return coverLoaded[key]
-    }).length
-    setCoversReady(loadedCount === filteredEvents.length)
-  }, [filteredEvents, coverLoaded])
 
   const nextUpcomingEvent = useMemo(() => {
     const today = new Date()
@@ -261,38 +243,30 @@ export default function EventsClient({ initialEvents, initialError }) {
             </div>
           )}
 
-          {filteredEvents.length > 0 && !coversReady && (
-            <div className="mt-6 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-mcp-orange animate-spin" />
-            </div>
-          )}
-
-          <div className={coversReady ? "opacity-100" : "opacity-0 pointer-events-none"}>
-            {groupedEvents.map((group) => (
-              <section key={group.key} className="events-month">
-                <div className="events-month__header">
-                  <h3 className="events-month__title">{group.label}</h3>
-                  <span className="events-month__season">{group.season}</span>
-                </div>
-                <motion.div
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 events-grid"
-                  variants={gridVariants}
-                  initial="hidden"
-                  whileInView="show"
-                  viewport={{ once: true, amount: 0.2 }}
-                >
-                  {group.items.map((event) => {
-                    const key = event.id || event.slug || event.title
-                    return (
-                      <motion.div key={key} variants={cardVariants}>
-                        <EventCard event={event} onCoverLoaded={handleCoverLoaded} />
-                      </motion.div>
-                    )
-                  })}
-                </motion.div>
-              </section>
-            ))}
-          </div>
+          {groupedEvents.map((group) => (
+            <section key={group.key} className="events-month">
+              <div className="events-month__header">
+                <h3 className="events-month__title">{group.label}</h3>
+                <span className="events-month__season">{group.season}</span>
+              </div>
+              <motion.div
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 events-grid"
+                variants={gridVariants}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true, amount: 0.2 }}
+              >
+                {group.items.map((event) => {
+                  const key = event.id || event.slug || event.title
+                  return (
+                    <motion.div key={key} variants={cardVariants}>
+                      <EventCard event={event} />
+                    </motion.div>
+                  )
+                })}
+              </motion.div>
+            </section>
+          ))}
         </div>
       </div>
     </div>

@@ -895,6 +895,17 @@
   animation: eventSkeleton 1.6s ease-in-out infinite;
 }
 
+.event-card__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(25, 25, 25, 0.95), rgba(60, 20, 0, 0.7));
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .event-card__badge {
   position: absolute;
   top: 12px;
