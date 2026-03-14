@@ -1,6 +1,6 @@
 from dto import SettingDTO
 from repositories.settings_repository import SettingsRepository
-from services.service_errors import NotFoundError, ValidationError
+from errors.service_errors import NotFoundError, ValidationError
 
 
 class SettingsService:

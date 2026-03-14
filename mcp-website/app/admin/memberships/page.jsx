@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical } from "lucide-react"
+import { ArrowLeft, Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical, Wallet } from "lucide-react"
 import { motion } from "framer-motion"
 import * as XLSX from "xlsx"
 import {routes} from "@/config/routes"
@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import MembershipStats from "@/components/admin/memberships/MembershipStats"
-import { downloadStorageFile } from "@/config/firebaseStorage"
 import { useAdminMemberships } from "@/hooks/useAdminMemberships"
 import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { MembershipModal } from "@/components/admin/memberships/MembershipsModal"
@@ -38,6 +37,9 @@ export default function MembershipsPage() {
     setMembershipPriceForYear,
     membershipPrice,
     isMembershipPriceReadOnly,
+    walletModelId,
+    fetchWalletModel,
+    saveWalletModel,
     loading,
   } = useAdminMemberships()
   const { events } = useAdminEvents()
@@ -62,6 +64,8 @@ export default function MembershipsPage() {
   const [initial, setInitial] = useState({})
   const [priceEditing, setPriceEditing] = useState(false)
   const [tempPrice, setTempPrice] = useState("")
+  const [walletModelEditing, setWalletModelEditing] = useState(false)
+  const [tempWalletModel, setTempWalletModel] = useState("")
   const [selectedYear, setSelectedYear] = useState(() => {
     if (typeof window === "undefined") {
       return new Date().getFullYear().toString()
@@ -80,6 +84,10 @@ export default function MembershipsPage() {
   useEffect(() => {
     getMembershipPriceForYear(selectedYear)
   }, [getMembershipPriceForYear, selectedYear])
+
+  useEffect(() => {
+    fetchWalletModel()
+  }, [fetchWalletModel])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -356,7 +364,7 @@ export default function MembershipsPage() {
       setInitial({ ...m })
     } else {
       setEditMode(false)
-      setForm({ name: "", surname: "", email: "", phone: "", birthdate: "", send_card_on_create: false })
+      setForm({ name: "", surname: "", email: "", phone: "", birthdate: "", create_wallet_on_create: true, send_card_on_create: false })
       setInitial({})
     }
     setModalOpen(true)
@@ -477,6 +485,52 @@ export default function MembershipsPage() {
               <p className="text-sm text-gray-400">
                 Valore letto da <code>NEXT_MEMBESHIP_PRICE</code>. Aggiorna il file .env per modificarlo.
               </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-zinc-900 border border-zinc-700">
+          <CardHeader>
+            <CardTitle>Modello Wallet Pass2U</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            {walletModelEditing ? (
+              <>
+                <Input
+                  value={tempWalletModel}
+                  onChange={(e) => setTempWalletModel(e.target.value)}
+                  placeholder="Model ID Pass2U"
+                  className="w-64 font-mono text-sm"
+                />
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    await saveWalletModel(tempWalletModel)
+                    setWalletModelEditing(false)
+                  }}
+                >
+                  Salva
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setWalletModelEditing(false)}>
+                  Annulla
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center gap-4">
+                <span className="font-mono text-sm text-gray-300">
+                  {walletModelId || <span className="text-gray-500 italic">Non configurato</span>}
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    setTempWalletModel(walletModelId || "")
+                    setWalletModelEditing(true)
+                  }}
+                >
+                  <Edit className="h-5 w-5" />
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -681,9 +735,9 @@ export default function MembershipsPage() {
                             <DropdownMenuItem onClick={() => sendCard(m.id)}>
                               <Ticket className="mr-2 h-4 w-4" /> Invia Tessera
                             </DropdownMenuItem>
-                            {m.card_url && (
-                              <DropdownMenuItem onClick={() => downloadStorageFile(m.card_url)}>
-                                <Download className="mr-2 h-4 w-4" /> Scarica Tessera
+                            {m.wallet_url && (
+                              <DropdownMenuItem onClick={() => window.open(m.wallet_url, "_blank")}>
+                                <Wallet className="mr-2 h-4 w-4" /> Apri Wallet
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => remove(m.id)} className="text-red-500 focus:text-red-500">

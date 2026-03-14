@@ -8,8 +8,8 @@ from models import EventPurchaseAccessType, Membership
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
-from services.events_service import EventsService
-from services.participants_service import ParticipantsService
+from services.events.events_service import EventsService
+from services.events.participants_service import ParticipantsService
 
 
 @pytest.fixture

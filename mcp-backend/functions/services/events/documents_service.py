@@ -41,6 +41,10 @@ class DocumentsService:
         return StoredDocument(storage_path=storage_path, public_url=blob.public_url, buffer=pdf_buffer)
 
     def create_membership_card(self, membership_id: str, membership_data: Any) -> StoredDocument:
+        """
+        Legacy helper kept for backward compatibility with existing flows/tests.
+        Wallet pass is the primary flow, but PDF generation is still supported.
+        """
         payload = self._normalize_payload(membership_data)
         payload["membership_id"] = membership_id
 

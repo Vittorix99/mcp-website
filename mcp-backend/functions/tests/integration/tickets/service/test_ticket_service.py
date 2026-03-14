@@ -1,13 +1,12 @@
 import pytest
 
 from config.firebase_config import db
-from tests.integration.gmail_utils import wait_for_message
 
 
 @pytest.mark.integration
 @pytest.mark.email
+@pytest.mark.usefixtures("mailersend_api_key")
 def test_ticket_service_sends_email_and_updates_participant(
-    gmail_service,
     ticket_service,
     create_event,
     create_participant,
@@ -17,7 +16,7 @@ def test_ticket_service_sends_email_and_updates_participant(
         pytest.skip("Storage bucket not configured for ticket generation")
 
     event_id = create_event()
-    participant_id, participant_email = create_participant(event_id)
+    participant_id, _participant_email = create_participant(event_id)
 
     participant_snap = (
         db.collection("participants")
@@ -43,9 +42,6 @@ def test_ticket_service_sends_email_and_updates_participant(
     )
     assert updated.get("ticket_sent") is True
     assert updated.get("ticket_pdf_url")
-
-    query = f'in:sent subject:"La tua partecipazione per" to:{participant_email}'
-    assert wait_for_message(gmail_service, query)
 
     event_payload = db.collection("events").document(event_id).get().to_dict() or {}
     storage_path = ticket_service._build_storage_path(

@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 
 from repositories.settings_repository import SettingsRepository
-from services.settings_service import SettingsService
+from services.core.settings_service import SettingsService
 
 
 @pytest.fixture

@@ -26,6 +26,8 @@ class Membership(FirestoreModel):
     card_storage_path: Optional[str] = None
     send_card_on_create: bool = field(default=False, metadata={"firestore_name": "send_card_on_create"})
     membership_fee: Optional[float] = field(default=None, metadata={"firestore_name": "membership_fee"})
+    wallet_pass_id: Optional[str] = field(default=None, metadata={"firestore_name": "wallet_pass_id"})
+    wallet_url: Optional[str] = field(default=None, metadata={"firestore_name": "wallet_url"})
 
 
 @dataclass(frozen=True)

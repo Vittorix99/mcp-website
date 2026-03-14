@@ -1,7 +1,7 @@
 import types
 
 from api.admin import messages_api
-from services.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from tests.utils import DummyRequest, unwrap_response
 
 

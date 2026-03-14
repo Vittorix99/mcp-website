@@ -5,7 +5,7 @@ import pytest
 
 from dto import EventDTO, EventParticipantDTO
 from models import Event
-from services.ticket_service import TicketService, TicketDocument
+from services.events.ticket_service import TicketService, TicketDocument
 
 
 class _DummyDocsService:
@@ -116,7 +116,7 @@ def test_process_new_ticket_send_failure(monkeypatch):
     """Returns error when mail send fails."""
     service = _make_service()
     service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
-    monkeypatch.setattr("services.ticket_service.mail_service.send", lambda *args, **kwargs: False)
+    monkeypatch.setattr("services.events.ticket_service.mail_service.send", lambda *args, **kwargs: False)
     result = service.process_new_ticket("part-1", _participant(), send=True)
     assert result["success"] is False
     assert "Failed to send email" in result["error"]
@@ -126,10 +126,29 @@ def test_process_new_ticket_happy_path(monkeypatch):
     """Sends ticket and updates participant."""
     service = _make_service()
     service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
-    monkeypatch.setattr("services.ticket_service.mail_service.send", lambda *args, **kwargs: True)
+    monkeypatch.setattr("services.events.ticket_service.mail_service.send", lambda *args, **kwargs: True)
     result = service.process_new_ticket("part-1", _participant(), send=True)
     assert result["success"] is True
     assert service.participant_repository.updated
+
+
+def test_process_new_ticket_attachment_filename(monkeypatch):
+    """Uses event title in attachment filename for outbound ticket emails."""
+    service = _make_service()
+    service.event_repository = _DummyEventRepo(model=Event(title="MCP Spring 2026!", date="13-02-2026"))
+    captured = {}
+
+    def fake_send(email_message):
+        captured["message"] = email_message
+        return True
+
+    monkeypatch.setattr("services.events.ticket_service.mail_service.send", fake_send)
+    result = service.process_new_ticket("part-1", _participant(), send=True)
+    assert result["success"] is True
+    assert captured["message"].attachment is not None
+    assert captured["message"].attachment.filename == "mcp_spring_2026_participation.pdf"
+    assert "allegata a questa email" in (captured["message"].html_content or "")
+    assert "Scarica la tua partecipazione" not in (captured["message"].html_content or "")
 
 
 def test_process_new_ticket_no_send(monkeypatch):
@@ -145,6 +164,6 @@ def test_log_failed_ticket_email(monkeypatch):
     """Logs failed ticket email to contact_message."""
     service = _make_service()
     dummy_db = _DummyDB()
-    monkeypatch.setattr("services.ticket_service.db", dummy_db)
+    monkeypatch.setattr("services.events.ticket_service.db", dummy_db)
     service.log_failed_ticket_email("part-1", _participant(), "boom")
     assert len(dummy_db.collection_ref.added) == 1

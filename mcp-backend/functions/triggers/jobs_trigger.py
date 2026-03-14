@@ -4,7 +4,7 @@ from config.firebase_config import db, cors, bucket
 
 # Import the LocationService so we can run the long‑running job logic in response
 # to new job documents being created.
-from services.location_service import LocationService
+from services.events.location_service import LocationService
 
 # Instantiate a single service instance to reuse the worker across invocations.
 location_service = LocationService()

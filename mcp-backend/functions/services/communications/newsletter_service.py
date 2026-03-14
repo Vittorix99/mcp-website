@@ -6,7 +6,7 @@ from firebase_admin import firestore
 
 from config.firebase_config import db
 from models import NewsletterSignup
-from services.mail_service import EmailMessage, mail_service
+from services.communications.mail_service import EmailMessage, mail_service
 from utils.templates_mail import get_newsletter_signup_template, get_newsletter_signup_text
 
 logger = logging.getLogger("NewsletterService")

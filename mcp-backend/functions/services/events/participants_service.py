@@ -10,8 +10,8 @@ from models import EventParticipant, EventPurchaseAccessType, Membership, Paymen
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
-from services.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError, ForbiddenError
-from services.ticket_service import TicketService
+from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError, ForbiddenError
+from services.events.ticket_service import TicketService
 from utils.events_utils import (
     calculate_end_of_year_membership,
     is_minor,

@@ -4,10 +4,10 @@ from firebase_functions import https_fn
 from config.firebase_config import region
 from flask import request, jsonify
 from config.firebase_config import cors
-from services.auth_service import require_admin
-from services.memberships_service import MembershipsService
-from services.membership_reports_service import MembershipReportsService
-from services.service_errors import (
+from services.core.auth_service import require_admin
+from services.memberships.memberships_service import MembershipsService
+from services.memberships.membership_reports_service import MembershipReportsService
+from errors.service_errors import (
     ConflictError,
     ForbiddenError,
     NotFoundError,
@@ -196,6 +196,68 @@ def get_membership_price(req):
     try:
         payload = memberships_service.get_membership_price(year=year)
         return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def create_wallet_pass(req):
+    if req.method != "POST":
+        return "Invalid method", 405
+    data = request.get_json()
+    membership_id = (data or {}).get("membership_id", "").strip()
+    if not membership_id:
+        return {"error": "Missing membership_id"}, 400
+    try:
+        payload = memberships_service.create_wallet_pass(membership_id)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def invalidate_wallet_pass(req):
+    if req.method != "POST":
+        return "Invalid method", 405
+    data = request.get_json()
+    membership_id = (data or {}).get("membership_id", "").strip()
+    if not membership_id:
+        return {"error": "Missing membership_id"}, 400
+    try:
+        payload = memberships_service.invalidate_wallet_pass(membership_id)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def get_wallet_model(req):
+    if req.method != "GET":
+        return "Invalid method", 405
+    try:
+        from services.memberships.pass2u_service import Pass2UService
+        model_id = Pass2UService()._get_model_id()
+        return jsonify({"model_id": model_id}), 200
+    except Exception as err:
+        return _handle_service_error(err)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def set_wallet_model(req):
+    if req.method != "POST":
+        return "Invalid method", 405
+    data = request.get_json()
+    model_id = (data or {}).get("model_id", "").strip()
+    if not model_id:
+        return {"error": "Missing model_id"}, 400
+    try:
+        from config.firebase_config import db
+        db.collection("membership_settings").document("current_model").set({"model_id": model_id})
+        return jsonify({"message": "Wallet model aggiornato", "model_id": model_id}), 200
     except Exception as err:
         return _handle_service_error(err)
 

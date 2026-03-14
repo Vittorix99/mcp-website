@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime, timezone
-from io import BytesIO
 from typing import Dict
 
 from dto import EventDTO, MembershipDTO, PurchaseDTO
@@ -12,9 +11,9 @@ from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
-from services.documents_service import DocumentsService
-from services.mail_service import EmailAttachment, EmailMessage, mail_service
-from services.service_errors import (
+from services.events.documents_service import DocumentsService
+from services.communications.mail_service import EmailAttachment, EmailMessage, mail_service
+from errors.service_errors import (
     ConflictError,
     ExternalServiceError,
     ForbiddenError,
@@ -149,31 +148,77 @@ class MembershipsService:
         if dto.birthdate is not None:
             membership.birthdate = birthdate
 
-        if dto.email is not None and membership.email and membership.email != previous_email:
-            try:
-                document = self.documents_service.create_membership_card(
-                    membership_id,
-                    MembershipDTO.from_model(membership),
-                )
-            except Exception as exc:
-                raise ExternalServiceError(
-                    f"Errore durante la rigenerazione della tessera: {exc}"
-                ) from exc
-            membership.card_url = document.public_url
-            membership.card_storage_path = document.storage_path
-            membership.membership_sent = False
-            dto.card_url = membership.card_url
-            dto.card_storage_path = membership.card_storage_path
-            dto.membership_sent = False
+        # [WALLET MIGRATION] Rigenerazione PDF tessera su cambio email commentata
+        # if dto.email is not None and membership.email and membership.email != previous_email:
+        #     try:
+        #         document = self.documents_service.create_membership_card(
+        #             membership_id,
+        #             MembershipDTO.from_model(membership),
+        #         )
+        #     except Exception as exc:
+        #         raise ExternalServiceError(
+        #             f"Errore durante la rigenerazione della tessera: {exc}"
+        #         ) from exc
+        #     membership.card_url = document.public_url
+        #     membership.card_storage_path = document.storage_path
+        #     membership.membership_sent = False
+        #     dto.card_url = membership.card_url
+        #     dto.card_storage_path = membership.card_storage_path
+        #     dto.membership_sent = False
 
         self.membership_repository.update_from_model(membership_id, dto)
         return {'message': 'Membership aggiornata'}
 
 
+    def create_wallet_pass(self, membership_id: str):
+        membership = self.membership_repository.get_model(membership_id)
+        if not membership:
+            raise NotFoundError("Membership non trovata")
+
+        from services.memberships.pass2u_service import Pass2UService
+        pass2u = Pass2UService()
+        wallet = pass2u.create_membership_pass(membership_id, membership)
+        if not wallet:
+            raise ExternalServiceError("Impossibile creare il wallet pass (Pass2U ha restituito None)")
+
+        self.membership_repository.update_from_model(
+            membership_id,
+            MembershipDTO(wallet_pass_id=wallet.pass_id, wallet_url=wallet.wallet_url),
+        )
+        return {"wallet_pass_id": wallet.pass_id, "wallet_url": wallet.wallet_url}
+
+    def invalidate_wallet_pass(self, membership_id: str):
+        membership = self.membership_repository.get_model(membership_id)
+        if not membership:
+            raise NotFoundError("Membership non trovata")
+
+        pass_id = membership.wallet_pass_id
+        if not pass_id:
+            return {"message": "Nessun wallet pass da invalidare"}
+
+        from google.cloud.firestore_v1 import DELETE_FIELD
+        from services.memberships.pass2u_service import Pass2UService
+        ok = Pass2UService().invalidate_membership_pass(pass_id)
+        if ok:
+            self.membership_repository.update_fields(
+                membership_id,
+                {"wallet_pass_id": DELETE_FIELD, "wallet_url": DELETE_FIELD},
+            )
+        return {"message": "Wallet pass invalidato" if ok else "Invalidazione fallita (pass rimosso localmente)"}
+
     def delete(self, membership_id):
         membership = self.membership_repository.get_model(membership_id)
         if not membership:
             raise NotFoundError("Membership non trovata")
+
+        # Invalida il wallet pass se presente
+        if membership.wallet_pass_id:
+            try:
+                from services.memberships.pass2u_service import Pass2UService
+                Pass2UService().invalidate_membership_pass(membership.wallet_pass_id)
+                print(f"[Pass2U] Wallet pass {membership.wallet_pass_id} invalidato")
+            except Exception as e:
+                print(f"[Pass2U] Invalidazione wallet pass fallita (non bloccante): {e}")
 
         storage_path = membership.card_storage_path
         if storage_path and self.storage is not None:
@@ -194,61 +239,76 @@ class MembershipsService:
         if not membership:
             raise NotFoundError("Membership not found")
 
-        membership_dto = MembershipDTO.from_model(membership)
         membership_payload = self._membership_template_payload(membership, membership_id)
         email = membership.email
-        name = membership.name
-        surname = membership.surname
-        full_name = f"{name}_{surname}"
 
-        card_url = membership.card_url
-        storage_path = membership.card_storage_path
-        document_buffer = None
-        if not card_url:
+        # [WALLET MIGRATION] Generazione/recupero PDF tessera commentata
+        # card_url = membership.card_url
+        # storage_path = membership.card_storage_path
+        # document_buffer = None
+        # if not card_url:
+        #     try:
+        #         document = self.documents_service.create_membership_card(
+        #             membership_id,
+        #             MembershipDTO.from_model(membership),
+        #         )
+        #     except Exception as exc:
+        #         raise ExternalServiceError(f"Card generation failed: {exc}") from exc
+        #     card_url = document.public_url
+        #     storage_path = document.storage_path
+        #     document_buffer = document.buffer
+        #     self.membership_repository.update_from_model(
+        #         membership_id,
+        #         MembershipDTO(card_url=card_url, card_storage_path=storage_path, membership_sent=False),
+        #     )
+        #
+        # if "memberships/cards/" not in card_url:
+        #     raise ValidationError("Invalid card_url format")
+        #
+        # if not storage_path:
+        #     path_start = card_url.find("memberships/cards/")
+        #     storage_path = card_url[path_start:]
+        #
+        # if document_buffer is None:
+        #     blob = self.storage.blob(storage_path)
+        #     pdf_data = blob.download_as_bytes()
+        #     document_buffer = BytesIO(pdf_data)
+
+        # Recupera o genera wallet_url on-demand
+        wallet_url = membership.wallet_url
+        if not wallet_url:
             try:
-                document = self.documents_service.create_membership_card(
-                    membership_id,
-                    membership_dto,
-                )
+                from services.memberships.pass2u_service import Pass2UService
+                pass2u = Pass2UService()
+                wallet = pass2u.create_membership_pass(membership_id, membership)
+                if wallet:
+                    wallet_url = wallet.wallet_url
+                    self.membership_repository.update_from_model(
+                        membership_id,
+                        MembershipDTO(wallet_pass_id=wallet.pass_id, wallet_url=wallet_url),
+                    )
             except Exception as exc:
-                raise ExternalServiceError(f"Card generation failed: {exc}") from exc
-            card_url = document.public_url
-            storage_path = document.storage_path
-            document_buffer = document.buffer
-            self.membership_repository.update_from_model(
-                membership_id,
-                MembershipDTO(card_url=card_url, card_storage_path=storage_path, membership_sent=False),
-            )
+                self.logger.warning(f"[Pass2U] wallet generation failed for {membership_id}: {exc}")
 
-        if "memberships/cards/" not in card_url:
-            raise ValidationError("Invalid card_url format")
-
-        if not storage_path:
-            path_start = card_url.find("memberships/cards/")
-            storage_path = card_url[path_start:]
-
-        if document_buffer is None:
-            blob = self.storage.blob(storage_path)
-            pdf_data = blob.download_as_bytes()
-            document_buffer = BytesIO(pdf_data)
+        membership_payload["wallet_url"] = wallet_url
 
         subject = "La tua tessera MCP"
         html_content = get_membership_email_template(membership_payload)
         text_content = get_membership_email_text(membership_payload)
 
-        attachment = None
-        if document_buffer:
-            attachment = EmailAttachment(
-                content=document_buffer.getvalue(),
-                filename=f"{full_name}_membership.pdf",
-            )
+        # [WALLET MIGRATION] EmailAttachment PDF commentato — email inviata senza allegato
+        # attachment = EmailAttachment(
+        #     content=document_buffer.getvalue(),
+        #     filename=f"{name}_{surname}_membership.pdf",
+        # )
         sent = mail_service.send(
             EmailMessage(
                 to_email=email,
                 subject=subject,
                 text_content=text_content,
                 html_content=html_content,
-                attachment=attachment,
+                attachment=None,
+                category="membership",
             )
         )
 

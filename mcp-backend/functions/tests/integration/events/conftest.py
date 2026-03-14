@@ -5,7 +5,7 @@ import pytest
 
 from dto import EventDTO
 from repositories.event_repository import EventRepository
-from services.events_service import EventsService
+from services.events.events_service import EventsService
 
 
 @pytest.fixture

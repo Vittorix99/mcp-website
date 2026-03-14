@@ -1,7 +1,7 @@
 import types
 
 from api.admin import stats_api
-from services.service_errors import ExternalServiceError
+from errors.service_errors import ExternalServiceError
 from tests.utils import DummyRequest, unwrap_response
 
 

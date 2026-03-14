@@ -4,8 +4,8 @@ from flask import jsonify
 from api.decorators import require_active_event
 from config.firebase_config import cors, region
 from dto import PreOrderDTO, OrderCaptureDTO, EventDTO
-from services.event_payment_service import create_order_event_service, capture_order_event_service
-from services.service_errors import (
+from services.payments.event_payment_service import create_order_event_service, capture_order_event_service
+from errors.service_errors import (
     ExternalServiceError,
     NotFoundError,
     ServiceError,

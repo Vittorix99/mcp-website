@@ -3,9 +3,7 @@ from uuid import uuid4
 import pytest
 
 from dto import MembershipDTO
-from services.memberships_service import MembershipsService
-from services.service_errors import ConflictError, ForbiddenError, ValidationError
-from tests.integration.gmail_utils import wait_for_message
+from errors.service_errors import ConflictError, ForbiddenError, ValidationError
 
 
 @pytest.mark.integration
@@ -78,16 +76,14 @@ def test_memberships_service_rejects_protected_update(
 
 @pytest.mark.integration
 @pytest.mark.email
+@pytest.mark.usefixtures("mailersend_api_key")
 def test_memberships_service_send_card_sends_email(
-    gmail_service,
     memberships_service,
     membership_repository,
     membership_payload,
     create_membership,
 ):
-    """Generates a membership card and sends a real email."""
-    if memberships_service.storage is None:
-        pytest.skip("Storage bucket not configured for membership card generation")
+    """Sends membership email via MailerSend and updates membership flags."""
     membership_id = create_membership(membership_payload)
     try:
         result = memberships_service.send_card(membership_id)
@@ -96,10 +92,6 @@ def test_memberships_service_send_card_sends_email(
         refreshed = membership_repository.get_model(membership_id)
         assert refreshed is not None
         assert refreshed.membership_sent is True
-        assert refreshed.card_url
-
-        query = f'in:sent subject:"La tua tessera MCP" to:{membership_payload["email"]}'
-        assert wait_for_message(gmail_service, query)
     finally:
         memberships_service.delete(membership_id)
 

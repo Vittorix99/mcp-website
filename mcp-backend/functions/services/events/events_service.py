@@ -8,7 +8,7 @@ from dto import EventDTO
 from models import Event
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
-from services.service_errors import NotFoundError, ValidationError
+from errors.service_errors import NotFoundError, ValidationError
 from utils.events_utils import map_purchase_mode
 
 logger = logging.getLogger("EventsService")

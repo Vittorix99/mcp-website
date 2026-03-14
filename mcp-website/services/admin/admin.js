@@ -1,5 +1,6 @@
 import { endpoints } from '../config/endpoints';
 import { getAdminToken } from '../config/firebase';
+import { getApiErrorMessage } from '@/lib/api-errors';
 
 /**
  * Client-side service functions for newsletter functionality
@@ -17,8 +18,8 @@ export async function signupNewsletter(email) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to sign up for newsletter');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to sign up for newsletter'));
     }
 
     return response.json();
@@ -47,8 +48,8 @@ export async function getNewsletterSignups(signupId = null) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch newsletter signups');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to fetch newsletter signups'));
     }
 
     return response.json();
@@ -75,8 +76,8 @@ export async function updateNewsletterSignup(signupId, data) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update newsletter signup');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to update newsletter signup'));
     }
 
     return response.json();
@@ -101,8 +102,8 @@ export async function deleteNewsletterSignup(signupId) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete newsletter signup');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to delete newsletter signup'));
     }
 
     return response.json();

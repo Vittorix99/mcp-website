@@ -1,7 +1,7 @@
 from firebase_functions import https_fn
 
 from config.firebase_config import cors, region
-from services.auth_service import require_admin
+from services.core.auth_service import require_admin
 from services.mailer_lite import GroupsClient, MailerLiteError
 
 from .helpers import get_payload, get_query_params, pick, handle_mailerlite_error

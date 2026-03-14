@@ -5,7 +5,7 @@ import pytest
 
 from dto import PurchaseDTO
 from repositories.purchase_repository import PurchaseRepository
-from services.purchases_service import PurchasesService
+from services.payments.purchases_service import PurchasesService
 
 
 @pytest.fixture

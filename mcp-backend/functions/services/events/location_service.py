@@ -15,8 +15,8 @@ from dto import EventDTO, EventParticipantDTO, JobDTO
 from models import Job
 from repositories import EventRepository, ParticipantRepository
 from repositories.job_repository import JobRepository
-from services.mail_service import EmailMessage, mail_service
-from services.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from services.communications.mail_service import EmailMessage, mail_service
+from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from utils.templates_mail import build_location_email_payload
 
 
@@ -36,6 +36,7 @@ def _send_with_retry(email: str, subject: str, text: str, html: str) -> bool:
                     subject=subject,
                     text_content=text,
                     html_content=html,
+                    category="location",
                 )
             )
             if ok:
@@ -115,6 +116,7 @@ class LocationService:
                 subject=subject,
                 text_content=text_content,
                 html_content=html_content,
+                category="location",
             )
         )
 
@@ -340,6 +342,7 @@ class LocationService:
                     subject=subject,
                     text_content=text_content,
                     html_content=html_content,
+                    category="location",
                 )
             )
 

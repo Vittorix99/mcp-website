@@ -1,6 +1,6 @@
 import pytest
 
-from services.service_errors import NotFoundError, ValidationError
+from errors.service_errors import NotFoundError, ValidationError
 
 
 @pytest.mark.integration

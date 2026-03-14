@@ -7,8 +7,8 @@ from dto import EventDTO
 from models import EventParticipant, PaymentMethod
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
-from services.events_service import EventsService
-from services.ticket_service import TicketService
+from services.events.events_service import EventsService
+from services.events.ticket_service import TicketService
 
 
 @pytest.fixture

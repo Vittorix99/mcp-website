@@ -1,5 +1,6 @@
 import { endpoints } from '@/config/endpoints';
 import { getAdminToken } from '@/config/firebase';
+import { getApiErrorMessage } from '@/lib/api-errors';
 
 /**
  * Client-side service functions for signup functionality
@@ -17,8 +18,8 @@ export async function createSignupRequest(data) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create signup request');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to create signup request'));
     }
 
     return response.json();
@@ -47,8 +48,8 @@ export async function getSignupRequests(requestId = null) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch signup requests');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to fetch signup requests'));
     }
 
     return response.json();
@@ -75,8 +76,8 @@ export async function updateSignupRequest(requestId, data) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update signup request');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to update signup request'));
     }
 
     return response.json();
@@ -101,8 +102,8 @@ export async function deleteSignupRequest(requestId) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete signup request');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to delete signup request'));
     }
 
     return response.json();
@@ -129,8 +130,8 @@ export async function acceptSignupRequest(requestId) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to accept signup request');
+      const error = await response.json().catch(() => null);
+      throw new Error(getApiErrorMessage(error, 'Failed to accept signup request'));
     }
 
     return response.json();

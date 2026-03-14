@@ -1,6 +1,6 @@
 import pytest
 
-from services.stats_service import StatsService
+from services.core.stats_service import StatsService
 
 
 @pytest.mark.integration

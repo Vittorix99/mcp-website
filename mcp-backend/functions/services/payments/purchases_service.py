@@ -5,7 +5,7 @@ from dto import PurchaseDTO
 from models import Purchase
 from models.enums import PurchaseTypes
 from repositories.purchase_repository import PurchaseRepository
-from services.service_errors import NotFoundError, ValidationError
+from errors.service_errors import NotFoundError, ValidationError
 
 
 class PurchasesService:

@@ -1,7 +1,7 @@
-import os
 from typing import Optional, Tuple
 
 from dto import EventDTO
+from .assets import resolve_instagram_url, resolve_logo_url
 
 
 def append_organizer_message(html_content: str, message: Optional[str]) -> str:
@@ -25,8 +25,8 @@ def get_location_email_template(
 ) -> str:
     """Generates an HTML email to send the location of the event."""
 
-    logo_url = os.getenv("LOGO_URL", "#")
-    instagram_url = os.getenv("INSTAGRAM_URL", "#")
+    logo_url = resolve_logo_url()
+    instagram_url = resolve_instagram_url()
 
     address_line = f"<p><strong>Address:</strong> {address}</p>" if address else ""
     link_line = f"""<p><strong>Map Link:</strong> 
@@ -42,15 +42,15 @@ def get_location_email_template(
             body {{
                 margin: 0;
                 padding: 0;
-                background-color: #000000;
+                background-color: #ffffff;
                 font-family: Arial, sans-serif;
-                color: #999999;
+                color: #1f2937;
             }}
             .container {{
                 max-width: 600px;
                 margin: 0 auto;
                 padding: 40px 20px;
-                background-color: #000000;
+                background-color: #ffffff;
                 text-align: center;
             }}
             .logo {{
@@ -68,15 +68,15 @@ def get_location_email_template(
                 padding: 20px;
                 border: 1px solid #ff4500;
                 border-radius: 5px;
-                background-color: #111;
-                color: #dddddd;
+                background-color: #fff7ed;
+                color: #1f2937;
                 text-align: left;
                 font-size: 15px;
             }}
             .footer {{
                 margin-top: 40px;
                 font-size: 12px;
-                color: #666;
+                color: #6b7280;
             }}
             .social-links {{
                 margin-top: 20px;
@@ -103,7 +103,7 @@ def get_location_email_template(
             </div>
 
             <div class="social-links">
-                <p style="color: #999999;">Follow us on social media:</p>
+                <p style="color: #4b5563;">Follow us on social media:</p>
                 <a href="{instagram_url}">Instagram</a>
             </div>
 

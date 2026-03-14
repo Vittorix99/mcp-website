@@ -6,27 +6,30 @@ AUTH=false
 USE_FIRESTORE_EMULATOR=false
 USE_PUBSUB_EMULATOR=false
 PUBSUB_FLAG_SET=false
+IMPORT_BACKUP=false
 EXPORT_DIR="./emulator-data"
 PROJECT_ID=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Usage: ./emulator.sh [--env=test|prod] [--firestore-emulator=true|false] [--auth=true|false]
+Usage: ./emulator.sh [--env=test|prod] [--firestore-emulator=true|false] [--auth=true|false] [--import-backup=true|false] [--backup-dir=PATH]
 
 Examples:
   ./emulator.sh
   ./emulator.sh --env=prod
   ./emulator.sh --env=test --firestore-emulator=true
   ./emulator.sh --env=test --auth=true --firestore-emulator=true
+  ./emulator.sh --env=test --auth=true --import-backup=true
+  ./emulator.sh --env=test --auth=true --import-backup=true --backup-dir=./emulator-data
 
 Notes:
 - Default environment is test (loads .env.integration).
 - When --env=prod, MCP_ENV=prod is exported (loads .env).
 - Project ID is inferred from the Firebase service account JSON when available.
 - Firestore emulator can only be enabled in test.
-- When --auth=true, emulator data is exported on exit to ./emulator-data
-  (and imported on start if present).
+- When --auth=true, emulator data is exported on exit to backup dir.
+- Import del backup avviene solo se --import-backup=true.
 USAGE
 }
 
@@ -52,6 +55,9 @@ for arg in "$@"; do
     --pubsub-emulator=false) USE_PUBSUB_EMULATOR=false; PUBSUB_FLAG_SET=true ;;
     --auth=true) AUTH=true ;;
     --auth=false) AUTH=false ;;
+    --import-backup=true) IMPORT_BACKUP=true ;;
+    --import-backup=false) IMPORT_BACKUP=false ;;
+    --backup-dir=*) EXPORT_DIR="${arg#*=}" ;;
     -h|--help) usage; exit 0 ;;
     *)
       echo "Unknown arg: $arg" >&2
@@ -82,10 +88,15 @@ IMPORT_FLAG=""
 EXPORT_FLAG=""
 if [ "$AUTH" = true ]; then
   mkdir -p "$EXPORT_DIR"
-  if [ -n "$(ls -A "$EXPORT_DIR" 2>/dev/null)" ]; then
-    IMPORT_FLAG="--import=$EXPORT_DIR"
-  fi
   EXPORT_FLAG="--export-on-exit=$EXPORT_DIR"
+fi
+
+if [ "$IMPORT_BACKUP" = true ]; then
+  if [ -d "$EXPORT_DIR" ] && [ -n "$(ls -A "$EXPORT_DIR" 2>/dev/null)" ]; then
+    IMPORT_FLAG="--import=$EXPORT_DIR"
+  else
+    echo "Backup dir '$EXPORT_DIR' non trovata o vuota: import saltato."
+  fi
 fi
 
 ONLY_SERVICES="functions"

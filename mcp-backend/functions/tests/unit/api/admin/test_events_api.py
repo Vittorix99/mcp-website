@@ -1,7 +1,7 @@
 import types
 
 from api.admin import events_api
-from services.service_errors import ConflictError, NotFoundError, ServiceError, ValidationError
+from errors.service_errors import ConflictError, NotFoundError, ServiceError, ValidationError
 from tests.utils import DummyRequest, unwrap_response
 
 

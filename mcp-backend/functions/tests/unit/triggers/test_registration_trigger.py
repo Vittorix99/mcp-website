@@ -1,5 +1,4 @@
 import types
-from io import BytesIO
 
 import pytest
 
@@ -21,13 +20,6 @@ class _DummySnap:
 
     def to_dict(self):
         return dict(self._data)
-
-
-class _DummyDoc:
-    def __init__(self, url, path, payload=b"pdf"):
-        self.public_url = url
-        self.storage_path = path
-        self.buffer = BytesIO(payload)
 
 
 def test_on_participant_created_updates_gender_and_sends_ticket(monkeypatch):
@@ -141,21 +133,10 @@ def test_on_membership_created_generates_card_and_sends_email(monkeypatch):
             "surname": "Rossi",
             "email": "mcpweb.test@gmail.com",
             "send_card_on_create": True,
+            "create_wallet_on_create": True,
         }
     )
     event = types.SimpleNamespace(data=snap, params={"membershipId": membership_id})
-
-    document = _DummyDoc(
-        url="https://example.com/memberships/cards/mem-1.pdf",
-        path="memberships/cards/mem-1.pdf",
-    )
-
-    class _DummyDocsService:
-        def __init__(self):
-            self.storage = None
-
-        def create_membership_card(self, *_args, **_kwargs):
-            return document
 
     called = {}
 
@@ -164,7 +145,14 @@ def test_on_membership_created_generates_card_and_sends_email(monkeypatch):
         called["subject"] = message.subject
         return True
 
-    monkeypatch.setattr(registration_trigger, "DocumentsService", _DummyDocsService)
+    class _DummyPass2UService:
+        def create_membership_pass(self, *_args, **_kwargs):
+            return types.SimpleNamespace(
+                pass_id="pass-1",
+                wallet_url="https://www.pass2u.net/d/pass-1",
+            )
+
+    monkeypatch.setattr("services.memberships.pass2u_service.Pass2UService", _DummyPass2UService)
     monkeypatch.setattr(registration_trigger.mail_service, "send", _fake_send)
     monkeypatch.setattr(
         registration_trigger,
@@ -174,7 +162,47 @@ def test_on_membership_created_generates_card_and_sends_email(monkeypatch):
 
     registration_trigger.on_membership_created.__wrapped__(event)
 
-    assert any("card_url" in update for update in snap.reference.updates)
+    assert any(
+        update.get("wallet_pass_id") == "pass-1"
+        and update.get("wallet_url") == "https://www.pass2u.net/d/pass-1"
+        for update in snap.reference.updates
+    )
     assert any(update.get("membership_sent") is True for update in snap.reference.updates)
     assert called.get("to") == "mcpweb.test@gmail.com"
     assert called.get("subject") == "Tessera Associativa MCP"
+
+
+def test_on_membership_created_skips_wallet_when_flag_false(monkeypatch):
+    membership_id = "mem-2"
+    snap = _DummySnap(
+        {
+            "name": "Mario",
+            "surname": "Rossi",
+            "email": "mcpweb.test@gmail.com",
+            "send_card_on_create": False,
+            "create_wallet_on_create": False,
+        }
+    )
+    event = types.SimpleNamespace(data=snap, params={"membershipId": membership_id})
+
+    monkeypatch.setattr(
+        "services.memberships.pass2u_service.Pass2UService",
+        lambda: pytest.fail("Pass2UService should not be called when create_wallet_on_create=False"),
+    )
+
+    called = {"email": False}
+    monkeypatch.setattr(
+        registration_trigger.mail_service,
+        "send",
+        lambda *_args, **_kwargs: called.__setitem__("email", True),
+    )
+    monkeypatch.setattr(
+        registration_trigger,
+        "SubscribersClient",
+        lambda: types.SimpleNamespace(sync_membership=lambda *args, **kwargs: None),
+    )
+
+    registration_trigger.on_membership_created.__wrapped__(event)
+
+    assert not any("wallet_url" in update or "wallet_pass_id" in update for update in snap.reference.updates)
+    assert called["email"] is False

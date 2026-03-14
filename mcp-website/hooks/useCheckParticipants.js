@@ -13,10 +13,14 @@ export function useCheckParticipants() {
 
     try {
       const result = await checkParticipantsService(eventId, participants)
+      const isValid = result?.valid === true
 
-      if (!result || result.valid === false) {
-        // Usiamo direttamente gli errori provenienti dal backend se disponibili
-        const errs = Array.isArray(result?.errors) ? result.errors : ["Errore di validazione partecipanti."]
+      if (!result || !isValid) {
+        const errs = Array.isArray(result?.errors)
+          ? result.errors
+          : Array.isArray(result?.messages)
+            ? result.messages
+            : [result?.message || result?.error || "Errore di validazione partecipanti."]
         setErrors(errs)
         return { valid: false, errors: errs }
       }

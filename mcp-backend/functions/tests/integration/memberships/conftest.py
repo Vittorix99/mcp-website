@@ -8,9 +8,9 @@ from models import Purchase, PurchaseTypes
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.purchase_repository import PurchaseRepository
-from services.events_service import EventsService
-from services.memberships_service import MembershipsService
-from services.service_errors import NotFoundError
+from services.events.events_service import EventsService
+from services.memberships.memberships_service import MembershipsService
+from errors.service_errors import NotFoundError
 
 
 @pytest.fixture

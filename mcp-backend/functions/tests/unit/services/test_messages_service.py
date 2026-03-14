@@ -1,8 +1,8 @@
 import pytest
 
 from dto import ContactMessageDTO
-from services.messages_service import MessagesService
-from services.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from services.communications.messages_service import MessagesService
+from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 
 
 class _DummyMessageRepo:
@@ -79,7 +79,7 @@ def test_reply_missing_fields():
 def test_reply_send_failure(monkeypatch):
     """Raises when email send fails."""
     service = _make_service()
-    monkeypatch.setattr("services.messages_service.mail_service.send", lambda *args, **kwargs: False)
+    monkeypatch.setattr("services.communications.messages_service.mail_service.send", lambda *args, **kwargs: False)
     with pytest.raises(ExternalServiceError):
         service.reply("mario@example.com", "subject", "body", "msg-1")
 
@@ -87,7 +87,7 @@ def test_reply_send_failure(monkeypatch):
 def test_reply_happy_path(monkeypatch):
     """Sends reply and marks message as answered."""
     service = _make_service()
-    monkeypatch.setattr("services.messages_service.mail_service.send", lambda *args, **kwargs: True)
+    monkeypatch.setattr("services.communications.messages_service.mail_service.send", lambda *args, **kwargs: True)
     payload = service.reply("mario@example.com", "subject", "body", "msg-1")
     assert payload["emailSentTo"] == "mario@example.com"
     assert service.message_repository.updated
@@ -104,7 +104,11 @@ def test_submit_contact_message_missing_fields():
 def test_submit_contact_message_missing_destination(monkeypatch):
     """Rejects when destination email is missing."""
     service = _make_service()
+    monkeypatch.delenv("CONTACT_MESSAGES_TO_EMAIL", raising=False)
+    monkeypatch.delenv("MAIL_DESTINATION_EMAIL", raising=False)
+    monkeypatch.delenv("MAILERSEND_FROM_EMAIL", raising=False)
     monkeypatch.delenv("USER_EMAIL", raising=False)
+    monkeypatch.delenv("GMAIL_MAIL", raising=False)
     dto = ContactMessageDTO(name="Mario", email="mario@example.com", message="Hi")
     with pytest.raises(ValidationError):
         service.submit_contact_message(dto)
@@ -113,8 +117,8 @@ def test_submit_contact_message_missing_destination(monkeypatch):
 def test_submit_contact_message_send_failure(monkeypatch):
     """Raises when sending contact message fails."""
     service = _make_service()
-    monkeypatch.setenv("USER_EMAIL", "owner@example.com")
-    monkeypatch.setattr("services.messages_service.mail_service.send", lambda *args, **kwargs: False)
+    monkeypatch.setenv("CONTACT_MESSAGES_TO_EMAIL", "owner@example.com")
+    monkeypatch.setattr("services.communications.messages_service.mail_service.send", lambda *args, **kwargs: False)
     dto = ContactMessageDTO(name="Mario", email="mario@example.com", message="Hi")
     with pytest.raises(ExternalServiceError):
         service.submit_contact_message(dto)
@@ -123,14 +127,14 @@ def test_submit_contact_message_send_failure(monkeypatch):
 def test_submit_contact_message_happy_path(monkeypatch):
     """Sends message and stores it."""
     service = _make_service()
-    monkeypatch.setenv("USER_EMAIL", "owner@example.com")
+    monkeypatch.setenv("CONTACT_MESSAGES_TO_EMAIL", "owner@example.com")
     calls = {"sent": 0}
 
     def fake_send(*args, **kwargs):
         calls["sent"] += 1
         return True
 
-    monkeypatch.setattr("services.messages_service.mail_service.send", fake_send)
+    monkeypatch.setattr("services.communications.messages_service.mail_service.send", fake_send)
     dto = ContactMessageDTO(name="Mario", email="mario@example.com", message="Hi")
     payload = service.submit_contact_message(dto)
     assert payload["message"]
@@ -141,14 +145,14 @@ def test_submit_contact_message_happy_path(monkeypatch):
 def test_submit_contact_message_send_copy(monkeypatch):
     """Sends a copy when send_copy is True."""
     service = _make_service()
-    monkeypatch.setenv("USER_EMAIL", "owner@example.com")
+    monkeypatch.setenv("CONTACT_MESSAGES_TO_EMAIL", "owner@example.com")
     calls = {"sent": 0}
 
     def fake_send(*args, **kwargs):
         calls["sent"] += 1
         return True
 
-    monkeypatch.setattr("services.messages_service.mail_service.send", fake_send)
+    monkeypatch.setattr("services.communications.messages_service.mail_service.send", fake_send)
     dto = ContactMessageDTO(name="Mario", email="mario@example.com", message="Hi")
     service.submit_contact_message(dto, send_copy=True)
     assert calls["sent"] == 2

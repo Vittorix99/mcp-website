@@ -1,4 +1,5 @@
 import logging
+import re
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any, Dict, Optional
@@ -9,8 +10,8 @@ from config.firebase_config import db
 from dto import EventDTO, EventParticipantDTO
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
-from services.documents_service import DocumentsService
-from services.mail_service import EmailAttachment, EmailMessage, mail_service
+from services.events.documents_service import DocumentsService
+from services.communications.mail_service import EmailAttachment, EmailMessage, mail_service
 from utils.templates_mail import get_ticket_email_template, get_ticket_email_text
 
 
@@ -66,6 +67,13 @@ class TicketService:
         name_surname = f"{safe_name}_{safe_surname}".strip("_")
         return f"tickets/{safe_title}/{name_surname}_ticket.pdf"
 
+    def _build_attachment_filename(self, event_title: Optional[str]) -> str:
+        raw_title = (event_title or "").strip().lower()
+        normalized = re.sub(r"[^a-z0-9]+", "_", raw_title).strip("_")
+        if not normalized:
+            normalized = "event"
+        return f"{normalized}_participation.pdf"
+
     def create_ticket_document(
         self,
         participant_data: Any,
@@ -114,14 +122,19 @@ class TicketService:
                     return {"success": False, "error": "Missing participant email"}
                 ticket_payload = participant_dto.to_payload()
                 subject = f"La tua partecipazione per {event_payload.get('title')}"
-                html_content = get_ticket_email_template(ticket_payload, event_payload, pdf_url=document.public_url)
-                text_content = get_ticket_email_text(ticket_payload, event_payload)
                 attachment = None
                 if document.buffer:
                     attachment = EmailAttachment(
                         content=document.buffer.getvalue(),
-                        filename=f"{ticket_payload.get('name', 'user')}_{ticket_payload.get('surname', '')}_ticket.pdf",
+                        filename=self._build_attachment_filename(event_payload.get("title")),
                     )
+                html_content = get_ticket_email_template(
+                    ticket_payload,
+                    event_payload,
+                    pdf_url=None if attachment else document.public_url,
+                    has_attachment=bool(attachment),
+                )
+                text_content = get_ticket_email_text(ticket_payload, event_payload)
                 sent = mail_service.send(
                     EmailMessage(
                         to_email=participant_dto.email,
@@ -129,6 +142,7 @@ class TicketService:
                         text_content=text_content,
                         html_content=html_content,
                         attachment=attachment,
+                        category="ticket",
                     )
                 )
                 if not sent:

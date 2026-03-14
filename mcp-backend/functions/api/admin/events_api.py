@@ -1,9 +1,9 @@
 import logging
 from firebase_functions import https_fn
 from config.firebase_config import cors
-from services.auth_service import require_admin
-from services.events_service import EventsService
-from services.service_errors import (
+from services.core.auth_service import require_admin
+from services.events.events_service import EventsService
+from errors.service_errors import (
     ConflictError,
     ForbiddenError,
     NotFoundError,

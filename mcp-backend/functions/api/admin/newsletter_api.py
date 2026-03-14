@@ -1,7 +1,7 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors, region
-from services.auth_service import require_admin
-from services.newsletter_service import NewsletterService
+from services.core.auth_service import require_admin
+from services.communications.newsletter_service import NewsletterService
 
 newsletter_service = NewsletterService()
 @https_fn.on_request(cors=cors, region=region)

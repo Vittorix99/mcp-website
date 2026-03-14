@@ -1,9 +1,9 @@
 from firebase_functions import https_fn
 from flask import request, jsonify
 from config.firebase_config import cors, region
-from services.auth_service import require_admin
-from services.messages_service import MessagesService
-from services.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
+from services.core.auth_service import require_admin
+from services.communications.messages_service import MessagesService
+from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
 
 messages_service = MessagesService()
 

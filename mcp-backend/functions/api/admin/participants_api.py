@@ -1,9 +1,9 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors
-from services.auth_service import require_admin
-from services.participants_service import ParticipantsService
-from services.location_service import LocationService
-from services.service_errors import (
+from services.core.auth_service import require_admin
+from services.events.participants_service import ParticipantsService
+from services.events.location_service import LocationService
+from errors.service_errors import (
     ConflictError,
     ExternalServiceError,
     ForbiddenError,

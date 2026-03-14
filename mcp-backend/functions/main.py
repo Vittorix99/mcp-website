@@ -16,7 +16,7 @@ print(f"Environment: {_mcp_env} (env_file={_env_path})")
 logging.basicConfig(level=logging.DEBUG)  # Usa INFO o WARNING in produzione
 
 # === Mail Service init ===
-from services.mail_service import init_mail_service
+from services.communications.mail_service import init_mail_service
 
 init_mail_service()
 
@@ -81,7 +81,11 @@ from api.admin.members_api import (
     get_membership_purchases,
     get_membership_price,
     set_membership_price,
-    get_memberships_report
+    get_memberships_report,
+    get_wallet_model,
+    set_wallet_model,
+    create_wallet_pass,
+    invalidate_wallet_pass,
 )
 
 # === API Admin: Purchases ===

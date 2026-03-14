@@ -1,5 +1,5 @@
 from api.public import event_payment_api
-from services.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
+from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
 from tests.utils import DummyRequest, unwrap_response
 
 

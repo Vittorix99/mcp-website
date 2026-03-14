@@ -9,7 +9,7 @@ from repositories.message_repository import MessageRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
-from services.events_service import EventsService
+from services.events.events_service import EventsService
 from dto import EventDTO
 
 

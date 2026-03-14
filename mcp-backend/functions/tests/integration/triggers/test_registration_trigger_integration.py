@@ -114,15 +114,12 @@ def test_on_participant_created_updates_firestore(monkeypatch):
 
 
 @pytest.mark.integration
-def test_on_membership_created_generates_card():
+def test_on_membership_created_skips_wallet_when_flag_false():
+    """When create_wallet_on_create=False the trigger must NOT set wallet_url."""
     firebase_config = _load_firebase_config()
     _assert_firestore_emulator(firebase_config)
     _assert_trigger_registered("on_membership_created")
     db = firebase_config.db
-    bucket = firebase_config.bucket
-
-    if bucket is None:
-        pytest.skip("Storage bucket not configured for trigger test")
 
     membership_id = f"mem_{uuid4().hex[:8]}"
     ref = db.collection("memberships").document(membership_id)
@@ -130,21 +127,73 @@ def test_on_membership_created_generates_card():
         {
             "name": "Mario",
             "surname": "Rossi",
-            "email": "invalid",
+            "email": "invalid@noemail.com",
+            "end_date": "2026-12-31T23:59:59+00:00",
             "subscription_valid": True,
             "send_card_on_create": False,
+            "create_wallet_on_create": False,
         }
     )
 
-    storage_path = None
     try:
-        assert _wait_for(lambda: bool((ref.get().to_dict() or {}).get("card_url")))
-        updated = ref.get().to_dict() or {}
-        storage_path = updated.get("card_storage_path")
-        assert storage_path
+        # Give the trigger time to fire; wallet_url must remain absent.
+        # We use a short wait then assert the field is not set.
+        _wait_for(lambda: False, timeout=4.0)  # deliberate delay
+        data = ref.get().to_dict() or {}
+        assert not data.get("wallet_url"), "wallet_url should NOT be set when create_wallet_on_create=False"
+        assert not data.get("wallet_pass_id"), "wallet_pass_id should NOT be set"
     finally:
-        if storage_path and bucket is not None:
-            blob = bucket.blob(storage_path)
-            if blob.exists():
-                blob.delete()
+        ref.delete()
+
+
+@pytest.mark.integration
+def test_on_membership_created_creates_wallet_pass():
+    """When create_wallet_on_create=True and Pass2U is reachable, wallet_url is set."""
+    import os
+    if not os.environ.get("PASS2U_API_KEY"):
+        pytest.skip("PASS2U_API_KEY not configured — skipping live Pass2U trigger test")
+
+    firebase_config = _load_firebase_config()
+    _assert_firestore_emulator(firebase_config)
+    _assert_trigger_registered("on_membership_created")
+    db = firebase_config.db
+
+    # Live Pass2U call also requires a configured wallet model in emulator data.
+    # If missing, skip to avoid false negatives unrelated to trigger wiring.
+    env_model_id = (os.environ.get("PASS2U_MODEL_ID") or "").strip()
+    model_ref = db.collection("membership_settings").document("current_model")
+    if env_model_id:
+        model_ref.set({"model_id": env_model_id})
+    model_doc = model_ref.get()
+    model_id = (model_doc.to_dict() or {}).get("model_id") if model_doc.exists else None
+    if not model_id:
+        pytest.skip(
+            "Pass2U model not configured. Set PASS2U_MODEL_ID or seed "
+            "membership_settings/current_model.model_id in emulator."
+        )
+
+    membership_id = f"mem_{uuid4().hex[:8]}"
+    ref = db.collection("memberships").document(membership_id)
+    ref.set(
+        {
+            "name": "Mario",
+            "surname": "Rossi",
+            "email": f"test+{membership_id}@example.com",
+            "end_date": "2026-12-31T23:59:59+00:00",
+            "subscription_valid": True,
+            "send_card_on_create": False,
+            "create_wallet_on_create": True,
+        }
+    )
+
+    try:
+        assert _wait_for(
+            lambda: bool((ref.get().to_dict() or {}).get("wallet_url")),
+            timeout=15.0,
+        ), "Trigger did not set wallet_url within timeout"
+
+        updated = ref.get().to_dict() or {}
+        assert updated.get("wallet_pass_id"), "wallet_pass_id should be set after trigger"
+        assert updated.get("wallet_url", "").startswith("https://www.pass2u.net/d/")
+    finally:
         ref.delete()

@@ -2,7 +2,7 @@ from io import BytesIO
 
 import pytest
 
-from services.documents_service import DocumentsService, StoredDocument
+from services.events.documents_service import DocumentsService, StoredDocument
 
 
 class _DummyBlob:
@@ -40,7 +40,7 @@ def test_create_membership_card_requires_valid_subscription(monkeypatch):
 def test_create_membership_card_pdf_failure(monkeypatch):
     """Raises when PDF generation fails."""
     service = _make_service()
-    monkeypatch.setattr("services.documents_service.generate_membership_pdf", lambda *args, **kwargs: None)
+    monkeypatch.setattr("services.events.documents_service.generate_membership_pdf", lambda *args, **kwargs: None)
     with pytest.raises(RuntimeError):
         service.create_membership_card("mem-1", {"subscription_valid": True})
 
@@ -49,7 +49,7 @@ def test_create_membership_card_success(monkeypatch):
     """Stores membership PDF and returns StoredDocument."""
     service = _make_service()
     monkeypatch.setattr(
-        "services.documents_service.generate_membership_pdf",
+        "services.events.documents_service.generate_membership_pdf",
         lambda *args, **kwargs: BytesIO(b"pdf"),
     )
     doc = service.create_membership_card("mem-1", {"subscription_valid": True, "end_date": "31-12-2026"})
@@ -61,7 +61,7 @@ def test_create_ticket_document_success(monkeypatch):
     """Stores ticket PDF and returns StoredDocument."""
     service = _make_service()
     monkeypatch.setattr(
-        "services.documents_service.generate_ticket_pdf",
+        "services.events.documents_service.generate_ticket_pdf",
         lambda *args, **kwargs: BytesIO(b"pdf"),
     )
     doc = service.create_ticket_document({"name": "Mario"}, {"title": "Event"}, "tickets/test.pdf")

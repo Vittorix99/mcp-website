@@ -1,7 +1,10 @@
+import importlib
+
 import pytest
 
-from services import mail_service as mail_module
-from services.mail_service import EmailAttachment, EmailMessage, MailerSendMailService, get_mail_config
+from services.communications.mail_service import EmailAttachment, EmailMessage, MailerSendMailService, get_mail_config
+
+mail_module = importlib.import_module("services.communications.mail_service")
 
 
 def test_get_mail_config_reads_env(monkeypatch):

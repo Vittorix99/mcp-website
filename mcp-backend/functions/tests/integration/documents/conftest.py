@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from dto import EventDTO, MembershipDTO
-from services.documents_service import DocumentsService
+from services.events.documents_service import DocumentsService
 
 
 @pytest.fixture

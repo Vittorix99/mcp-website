@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from dto import ContactMessageDTO, EventParticipantDTO, MembershipDTO
 from models import Event, Purchase
-from services.stats_service import StatsService
+from services.core.stats_service import StatsService
 
 
 class _DummyMembershipRepo:

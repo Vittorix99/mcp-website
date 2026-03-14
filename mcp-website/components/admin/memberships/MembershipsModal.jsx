@@ -17,6 +17,7 @@ export function MembershipModal({
   onCheckbox,
 }) {
   const defaultSendCard = form.send_card_on_create === true
+  const defaultCreateWallet = form.create_wallet_on_create !== false
   const defaultSubscriptionValid = form.subscription_valid ?? true
   const startDateValue = (() => {
     if (!form.start_date) return ""
@@ -93,14 +94,24 @@ export function MembershipModal({
           </div>
 
           {!isEditMode && (
-            <div className="flex items-center gap-2 pt-2">
-              <Checkbox
-                id="send_card_on_create"
-                name="send_card_on_create"
-                checked={defaultSendCard}
-                onCheckedChange={(val) => onCheckbox("send_card_on_create", val === true)}
-              />
-              <Label htmlFor="send_card_on_create">Invia tessera al salvataggio</Label>
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="create_wallet_on_create"
+                  checked={defaultCreateWallet}
+                  onCheckedChange={(val) => onCheckbox("create_wallet_on_create", val === true)}
+                />
+                <Label htmlFor="create_wallet_on_create">Crea tessera wallet (Pass2U)</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="send_card_on_create"
+                  name="send_card_on_create"
+                  checked={defaultSendCard}
+                  onCheckedChange={(val) => onCheckbox("send_card_on_create", val === true)}
+                />
+                <Label htmlFor="send_card_on_create">Invia tessera al salvataggio</Label>
+              </div>
             </div>
           )}
 

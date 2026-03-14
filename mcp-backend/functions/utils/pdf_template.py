@@ -162,7 +162,6 @@ def generate_member_ticket_pdf_html(ticket_data, event_data, logo_url):
         <img src="{logo_url}" class="logo" alt="MCP Logo">
 
         <h1 class="event-title">{title}</h1>
-        <p class="event-subtitle">Sunrise Chasers Edition</p>
 
         <div class="notice">
             Questo è un <strong>invito nominale</strong> valido solo per la persona registrata.<br>

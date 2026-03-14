@@ -3,9 +3,9 @@
 from firebase_functions import https_fn
 from flask import request, jsonify
 from config.firebase_config import cors
-from services.auth_service import require_admin
-from services.purchases_service import PurchasesService
-from services.service_errors import (
+from services.core.auth_service import require_admin
+from services.payments.purchases_service import PurchasesService
+from errors.service_errors import (
     ConflictError,
     ForbiddenError,
     NotFoundError,

@@ -9,6 +9,7 @@ from .membership import Membership, MembershipRef
 from .newsletter_consent import NewsletterConsent
 from .newsletter_signup import NewsletterSignup
 from .paypal import PayPalCaptureInfo, PayPalOrderCreateResponse, PayPalOrderInfo, PayPalPayerInfo
+from .membership_pass import MembershipPass, MembershipPassResult
 from .settings import Setting
 from .order import Order, EventOrder
 from .purchase import Purchase
@@ -35,5 +36,7 @@ __all__ = [
     "PayPalCaptureInfo",
     "PayPalOrderInfo",
     "PayPalOrderCreateResponse",
+    "MembershipPass",
+    "MembershipPassResult",
     "Setting",
 ]

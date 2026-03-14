@@ -1,6 +1,6 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors, region
-from services.newsletter_service import NewsletterService
+from services.communications.newsletter_service import NewsletterService
 
 newsletter_service = NewsletterService()
 

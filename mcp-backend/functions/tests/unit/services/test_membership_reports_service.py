@@ -4,8 +4,8 @@ import pytest
 
 from dto import EventParticipantDTO
 from models import Event, Membership, Purchase
-from services.membership_reports_service import MembershipReportsService
-from services.service_errors import NotFoundError, ValidationError
+from services.memberships.membership_reports_service import MembershipReportsService
+from errors.service_errors import NotFoundError, ValidationError
 
 
 class _DummyEventRepo:

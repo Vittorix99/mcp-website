@@ -5,8 +5,8 @@ import pytest
 
 from dto import CheckoutParticipantDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
 from models import Event, EventOrder, EventPurchaseAccessType, MembershipRef, PurchaseTypes
-from services.event_payment_service import EventPaymentService
-from services.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from services.payments.event_payment_service import EventPaymentService
+from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from domain.participant_rules import ParticipantCheckResult
 
 
@@ -186,7 +186,7 @@ def test_create_order_event_run_basic_checks_error(monkeypatch):
     def fake_checks(*args, **kwargs):
         return ParticipantCheckResult(errors=["err"])
 
-    monkeypatch.setattr("services.event_payment_service.run_basic_checks", fake_checks)
+    monkeypatch.setattr("services.payments.event_payment_service.run_basic_checks", fake_checks)
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
     with pytest.raises(ValidationError) as exc:
         service.create_order_event(payload)
@@ -201,7 +201,7 @@ def test_create_order_event_only_members_requires_fee(monkeypatch):
     service.membership_settings_repository = _DummyMembershipSettingsRepo(fee=None)
 
     monkeypatch.setattr(
-        "services.event_payment_service.run_basic_checks",
+        "services.payments.event_payment_service.run_basic_checks",
         lambda *args, **kwargs: ParticipantCheckResult(),
     )
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
@@ -216,7 +216,7 @@ def test_create_order_event_only_registered_members_rejects_non_members(monkeypa
     event = Event(title="Test", date="13-02-2026", purchase_mode=EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS)
     service.event_repository = _DummyEventRepo(model=event)
     result = ParticipantCheckResult(non_members=["User"])
-    monkeypatch.setattr("services.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
+    monkeypatch.setattr("services.payments.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
     with pytest.raises(ValidationError):
         service.create_order_event(payload)
@@ -228,7 +228,7 @@ def test_create_order_event_on_request_rejected(monkeypatch):
     event = Event(title="Test", date="13-02-2026", purchase_mode=EventPurchaseAccessType.ON_REQUEST)
     service.event_repository = _DummyEventRepo(model=event)
     monkeypatch.setattr(
-        "services.event_payment_service.run_basic_checks",
+        "services.payments.event_payment_service.run_basic_checks",
         lambda *args, **kwargs: ParticipantCheckResult(),
     )
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
@@ -242,9 +242,9 @@ def test_create_order_event_paypal_failure(monkeypatch):
     event = Event(title="Test", date="13-02-2026")
     service.event_repository = _DummyEventRepo(model=event)
     service.orders_controller = _DummyOrdersController(create_response=SimpleNamespace(status_code=400, body={}))
-    monkeypatch.setattr("services.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
+    monkeypatch.setattr("services.payments.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
     monkeypatch.setattr(
-        "services.event_payment_service.run_basic_checks",
+        "services.payments.event_payment_service.run_basic_checks",
         lambda *args, **kwargs: ParticipantCheckResult(),
     )
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
@@ -260,9 +260,9 @@ def test_create_order_event_missing_order_id(monkeypatch):
     service.orders_controller = _DummyOrdersController(
         create_response=SimpleNamespace(status_code=201, body={"status": "CREATED"})
     )
-    monkeypatch.setattr("services.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
+    monkeypatch.setattr("services.payments.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
     monkeypatch.setattr(
-        "services.event_payment_service.run_basic_checks",
+        "services.payments.event_payment_service.run_basic_checks",
         lambda *args, **kwargs: ParticipantCheckResult(),
     )
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
@@ -278,9 +278,9 @@ def test_create_order_event_happy_path(monkeypatch):
     service.orders_controller = _DummyOrdersController(
         create_response=SimpleNamespace(status_code=201, body={"id": "order-1", "status": "CREATED"})
     )
-    monkeypatch.setattr("services.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
+    monkeypatch.setattr("services.payments.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
     monkeypatch.setattr(
-        "services.event_payment_service.run_basic_checks",
+        "services.payments.event_payment_service.run_basic_checks",
         lambda *args, **kwargs: ParticipantCheckResult(),
     )
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
@@ -305,12 +305,12 @@ def test_create_order_event_only_members_adds_targets(monkeypatch):
         create_response=SimpleNamespace(status_code=201, body={"id": "order-2", "status": "CREATED"})
     )
 
-    monkeypatch.setattr("services.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
+    monkeypatch.setattr("services.payments.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
 
     result = ParticipantCheckResult(
         membership_docs={"mario@example.com": {"id": "mem-1", "email": "mario@example.com"}}
     )
-    monkeypatch.setattr("services.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
+    monkeypatch.setattr("services.payments.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
 
     p1 = _participant(name="Mario")
     p2 = CheckoutParticipantDTO(
@@ -343,13 +343,13 @@ def test_create_order_event_only_registered_members_success(monkeypatch):
         create_response=SimpleNamespace(status_code=201, body={"id": "order-3", "status": "CREATED"})
     )
 
-    monkeypatch.setattr("services.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
+    monkeypatch.setattr("services.payments.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
     result = ParticipantCheckResult(
         members=["Mario"],
         non_members=[],
         membership_docs={"mario@example.com": {"id": "mem-1", "email": "mario@example.com"}},
     )
-    monkeypatch.setattr("services.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
+    monkeypatch.setattr("services.payments.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
 
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
     response = service.create_order_event(payload)

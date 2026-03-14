@@ -10,7 +10,7 @@ from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
 from repositories.order_repository import OrderRepository
-from services.events_service import EventsService
+from services.events.events_service import EventsService
 
 
 @pytest.fixture(scope="session")

@@ -1,10 +1,10 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors
-from services.auth_service import require_admin
+from services.core.auth_service import require_admin
 from config.firebase_config import region
-from services.settings_service import SettingsService
+from services.core.settings_service import SettingsService
 from flask import jsonify
-from services.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
+from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
 
 
 settings_service = SettingsService()

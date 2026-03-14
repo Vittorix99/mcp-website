@@ -71,6 +71,45 @@ def calculate_end_of_year_membership(date_input):
         return None
 
 
+def to_iso8601_datetime(value: Optional[str]) -> Optional[str]:
+    """
+    Normalizza una data in ISO 8601 completo con timezone.
+    Accetta:
+    - ISO 8601 (es: 2026-12-31T23:59:59Z)
+    - formato legacy gg-mm-aaaa (es: 31-12-2026)
+    - formato yyyy-mm-dd
+    """
+    if value is None:
+        return None
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    try:
+        parsed = dt.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+        return parsed.isoformat(timespec="seconds")
+    except ValueError:
+        pass
+
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d"):
+        try:
+            parsed = datetime.datetime.strptime(raw, fmt).replace(
+                hour=23,
+                minute=59,
+                second=59,
+                tzinfo=datetime.timezone.utc,
+            )
+            return parsed.isoformat(timespec="seconds")
+        except ValueError:
+            continue
+
+    logging.warning("Invalid date time format: %s", raw)
+    return None
+
+
 def sanitize_event(event: dict) -> dict:
     """Rimuove i campi admin-only da un dizionario evento"""
     hidden_fields = ['participantsCount', 'maxParticipants', 'createdBy', 'updatedBy', 'location']

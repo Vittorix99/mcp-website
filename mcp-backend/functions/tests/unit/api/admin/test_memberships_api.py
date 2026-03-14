@@ -1,7 +1,7 @@
 import types
 
 from api.admin import members_api
-from services.service_errors import NotFoundError, ValidationError
+from errors.service_errors import NotFoundError, ValidationError
 from tests.utils import DummyRequest, unwrap_response
 
 
@@ -288,3 +288,95 @@ def test_get_memberships_report_happy_path(monkeypatch):
     resp, status = unwrap_response(members_api.get_memberships_report(req))
     assert status == 200
     assert resp == {"rows": []}
+
+
+def test_create_wallet_pass_missing_membership_id(monkeypatch):
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {})
+    req = DummyRequest(method="POST", json={})
+    resp, status = unwrap_response(members_api.create_wallet_pass(req))
+    assert status == 400
+    assert resp["error"] == "Missing membership_id"
+
+
+def test_create_wallet_pass_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(create_wallet_pass=lambda membership_id: {"id": membership_id, "ok": True}),
+    )
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {"membership_id": "mem-1"})
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.create_wallet_pass(req))
+    assert status == 200
+    assert resp["id"] == "mem-1"
+    assert resp["ok"] is True
+
+
+def test_invalidate_wallet_pass_missing_membership_id(monkeypatch):
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {})
+    req = DummyRequest(method="POST", json={})
+    resp, status = unwrap_response(members_api.invalidate_wallet_pass(req))
+    assert status == 400
+    assert resp["error"] == "Missing membership_id"
+
+
+def test_invalidate_wallet_pass_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "memberships_service",
+        types.SimpleNamespace(invalidate_wallet_pass=lambda membership_id: {"id": membership_id, "ok": True}),
+    )
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {"membership_id": "mem-1"})
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.invalidate_wallet_pass(req))
+    assert status == 200
+    assert resp["id"] == "mem-1"
+    assert resp["ok"] is True
+
+
+def test_get_wallet_model_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        "services.memberships.pass2u_service.Pass2UService._get_model_id",
+        lambda _self: "371225",
+    )
+    req = DummyRequest(method="GET")
+    resp, status = unwrap_response(members_api.get_wallet_model(req))
+    assert status == 200
+    assert resp["model_id"] == "371225"
+
+
+def test_set_wallet_model_missing_model_id(monkeypatch):
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {})
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.set_wallet_model(req))
+    assert status == 400
+    assert resp["error"] == "Missing model_id"
+
+
+def test_set_wallet_model_happy_path(monkeypatch):
+    calls = {}
+
+    class _Doc:
+        def set(self, payload):
+            calls["payload"] = payload
+
+    class _Collection:
+        def document(self, doc_id):
+            calls["doc_id"] = doc_id
+            return _Doc()
+
+    class _DB:
+        def collection(self, name):
+            calls["collection"] = name
+            return _Collection()
+
+    monkeypatch.setattr("config.firebase_config.db", _DB())
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {"model_id": "371225"})
+
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.set_wallet_model(req))
+    assert status == 200
+    assert resp["model_id"] == "371225"
+    assert calls["collection"] == "membership_settings"
+    assert calls["doc_id"] == "current_model"
+    assert calls["payload"] == {"model_id": "371225"}

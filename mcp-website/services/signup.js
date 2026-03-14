@@ -1,4 +1,5 @@
 import { endpoints } from "../config/endpoints"
+import { getApiErrorMessage } from "@/lib/api-errors"
 
 // Funzione per inviare la richiesta di iscrizione
 export async function submitSignupRequest(formData) {
@@ -22,7 +23,7 @@ export async function submitSignupRequest(formData) {
       if (response.status === 409) {
         return { success: false, error: "This email is already registered." }
       }
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, data }
@@ -46,7 +47,7 @@ export async function getQuestions() {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, questions: data }
@@ -70,7 +71,7 @@ export async function getQuestionById(questionId) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, question: data }
@@ -95,7 +96,7 @@ export async function createQuestion(questionData) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, question: data }
@@ -120,7 +121,7 @@ export async function updateQuestion(questionId, questionData) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, question: data }
@@ -150,7 +151,7 @@ export async function deleteQuestion(questionId) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true }
@@ -175,7 +176,7 @@ export async function reorderQuestions(questionsOrder) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, questions: data }
@@ -201,7 +202,7 @@ export async function getSubscriptions(page = 1, limit = 20) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return {
@@ -229,7 +230,7 @@ export async function getSubscriptionById(subscriptionId) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, subscription: data }
@@ -254,7 +255,7 @@ export async function updateSubscriptionStatus(subscriptionId, status, notes = "
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true, subscription: data }
@@ -284,7 +285,7 @@ export async function deleteSubscription(subscriptionId) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(data, `HTTP error! status: ${response.status}`))
     }
 
     return { success: true }
@@ -307,7 +308,7 @@ export async function exportSubscriptionsToCSV(filters = {}) {
 
     if (!response.ok) {
       const errorData = await response.json()
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+      throw new Error(getApiErrorMessage(errorData, `HTTP error! status: ${response.status}`))
     }
 
     // Ottieni il blob del file CSV
@@ -336,4 +337,3 @@ export async function exportSubscriptionsToCSV(filters = {}) {
     return { success: false, error: error.message }
   }
 }
-

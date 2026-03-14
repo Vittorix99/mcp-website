@@ -31,7 +31,7 @@ export function Footer() {
     setStatus({ type: "", message: "" })
 
     try {
-      const { success, message } = await sendNewsLetterRequest({ email: emailNewsLetter })
+      const { success, message, error } = await sendNewsLetterRequest({ email: emailNewsLetter })
       if (success) {
         setStatus({
           type: "success",
@@ -41,7 +41,7 @@ export function Footer() {
       } else {
         setStatus({
           type: "error",
-          message: message,
+          message: message || error || "Subscription failed",
         })
       }
     } catch (error) {

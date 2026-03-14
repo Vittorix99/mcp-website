@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from services.newsletter_service import NewsletterService
+from services.communications.newsletter_service import NewsletterService
 
 
 class _DummyDoc:
@@ -125,7 +125,7 @@ def test_signup_stores_and_sends(monkeypatch):
     """Stores signup and sends email."""
     service = _make_service()
     monkeypatch.setenv("USER_EMAIL", "owner@example.com")
-    monkeypatch.setattr("services.newsletter_service.mail_service.send", lambda *args, **kwargs: True)
+    monkeypatch.setattr("services.communications.newsletter_service.mail_service.send", lambda *args, **kwargs: True)
     payload, status = service.signup({"email": "user@example.com"})
     assert status == 200
     assert payload["message"]
@@ -137,7 +137,7 @@ def test_signup_skips_existing(monkeypatch):
     service = _make_service()
     service.collection.data["doc-1"] = {"email": "user@example.com"}
     monkeypatch.setenv("USER_EMAIL", "owner@example.com")
-    monkeypatch.setattr("services.newsletter_service.mail_service.send", lambda *args, **kwargs: True)
+    monkeypatch.setattr("services.communications.newsletter_service.mail_service.send", lambda *args, **kwargs: True)
     payload, status = service.signup({"email": "user@example.com"})
     assert status == 200
     assert len(service.collection.data) == 1

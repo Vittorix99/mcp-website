@@ -1,4 +1,4 @@
-import { safeFetch, safeFetchId } from "@/lib/fetch";
+import { safeFetch } from "@/lib/fetch";
 import { endpoints } from "@/config/endpoints";
 
 // CRUD & Azioni extra
@@ -53,4 +53,20 @@ export async function getMembershipPrice(year) {
 export async function getMembershipsReport(event_id) {
   const endpointUrl = `${endpoints.admin.getMembershipsReport}?event_id=${event_id}`;
   return safeFetch(endpointUrl, "GET");
+}
+
+export async function getWalletModel() {
+  return safeFetch(endpoints.admin.getWalletModel, "GET");
+}
+
+export async function setWalletModel(model_id) {
+  return safeFetch(endpoints.admin.setWalletModel, "POST", { model_id });
+}
+
+export async function createWalletPass(membership_id) {
+  return safeFetch(endpoints.admin.createWalletPass, "POST", { membership_id });
+}
+
+export async function invalidateWalletPass(membership_id) {
+  return safeFetch(endpoints.admin.invalidateWalletPass, "POST", { membership_id });
 }

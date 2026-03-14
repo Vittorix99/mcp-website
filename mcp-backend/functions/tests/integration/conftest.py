@@ -4,11 +4,18 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from dotenv import load_dotenv
 
-from services.mail_service import get_mail_config
+from services.communications.mail_service import get_mail_config
 from config.firebase_config import bucket as storage_bucket
 
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+_FUNCTIONS_DIR = Path(__file__).resolve().parents[2]
+_INTEGRATION_ENV = _FUNCTIONS_DIR / ".env.integration"
+
+if _INTEGRATION_ENV.exists():
+    # Keep explicit shell-provided values as precedence.
+    load_dotenv(_INTEGRATION_ENV, override=False)
 
 _PLACEHOLDER_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6Xb9oAAAAAASUVORK5CYII="
@@ -18,7 +25,7 @@ _PLACEHOLDER_PNG = base64.b64decode(
 @pytest.fixture(autouse=True)
 def _mock_admin_auth(monkeypatch):
     """Bypass Firebase admin token verification for integration API tests."""
-    from services import auth_service
+    from services.core import auth_service
 
     monkeypatch.setattr(
         auth_service,
@@ -34,11 +41,13 @@ def gmail_service():
 
 @pytest.fixture(scope="session")
 def mailersend_api_key():
-    api_key = os.environ.get("MAILERSEND_API_KEY")
-    from_email = os.environ.get("MAILERSEND_FROM_EMAIL")
-    if not api_key or not from_email:
-        pytest.skip("MAILERSEND_API_KEY or MAILERSEND_FROM_EMAIL not set for MailerSend integration tests")
-    return api_key
+    try:
+        config = get_mail_config()
+    except Exception as exc:
+        pytest.skip(f"MailerSend integration not configured: {exc}")
+    if not config.api_key or not config.from_email:
+        pytest.skip("MailerSend integration not configured: missing API key or sender email")
+    return config.api_key
 
 
 @pytest.fixture(scope="session", autouse=True)

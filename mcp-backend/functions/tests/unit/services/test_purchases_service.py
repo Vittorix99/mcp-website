@@ -2,8 +2,8 @@ import pytest
 
 from dto import PurchaseDTO
 from models import Purchase
-from services.purchases_service import PurchasesService
-from services.service_errors import NotFoundError, ValidationError
+from services.payments.purchases_service import PurchasesService
+from errors.service_errors import NotFoundError, ValidationError
 
 
 class _DummyPurchaseRepo:

@@ -1,6 +1,6 @@
 import pytest
 
-from services.mail_service import EmailMessage, mail_service
+from services.communications.mail_service import EmailMessage, mail_service
 from tests.integration.gmail_utils import wait_for_message
 
 

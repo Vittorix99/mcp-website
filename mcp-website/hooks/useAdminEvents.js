@@ -34,6 +34,13 @@ export function useAdminEvents() {
     loadEvents();
   }, [loadEvents]);
 
+  const parseOptionalNumber = (value) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === "") return null;
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const prepareEventData = (eventData) => {
     const output = { ...eventData };
 
@@ -50,7 +57,11 @@ export function useAdminEvents() {
     }
 
     if (eventData.price !== undefined) {
-      output.price = eventData.price !== "" ? parseFloat(eventData.price) : null;
+      output.price = parseOptionalNumber(eventData.price);
+    }
+
+    if (eventData.fee !== undefined) {
+      output.fee = parseOptionalNumber(eventData.fee);
     }
 
     if (eventData.status !== undefined) {

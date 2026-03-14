@@ -2,8 +2,8 @@ import pytest
 
 from dto import SettingDTO
 from models import Setting
-from services.settings_service import SettingsService
-from services.service_errors import NotFoundError, ValidationError
+from services.core.settings_service import SettingsService
+from errors.service_errors import NotFoundError, ValidationError
 
 
 class _DummySettingsRepo:

@@ -36,7 +36,7 @@ from repositories.membership_settings_repository import MembershipSettingsReposi
 from repositories.order_repository import OrderRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
-from services.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from utils.events_utils import (
     calculate_end_of_year,
     normalize_email,

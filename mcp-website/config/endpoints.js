@@ -65,6 +65,10 @@ export const endpoints = {
     setMembershipPrice: make("set_membership_price"),
     getMembershipPrice: make("get_membership_price"),
     getMembershipsReport: make("get_memberships_report"),
+    getWalletModel: make("get_wallet_model"),
+    setWalletModel: make("set_wallet_model"),
+    createWalletPass: make("create_wallet_pass"),
+    invalidateWalletPass: make("invalidate_wallet_pass"),
 
     getAllPurchases: make("get_all_purchases"),
     getPurchase: make("get_purchase"),

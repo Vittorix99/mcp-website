@@ -1,7 +1,7 @@
 import pytest
 
 from dto import PurchaseDTO
-from services.service_errors import NotFoundError, ValidationError
+from errors.service_errors import NotFoundError, ValidationError
 
 
 @pytest.mark.integration

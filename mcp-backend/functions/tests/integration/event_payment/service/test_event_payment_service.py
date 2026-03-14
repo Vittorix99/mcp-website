@@ -2,8 +2,8 @@ import pytest
 
 from dto import PreOrderCartItemDTO, PreOrderDTO
 from models import EventPurchaseAccessType
-from services.event_payment_service import EventPaymentService
-from services.service_errors import ValidationError
+from services.payments.event_payment_service import EventPaymentService
+from errors.service_errors import ValidationError
 
 
 @pytest.mark.integration

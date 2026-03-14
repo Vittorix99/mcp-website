@@ -1,8 +1,8 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors, region
 from dto import ContactMessageDTO
-from services.messages_service import MessagesService
-from services.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
+from services.communications.messages_service import MessagesService
+from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
 
 
 messages_service = MessagesService()

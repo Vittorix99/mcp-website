@@ -5,8 +5,8 @@ from firebase_admin import firestore
 
 from dto import EventDTO
 from models import Event
-from services.events_service import EventsService
-from services.service_errors import NotFoundError, ValidationError
+from services.events.events_service import EventsService
+from errors.service_errors import NotFoundError, ValidationError
 
 
 class _DummyEventRepo:

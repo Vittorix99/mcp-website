@@ -1,4 +1,5 @@
 import {endpoints} from '../config/endpoints';
+import { getApiErrorMessage } from '@/lib/api-errors';
 export async function sendContactRequest({ name, email, message, sendCopy = false }) {
     try {
       // Chiamata diretta alla Firebase Cloud Function
@@ -20,8 +21,9 @@ export async function sendContactRequest({ name, email, message, sendCopy = fals
   
       // Controllo se la risposta non è andata a buon fine
       if (!firebaseResponse.ok) {
-        const errorText = await firebaseResponse.text();
-        throw new Error(`Firebase Server Error: ${errorText}`);
+        const errorPayload = await firebaseResponse.json().catch(() => null)
+        const errorMessage = getApiErrorMessage(errorPayload, "Firebase Server Error")
+        throw new Error(errorMessage)
       }
   
       // Ottengo il messaggio di successo dalla risposta (può essere JSON o testo)
@@ -33,6 +35,6 @@ export async function sendContactRequest({ name, email, message, sendCopy = fals
       console.error('Error while sending contact request:', error.message);
   
       // Rilancio l'errore con un oggetto ben strutturato
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, message: error.message };
     }
   }

@@ -1,8 +1,8 @@
 from firebase_functions import https_fn
 from flask import jsonify
 from config.firebase_config import cors, region
-from services.participants_service import ParticipantsService
-from services.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError, ForbiddenError
+from services.events.participants_service import ParticipantsService
+from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError, ForbiddenError
 
 participants_service = ParticipantsService()
 

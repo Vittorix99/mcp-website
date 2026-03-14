@@ -6,8 +6,8 @@ import pytest
 from dto import EventParticipantDTO
 from dto.preorder import CheckoutParticipantDTO
 from models import Event, EventParticipant, Membership, PaymentMethod, EventPurchaseAccessType
-from services.participants_service import ParticipantsService
-from services.service_errors import (
+from services.events.participants_service import ParticipantsService
+from errors.service_errors import (
     ConflictError,
     ExternalServiceError,
     ForbiddenError,
@@ -290,7 +290,7 @@ def test_check_participants_validation_error(monkeypatch):
     service = _make_service()
     service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
     monkeypatch.setattr(
-        "services.participants_service.run_basic_checks",
+        "services.events.participants_service.run_basic_checks",
         lambda *args, **kwargs: ParticipantCheckResult(errors=["err"]),
     )
     with pytest.raises(ValidationError) as exc:
@@ -305,7 +305,7 @@ def test_check_participants_on_request_returns_lists(monkeypatch):
         model=Event(title="Test", date="13-02-2026", purchase_mode=EventPurchaseAccessType.ON_REQUEST)
     )
     result = ParticipantCheckResult(members=["A"], non_members=["B"])
-    monkeypatch.setattr("services.participants_service.run_basic_checks", lambda *args, **kwargs: result)
+    monkeypatch.setattr("services.events.participants_service.run_basic_checks", lambda *args, **kwargs: result)
     payload = service.check_participants("evt-1", [_participant_payload()])
     assert payload["members"] == ["A"]
     assert payload["nonMembers"] == ["B"]
@@ -322,7 +322,7 @@ def test_check_participants_members_only_rejects_non_members(monkeypatch):
         )
     )
     result = ParticipantCheckResult(non_members=["B"])
-    monkeypatch.setattr("services.participants_service.run_basic_checks", lambda *args, **kwargs: result)
+    monkeypatch.setattr("services.events.participants_service.run_basic_checks", lambda *args, **kwargs: result)
     with pytest.raises(ValidationError) as exc:
         service.check_participants("evt-1", [_participant_payload()])
     assert "validation_error" in str(exc.value)
@@ -333,7 +333,7 @@ def test_check_participants_happy_path(monkeypatch):
     service = _make_service()
     service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
     monkeypatch.setattr(
-        "services.participants_service.run_basic_checks",
+        "services.events.participants_service.run_basic_checks",
         lambda *args, **kwargs: ParticipantCheckResult(),
     )
     payload = service.check_participants("evt-1", [_participant_payload()])

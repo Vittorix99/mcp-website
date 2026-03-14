@@ -1,12 +1,11 @@
-import os
 from datetime import datetime
 
-
-INSTAGRAM_URL = "https://www.instagram.com/musiconnectingpeople_"
-LOGO_URL = os.getenv("LOGO_URL")
+from .assets import resolve_instagram_url, resolve_logo_url
 
 
 def get_signup_request_template(first_name):
+    logo_url = resolve_logo_url()
+    instagram_url = resolve_instagram_url()
     return f"""
     <!DOCTYPE html>
     <html>
@@ -18,15 +17,15 @@ def get_signup_request_template(first_name):
             body {{
                 margin: 0;
                 padding: 0;
-                background-color: #000000;
+                background-color: #ffffff;
                 font-family: Arial, sans-serif;
             }}
             .container {{
                 max-width: 600px;
                 margin: 0 auto;
                 padding: 40px 20px;
-                background-color: #000000;
-                color: #ffffff;
+                background-color: #ffffff;
+                color: #1f2937;
             }}
             .logo {{
                 max-width: 200px;
@@ -44,7 +43,7 @@ def get_signup_request_template(first_name):
             .footer {{
                 margin-top: 40px;
                 font-size: 12px;
-                color: #666666;
+                color: #6b7280;
             }}
             .social-link {{
                 color: #ff4500;
@@ -54,7 +53,7 @@ def get_signup_request_template(first_name):
     </head>
     <body>
         <div class="container">
-            <img src="{LOGO_URL}" alt="MCP Logo" class="logo">
+            <img src="{logo_url}" alt="MCP Logo" class="logo">
             
             <h1>Hello {first_name}!</h1>
             
@@ -68,7 +67,7 @@ def get_signup_request_template(first_name):
             
             <div class="footer">
                 <p>Follow us on social media:</p>
-                <a href="{INSTAGRAM_URL}" class="social-link">Instagram</a>
+                <a href="{instagram_url}" class="social-link">Instagram</a>
                 
                 <p>© {datetime.now().year} Music Connecting People. All rights reserved.</p>
             </div>
@@ -79,6 +78,8 @@ def get_signup_request_template(first_name):
 
 
 def get_welcome_email_template(first_name):
+    logo_url = resolve_logo_url()
+    instagram_url = resolve_instagram_url()
     return f"""
     <!DOCTYPE html>
     <html>
@@ -90,15 +91,15 @@ def get_welcome_email_template(first_name):
             body {{
                 margin: 0;
                 padding: 0;
-                background-color: #000000;
+                background-color: #ffffff;
                 font-family: Arial, sans-serif;
             }}
             .container {{
                 max-width: 600px;
                 margin: 0 auto;
                 padding: 40px 20px;
-                background-color: #000000;
-                color: #ffffff;
+                background-color: #ffffff;
+                color: #1f2937;
             }}
             .logo {{
                 max-width: 200px;
@@ -116,7 +117,7 @@ def get_welcome_email_template(first_name):
             .footer {{
                 margin-top: 40px;
                 font-size: 12px;
-                color: #666666;
+                color: #6b7280;
             }}
             .social-link {{
                 color: #ff4500;
@@ -126,7 +127,7 @@ def get_welcome_email_template(first_name):
     </head>
     <body>
         <div class="container">
-            <img src="{LOGO_URL}" alt="MCP Logo" class="logo">
+            <img src="{logo_url}" alt="MCP Logo" class="logo">
             
             <h1>Welcome to MCP Community, {first_name}!</h1>
             
@@ -140,7 +141,7 @@ def get_welcome_email_template(first_name):
             
             <div class="footer">
                 <p>Follow us on social media:</p>
-                <a href="{INSTAGRAM_URL}" class="social-link">Instagram</a>
+                <a href="{instagram_url}" class="social-link">Instagram</a>
                 
                 <p>© {datetime.now().year} Music Connecting People. All rights reserved.</p>
             </div>

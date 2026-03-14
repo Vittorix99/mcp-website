@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from services import auth_service
+from services.core import auth_service
 
 _env_path = Path(__file__).resolve().parents[1] / ".env"
 _integration_env_path = Path(__file__).resolve().parents[1] / ".env.integration"

@@ -27,6 +27,8 @@ class MembershipDTO:
     card_storage_path: Optional[str] = None
     send_card_on_create: Optional[bool] = None
     membership_fee: Optional[float] = None
+    wallet_pass_id: Optional[str] = None
+    wallet_url: Optional[str] = None
 
     @classmethod
     def from_model(cls, membership: Membership) -> "MembershipDTO":
@@ -50,6 +52,8 @@ class MembershipDTO:
             card_storage_path=membership.card_storage_path,
             send_card_on_create=membership.send_card_on_create,
             membership_fee=membership.membership_fee,
+            wallet_pass_id=membership.wallet_pass_id,
+            wallet_url=membership.wallet_url,
         )
 
     @classmethod
@@ -90,6 +94,8 @@ class MembershipDTO:
             card_storage_path=pick("card_storage_path"),
             send_card_on_create=pick_bool("send_card_on_create", "sendCardOnCreate"),
             membership_fee=pick("membership_fee", "membershipFee"),
+            wallet_pass_id=pick("wallet_pass_id"),
+            wallet_url=pick("wallet_url"),
         )
 
     def to_update_payload(self) -> Dict[str, Any]:
@@ -141,5 +147,7 @@ class MembershipDTO:
             "card_storage_path": self.card_storage_path,
             "send_card_on_create": self.send_card_on_create,
             "membership_fee": self.membership_fee,
+            "wallet_pass_id": self.wallet_pass_id,
+            "wallet_url": self.wallet_url,
         }
         return {k: v for k, v in payload.items() if v is not None}

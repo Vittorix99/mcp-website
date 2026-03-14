@@ -6,10 +6,25 @@ from google.cloud import firestore
 from dto import ContactMessageDTO
 from models import ContactMessage
 from repositories.message_repository import MessageRepository
-from services.mail_service import EmailMessage, mail_service
-from services.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from services.communications.mail_service import EmailMessage, mail_service
+from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 
 logger = logging.getLogger("MessagesService")
+
+
+def _resolve_contact_destination_email() -> str:
+    """
+    Resolve admin destination for contact form messages with provider-agnostic env names.
+    Keeps legacy envs as fallback for backward compatibility.
+    """
+    to_email = (
+        os.environ.get("CONTACT_MESSAGES_TO_EMAIL")
+        or os.environ.get("MAIL_DESTINATION_EMAIL")
+        or os.environ.get("MAILERSEND_FROM_EMAIL")
+        or os.environ.get("USER_EMAIL")
+        or os.environ.get("GMAIL_MAIL")
+    )
+    return (to_email or "").strip()
 
 
 class MessagesService:
@@ -45,6 +60,7 @@ class MessagesService:
                 to_email=to,
                 subject=subject or "Risposta al tuo messaggio",
                 text_content=body,
+                category="communication",
             )
         )
         if not sent:
@@ -58,18 +74,24 @@ class MessagesService:
         if not dto.name or not dto.email or not dto.message:
             raise ValidationError("Missing required fields")
 
-        to_email = os.environ.get("USER_EMAIL") or os.environ.get("GMAIL_MAIL")
+        to_email = _resolve_contact_destination_email()
         if not to_email:
             raise ValidationError("Missing destination email")
 
         subject = f"Contact Us Form Submission from {dto.name}"
-        body = f"Name: {dto.name}\nEmail: {dto.email}\n\n{dto.message}"
+        admin_body = (
+            "Nuovo messaggio ricevuto dal form Contact Us.\n\n"
+            f"Nome e cognome: {dto.name}\n"
+            f"Email: {dto.email}\n\n"
+            f"Messaggio:\n{dto.message}"
+        )
 
         sent = mail_service.send(
             EmailMessage(
                 to_email=to_email,
                 subject=subject,
-                text_content=body,
+                text_content=admin_body,
+                category="communication",
             )
         )
         if not sent:
@@ -90,11 +112,18 @@ class MessagesService:
         self.logger.info("Contact message stored with id %s", doc_id)
 
         if send_copy:
+            copy_body = (
+                "Abbiamo ricevuto il tuo messaggio dal form Contact Us.\n\n"
+                f"Nome e cognome: {dto.name}\n"
+                f"Email: {dto.email}\n\n"
+                f"Messaggio inviato:\n{dto.message}"
+            )
             mail_service.send(
                 EmailMessage(
                     to_email=dto.email,
                     subject="Copia del tuo messaggio",
-                    text_content=body,
+                    text_content=copy_body,
+                    category="communication",
                 )
             )
         return {"message": "Message sent successfully"}

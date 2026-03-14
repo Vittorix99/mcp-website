@@ -18,7 +18,19 @@ export async function createOrder(payload) {
       body: JSON.stringify({ cart: cartItems }),
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const message = Array.isArray(data?.messages)
+        ? data.messages.join(" ")
+        : data?.message || data?.error || `HTTP ${response.status}`;
+      return {
+        ...data,
+        error: data?.error || "request_error",
+        message,
+      };
+    }
+
     return data;
   } catch (error) {
     console.error("Errore durante la creazione dell’ordine:", error.message);
@@ -41,7 +53,19 @@ export async function onApprove(order_id) {
       body: JSON.stringify({ order_id }),
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const message = Array.isArray(data?.messages)
+        ? data.messages.join(" ")
+        : data?.message || data?.error || `HTTP ${response.status}`;
+      return {
+        ...data,
+        error: data?.error || "request_error",
+        message,
+      };
+    }
+
     return data;
   } catch (error) {
     console.error("Errore durante la cattura dell’ordine:", error.message);

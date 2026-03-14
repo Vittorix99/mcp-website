@@ -1,21 +1,20 @@
 import pytest
 
 from config.firebase_config import db
-from services.service_errors import ValidationError
-from tests.integration.gmail_utils import wait_for_message
+from errors.service_errors import ValidationError
 
 
 @pytest.mark.integration
 @pytest.mark.email
+@pytest.mark.usefixtures("mailersend_api_key")
 def test_location_service_send_location_updates_firestore_and_sends_email(
-    gmail_service,
     location_service,
     create_event,
     create_participant,
 ):
     """Sends location email and updates participant location_sent fields."""
     event_id = create_event()
-    participant_id, participant_email = create_participant(event_id)
+    participant_id, _participant_email = create_participant(event_id)
 
     result = location_service.send_location(
         event_id,
@@ -36,9 +35,6 @@ def test_location_service_send_location_updates_firestore_and_sends_email(
     data = snap.to_dict() or {}
     assert data.get("location_sent") is True
     assert data.get("location_sent_at") is not None
-
-    query = f"in:sent subject:\"Location per l'evento\" to:{participant_email}"
-    assert wait_for_message(gmail_service, query)
 
 
 @pytest.mark.integration

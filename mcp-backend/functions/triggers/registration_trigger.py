@@ -10,9 +10,9 @@ from firebase_functions.firestore_fn import (
 import requests
 
 from google.cloud import firestore
-from services.ticket_service import TicketService
-from services.documents_service import DocumentsService
-from services.mail_service import EmailAttachment, EmailMessage, mail_service
+from services.events.ticket_service import TicketService
+from services.events.documents_service import DocumentsService
+from services.communications.mail_service import EmailAttachment, EmailMessage, mail_service
 from io import BytesIO
 import datetime
 from config.firebase_config import region, db
@@ -149,68 +149,103 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
             print("Skipping membership email send (send_card_on_create=False)")
 
         membership_dto = MembershipDTO.from_payload(membership_data)
-        documents_service = DocumentsService()
-        document = None
-        card_url = membership_data.get("card_url")
-        storage_path = membership_data.get("card_storage_path")
 
-        if not card_url:
-            try:
-                document = documents_service.create_membership_card(membership_id, membership_dto)
-            except Exception as exc:
-                print(f"Failed to generate membership card: {exc}")
-            else:
-                card_url = document.public_url
-                storage_path = document.storage_path
-                snapshot.reference.update(
-                    {
-                        "card_url": card_url,
-                        "card_storage_path": storage_path,
-                        "membership_sent": False,
-                    }
-                )
-                print(f"Membership processed successfully, PDF URL: {card_url}")
+        # [WALLET MIGRATION] Generazione PDF tessera commentata: sostituita da Pass2U wallet
+        # documents_service = DocumentsService()
+        # document = None
+        # card_url = membership_data.get("card_url")
+        # storage_path = membership_data.get("card_storage_path")
+        #
+        # if not card_url:
+        #     try:
+        #         document = documents_service.create_membership_card(membership_id, membership_dto)
+        #     except Exception as exc:
+        #         print(f"Failed to generate membership card: {exc}")
+        #     else:
+        #         card_url = document.public_url
+        #         storage_path = document.storage_path
+        #         snapshot.reference.update(
+        #             {
+        #                 "card_url": card_url,
+        #                 "card_storage_path": storage_path,
+        #                 "membership_sent": False,
+        #             }
+        #         )
+        #         print(f"Membership processed successfully, PDF URL: {card_url}")
+        # else:
+        #     print("Membership already has a card_url, skipping card generation")
+
+        # Genera tessera wallet Pass2U (solo se create_wallet_on_create != False)
+        create_wallet = membership_data.get("create_wallet_on_create", True)
+        wallet_url = None
+        if not create_wallet:
+            print("[Pass2U] Skipping wallet creation (create_wallet_on_create=False)")
         else:
-            print("Membership already has a card_url, skipping card generation")
+            try:
+                from services.memberships.pass2u_service import Pass2UService
+                from models.membership import Membership as MembershipModel
+                pass2u = Pass2UService()
+                membership_model = MembershipModel(
+                    name=membership_data.get("name", ""),
+                    surname=membership_data.get("surname", ""),
+                    email=membership_data.get("email", ""),
+                    end_date=membership_data.get("end_date", ""),
+                    start_date=membership_data.get("start_date", ""),
+                    birthdate=membership_data.get("birthdate", ""),
+                    phone=membership_data.get("phone", ""),
+                    subscription_valid=membership_data.get("subscription_valid", True),
+                    membership_type=membership_data.get("membership_type", "manual"),
+                    membership_fee=membership_data.get("membership_fee"),
+                )
+                wallet = pass2u.create_membership_pass(membership_id, membership_model)
+                if wallet:
+                    wallet_url = wallet.wallet_url
+                    snapshot.reference.update({
+                        "wallet_pass_id": wallet.pass_id,
+                        "wallet_url": wallet_url,
+                    })
+                    print(f"[Pass2U] Wallet pass created: {wallet_url}")
+            except Exception as e:
+                print(f"[Pass2U] Wallet creation failed (non-blocking): {e}")
 
-        if send_card and card_url:
+        if send_card:
             payload = membership_dto.to_payload()
             payload["membership_id"] = membership_id
+            payload["wallet_url"] = wallet_url
             subject = "Tessera Associativa MCP"
             html_content = get_membership_email_template(payload)
             text_content = get_membership_email_text(payload)
 
-            pdf_buffer = document.buffer if document and document.buffer else None
-            if pdf_buffer is None:
-                if not storage_path and "memberships/cards/" in card_url:
-                    storage_path = card_url[card_url.find("memberships/cards/"):]
-                if storage_path:
-                    blob = documents_service.storage.blob(storage_path)
-                    pdf_buffer = BytesIO(blob.download_as_bytes())
+            # [WALLET MIGRATION] Recupero PDF e costruzione allegato commentati
+            # pdf_buffer = document.buffer if document and document.buffer else None
+            # if pdf_buffer is None:
+            #     if not storage_path and "memberships/cards/" in (card_url or ""):
+            #         storage_path = card_url[card_url.find("memberships/cards/"):]
+            #     if storage_path:
+            #         blob = documents_service.storage.blob(storage_path)
+            #         pdf_buffer = BytesIO(blob.download_as_bytes())
+            #
+            # attachment = None
+            # if pdf_buffer:
+            #     attachment = EmailAttachment(
+            #         content=pdf_buffer.getvalue(),
+            #         filename=f"{membership_data.get('name', 'user')}_{membership_data.get('surname', '')}_{membership_id}_tessera.pdf",
+            #     )
 
-            if pdf_buffer:
-                attachment = None
-                if pdf_buffer:
-                    attachment = EmailAttachment(
-                        content=pdf_buffer.getvalue(),
-                        filename=f"{membership_data.get('name', 'user')}_{membership_data.get('surname', '')}_{membership_id}_tessera.pdf",
-                    )
-                sent = mail_service.send(
-                    EmailMessage(
-                        to_email=membership_data.get("email"),
-                        subject=subject,
-                        text_content=text_content,
-                        html_content=html_content,
-                        attachment=attachment,
-                    )
+            sent = mail_service.send(
+                EmailMessage(
+                    to_email=membership_data.get("email"),
+                    subject=subject,
+                    text_content=text_content,
+                    html_content=html_content,
+                    attachment=None,
                 )
-                if sent:
-                    snapshot.reference.update({"membership_sent": True})
-                    print(f"Membership card sent to {membership_data.get('email')}")
-                else:
-                    print("Membership card email failed to send")
+            )
+            if sent:
+                snapshot.reference.update({"membership_sent": True})
+                print(f"Membership card sent to {membership_data.get('email')}")
             else:
-                print("Missing membership card PDF buffer for email send")
+                print("Membership card email failed to send")
 
         # MailerLite sync for memberships
         try:

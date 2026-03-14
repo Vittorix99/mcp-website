@@ -1,6 +1,6 @@
 import pytest
 
-from services.service_errors import ConflictError, ForbiddenError, ValidationError
+from errors.service_errors import ConflictError, ForbiddenError, ValidationError
 
 
 @pytest.mark.integration

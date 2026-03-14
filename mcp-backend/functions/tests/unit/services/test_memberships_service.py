@@ -5,8 +5,8 @@ import pytest
 
 from dto import MembershipDTO, EventDTO
 from models import Membership, Purchase, Event
-from services.memberships_service import MembershipsService
-from services.service_errors import (
+from services.memberships.memberships_service import MembershipsService
+from errors.service_errors import (
     ConflictError,
     ExternalServiceError,
     ForbiddenError,
@@ -258,7 +258,7 @@ def test_update_conflict_email():
         service.update("mem-1", dto)
 
 
-def test_update_regenerates_card_on_email_change():
+def test_update_email_change_does_not_regenerate_card():
     service = _make_service()
     service.documents_service = _DummyDocumentsService()
     service.membership_repository.models["mem-1"] = Membership(
@@ -272,11 +272,11 @@ def test_update_regenerates_card_on_email_change():
     payload = service.update("mem-1", dto)
 
     assert payload["message"] == "Membership aggiornata"
-    assert service.documents_service.calls
+    assert service.documents_service.calls == []
     assert service.membership_repository.updated
 
 
-def test_update_card_generation_failure():
+def test_update_email_change_ignores_card_generation_failures():
     service = _make_service()
     service.documents_service = _DummyDocumentsService(should_fail=True)
     service.membership_repository.models["mem-1"] = Membership(
@@ -284,8 +284,10 @@ def test_update_card_generation_failure():
         email="old@example.com",
     )
     dto = MembershipDTO(email="new@example.com")
-    with pytest.raises(ExternalServiceError):
-        service.update("mem-1", dto)
+    payload = service.update("mem-1", dto)
+    assert payload["message"] == "Membership aggiornata"
+    assert service.documents_service.calls == []
+    assert service.membership_repository.updated
 
 
 def test_delete_removes_card_and_membership():
@@ -306,7 +308,7 @@ def test_delete_removes_card_and_membership():
     assert "mem-1" in service.membership_repository.deleted
 
 
-def test_send_card_invalid_url():
+def test_send_card_does_not_require_card_url_format(monkeypatch):
     service = _make_service()
     service.membership_repository.models["mem-1"] = Membership(
         birthdate="01-01-1990",
@@ -315,8 +317,9 @@ def test_send_card_invalid_url():
         surname="Rossi",
         card_url="https://example.com/invalid.pdf",
     )
-    with pytest.raises(ValidationError):
-        service.send_card("mem-1")
+    monkeypatch.setattr("services.memberships.memberships_service.mail_service.send", lambda *args, **kwargs: True)
+    payload = service.send_card("mem-1")
+    assert payload["message"] == "Card sent successfully"
 
 
 def test_send_card_email_failure(monkeypatch):
@@ -330,7 +333,7 @@ def test_send_card_email_failure(monkeypatch):
         card_url="https://example.com/memberships/cards/mem-1.pdf",
         card_storage_path="memberships/cards/mem-1.pdf",
     )
-    monkeypatch.setattr("services.memberships_service.mail_service.send", lambda *args, **kwargs: False)
+    monkeypatch.setattr("services.memberships.memberships_service.mail_service.send", lambda *args, **kwargs: False)
     with pytest.raises(ExternalServiceError):
         service.send_card("mem-1")
 
@@ -349,7 +352,7 @@ def test_send_card_happy_path(monkeypatch):
         card_storage_path="memberships/cards/mem-1.pdf",
     )
 
-    monkeypatch.setattr("services.memberships_service.mail_service.send", lambda *args, **kwargs: True)
+    monkeypatch.setattr("services.memberships.memberships_service.mail_service.send", lambda *args, **kwargs: True)
     payload = service.send_card("mem-1")
 
     assert payload["message"] == "Card sent successfully"

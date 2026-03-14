@@ -1,8 +1,8 @@
 from firebase_functions import https_fn
 from flask import jsonify, request
 from config.firebase_config import cors
-from services.events_service import EventsService
-from services.service_errors import NotFoundError, ServiceError, ValidationError
+from services.events.events_service import EventsService
+from errors.service_errors import NotFoundError, ServiceError, ValidationError
 from utils.events_utils import sanitize_event
 from config.firebase_config import region
 
