@@ -55,6 +55,7 @@ class NewsletterConsentDTO:
     participant_id: Optional[str] = None
     timestamp: Optional[Any] = None
     source: str = "participant_event"
+    active: bool = True
 
     @classmethod
     def from_model(cls, consent: NewsletterConsent) -> "NewsletterConsentDTO":
@@ -71,6 +72,7 @@ class NewsletterConsentDTO:
             participant_id=consent.participant_id,
             timestamp=consent.timestamp,
             source=consent.source,
+            active=consent.active,
         )
 
     def to_payload(self) -> Dict[str, Any]:
@@ -87,6 +89,7 @@ class NewsletterConsentDTO:
             "participant_id": self.participant_id,
             "timestamp": self.timestamp,
             "source": self.source,
+            "active": self.active,
         }
         return {k: v for k, v in payload.items() if v is not None}
 

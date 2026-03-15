@@ -37,6 +37,7 @@ from repositories.order_repository import OrderRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
 from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from services.core.error_logs_service import log_external_error
 from utils.events_utils import (
     calculate_end_of_year,
     normalize_email,
@@ -195,10 +196,28 @@ class EventPaymentService:
             order = self.orders_controller.orders_create({"body": order_request})
         except ApiException as exc:
             status = getattr(exc, "response_code", None)
+            log_external_error(
+                service="PayPal",
+                operation="create_order_event",
+                source="services.payments.event_payment_service.create_order_event",
+                message=f"Failed to create PayPal order (status: {status})",
+                status_code=status,
+                payload=str(exc),
+                context={"event_id": event_id},
+            )
             raise ExternalServiceError(
                 f"Failed to create PayPal order (status: {status})"
             ) from exc
         if order.status_code not in (200, 201):
+            log_external_error(
+                service="PayPal",
+                operation="create_order_event",
+                source="services.payments.event_payment_service.create_order_event",
+                message="Failed to create PayPal order",
+                status_code=order.status_code,
+                payload=str(order.body),
+                context={"event_id": event_id},
+            )
             raise ExternalServiceError("Failed to create PayPal order")
 
         body = json.loads(ApiHelper.json_serialize(order.body))
@@ -384,10 +403,28 @@ class EventPaymentService:
             )
         except ApiException as exc:
             status = getattr(exc, "response_code", None)
+            log_external_error(
+                service="PayPal",
+                operation="capture_order_event",
+                source="services.payments.event_payment_service.capture_paypal_order",
+                message=f"Failed to capture order (status: {status})",
+                status_code=status,
+                payload=str(exc),
+                context={"order_id": order_id},
+            )
             raise ExternalServiceError(
                 f"Failed to capture order (status: {status})"
             ) from exc
         if not (200 <= order.status_code < 300):
+            log_external_error(
+                service="PayPal",
+                operation="capture_order_event",
+                source="services.payments.event_payment_service.capture_paypal_order",
+                message=f"Failed to capture order (status: {order.status_code})",
+                status_code=order.status_code,
+                payload=str(order.body),
+                context={"order_id": order_id},
+            )
             raise ExternalServiceError(f"Failed to capture order (status: {order.status_code})")
         result = json.loads(ApiHelper.json_serialize(order.body))
         return result

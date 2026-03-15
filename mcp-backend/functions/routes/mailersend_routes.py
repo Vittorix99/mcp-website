@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional, Type
 
 import requests
+from services.core.error_logs_service import log_external_error
 
 try:
     from mailersend import EmailBuilder, MailerSendClient
@@ -154,6 +155,16 @@ class MailerSendRoutes:
             payload = getattr(response, "data", None)
             success = bool(getattr(response, "success", False) or 200 <= status_code < 300)
             error_message = None if success else cls._extract_error(payload)
+            if not success:
+                log_external_error(
+                    service="MailerSend",
+                    operation="send_email",
+                    source="routes.mailersend_routes.send_email",
+                    message=error_message or "MailerSend send failed",
+                    status_code=status_code,
+                    payload=payload,
+                    context={"to_email": request.to_email, "subject": request.subject},
+                )
             return MailerSendSendResult(
                 success=success,
                 status_code=status_code,
@@ -161,6 +172,14 @@ class MailerSendRoutes:
                 error_message=error_message,
             )
         except Exception as exc:
+            log_external_error(
+                service="MailerSend",
+                operation="send_email",
+                source="routes.mailersend_routes.send_email",
+                message=str(exc),
+                status_code=0,
+                context={"to_email": request.to_email, "subject": request.subject},
+            )
             return MailerSendSendResult(
                 success=False,
                 status_code=0,

@@ -5,6 +5,7 @@ from config.external_services import PASS2U_API_KEY
 from config.firebase_config import db
 from models import Membership, MembershipPass, MembershipPassResult
 from routes.pass2u_routes import Pass2URoutes
+from services.core.error_logs_service import log_external_error
 from utils.events_utils import to_iso8601_datetime
 
 
@@ -68,6 +69,15 @@ class Pass2UService:
                     result.error_message or result.payload,
                     payload,
                 )
+                log_external_error(
+                    service="Pass2U",
+                    operation="create_membership_pass",
+                    source="services.memberships.pass2u_service.create_membership_pass",
+                    message=result.error_message or "Pass2U create pass failed",
+                    status_code=result.status_code,
+                    payload=result.payload,
+                    context={"membership_id": membership_id, "model_id": model_id},
+                )
                 return None
 
             data = result.payload if isinstance(result.payload, dict) else {}
@@ -79,12 +89,29 @@ class Pass2UService:
                     model_id,
                     result.payload,
                 )
+                log_external_error(
+                    service="Pass2U",
+                    operation="create_membership_pass",
+                    source="services.memberships.pass2u_service.create_membership_pass",
+                    message="Missing passId in Pass2U response",
+                    status_code=result.status_code,
+                    payload=result.payload,
+                    context={"membership_id": membership_id, "model_id": model_id},
+                )
                 return None
 
             return MembershipPassResult.from_pass_id(pass_id)
 
         except Exception as e:
             logging.error(f"[Pass2U] create_membership_pass failed for {membership_id}: {e}")
+            log_external_error(
+                service="Pass2U",
+                operation="create_membership_pass",
+                source="services.memberships.pass2u_service.create_membership_pass",
+                message=str(e),
+                status_code=0,
+                context={"membership_id": membership_id},
+            )
             return None
 
     def invalidate_membership_pass(self, pass_id: str) -> bool:
@@ -113,6 +140,15 @@ class Pass2UService:
                     result.status_code,
                     result.error_message or result.payload,
                 )
+                log_external_error(
+                    service="Pass2U",
+                    operation="invalidate_membership_pass",
+                    source="services.memberships.pass2u_service.invalidate_membership_pass",
+                    message=result.error_message or "Pass2U invalidate failed",
+                    status_code=result.status_code,
+                    payload=result.payload,
+                    context={"pass_id": pass_id},
+                )
                 return False
 
             logging.info(f"[Pass2U] Pass {pass_id} invalidato con successo")
@@ -120,4 +156,12 @@ class Pass2UService:
 
         except Exception as e:
             logging.error(f"[Pass2U] invalidate_membership_pass failed for {pass_id}: {e}")
+            log_external_error(
+                service="Pass2U",
+                operation="invalidate_membership_pass",
+                source="services.memberships.pass2u_service.invalidate_membership_pass",
+                message=str(e),
+                status_code=0,
+                context={"pass_id": pass_id},
+            )
             return False

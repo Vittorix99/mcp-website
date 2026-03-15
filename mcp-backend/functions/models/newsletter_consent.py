@@ -19,3 +19,4 @@ class NewsletterConsent(FirestoreModel):
     participant_id: Optional[str] = field(default=None, metadata={"firestore_name": "participant_id"})
     timestamp: Optional[Any] = None
     source: str = field(default="participant_event")
+    active: bool = field(default=True)

@@ -13,6 +13,7 @@ from .membership_pass import MembershipPass, MembershipPassResult
 from .settings import Setting
 from .order import Order, EventOrder
 from .purchase import Purchase
+from .error_log import ErrorLog
 
 __all__ = [
     "FirestoreModel",
@@ -39,4 +40,5 @@ __all__ = [
     "MembershipPass",
     "MembershipPassResult",
     "Setting",
+    "ErrorLog",
 ]

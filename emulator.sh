@@ -21,14 +21,14 @@ Examples:
   ./emulator.sh --env=test --firestore-emulator=true
   ./emulator.sh --env=test --auth=true --firestore-emulator=true
   ./emulator.sh --env=test --auth=true --import-backup=true
-  ./emulator.sh --env=test --auth=true --import-backup=true --backup-dir=./emulator-data
+  ./emulator.sh --env=test --auth=true --import-backup=true --backup-dir=mcp-backend/functions/emulator_data
 
 Notes:
 - Default environment is test (loads .env.integration).
 - When --env=prod, MCP_ENV=prod is exported (loads .env).
 - Project ID is inferred from the Firebase service account JSON when available.
 - Firestore emulator can only be enabled in test.
-- When --auth=true, emulator data is exported on exit to backup dir.
+- Emulator data is exported on exit to backup dir whenever at least one emulator is enabled.
 - Import del backup avviene solo se --import-backup=true.
 USAGE
 }
@@ -86,7 +86,7 @@ fi
 
 IMPORT_FLAG=""
 EXPORT_FLAG=""
-if [ "$AUTH" = true ]; then
+if [ "$AUTH" = true ] || [ "$USE_FIRESTORE_EMULATOR" = true ] || [ "$USE_PUBSUB_EMULATOR" = true ]; then
   mkdir -p "$EXPORT_DIR"
   EXPORT_FLAG="--export-on-exit=$EXPORT_DIR"
 fi

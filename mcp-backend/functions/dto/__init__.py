@@ -10,6 +10,8 @@ from .participant_check import ParticipantsCheckDTO
 from .preorder import CheckoutParticipantDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
 from .setting import SettingDTO
 from .purchase import PurchaseDTO
+from .sender_subscriber import SenderSubscriberDTO, SubscriberSource
+from .error_log import ErrorLogDTO
 
 __all__ = [
     "EventDTO",
@@ -27,4 +29,7 @@ __all__ = [
     "PreOrderDTO",
     "SettingDTO",
     "PurchaseDTO",
+    "SenderSubscriberDTO",
+    "SubscriberSource",
+    "ErrorLogDTO",
 ]

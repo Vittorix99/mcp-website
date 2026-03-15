@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
+from api.admin import members_api, messages_api, purchases_api
 from services.communications.mail_service import get_mail_config
 from config.firebase_config import bucket as storage_bucket
 
@@ -34,6 +35,14 @@ def _mock_admin_auth(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _patch_flask_request_proxies(monkeypatch):
+    """Avoid LocalProxy teardown issues when tests monkeypatch request.get_json."""
+    monkeypatch.setattr(members_api, "request", type("ReqStub", (), {"get_json": lambda *args, **kwargs: None})())
+    monkeypatch.setattr(messages_api, "request", type("ReqStub", (), {"get_json": lambda *args, **kwargs: None})())
+    monkeypatch.setattr(purchases_api, "request", type("ReqStub", (), {"get_json": lambda *args, **kwargs: None})())
+
+
 @pytest.fixture(scope="session")
 def gmail_service():
     pytest.skip("Gmail integration tests disabled after migration to MailerSend")
@@ -52,6 +61,8 @@ def mailersend_api_key():
 
 @pytest.fixture(scope="session", autouse=True)
 def _ensure_storage_assets():
+    if os.environ.get("SKIP_STORAGE_ASSET_BOOTSTRAP", "").lower() in {"1", "true", "yes"}:
+        return
     if storage_bucket is None:
         return
 

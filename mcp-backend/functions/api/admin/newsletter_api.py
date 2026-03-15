@@ -4,6 +4,14 @@ from services.core.auth_service import require_admin
 from services.communications.newsletter_service import NewsletterService
 
 newsletter_service = NewsletterService()
+
+
+def _handle_get_newsletter_consents(req):
+    if req.method != "GET":
+        return {"error": "Invalid request method"}, 405
+    return newsletter_service.get_all_consents()
+
+
 @https_fn.on_request(cors=cors, region=region)
 @require_admin
 def admin_get_newsletter_signups(req):
@@ -49,3 +57,10 @@ def admin_delete_newsletter_signup(req):
         return {"error": "Missing signup ID"}, 400
 
     return newsletter_service.delete(signup_id)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def admin_get_newsletter_consents(req):
+    """Admin: Get all newsletter consents"""
+    return _handle_get_newsletter_consents(req)

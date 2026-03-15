@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 _ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
+_DEFAULT_WEBSITE_URL = "https://musiconnectingpeople.com"
 
 
 def _load_asset_as_data_uri(filename: str) -> str:
@@ -72,9 +73,31 @@ def resolve_logo_black_url() -> str:
     return _load_asset_as_data_uri("logo_black.png")
 
 
+def _resolve_public_asset_url(filename: str, env_key: str) -> str:
+    explicit_url = (os.getenv(env_key) or "").strip()
+    if explicit_url and explicit_url != "#":
+        return explicit_url
+
+    website_base = (
+        os.getenv("WEBSITE_URL")
+        or os.getenv("PUBLIC_WEBSITE_URL")
+        or os.getenv("MCP_WEBSITE_URL")
+        or _DEFAULT_WEBSITE_URL
+    )
+    website_base = (website_base or "").strip().rstrip("/")
+    if website_base and website_base != "#":
+        return f"{website_base}/{filename.lstrip('/')}"
+
+    return ""
+
+
 def resolve_apple_wallet_url() -> str:
-    return _load_asset_as_data_uri("apple_wallet.png")
+    return _resolve_public_asset_url("apple_wallet.png", "APPLE_WALLET_BUTTON_URL") or _load_asset_as_data_uri(
+        "apple_wallet.png"
+    )
 
 
 def resolve_google_wallet_url() -> str:
-    return _load_asset_as_data_uri("google_wallet.png")
+    return _resolve_public_asset_url("google_wallet.png", "GOOGLE_WALLET_BUTTON_URL") or _load_asset_as_data_uri(
+        "google_wallet.png"
+    )

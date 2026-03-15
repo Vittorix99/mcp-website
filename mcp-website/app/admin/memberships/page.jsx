@@ -2,19 +2,21 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical, Wallet } from "lucide-react"
+import { ArrowLeft, Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical, Wallet, SlidersHorizontal, AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
 import * as XLSX from "xlsx"
 import {routes} from "@/config/routes"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card"
+import { Card, CardHeader, CardContent } from "@/components/ui/card"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import MembershipStats from "@/components/admin/memberships/MembershipStats"
 import { useAdminMemberships } from "@/hooks/useAdminMemberships"
@@ -66,6 +68,12 @@ export default function MembershipsPage() {
   const [tempPrice, setTempPrice] = useState("")
   const [walletModelEditing, setWalletModelEditing] = useState(false)
   const [tempWalletModel, setTempWalletModel] = useState("")
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState("price")
+  const [walletModelWarningOpen, setWalletModelWarningOpen] = useState(false)
+  const [walletModelWarningText, setWalletModelWarningText] = useState(
+    "Modello Wallet Pass2U non configurato. Configuralo dalle impostazioni."
+  )
   const [selectedYear, setSelectedYear] = useState(() => {
     if (typeof window === "undefined") {
       return new Date().getFullYear().toString()
@@ -86,7 +94,19 @@ export default function MembershipsPage() {
   }, [getMembershipPriceForYear, selectedYear])
 
   useEffect(() => {
-    fetchWalletModel()
+    let cancelled = false
+    ;(async () => {
+      const result = await fetchWalletModel()
+      if (cancelled || !result) return
+      if (result.missing) {
+        if (result.message) setWalletModelWarningText(result.message)
+        setWalletModelWarningOpen(true)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchWalletModel])
 
   useEffect(() => {
@@ -357,6 +377,15 @@ export default function MembershipsPage() {
     }
   }
 
+  const openSettings = (tab = "price") => {
+    setSettingsTab(tab)
+    setPriceEditing(false)
+    setWalletModelEditing(false)
+    // Defer to let DropdownMenu fully unmount before Dialog opens,
+    // otherwise Radix leaves pointer-events:none on <body> and the UI freezes.
+    setTimeout(() => setSettingsOpen(true), 0)
+  }
+
   const openForm = (m = null) => {
     if (m) {
       setEditMode(true)
@@ -364,7 +393,7 @@ export default function MembershipsPage() {
       setInitial({ ...m })
     } else {
       setEditMode(false)
-      setForm({ name: "", surname: "", email: "", phone: "", birthdate: "", create_wallet_on_create: true, send_card_on_create: false })
+      setForm({ name: "", surname: "", email: "", phone: "", birthdate: "", send_card_on_create: false })
       setInitial({})
     }
     setModalOpen(true)
@@ -433,107 +462,24 @@ export default function MembershipsPage() {
               ))}
             </SelectContent>
           </Select>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <SlidersHorizontal className="h-4 w-4" />
+                Impostazioni
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => openSettings("price")}>
+                Prezzo membership
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openSettings("wallet")}>
+                Modello Wallet Pass2U
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-
-        <Card className="bg-zinc-900 border border-zinc-700">
-          <CardHeader>
-            <CardTitle>Prezzo Membership ({selectedYear})</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            {priceEditing ? (
-              <>
-                <Input
-                  type="number"
-                  value={tempPrice}
-                  onChange={(e) => setTempPrice(e.target.value)}
-                  placeholder="€"
-                  className="w-24"
-                />
-                <Button size="sm" onClick={onSavePrice}>
-                  Salva
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setPriceEditing(false)}>
-                  Annulla
-                </Button>
-              </>
-            ) : (
-              <div className="flex items-center gap-4">
-                <span className="text-xl font-semibold">
-                  {membershipPrice && membershipPrice.year === selectedYear && membershipPrice.price != null
-                    ? `${membershipPrice.price} €`
-                    : "Non definito"}
-                </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  disabled={isMembershipPriceReadOnly}
-                  onClick={() => {
-                    if (isMembershipPriceReadOnly) return
-                    setTempPrice(
-                      membershipPrice && membershipPrice.year === selectedYear && membershipPrice.price != null
-                        ? membershipPrice.price.toString()
-                        : ""
-                    )
-                    setPriceEditing(true)
-                  }}
-                >
-                  <Edit className="h-5 w-5" />
-                </Button>
-              </div>
-            )}
-            {isMembershipPriceReadOnly && (
-              <p className="text-sm text-gray-400">
-                Valore letto da <code>NEXT_MEMBESHIP_PRICE</code>. Aggiorna il file .env per modificarlo.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-zinc-900 border border-zinc-700">
-          <CardHeader>
-            <CardTitle>Modello Wallet Pass2U</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            {walletModelEditing ? (
-              <>
-                <Input
-                  value={tempWalletModel}
-                  onChange={(e) => setTempWalletModel(e.target.value)}
-                  placeholder="Model ID Pass2U"
-                  className="w-64 font-mono text-sm"
-                />
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    await saveWalletModel(tempWalletModel)
-                    setWalletModelEditing(false)
-                  }}
-                >
-                  Salva
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setWalletModelEditing(false)}>
-                  Annulla
-                </Button>
-              </>
-            ) : (
-              <div className="flex items-center gap-4">
-                <span className="font-mono text-sm text-gray-300">
-                  {walletModelId || <span className="text-gray-500 italic">Non configurato</span>}
-                </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    setTempWalletModel(walletModelId || "")
-                    setWalletModelEditing(true)
-                  }}
-                >
-                  <Edit className="h-5 w-5" />
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         <MembershipStats stats={stats} totalTesseramenti={totalTesseramenti} onRefresh={loadAll} />
 
@@ -786,6 +732,163 @@ export default function MembershipsPage() {
             )}
           </CardContent>
         </Card>
+
+        <Dialog
+          open={settingsOpen}
+          onOpenChange={(open) => {
+            setSettingsOpen(open)
+            if (!open) {
+              setPriceEditing(false)
+              setWalletModelEditing(false)
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Impostazioni Membership</DialogTitle>
+              <DialogDescription>
+                Configura prezzo annuale e modello Wallet senza occupare spazio nella pagina principale.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Tabs value={settingsTab} onValueChange={setSettingsTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="price">Prezzo</TabsTrigger>
+                <TabsTrigger value="wallet">Wallet</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="price" className="space-y-4 pt-3">
+                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+                  <p className="text-sm text-gray-400">Prezzo Membership ({selectedYear})</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    {priceEditing ? (
+                      <>
+                        <Input
+                          type="number"
+                          value={tempPrice}
+                          onChange={(e) => setTempPrice(e.target.value)}
+                          placeholder="€"
+                          className="w-28"
+                        />
+                        <Button size="sm" onClick={onSavePrice}>
+                          Salva
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setPriceEditing(false)}>
+                          Annulla
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-semibold">
+                          {membershipPrice && membershipPrice.year === selectedYear && membershipPrice.price != null
+                            ? `${membershipPrice.price} €`
+                            : "Non definito"}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={isMembershipPriceReadOnly}
+                          onClick={() => {
+                            if (isMembershipPriceReadOnly) return
+                            setTempPrice(
+                              membershipPrice && membershipPrice.year === selectedYear && membershipPrice.price != null
+                                ? membershipPrice.price.toString()
+                                : ""
+                            )
+                            setPriceEditing(true)
+                          }}
+                        >
+                          <Edit className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {isMembershipPriceReadOnly && (
+                    <p className="mt-3 text-sm text-gray-400">
+                      Valore letto da <code>NEXT_MEMBESHIP_PRICE</code>. Aggiorna il file .env per modificarlo.
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="wallet" className="space-y-4 pt-3">
+                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+                  <p className="text-sm text-gray-400">Modello Wallet Pass2U</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    {walletModelEditing ? (
+                      <>
+                        <Input
+                          value={tempWalletModel}
+                          onChange={(e) => setTempWalletModel(e.target.value)}
+                          placeholder="Model ID Pass2U"
+                          className="w-full sm:w-72 font-mono text-sm"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            const ok = await saveWalletModel(tempWalletModel)
+                            if (ok) {
+                              setWalletModelEditing(false)
+                              setWalletModelWarningOpen(false)
+                            }
+                          }}
+                        >
+                          Salva
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setWalletModelEditing(false)}>
+                          Annulla
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm text-gray-300">
+                          {walletModelId || <span className="text-gray-500 italic">Non configurato</span>}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setTempWalletModel(walletModelId || "")
+                            setWalletModelEditing(true)
+                          }}
+                        >
+                          <Edit className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={walletModelWarningOpen} onOpenChange={setWalletModelWarningOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-500">
+                <AlertTriangle className="h-5 w-5" />
+                Configurazione Wallet mancante
+              </DialogTitle>
+              <DialogDescription className="text-gray-300">
+                {walletModelWarningText}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="sm:justify-between">
+              <Button variant="outline" onClick={() => setWalletModelWarningOpen(false)}>
+                Chiudi
+              </Button>
+              <Button
+                onClick={() => {
+                  setWalletModelWarningOpen(false)
+                  openSettings("wallet")
+                }}
+              >
+                Apri impostazioni
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <MembershipModal
           isOpen={modalOpen}

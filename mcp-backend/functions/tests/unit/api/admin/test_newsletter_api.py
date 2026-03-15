@@ -78,3 +78,16 @@ def test_admin_delete_newsletter_signup_happy_path(monkeypatch):
     resp, status = unwrap_response(newsletter_api.admin_delete_newsletter_signup(req))
     assert status == 200
     assert resp["message"] == "ok"
+
+
+def test_admin_get_newsletter_consents_happy_path(monkeypatch):
+    """Fetches all newsletter consents via plural endpoint."""
+    monkeypatch.setattr(
+        newsletter_api,
+        "newsletter_service",
+        types.SimpleNamespace(get_all_consents=lambda: ({"consents": []}, 200)),
+    )
+    req = DummyRequest(method="GET", args={})
+    resp, status = unwrap_response(newsletter_api.admin_get_newsletter_consents(req))
+    assert status == 200
+    assert resp == {"consents": []}

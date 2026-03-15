@@ -5,7 +5,8 @@ from typing import Any, Dict, List
 from firebase_admin import firestore
 
 from config.firebase_config import db
-from models import NewsletterSignup
+from models import NewsletterSignup, NewsletterConsent
+from dto import NewsletterConsentDTO
 from services.communications.mail_service import EmailMessage, mail_service
 from utils.templates_mail import get_newsletter_signup_template, get_newsletter_signup_text
 
@@ -78,6 +79,18 @@ class NewsletterService:
             return {"signups": signups}, 200
         except Exception as e:
             self.logger.error(f"Error getting all signups: {e}")
+            return {"error": "Internal error occurred"}, 500
+
+    def get_all_consents(self) -> tuple:
+        try:
+            docs = db.collection("newsletter_consents").order_by("timestamp", direction=firestore.Query.DESCENDING).get()
+            consents = [
+                NewsletterConsentDTO.from_model(NewsletterConsent.from_firestore(doc.to_dict() or {}, doc.id)).to_payload()
+                for doc in docs
+            ]
+            return {"consents": consents}, 200
+        except Exception as e:
+            self.logger.error(f"Error getting all consents: {e}")
             return {"error": "Internal error occurred"}, 500
 
     def update(self, signup_id: str, data: Dict[str, Any]) -> tuple:

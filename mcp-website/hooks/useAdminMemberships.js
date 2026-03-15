@@ -140,7 +140,7 @@ export function useAdminMemberships(options = {}) {
     try {
       const payload = {
         ...data,
-        send_card_on_create: !!data?.send_card_on_create,
+        send_card_on_create: data?.send_card_on_create === true,
       };
       const res = await createMembershipService(payload);
       if (res?.error) setError(res.error);
@@ -335,23 +335,61 @@ export function useAdminMemberships(options = {}) {
   const fetchWalletModel = useCallback(async () => {
     try {
       const res = await getWalletModel();
-      if (res?.error) { setError(res.error); return; }
-      setWalletModelId(res.model_id || null);
+      if (res?.error) {
+        const message = String(res.error || "");
+        const lower = message.toLowerCase();
+        const missingConfig =
+          lower.includes("internal server error") ||
+          lower.includes("membership_settings/current_model") ||
+          lower.includes("model_id");
+
+        if (missingConfig) {
+          setWalletModelId(null);
+          return {
+            ok: true,
+            missing: true,
+            message: "Modello Wallet Pass2U non configurato.",
+          };
+        }
+
+        setError(res.error);
+        return { ok: false, missing: false, message };
+      }
+
+      const modelId =
+        typeof res?.model_id === "string" ? res.model_id.trim() : "";
+      setWalletModelId(modelId || null);
+      return {
+        ok: true,
+        missing: !modelId,
+        message: modelId ? "" : "Modello Wallet Pass2U non configurato.",
+      };
     } catch (e) {
       console.error("getWalletModel error", e);
+      setError("Errore nel recupero del wallet model.");
+      return {
+        ok: false,
+        missing: false,
+        message: "Errore nel recupero del wallet model.",
+      };
     }
   }, [setError]);
 
   const saveWalletModel = useCallback(async (model_id) => {
-    if (!model_id?.trim()) { setError("Model ID non valido"); return; }
+    if (!model_id?.trim()) { setError("Model ID non valido"); return false; }
     setLoading(true);
     try {
       const res = await setWalletModel(model_id.trim());
-      if (res?.error) setError(res.error);
-      else setWalletModelId(model_id.trim());
+      if (res?.error) {
+        setError(res.error);
+        return false;
+      }
+      setWalletModelId(model_id.trim());
+      return true;
     } catch (e) {
       console.error("setWalletModel error", e);
       setError("Errore aggiornamento wallet model.");
+      return false;
     } finally {
       setLoading(false);
     }

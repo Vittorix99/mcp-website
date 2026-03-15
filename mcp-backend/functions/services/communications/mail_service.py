@@ -11,6 +11,7 @@ from routes.mailersend_routes import (
     MailerSendRequest,
     MailerSendRoutes,
 )
+from services.core.error_logs_service import log_external_error
 
 
 # Backward-compatible symbol expected by existing tests.
@@ -106,6 +107,14 @@ class MailerSendMailService(MailService):
             config = get_mail_config()
         except Exception as exc:
             logger.exception("Unable to load MailerSend configuration: %s", exc)
+            log_external_error(
+                service="MailerSend",
+                operation="send_email",
+                source="services.communications.mail_service.send",
+                message=f"Unable to load MailerSend configuration: {exc}",
+                status_code=0,
+                context={"to_email": email.to_email, "subject": email.subject},
+            )
             return False
 
         cat_from_email, cat_from_name, cat_reply_to = _sender_for_category(email.category)
@@ -151,9 +160,26 @@ class MailerSendMailService(MailService):
                 email.to_email,
                 payload_preview,
             )
+            log_external_error(
+                service="MailerSend",
+                operation="send_email",
+                source="services.communications.mail_service.send",
+                message=result.error_message or "MailerSend error",
+                status_code=result.status_code,
+                payload=result.payload,
+                context={"to_email": email.to_email, "subject": email.subject},
+            )
             return False
         except Exception as exc:
             logger.exception("Error sending email to %s: %s", email.to_email, exc)
+            log_external_error(
+                service="MailerSend",
+                operation="send_email",
+                source="services.communications.mail_service.send",
+                message=str(exc),
+                status_code=0,
+                context={"to_email": email.to_email, "subject": email.subject},
+            )
             return False
         finally:
             for path in temp_files:

@@ -8,6 +8,7 @@ from .message_repository import MessageRepository
 from .newsletter_repository import NewsletterRepository
 from .participant_repository import ParticipantRepository
 from .settings_repository import SettingsRepository
+from .error_log_repository import ErrorLogRepository
 
 __all__ = [
     "BaseRepository",
@@ -18,4 +19,5 @@ __all__ = [
     "MessageRepository",
     "NewsletterRepository",
     "SettingsRepository",
+    "ErrorLogRepository",
 ]

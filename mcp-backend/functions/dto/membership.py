@@ -66,12 +66,25 @@ class MembershipDTO:
             return None
 
         def pick_bool(key, alternate=None):
+            def _parse_bool(value):
+                if value is None:
+                    return None
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, (int, float)):
+                    return value != 0
+                if isinstance(value, str):
+                    normalized = value.strip().lower()
+                    if normalized in {"1", "true", "yes", "y", "on"}:
+                        return True
+                    if normalized in {"0", "false", "no", "n", "off", ""}:
+                        return False
+                return bool(value)
+
             if key in payload:
-                value = payload.get(key)
-                return None if value is None else bool(value)
+                return _parse_bool(payload.get(key))
             if alternate and alternate in payload:
-                value = payload.get(alternate)
-                return None if value is None else bool(value)
+                return _parse_bool(payload.get(alternate))
             return None
 
         return cls(

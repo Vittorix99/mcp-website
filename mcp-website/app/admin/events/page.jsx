@@ -171,28 +171,25 @@ export default function EventsPage() {
       transition={{ duration: 0.5 }}
     >
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-                <Button variant="ghost" onClick={() =>router.push(routes.admin.dashboard)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Torna admin
-          </Button>
-          
-          <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Gestione Eventi</h1>
-          <p className="text-gray-300">Crea, modifica e gestisci eventi MCP.</p>
-        </div>
-        <div className="flex gap-2 w-full md:w-auto">
-          <Button
-            variant="outline"
-            onClick={refreshEvents}
-            disabled={loading}
-            className="flex-1 md:flex-none bg-transparent"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiorna"}
-          </Button>
-          <Button onClick={() => openModal()} className="flex-1 md:flex-none">
-            <Plus className="h-4 w-4 mr-2" /> Nuovo Evento
-          </Button>
-        </div>
+      <div>
+        <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Torna admin
+        </Button>
+        <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Gestione Eventi</h1>
+        <p className="text-gray-300">Crea, modifica e gestisci eventi MCP.</p>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={refreshEvents}
+          disabled={loading}
+          className="bg-transparent"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiorna"}
+        </Button>
+        <Button onClick={() => openModal()}>
+          <Plus className="h-4 w-4 mr-2" /> Nuovo Evento
+        </Button>
       </div>
 
       {/* STATS */}

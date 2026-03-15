@@ -29,13 +29,13 @@ export async function safeFetch(url, method = 'GET', body = null) {
 
     if (!response.ok) {
       const message = getApiErrorMessage(data)
-      return { error: message, error_code: data?.error }
+      return { error: message, error_code: data?.error, status: response.status }
     }
 
     return data || {}
   } catch (err) {
     console.error('Errore HTTP:', err)
-    return { error: 'Errore di rete o del server.' }
+    return { error: 'Errore di rete o del server.', status: 0 }
   }
 
 }

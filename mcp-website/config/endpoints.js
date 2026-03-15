@@ -75,6 +75,7 @@ export const endpoints = {
     createPurchase: make("create_purchase"),
     deletePurchase: make("delete_purchase"),
     getGeneralStats:make("admin_get_general_stats"),
+    errorLogs: make("admin_error_logs"),
     
     
     getAllMessages: make("get_messages"),
@@ -99,6 +100,31 @@ export const endpoints = {
       campaignCancelReady: make("admin_mailerlite_campaign_cancel_ready"),
       automations: make("admin_mailerlite_automations"),
       automationActivity: make("admin_mailerlite_automation_activity"),
+    },
+
+    newsletter: {
+      getSignups: make("admin_get_newsletter_signups"),
+      getConsents: make("admin_get_newsletter_consents"),
+      update: make("admin_update_newsletter_signup"),
+      delete: make("admin_delete_newsletter_signup"),
+    },
+
+    sender: {
+      subscribers: make("admin_sender_subscribers"),
+      subscriberGroups: make("admin_sender_subscriber_groups"),
+      subscriberEvents: make("admin_sender_subscriber_events"),
+      groups: make("admin_sender_groups"),
+      groupSubscribers: make("admin_sender_group_subscribers"),
+      campaigns: make("admin_sender_campaigns"),
+      campaignSend: make("admin_sender_campaign_send"),
+      campaignSchedule: make("admin_sender_campaign_schedule"),
+      campaignCopy: make("admin_sender_campaign_copy"),
+      campaignStats: make("admin_sender_campaign_stats"),
+      fields: make("admin_sender_fields"),
+      segments: make("admin_sender_segments"),
+      segmentSubscribers: make("admin_sender_segment_subscribers"),
+      transactional: make("admin_sender_transactional"),
+      transactionalSend: make("admin_sender_transactional_send"),
     },
 
 

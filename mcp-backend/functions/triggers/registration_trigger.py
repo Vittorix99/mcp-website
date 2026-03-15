@@ -20,10 +20,29 @@ from dto import MembershipDTO
 from utils.events_utils import is_valid_email
 from utils.templates_mail import get_membership_email_template, get_membership_email_text
 from config.external_services import GENDER_API_URL
+from models import EventParticipant, Membership as MembershipModel
 from services.mailer_lite import SubscribersClient
+from services.sender.sender_sync import sync_participant_to_sender, sync_membership_to_sender
+from services.core.error_logs_service import log_external_error
 
 
 ticket_service = TicketService()
+
+
+def _coerce_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return bool(value)
 
 
 @on_document_created(document="participants/{eventId}/participants_event/{participantId}", region=region)
@@ -117,6 +136,24 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
             except Exception as e:
                 print(f"MailerLite sync failed for {email}: {e}")
 
+        # Sender sync for newsletter consent
+        if newsletter_consent and is_valid_email(email):
+            try:
+                participant_model = EventParticipant.from_firestore(participant_data, doc_id=participant_id)
+                event_doc = db.collection("events").document(event_id).get()
+                event_title = (event_doc.to_dict() or {}).get("title", "") if event_doc.exists else ""
+                sync_participant_to_sender(participant_id, participant_model, event_id, event_title=event_title)
+            except Exception as e:
+                print(f"Sender sync failed for {email}: {e}")
+                log_external_error(
+                    service="Sender",
+                    operation="participant_trigger_sync",
+                    source="triggers.registration_trigger.on_participant_created",
+                    message=str(e),
+                    status_code=0,
+                    context={"participant_id": participant_id, "event_id": event_id, "email": email},
+                )
+
     except Exception as e:
         print(f"Error in participant trigger: {str(e)}")
         ticket_service.log_failed_ticket_email(
@@ -144,7 +181,10 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
         print(f"Membership data for {membership_id}: {membership_data}")
 
         # Determine whether to send the card based on `send_card_on_create`
-        send_card = membership_data.get("send_card_on_create") is True
+        send_card = _coerce_bool(
+            membership_data.get("send_card_on_create", membership_data.get("sendCardOnCreate")),
+            default=False,
+        )
         if not send_card:
             print("Skipping membership email send (send_card_on_create=False)")
 
@@ -175,38 +215,40 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
         # else:
         #     print("Membership already has a card_url, skipping card generation")
 
-        # Genera tessera wallet Pass2U (solo se create_wallet_on_create != False)
-        create_wallet = membership_data.get("create_wallet_on_create", True)
         wallet_url = None
-        if not create_wallet:
-            print("[Pass2U] Skipping wallet creation (create_wallet_on_create=False)")
-        else:
-            try:
-                from services.memberships.pass2u_service import Pass2UService
-                from models.membership import Membership as MembershipModel
-                pass2u = Pass2UService()
-                membership_model = MembershipModel(
-                    name=membership_data.get("name", ""),
-                    surname=membership_data.get("surname", ""),
-                    email=membership_data.get("email", ""),
-                    end_date=membership_data.get("end_date", ""),
-                    start_date=membership_data.get("start_date", ""),
-                    birthdate=membership_data.get("birthdate", ""),
-                    phone=membership_data.get("phone", ""),
-                    subscription_valid=membership_data.get("subscription_valid", True),
-                    membership_type=membership_data.get("membership_type", "manual"),
-                    membership_fee=membership_data.get("membership_fee"),
-                )
-                wallet = pass2u.create_membership_pass(membership_id, membership_model)
-                if wallet:
-                    wallet_url = wallet.wallet_url
-                    snapshot.reference.update({
-                        "wallet_pass_id": wallet.pass_id,
-                        "wallet_url": wallet_url,
-                    })
-                    print(f"[Pass2U] Wallet pass created: {wallet_url}")
-            except Exception as e:
-                print(f"[Pass2U] Wallet creation failed (non-blocking): {e}")
+        try:
+            from services.memberships.pass2u_service import Pass2UService
+            pass2u = Pass2UService()
+            membership_model = MembershipModel(
+                name=membership_data.get("name", ""),
+                surname=membership_data.get("surname", ""),
+                email=membership_data.get("email", ""),
+                end_date=membership_data.get("end_date", ""),
+                start_date=membership_data.get("start_date", ""),
+                birthdate=membership_data.get("birthdate", ""),
+                phone=membership_data.get("phone", ""),
+                subscription_valid=membership_data.get("subscription_valid", True),
+                membership_type=membership_data.get("membership_type", "manual"),
+                membership_fee=membership_data.get("membership_fee"),
+            )
+            wallet = pass2u.create_membership_pass(membership_id, membership_model)
+            if wallet:
+                wallet_url = wallet.wallet_url
+                snapshot.reference.update({
+                    "wallet_pass_id": wallet.pass_id,
+                    "wallet_url": wallet_url,
+                })
+                print(f"[Pass2U] Wallet pass created: {wallet_url}")
+        except Exception as e:
+            print(f"[Pass2U] Wallet creation failed (non-blocking): {e}")
+            log_external_error(
+                service="Pass2U",
+                operation="membership_trigger_create_wallet",
+                source="triggers.registration_trigger.on_membership_created",
+                message=str(e),
+                status_code=0,
+                context={"membership_id": membership_id},
+            )
 
         if send_card:
             payload = membership_dto.to_payload()
@@ -262,6 +304,23 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
                 sync_service.sync_membership(email, fields)
         except Exception as e:
             print(f"MailerLite sync failed for membership {membership_id}: {e}")
+
+        # Sender sync for memberships
+        try:
+            email = (membership_data.get("email") or "").strip().lower()
+            if is_valid_email(email):
+                membership_model_for_sender = MembershipModel.from_firestore(membership_data, doc_id=membership_id)
+                sync_membership_to_sender(membership_id, membership_model_for_sender)
+        except Exception as e:
+            print(f"Sender sync failed for membership {membership_id}: {e}")
+            log_external_error(
+                service="Sender",
+                operation="membership_trigger_sync",
+                source="triggers.registration_trigger.on_membership_created",
+                message=str(e),
+                status_code=0,
+                context={"membership_id": membership_id},
+            )
 
     except Exception as e:
         print(f"Error handling membership creation: {str(e)}")

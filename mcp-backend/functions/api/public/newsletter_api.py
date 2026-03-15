@@ -1,6 +1,7 @@
 from firebase_functions import https_fn
 from config.firebase_config import cors, region
 from services.communications.newsletter_service import NewsletterService
+from services.sender.sender_sync import sync_newsletter_signup_to_sender
 
 newsletter_service = NewsletterService()
 
@@ -18,7 +19,18 @@ def newsletter_signup(req):
     if not data or "email" not in data:
         return {"error": "Missing email"}, 400
 
-    return newsletter_service.signup(data)
+    result = newsletter_service.signup(data)
+
+    # Sync to Sender (fire-and-forget, does not affect response)
+    try:
+        sync_newsletter_signup_to_sender(
+            email=data.get("email", ""),
+            name=data.get("name"),
+        )
+    except Exception as exc:
+        print(f"[newsletter_signup] Sender sync failed: {exc}")
+
+    return result
 
 
 

@@ -27,6 +27,7 @@ from config.firebase_config import db, bucket, cors
 # === API Pubbliche ===
 from api.public.contact_api import contact_us
 from api.public.newsletter_api import newsletter_signup
+from api.public.sender_webhook_api import sender_webhook
 from api.public.event_payment_api import create_order_event, capture_order_event
 from api.public.events_api import get_event_by_id, get_next_event, get_all_events
 from api.public.events_tickets_api import check_participants
@@ -35,11 +36,10 @@ from api.public.events_tickets_api import check_participants
 
 
 from api.admin.newsletter_api import(
-    
     admin_get_newsletter_signups,
     admin_delete_newsletter_signup,
-    admin_update_newsletter_signup 
-    
+    admin_update_newsletter_signup,
+    admin_get_newsletter_consents,
 )
 from api.admin.messages_api import(
     get_messages,
@@ -103,6 +103,7 @@ from triggers.registration_trigger import (
 )
 
 from api.admin.stats_api import admin_get_general_stats
+from api.admin.error_logs_api import admin_error_logs
 
 from api.admin.setting_api import get_settings, set_settings
 from triggers.jobs_trigger import process_send_location_job
@@ -131,4 +132,31 @@ from api.admin.mailer_lite.automations_api import (
 from api.admin.mailer_lite.segments_api import (
     admin_mailerlite_segments,
     admin_mailerlite_segment_subscribers,
+)
+
+# === API Admin: Sender ===
+from api.admin.sender.subscribers_api import (
+    admin_sender_subscribers,
+    admin_sender_subscriber_groups,
+    admin_sender_subscriber_events,
+)
+from api.admin.sender.groups_api import (
+    admin_sender_groups,
+    admin_sender_group_subscribers,
+)
+from api.admin.sender.campaigns_api import (
+    admin_sender_campaigns,
+    admin_sender_campaign_send,
+    admin_sender_campaign_schedule,
+    admin_sender_campaign_copy,
+    admin_sender_campaign_stats,
+)
+from api.admin.sender.fields_api import admin_sender_fields
+from api.admin.sender.segments_api import (
+    admin_sender_segments,
+    admin_sender_segment_subscribers,
+)
+from api.admin.sender.transactional_api import (
+    admin_sender_transactional,
+    admin_sender_transactional_send,
 )

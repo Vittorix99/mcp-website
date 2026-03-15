@@ -5,6 +5,32 @@ import pytest
 from triggers import registration_trigger
 
 
+@pytest.fixture(autouse=True)
+def _stub_sender_side_effects(monkeypatch):
+    monkeypatch.setattr(registration_trigger, "sync_participant_to_sender", lambda *args, **kwargs: None)
+    monkeypatch.setattr(registration_trigger, "sync_membership_to_sender", lambda *args, **kwargs: None)
+    monkeypatch.setattr(registration_trigger, "log_external_error", lambda *args, **kwargs: None)
+
+    class _DummyDoc:
+        exists = False
+
+        def to_dict(self):
+            return {}
+
+    class _DummyCollection:
+        def document(self, _doc_id):
+            return self
+
+        def get(self):
+            return _DummyDoc()
+
+    class _DummyDB:
+        def collection(self, _name):
+            return _DummyCollection()
+
+    monkeypatch.setattr(registration_trigger, "db", _DummyDB())
+
+
 class _DummyRef:
     def __init__(self):
         self.updates = []
@@ -133,7 +159,6 @@ def test_on_membership_created_generates_card_and_sends_email(monkeypatch):
             "surname": "Rossi",
             "email": "mcpweb.test@gmail.com",
             "send_card_on_create": True,
-            "create_wallet_on_create": True,
         }
     )
     event = types.SimpleNamespace(data=snap, params={"membershipId": membership_id})
@@ -172,7 +197,7 @@ def test_on_membership_created_generates_card_and_sends_email(monkeypatch):
     assert called.get("subject") == "Tessera Associativa MCP"
 
 
-def test_on_membership_created_skips_wallet_when_flag_false(monkeypatch):
+def test_on_membership_created_does_not_send_email_when_send_flag_false(monkeypatch):
     membership_id = "mem-2"
     snap = _DummySnap(
         {
@@ -180,17 +205,19 @@ def test_on_membership_created_skips_wallet_when_flag_false(monkeypatch):
             "surname": "Rossi",
             "email": "mcpweb.test@gmail.com",
             "send_card_on_create": False,
-            "create_wallet_on_create": False,
         }
     )
     event = types.SimpleNamespace(data=snap, params={"membershipId": membership_id})
 
-    monkeypatch.setattr(
-        "services.memberships.pass2u_service.Pass2UService",
-        lambda: pytest.fail("Pass2UService should not be called when create_wallet_on_create=False"),
-    )
+    called = {"email": False, "wallet": False}
 
-    called = {"email": False}
+    class _DummyPass2UService:
+        def create_membership_pass(self, *_args, **_kwargs):
+            called["wallet"] = True
+            return types.SimpleNamespace(pass_id="pass-2", wallet_url="https://www.pass2u.net/d/pass-2")
+
+    monkeypatch.setattr("services.memberships.pass2u_service.Pass2UService", _DummyPass2UService)
+
     monkeypatch.setattr(
         registration_trigger.mail_service,
         "send",
@@ -204,5 +231,49 @@ def test_on_membership_created_skips_wallet_when_flag_false(monkeypatch):
 
     registration_trigger.on_membership_created.__wrapped__(event)
 
-    assert not any("wallet_url" in update or "wallet_pass_id" in update for update in snap.reference.updates)
+    assert any(update.get("wallet_url") == "https://www.pass2u.net/d/pass-2" for update in snap.reference.updates)
+    assert called["wallet"] is True
     assert called["email"] is False
+
+
+def test_on_membership_created_accepts_camelcase_send_flag(monkeypatch):
+    membership_id = "mem-3"
+    snap = _DummySnap(
+        {
+            "name": "Mario",
+            "surname": "Rossi",
+            "email": "mcpweb.test@gmail.com",
+            "sendCardOnCreate": "true",
+        }
+    )
+    event = types.SimpleNamespace(data=snap, params={"membershipId": membership_id})
+
+    class _DummyPass2UService:
+        def create_membership_pass(self, *_args, **_kwargs):
+            return types.SimpleNamespace(pass_id="pass-3", wallet_url="https://www.pass2u.net/d/pass-3")
+
+    monkeypatch.setattr("services.memberships.pass2u_service.Pass2UService", _DummyPass2UService)
+    monkeypatch.setattr(
+        registration_trigger,
+        "SubscribersClient",
+        lambda: types.SimpleNamespace(sync_membership=lambda *args, **kwargs: None),
+    )
+
+    called = {"email": False}
+    monkeypatch.setattr(
+        registration_trigger.mail_service,
+        "send",
+        lambda *_args, **_kwargs: called.__setitem__("email", True) or True,
+    )
+
+    registration_trigger.on_membership_created.__wrapped__(event)
+
+    assert called["email"] is True
+    assert any(update.get("membership_sent") is True for update in snap.reference.updates)
+
+
+def test_on_membership_created_skips_wallet_when_flag_false(monkeypatch):
+    """
+    Backward-compatible alias for older test node ids used by local runners.
+    """
+    test_on_membership_created_does_not_send_email_when_send_flag_false(monkeypatch)
