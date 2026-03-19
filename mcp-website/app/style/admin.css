@@ -13,11 +13,17 @@ body:has(.admin-layout) nav {
 
 /* Forza la visibilità della sidebar */
 .custom-sidebar {
-
- 
   background-color: #000000 !important;
   border-right: 1px solid rgba(249, 115, 22, 0.2) !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 
+.custom-sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+  background: transparent;
 }
 
 /* Assicura che il contenuto principale lasci spazio alla sidebar */

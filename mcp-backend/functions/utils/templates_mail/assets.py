@@ -45,18 +45,25 @@ def _normalize_firebase_logo_url(url: str) -> str:
     return f"https://storage.googleapis.com/{bucket}/{object_path}"
 
 
+def _force_white_logo(url: str) -> str:
+    normalized = _normalize_firebase_logo_url(url)
+    if "logo_black.png" in normalized:
+        return normalized.replace("logo_black.png", "logo_white.png")
+    return normalized
+
+
 def resolve_logo_url() -> str:
     email_logo = (os.getenv("EMAIL_LOGO_URL") or "").strip()
     if email_logo and email_logo != "#":
-        return _normalize_firebase_logo_url(email_logo)
+        return _force_white_logo(email_logo)
 
     mailersend_logo = (os.getenv("MAILERSEND_LOGO_URL") or "").strip()
     if mailersend_logo and mailersend_logo != "#":
-        return _normalize_firebase_logo_url(mailersend_logo)
+        return _force_white_logo(mailersend_logo)
 
     legacy_logo = (os.getenv("LOGO_URL") or "").strip()
     if legacy_logo and legacy_logo != "#":
-        return _normalize_firebase_logo_url(legacy_logo)
+        return _force_white_logo(legacy_logo)
 
     bucket = (os.getenv("STORAGE_BUCKET") or "").strip()
     if bucket:
@@ -70,7 +77,7 @@ def resolve_instagram_url() -> str:
 
 
 def resolve_logo_black_url() -> str:
-    return _load_asset_as_data_uri("logo_black.png")
+    return _load_asset_as_data_uri("logo_white.png")
 
 
 def _resolve_public_asset_url(filename: str, env_key: str) -> str:

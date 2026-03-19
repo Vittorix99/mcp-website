@@ -510,7 +510,22 @@ class EventPaymentService:
                     update_dto.birthdate = person.birthdate
 
                 self.membership_repository.update_from_model(existing.id, update_dto)
+                # Clear stale wallet fields so send_card generates a fresh pass
+                if existing.wallet_url or existing.wallet_pass_id:
+                    from google.cloud.firestore_v1 import DELETE_FIELD
+                    self.membership_repository.update_fields(existing.id, {
+                        "wallet_pass_id": DELETE_FIELD,
+                        "wallet_url": DELETE_FIELD,
+                    })
                 self.membership_repository.append_purchase(existing.id, purchase_id)
+                try:
+                    from services.memberships.memberships_service import MembershipsService
+                    MembershipsService().send_card(existing.id)
+                except Exception as e:
+                    logger.warning(
+                        "[renewal] send_card fallita per membro rinnovato %s (non-bloccante): %s",
+                        existing.id, e,
+                    )
                 membership_refs.append(
                     MembershipRef(email=normalized_email, membership_id=existing.id)
                 )

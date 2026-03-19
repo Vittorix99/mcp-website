@@ -1,4 +1,5 @@
 import logging
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -6,6 +7,34 @@ from dto.error_log import ErrorLogDTO
 from repositories.error_log_repository import ErrorLogRepository
 
 logger = logging.getLogger("ErrorLogsService")
+
+
+def _normalize_message(value: Any) -> str:
+    if value is None:
+        return ""
+
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, dict):
+        primary = value.get("error") or value.get("message")
+        details = []
+
+        invalid_emails = value.get("invalid_emails")
+        if isinstance(invalid_emails, list) and invalid_emails:
+            details.append("Invalid: " + ", ".join(str(item) for item in invalid_emails))
+
+        non_existing = value.get("non_existing_subscribers")
+        if isinstance(non_existing, list) and non_existing:
+            details.append("Missing: " + ", ".join(str(item) for item in non_existing))
+
+        if isinstance(primary, str) and (primary or details):
+            return " | ".join([primary, *details] if primary else details)
+
+    try:
+        return json.dumps(value, ensure_ascii=True, default=str)
+    except Exception:
+        return str(value)
 
 
 class ErrorLogsService:
@@ -21,6 +50,7 @@ class ErrorLogsService:
 
     def create_log(self, payload: Dict[str, Any]):
         dto = ErrorLogDTO.from_payload(payload or {})
+        dto.message = _normalize_message(dto.message)
         if not dto.service:
             raise ValueError("Missing service")
         if not dto.message:
@@ -37,7 +67,10 @@ class ErrorLogsService:
         current = self.get_log(error_log_id)
         if not current:
             return None
-        self.repository.update_from_payload(error_log_id, payload or {})
+        updates = dict(payload or {})
+        if "message" in updates:
+            updates["message"] = _normalize_message(updates.get("message"))
+        self.repository.update_from_payload(error_log_id, updates)
         updated = self.get_log(error_log_id) or {}
         updated["id"] = error_log_id
         return updated

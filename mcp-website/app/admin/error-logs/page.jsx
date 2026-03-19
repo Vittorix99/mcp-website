@@ -37,6 +37,38 @@ const prettyJson = (value) => {
   }
 }
 
+const formatLogValue = (value) => {
+  if (value === undefined || value === null || value === "") return "—"
+  if (typeof value === "string") return value
+
+  if (typeof value === "object") {
+    const primaryMessage =
+      typeof value.error === "string"
+        ? value.error
+        : typeof value.message === "string"
+          ? value.message
+          : ""
+
+    const details = []
+
+    if (Array.isArray(value.invalid_emails) && value.invalid_emails.length > 0) {
+      details.push(`Invalid: ${value.invalid_emails.join(", ")}`)
+    }
+
+    if (Array.isArray(value.non_existing_subscribers) && value.non_existing_subscribers.length > 0) {
+      details.push(`Missing: ${value.non_existing_subscribers.join(", ")}`)
+    }
+
+    if (primaryMessage || details.length > 0) {
+      return [primaryMessage, ...details].filter(Boolean).join(" | ")
+    }
+
+    return prettyJson(value)
+  }
+
+  return String(value)
+}
+
 export default function ErrorLogsPage() {
   const router = useRouter()
   const [logs, setLogs] = useState([])
@@ -269,11 +301,11 @@ export default function ErrorLogsPage() {
               ) : (
                 filteredLogs.map((entry) => (
                   <TableRow key={entry.id || `${entry.service}-${entry.created_at}`}>
-                    <TableCell>{entry.service || "—"}</TableCell>
-                    <TableCell className="max-w-[380px] truncate" title={entry.message || ""}>
-                      {entry.message || "—"}
+                    <TableCell>{formatLogValue(entry.service)}</TableCell>
+                    <TableCell className="max-w-[380px] truncate" title={formatLogValue(entry.message)}>
+                      {formatLogValue(entry.message)}
                     </TableCell>
-                    <TableCell>{entry.operation || "—"}</TableCell>
+                    <TableCell>{formatLogValue(entry.operation)}</TableCell>
                     <TableCell>{entry.status_code ?? "—"}</TableCell>
                     <TableCell>{formatDate(entry.created_at)}</TableCell>
                     <TableCell>

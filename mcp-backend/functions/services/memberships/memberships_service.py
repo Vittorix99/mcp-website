@@ -76,12 +76,20 @@ class MembershipsService:
             raise ValidationError("Email o telefono obbligatorio")
 
         if email:
-            existing = self.membership_repository.find_by_email(email)
-            if existing:
+            found = self.membership_repository.find_by_email(email)
+            if found:
+                found_id, _ = found
+                found_model = self.membership_repository.get_model(found_id)
+                if found_model and self._is_renewal(found_model):
+                    return self._renew(found_id, found_model, dto)
                 raise ConflictError("Email già registrata")
         if phone:
-            existing = self.membership_repository.find_by_phone(phone)
-            if existing:
+            found = self.membership_repository.find_by_phone(phone)
+            if found:
+                found_id, _ = found
+                found_model = self.membership_repository.get_model(found_id)
+                if found_model and self._is_renewal(found_model):
+                    return self._renew(found_id, found_model, dto)
                 raise ConflictError("Telefono già registrato")
 
         now = datetime.now(timezone.utc)
@@ -109,6 +117,72 @@ class MembershipsService:
         membership_id = self.membership_repository.create_from_model(membership)
         self.logger.info(f"[create] Membership created with ID: {membership_id}")
         return {'message': 'Membership created', 'id': membership_id}
+
+    def _is_renewal(self, membership: Membership) -> bool:
+        """Returns True if the membership belongs to a previous year (eligible for renewal)."""
+        current_year = datetime.now(timezone.utc).year
+        try:
+            start = datetime.fromisoformat(membership.start_date.replace("Z", "+00:00"))
+            return start.year < current_year
+        except Exception:
+            return False
+
+    def _renew(self, membership_id: str, existing: Membership, dto: MembershipDTO) -> Dict:
+        """Renews an expired membership: updates dates, invalidates old pass, creates new one."""
+        self.logger.info(f"[renew] Renewing membership {membership_id} (start_date: {existing.start_date})")
+
+        from google.cloud.firestore_v1 import DELETE_FIELD
+
+        # 1. Invalidate old pass
+        if existing.wallet_pass_id:
+            try:
+                from services.memberships.pass2u_service import Pass2UService
+                Pass2UService().invalidate_membership_pass(existing.wallet_pass_id)
+            except Exception as e:
+                self.logger.warning(f"[renew] Old pass invalidation failed (non-blocking): {e}")
+
+        # 2. Update membership with new dates and clear old wallet data
+        now = datetime.now(timezone.utc)
+        new_start = now.isoformat()
+        new_end = calculate_end_of_year_membership(now)
+
+        updates = {
+            "start_date": new_start,
+            "end_date": new_end,
+            "subscription_valid": True,
+            "membership_sent": False,
+            "wallet_pass_id": DELETE_FIELD,
+            "wallet_url": DELETE_FIELD,
+        }
+        if dto.membership_fee is not None:
+            updates["membership_fee"] = dto.membership_fee
+        if dto.membership_type:
+            updates["membership_type"] = dto.membership_type
+        self.membership_repository.update_fields(membership_id, updates)
+
+        # 3. Create new pass
+        updated = self.membership_repository.get_model(membership_id)
+        try:
+            from services.memberships.pass2u_service import Pass2UService
+            wallet = Pass2UService().create_membership_pass(membership_id, updated)
+            if wallet:
+                self.membership_repository.update_fields(membership_id, {
+                    "wallet_pass_id": wallet.pass_id,
+                    "wallet_url": wallet.wallet_url,
+                })
+        except Exception as e:
+            self.logger.warning(f"[renew] Pass creation failed (non-blocking): {e}")
+
+        # 4. Send card if requested
+        send_card = bool(dto.send_card_on_create) if dto.send_card_on_create is not None else False
+        if send_card and existing.email:
+            try:
+                self.send_card(membership_id)
+            except Exception as e:
+                self.logger.warning(f"[renew] Card send failed (non-blocking): {e}")
+
+        self.logger.info(f"[renew] Membership {membership_id} renewed successfully")
+        return {"message": "Membership rinnovata", "id": membership_id, "renewed": True}
 
     def update(self, membership_id, dto: MembershipDTO):
         protected_error = dto.validate_protected_fields()

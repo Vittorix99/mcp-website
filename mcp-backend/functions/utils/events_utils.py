@@ -37,14 +37,14 @@ def calculate_end_of_year(date_input):
     Restituisce la fine dell'anno nel formato "gg-mm-aaaa" oppure None se errore.
     """
     try:
-        if isinstance(date_input, datetime):
-            dt = date_input
+        if isinstance(date_input, dt):
+            resolved = date_input
         elif isinstance(date_input, str):
-            dt = datetime.fromisoformat(date_input.replace("Z", ""))
+            resolved = dt.fromisoformat(date_input.replace("Z", ""))
         else:
             raise ValueError("Unsupported date input type")
 
-        return f"31-12-{dt.year}"
+        return f"31-12-{resolved.year}"
     except Exception:
         logging.exception("Failed to calculate end of year")
         return None

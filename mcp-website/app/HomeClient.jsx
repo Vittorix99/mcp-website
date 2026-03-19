@@ -25,7 +25,8 @@ function MobileHeroVideoSmooth() {
   const stickyRef = useRef(null)
   const videoEl = useRef(null)
 
-  const [progress, setProgress] = useState(0) // 0..1
+  const [progress, setProgress] = useState(0)   // 0..1 durante sticky attivo
+  const [exitProgress, setExitProgress] = useState(0) // 0..1 durante exit sticky
   const [reduceMotion, setReduceMotion] = useState(false)
   const [isMuted, setIsMuted] = useState(true)
 
@@ -68,9 +69,14 @@ function MobileHeroVideoSmooth() {
       if (ticking) return
       ticking = true
       requestAnimationFrame(() => {
+        const wrapper = wrapperRef.current
+        if (!wrapper) { ticking = false; return }
         const scrolled = window.scrollY - topRef.current
-        const p = Math.min(1, Math.max(0, scrolled / vhRef.current))
+        const stickyRange = wrapper.offsetHeight - vhRef.current // scroll attivo sticky
+        const p = Math.min(1, Math.max(0, scrolled / stickyRange))
+        const ep = Math.min(1, Math.max(0, (scrolled - stickyRange) / vhRef.current))
         setProgress(p)
+        setExitProgress(ep)
         ticking = false
       })
     }
@@ -82,11 +88,13 @@ function MobileHeroVideoSmooth() {
   const clamp = (v, min = 0, max = 1) => Math.min(max, Math.max(min, v))
 
   // mappa 2 fasi
-  const logoPhase = 1 - clamp(progress * 2) // 0..0.5
-  const videoPhase = clamp((progress - 0.25) * 1.3333) // 0.25..1 → 0..1
+  const logoPhase = 1 - clamp(progress * 2.5)          // logo sparisce entro progress 0.4
+  const videoPhase = clamp((progress - 0.05) * 1.2)    // video al 100% entro progress ~0.88
   const logoOpacity = reduceMotion ? 0 : logoPhase
   const logoTranslateY = reduceMotion ? 0 : (1 - logoPhase) * -40
-  const videoOpacity = reduceMotion ? 1 : Math.max(0.001, videoPhase)
+  // durante l'exit lo sticky scorre via: fade-out rapido per non lasciare nero
+  const videoFadeOut = reduceMotion ? 1 : clamp(1 - exitProgress * 3)
+  const videoOpacity = reduceMotion ? 1 : Math.max(0.001, videoPhase) * videoFadeOut
   const videoScale = reduceMotion ? 1 : 1 + (1 - videoPhase) * 0.03
   const hintOpacity = clamp(1 - progress * 2)
 
@@ -151,7 +159,7 @@ function MobileHeroVideoSmooth() {
   }
 
   return (
-    <section ref={wrapperRef} className="relative h-[120svh] w-full">
+    <section ref={wrapperRef} className="relative h-[160svh] w-full">
       <div ref={stickyRef} className="sticky top-0 h-screen w-full z-[70]">
         {/* LOGO layer */}
         <div

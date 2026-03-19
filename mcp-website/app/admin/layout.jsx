@@ -56,12 +56,11 @@ export default function AdminLayout({ children }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <motion.div initial="initial" animate="animate" variants={fadeIn} className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-orange-500 mb-4" />
-          <p className="text-xl font-semibold text-orange-500">Loading...</p>
-        </motion.div>
-      </div>
+            <div className="min-h-screen bg-black py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center gradient-text text-white">Loading...</div>
+          </div>
+        </div>
     )
   }
 

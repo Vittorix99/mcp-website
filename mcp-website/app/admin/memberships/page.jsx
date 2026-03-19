@@ -86,6 +86,8 @@ export default function MembershipsPage() {
   const [selectedEventId, setSelectedEventId] = useState(stored.selectedEventId || "")
   const [exportEventLoading, setExportEventLoading] = useState(false)
   const [sortBy, setSortBy] = useState(stored.sortBy || "name_asc")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(stored.pageSize || 25)
 
   const currentYear = new Date().getFullYear().toString()
 
@@ -122,9 +124,10 @@ export default function MembershipsPage() {
       showOnlyNotSent,
       sortBy,
       selectedEventId,
+      pageSize,
     }
     window.localStorage.setItem(filtersKey, JSON.stringify(payload))
-  }, [search, showOnlyNotSent, sortBy, selectedEventId])
+  }, [search, showOnlyNotSent, sortBy, selectedEventId, pageSize])
 
   const exportExcel = () => {
     const filteredData = filtered.map((m) => ({
@@ -349,6 +352,17 @@ export default function MembershipsPage() {
         return list.sort((a, b) => nameKey(a).localeCompare(nameKey(b)))
     }
   }, [filtered, sortBy])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, showOnlyNotSent, selectedYear, sortBy, selectedEventId, memberships.length])
+
+  const totalItems = sortedMembers.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const clampedPage = Math.min(page, totalPages)
+  const startIndex = (clampedPage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalItems)
+  const paginatedMembers = sortedMembers.slice(startIndex, endIndex)
 
   const stats = useMemo(
     () => ({
@@ -579,7 +593,7 @@ export default function MembershipsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedMembers.map((m) => (
+                      {paginatedMembers.map((m) => (
                         <TableRow key={m.id}>
                           <TableCell>
                             <div className="font-medium">
@@ -655,7 +669,7 @@ export default function MembershipsPage() {
 
                 {/* MOBILE CARDS */}
                 <div className="block md:hidden space-y-4 p-4">
-                  {sortedMembers.map((m) => (
+                  {paginatedMembers.map((m) => (
                     <Card key={m.id} className="bg-neutral-900 border-neutral-800">
                       <CardHeader className="flex flex-row items-start justify-between gap-4 p-4">
                         <div>
@@ -732,6 +746,51 @@ export default function MembershipsPage() {
             )}
           </CardContent>
         </Card>
+
+        {sortedMembers.length > 0 && !loading && (
+          <div className="flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-gray-400">
+              Mostrando <span className="text-white">{totalItems ? startIndex + 1 : 0}</span>–<span className="text-white">{endIndex}</span> di <span className="text-white">{totalItems}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400">Righe per pagina</span>
+              <select
+                className="rounded border border-gray-700 bg-gray-800 px-2 py-1"
+                value={pageSize}
+                onChange={(e) => {
+                  const nextPageSize = parseInt(e.target.value, 10) || 25
+                  setPageSize(nextPageSize)
+                  setPage(1)
+                }}
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={clampedPage <= 1}>
+                «
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={clampedPage <= 1}>
+                Prec
+              </Button>
+              <span className="text-sm text-gray-300">
+                Pagina <span className="font-semibold text-white">{clampedPage}</span> / <span className="text-white">{totalPages}</span>
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={clampedPage >= totalPages}>
+                Succ
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={clampedPage >= totalPages}>
+                »
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Dialog
           open={settingsOpen}

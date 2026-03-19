@@ -59,6 +59,21 @@ class _DummyMembershipRepo:
             return self.by_phone[phone]
         return None
 
+    def update_fields(self, membership_id, fields: dict):
+        self.updated.append((membership_id, fields))
+        model = self.models.get(membership_id)
+        if model:
+            for key, value in fields.items():
+                if hasattr(model, key):
+                    try:
+                        from google.cloud.firestore_v1 import DELETE_FIELD
+                        if value is DELETE_FIELD:
+                            setattr(model, key, None)
+                            continue
+                    except Exception:
+                        pass
+                    setattr(model, key, value)
+
 
 class _DummySettingsRepo:
     def __init__(self):
@@ -403,3 +418,147 @@ def test_membership_price_not_found():
     service = _make_service()
     with pytest.raises(NotFoundError):
         service.get_membership_price(year=2026)
+
+
+# ---------------------------------------------------------------------------
+# Renewal via admin create() — 2025 member re-inserted in 2026
+# ---------------------------------------------------------------------------
+
+def _make_prev_year_member(**kwargs) -> Membership:
+    """Returns a Membership whose start_date is in the previous year."""
+    from datetime import datetime, timezone
+    prev_year = datetime.now(timezone.utc).year - 1
+    defaults = dict(
+        name="Mario",
+        surname="Rossi",
+        email="mario@example.com",
+        phone="+39333000001",
+        birthdate="01-01-1990",
+        start_date=f"{prev_year}-06-01T10:00:00+00:00",
+        end_date=f"31-12-{prev_year}",
+        subscription_valid=True,
+        membership_sent=True,
+        membership_type="manual",
+        wallet_pass_id="old-pass-id",
+        wallet_url="https://bpwallet.io/pass/old-pass",
+    )
+    defaults.update(kwargs)
+    return Membership(**defaults)
+
+
+def _seed_prev_year_member(service, member_id="mem-prev"):
+    member = _make_prev_year_member()
+    service.membership_repository.models[member_id] = member
+    service.membership_repository.by_email[member.email] = (member_id, {})
+    return member_id, member
+
+
+def test_create_triggers_renewal_for_previous_year_member(monkeypatch):
+    """create() must call _renew() (not raise ConflictError) for a previous-year member."""
+    service = _make_service()
+    _seed_prev_year_member(service)
+
+    monkeypatch.setattr(
+        "services.memberships.pass2u_service.Pass2UService",
+        lambda: SimpleNamespace(
+            invalidate_membership_pass=lambda *a, **kw: True,
+            create_membership_pass=lambda *a, **kw: None,
+        ),
+    )
+
+    dto = MembershipDTO(
+        name="Mario", surname="Rossi",
+        birthdate="01-01-1990",
+        email="mario@example.com",
+        send_card_on_create=False,
+    )
+    result = service.create(dto)
+
+    assert result.get("renewed") is True, "create() must return renewed=True for a previous-year member"
+
+
+def test_create_renewal_sets_membership_sent_false(monkeypatch):
+    """After renewal, membership_sent must be False even if it was True before."""
+    service = _make_service()
+    member_id, member = _seed_prev_year_member(service)
+    assert member.membership_sent is True  # pre-condition
+
+    monkeypatch.setattr(
+        "services.memberships.pass2u_service.Pass2UService",
+        lambda: SimpleNamespace(
+            invalidate_membership_pass=lambda *a, **kw: True,
+            create_membership_pass=lambda *a, **kw: None,
+        ),
+    )
+
+    dto = MembershipDTO(
+        name="Mario", surname="Rossi",
+        birthdate="01-01-1990",
+        email="mario@example.com",
+        send_card_on_create=False,
+    )
+    service.create(dto)
+
+    # _renew calls update_fields; the first update_fields call must include membership_sent=False
+    fields_calls = [fields for (mid, fields) in service.membership_repository.updated if mid == member_id]
+    assert any(fields.get("membership_sent") is False for fields in fields_calls), (
+        "update_fields must set membership_sent=False during renewal"
+    )
+
+
+def test_create_renewal_updates_end_date_and_subscription_valid(monkeypatch):
+    """After renewal, end_date must reference the current year and subscription_valid must be True."""
+    from datetime import datetime, timezone
+
+    service = _make_service()
+    member_id, _ = _seed_prev_year_member(service)
+
+    monkeypatch.setattr(
+        "services.memberships.pass2u_service.Pass2UService",
+        lambda: SimpleNamespace(
+            invalidate_membership_pass=lambda *a, **kw: True,
+            create_membership_pass=lambda *a, **kw: None,
+        ),
+    )
+
+    dto = MembershipDTO(
+        name="Mario", surname="Rossi",
+        birthdate="01-01-1990",
+        email="mario@example.com",
+        send_card_on_create=False,
+    )
+    service.create(dto)
+
+    curr_year = str(datetime.now(timezone.utc).year)
+    fields_calls = [fields for (mid, fields) in service.membership_repository.updated if mid == member_id]
+
+    renewal_fields = next((f for f in fields_calls if "end_date" in f), None)
+    assert renewal_fields is not None, "update_fields must include end_date during renewal"
+    assert curr_year in renewal_fields["end_date"], (
+        f"end_date must contain current year {curr_year}, got: {renewal_fields['end_date']}"
+    )
+    assert renewal_fields.get("subscription_valid") is True
+
+
+def test_create_renewal_does_not_raise_conflict(monkeypatch):
+    """create() must NOT raise ConflictError for a previous-year member (regression guard)."""
+    service = _make_service()
+    _seed_prev_year_member(service)
+
+    monkeypatch.setattr(
+        "services.memberships.pass2u_service.Pass2UService",
+        lambda: SimpleNamespace(
+            invalidate_membership_pass=lambda *a, **kw: True,
+            create_membership_pass=lambda *a, **kw: None,
+        ),
+    )
+
+    dto = MembershipDTO(
+        name="Mario", surname="Rossi",
+        birthdate="01-01-1990",
+        email="mario@example.com",
+        send_card_on_create=False,
+    )
+    # Must not raise
+    result = service.create(dto)
+    assert "id" in result

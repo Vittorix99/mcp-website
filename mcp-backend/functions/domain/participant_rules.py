@@ -70,6 +70,15 @@ def _get_gender_cached(name: str):
 def _is_valid_member(member: Membership, today: Optional[datetime] = None) -> bool:
     if today is None:
         today = datetime.now(timezone.utc)
+    # A membership from a previous year is always expired, regardless of subscription_valid
+    start_date_s = member.start_date
+    if start_date_s:
+        try:
+            start_dt = datetime.fromisoformat(str(start_date_s).replace("Z", "+00:00"))
+            if start_dt.year < today.year:
+                return False
+        except Exception:
+            pass
     if member.subscription_valid:
         return True
     end_date_s = member.end_date
