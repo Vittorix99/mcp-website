@@ -193,7 +193,7 @@ export default function EventsPage() {
       </div>
 
       {/* STATS */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle>Eventi Totali</CardTitle>
@@ -353,16 +353,13 @@ export default function EventsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(routes.admin.events + `/${ev.id}`)}>
+                          <DropdownMenuItem onClick={() => router.push(routes.admin.eventDetails(ev.id))}>
                             <Eye className="mr-2 h-4 w-4" /> Vedi
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openModal(ev.id)}>
                             <Edit className="mr-2 h-4 w-4" /> Modifica
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(ev.id)}
-                            className="text-red-500 focus:text-red-500"
-                          >
+                          <DropdownMenuItem onClick={() => handleDelete(ev.id)} className="text-red-500 focus:text-red-500">
                             <Trash2 className="mr-2 h-4 w-4" /> Elimina
                           </DropdownMenuItem>
                         </DropdownMenuContent>

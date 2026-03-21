@@ -35,8 +35,6 @@ export const routes = {
     purchasesDetails: (id) => `/admin/purchases/${id}`,
     eventsPhotos: '/admin/events-photos',
     settings: '/admin/settings',
-    checkin: (id) => `/admin/events/${id}/checkin`,
-    
     subscribers: '/admin/subscribers',
     campaigns: '/admin/campaigns',
     automations: '/admin/automations',

@@ -108,6 +108,13 @@ from api.admin.error_logs_api import admin_error_logs
 from api.admin.setting_api import get_settings, set_settings
 from triggers.jobs_trigger import process_send_location_job
 
+# === API Entrance Scanner ===
+from api.entrance import (
+    entrance_generate_scan_token,
+    entrance_verify_scan_token,
+    entrance_validate,
+)
+
 # === API Admin: MailerLite ===
 from api.admin.mailer_lite.groups_api import (
     admin_mailerlite_groups,

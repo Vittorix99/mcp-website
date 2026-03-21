@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 
 export default function MembershipStats({ stats, totalTesseramenti, onRefresh }) {
   return (
-    <div className="flex flex-col sm:flex-row gap-4">
+    <div className="grid grid-cols-2 sm:flex sm:flex-row gap-4">
       <Card className="flex-1 bg-zinc-900 border border-zinc-700">
         <CardContent className="p-4">
           <p className="text-sm text-gray-400">Membri totali</p>

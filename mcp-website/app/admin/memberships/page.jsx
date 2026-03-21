@@ -477,24 +477,16 @@ export default function MembershipsPage() {
             </SelectContent>
           </Select>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <SlidersHorizontal className="h-4 w-4" />
-                Impostazioni
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => openSettings("price")}>
-                Prezzo membership
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openSettings("wallet")}>
-                Modello Wallet Pass2U
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
+        <Tabs defaultValue="membri" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="membri">Membri</TabsTrigger>
+            <TabsTrigger value="report">Report</TabsTrigger>
+            <TabsTrigger value="impostazioni">Impostazioni</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="membri" className="space-y-4">
         <MembershipStats stats={stats} totalTesseramenti={totalTesseramenti} onRefresh={loadAll} />
 
         <div className="flex flex-col md:flex-row gap-2">
@@ -518,33 +510,6 @@ export default function MembershipsPage() {
               Esporta onorari
             </Button>
           </div>
-        </div>
-        <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
-          <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-            <SelectTrigger className="md:max-w-md">
-              <SelectValue placeholder="Seleziona evento per export" />
-            </SelectTrigger>
-            <SelectContent>
-              {eventOptions.map((ev) => (
-                <SelectItem key={ev.id} value={ev.id}>
-                  {eventOptionsMap[ev.id]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={exportEventExcel} disabled={!selectedEventId || exportEventLoading}>
-            {exportEventLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Esportazione...
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" />
-                Esporta evento
-              </>
-            )}
-          </Button>
         </div>
         <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
           <label className="flex items-center gap-2 text-sm text-gray-300">
@@ -791,6 +756,144 @@ export default function MembershipsPage() {
             </div>
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="report" className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
+              <Select value={selectedEventId} onValueChange={setSelectedEventId}>
+                <SelectTrigger className="md:max-w-md">
+                  <SelectValue placeholder="Seleziona evento per export" />
+                </SelectTrigger>
+                <SelectContent>
+                  {eventOptions.map((ev) => (
+                    <SelectItem key={ev.id} value={ev.id}>
+                      {eventOptionsMap[ev.id]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={exportEventExcel} disabled={!selectedEventId || exportEventLoading}>
+                {exportEventLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Esportazione...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Esporta evento
+                  </>
+                )}
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="impostazioni" className="space-y-4">
+            <Tabs value={settingsTab} onValueChange={setSettingsTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 max-w-xs">
+                <TabsTrigger value="price">Prezzo</TabsTrigger>
+                <TabsTrigger value="wallet">Wallet</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="price" className="space-y-4 pt-3">
+                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+                  <p className="text-sm text-gray-400">Prezzo Membership ({selectedYear})</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    {priceEditing ? (
+                      <>
+                        <Input
+                          type="number"
+                          value={tempPrice}
+                          onChange={(e) => setTempPrice(e.target.value)}
+                          placeholder="€"
+                          className="w-28"
+                        />
+                        <Button size="sm" onClick={onSavePrice}>Salva</Button>
+                        <Button size="sm" variant="outline" onClick={() => setPriceEditing(false)}>Annulla</Button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-semibold">
+                          {membershipPrice && membershipPrice.year === selectedYear && membershipPrice.price != null
+                            ? `${membershipPrice.price} €`
+                            : "Non definito"}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={isMembershipPriceReadOnly}
+                          onClick={() => {
+                            if (isMembershipPriceReadOnly) return
+                            setTempPrice(
+                              membershipPrice && membershipPrice.year === selectedYear && membershipPrice.price != null
+                                ? membershipPrice.price.toString()
+                                : ""
+                            )
+                            setPriceEditing(true)
+                          }}
+                        >
+                          <Edit className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {isMembershipPriceReadOnly && (
+                    <p className="mt-3 text-sm text-gray-400">
+                      Valore letto da <code>NEXT_MEMBESHIP_PRICE</code>. Aggiorna il file .env per modificarlo.
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="wallet" className="space-y-4 pt-3">
+                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+                  <p className="text-sm text-gray-400">Modello Wallet Pass2U</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    {walletModelEditing ? (
+                      <>
+                        <Input
+                          value={tempWalletModel}
+                          onChange={(e) => setTempWalletModel(e.target.value)}
+                          placeholder="Model ID Pass2U"
+                          className="w-full sm:w-72 font-mono text-sm"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            const ok = await saveWalletModel(tempWalletModel)
+                            if (ok) {
+                              setWalletModelEditing(false)
+                              setWalletModelWarningOpen(false)
+                            }
+                          }}
+                        >
+                          Salva
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setWalletModelEditing(false)}>Annulla</Button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm text-gray-300">
+                          {walletModelId || <span className="text-gray-500 italic">Non configurato</span>}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setTempWalletModel(walletModelId || "")
+                            setWalletModelEditing(true)
+                          }}
+                        >
+                          <Edit className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+        </Tabs>
 
         <Dialog
           open={settingsOpen}

@@ -1,0 +1,183 @@
+import logging
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from google.cloud import firestore
+from google.cloud.firestore_v1 import FieldFilter
+
+from config.firebase_config import db
+from errors.service_errors import NotFoundError, ValidationError
+from repositories.event_repository import EventRepository
+
+
+class EntranceService:
+    def __init__(self):
+        self.logger = logging.getLogger("EntranceService")
+        self.event_repository = EventRepository()
+
+    def _get_scan_token_doc(self, scan_token: str):
+        """Fetch and validate a scan token document. Raises ValidationError if invalid."""
+        doc = db.collection("scan_tokens").document(scan_token).get()
+        if not doc.exists:
+            raise ValidationError("not_found")
+
+        data = doc.to_dict() or {}
+
+        if not data.get("is_active", False):
+            raise ValidationError("inactive")
+
+        expires_at = data.get("expires_at")
+        if expires_at is not None:
+            # expires_at may be a Firestore DatetimeWithNanoseconds or a plain datetime
+            if hasattr(expires_at, "tzinfo") and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > expires_at:
+                raise ValidationError("expired")
+
+        return data
+
+    def generate_scan_token(self, event_id: str, admin_uid: str) -> dict:
+        """Create a new scan token for the given event. Requires a valid event."""
+        event_model = self.event_repository.get_model(event_id)
+        if not event_model:
+            raise NotFoundError("Evento non trovato")
+
+        token = secrets.token_hex(16)
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=12)
+
+        db.collection("scan_tokens").document(token).set({
+            "event_id": event_id,
+            "created_by": admin_uid,
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "expires_at": expires_at,
+            "is_active": True,
+        })
+
+        self.logger.info("Scan token generato: %s per evento %s da %s", token, event_id, admin_uid)
+
+        return {
+            "token": token,
+            "scan_url": f"https://musiconnectingpeople.com/scan/{token}",
+        }
+
+    def verify_scan_token(self, token: str) -> dict:
+        """Verify a scan token and return event info if valid."""
+        try:
+            token_data = self._get_scan_token_doc(token)
+        except ValidationError as err:
+            return {"valid": False, "reason": str(err)}
+
+        event_id = token_data.get("event_id", "")
+        event_model = self.event_repository.get_model(event_id)
+        event_title = event_model.title if event_model else ""
+
+        self.logger.info("Scan token verificato: %s — evento %s", token, event_id)
+
+        return {
+            "valid": True,
+            "event_id": event_id,
+            "event_title": event_title,
+        }
+
+    def validate_entry(self, membership_id: str, scan_token: str) -> dict:
+        """
+        Validate a membership QR scan at event entrance.
+
+        Returns a unified response dict with keys:
+          result, membership (name/surname), scanned_at
+        """
+        # Step 1 — verifica scan token
+        try:
+            token_data = self._get_scan_token_doc(scan_token)
+        except ValidationError:
+            self.logger.warning("validate_entry: scan token non valido — %s", scan_token)
+            return {
+                "result": "invalid_token",
+                "membership": None,
+                "scanned_at": None,
+            }
+
+        event_id = token_data.get("event_id", "")
+
+        # Step 2 — verifica che la membership abbia un acquisto per questo evento.
+        # Usa collection_group per sfruttare l'indice COLLECTION_GROUP già esistente
+        # su membershipId, poi filtra lato Python sull'event_id corretto.
+        all_participant_docs = (
+            db.collection_group("participants_event")
+            .where(filter=FieldFilter("membershipId", "==", membership_id))
+            .get()
+        )
+        participant_docs = [
+            doc for doc in all_participant_docs
+            if doc.reference.parent.parent.id == event_id
+        ]
+
+        if not participant_docs:
+            self.logger.info(
+                "validate_entry: nessun acquisto trovato — membership %s evento %s",
+                membership_id, event_id,
+            )
+            # Try to return member name even if no purchase
+            member_info = self._get_member_info(membership_id)
+            return {
+                "result": "invalid_no_purchase",
+                "membership": member_info,
+                "scanned_at": None,
+            }
+
+        participant_data = participant_docs[0].to_dict() or {}
+        member_info = {
+            "name": participant_data.get("name", ""),
+            "surname": participant_data.get("surname", ""),
+        }
+
+        # Step 3 — verifica se già entrato
+        scan_ref = (
+            db.collection("entrance_scans")
+            .document(event_id)
+            .collection("scans")
+            .document(membership_id)
+        )
+        existing_scan = scan_ref.get()
+        if existing_scan.exists:
+            existing_data = existing_scan.to_dict() or {}
+            scanned_at = existing_data.get("scanned_at")
+            scanned_at_iso = scanned_at.isoformat() if scanned_at and hasattr(scanned_at, "isoformat") else None
+            self.logger.info(
+                "validate_entry: già scansionato — membership %s evento %s",
+                membership_id, event_id,
+            )
+            return {
+                "result": "already_scanned",
+                "membership": member_info,
+                "scanned_at": scanned_at_iso,
+            }
+
+        # Step 4 — scrivi ingresso
+        scan_ref.set({
+            "scanned_at": firestore.SERVER_TIMESTAMP,
+            "scan_token": scan_token,
+        })
+
+        self.logger.info(
+            "validate_entry: ingresso registrato — membership %s evento %s token %s",
+            membership_id, event_id, scan_token,
+        )
+
+        return {
+            "result": "valid",
+            "membership": member_info,
+            "scanned_at": None,
+        }
+
+    def _get_member_info(self, membership_id: str) -> dict:
+        """Fetch name/surname from memberships collection, returns empty strings if not found."""
+        try:
+            doc = db.collection("memberships").document(membership_id).get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                return {"name": data.get("name", ""), "surname": data.get("surname", "")}
+        except Exception:
+            pass
+        return {"name": "", "surname": ""}
