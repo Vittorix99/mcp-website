@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 import { routes } from "@/config/routes"
 
@@ -18,7 +18,6 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { Badge } from "@/components/ui/badge";
 
 import { useAdminMemberships } from "@/hooks/useAdminMemberships";
-import { downloadStorageFile } from "@/config/firebaseStorage";
 import { EventThumbnail } from "@/components/admin/events/EventThumbnail";
 
 export default function MembershipContent({ id }) {
@@ -28,9 +27,14 @@ export default function MembershipContent({ id }) {
     selected: member,
     loading,
     loadOne,
-    setError,
     extrasLoading,
+    createWalletPass,
   } = useAdminMemberships({ autoLoadList: false });
+
+  const handleCreateWallet = async () => {
+    if (!id) return;
+    await createWalletPass(id);
+  };
 
   const [purchaseFilter, setPurchaseFilter] = useState("");
   const [purchaseSortDesc, setPurchaseSortDesc] = useState(true);
@@ -80,7 +84,7 @@ export default function MembershipContent({ id }) {
     id: membershipId,
     name, surname, email, phone, birthdate,
     start_date, end_date, subscription_valid,
-    membership_sent, card_url, purchase_id,
+    membership_sent, wallet_url, wallet_pass_id, purchase_id,
     events = []
   } = member;
 
@@ -117,22 +121,33 @@ export default function MembershipContent({ id }) {
                 </Badge>
               </div>
 
-              {card_url && (
+              {wallet_url ? (
                 <div className="flex items-center gap-2 col-span-full">
                   <Button
                     variant="link"
                     size="icon"
-                    onClick={async () => {
-                      try {
-                        await downloadStorageFile(card_url);
-                      } catch (error) {
-                        setError("Impossibile scaricare tessera");
-                      }
-                    }}
+                    onClick={() => window.open(wallet_url, "_blank")}
                   >
-                    <Download className="h-5 w-5" />
+                    <Wallet className="h-5 w-5" />
                   </Button>
-                  <span>Scarica Tessera</span>
+                  <span>Apri Wallet</span>
+                  {wallet_pass_id && (
+                    <span className="text-xs text-gray-500">({wallet_pass_id})</span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 col-span-full text-yellow-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span className="text-sm">Wallet pass non creato!</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={loading}
+                    onClick={handleCreateWallet}
+                    className="ml-2"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crea"}
+                  </Button>
                 </div>
               )}
 

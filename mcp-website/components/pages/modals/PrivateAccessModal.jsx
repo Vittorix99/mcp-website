@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { getApiErrorMessage } from "@/lib/api-errors"
 
 export function PrivateAccessModal({ isOpen, onOpenChange, eventId, eventTitle }) {
   const [formData, setFormData] = useState({
@@ -41,9 +42,9 @@ export function PrivateAccessModal({ isOpen, onOpenChange, eventId, eventTitle }
         }),
       })
 
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
 
-      if (data.success) {
+      if (response.ok && data.success) {
         toast({
           title: "Request Sent!",
           description: "We've received your request. You'll be notified via email if approved.",
@@ -51,7 +52,7 @@ export function PrivateAccessModal({ isOpen, onOpenChange, eventId, eventTitle }
         })
         onOpenChange(false)
       } else {
-        setError(data.message || "Unable to send request. Please try again.")
+        setError(getApiErrorMessage(data, "Unable to send request. Please try again."))
       }
     } catch (err) {
       setError("An error occurred. Please try again later.")

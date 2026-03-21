@@ -65,12 +65,23 @@ export const endpoints = {
     setMembershipPrice: make("set_membership_price"),
     getMembershipPrice: make("get_membership_price"),
     getMembershipsReport: make("get_memberships_report"),
+    getWalletModel: make("get_wallet_model"),
+    setWalletModel: make("set_wallet_model"),
+    createWalletPass: make("create_wallet_pass"),
+    invalidateWalletPass: make("invalidate_wallet_pass"),
 
     getAllPurchases: make("get_all_purchases"),
     getPurchase: make("get_purchase"),
     createPurchase: make("create_purchase"),
     deletePurchase: make("delete_purchase"),
     getGeneralStats:make("admin_get_general_stats"),
+    errorLogs: make("admin_error_logs"),
+
+    entrance: {
+      generateScanToken: make("entrance_generate_scan_token"),
+      verifyScanToken: make("entrance_verify_scan_token"),
+      deactivateScanToken: make("entrance_deactivate_scan_token"),
+    },
     
     
     getAllMessages: make("get_messages"),
@@ -79,6 +90,48 @@ export const endpoints = {
         // ✅ Settings endpoints
     getSetting: make("get_settings"),
     setSetting: make("set_settings"),
+
+    mailerLite: {
+      subscribers: make("admin_mailerlite_subscribers"),
+      subscriberForget: make("admin_mailerlite_subscriber_forget"),
+      groups: make("admin_mailerlite_groups"),
+      groupSubscribers: make("admin_mailerlite_group_subscribers"),
+      groupAssignSubscriber: make("admin_mailerlite_group_assign_subscriber"),
+      groupUnassignSubscriber: make("admin_mailerlite_group_unassign_subscriber"),
+      fields: make("admin_mailerlite_fields"),
+      segments: make("admin_mailerlite_segments"),
+      segmentSubscribers: make("admin_mailerlite_segment_subscribers"),
+      campaigns: make("admin_mailerlite_campaigns"),
+      campaignSchedule: make("admin_mailerlite_campaign_schedule"),
+      campaignCancelReady: make("admin_mailerlite_campaign_cancel_ready"),
+      automations: make("admin_mailerlite_automations"),
+      automationActivity: make("admin_mailerlite_automation_activity"),
+    },
+
+    newsletter: {
+      getSignups: make("admin_get_newsletter_signups"),
+      getConsents: make("admin_get_newsletter_consents"),
+      update: make("admin_update_newsletter_signup"),
+      delete: make("admin_delete_newsletter_signup"),
+    },
+
+    sender: {
+      subscribers: make("admin_sender_subscribers"),
+      subscriberGroups: make("admin_sender_subscriber_groups"),
+      subscriberEvents: make("admin_sender_subscriber_events"),
+      groups: make("admin_sender_groups"),
+      groupSubscribers: make("admin_sender_group_subscribers"),
+      campaigns: make("admin_sender_campaigns"),
+      campaignSend: make("admin_sender_campaign_send"),
+      campaignSchedule: make("admin_sender_campaign_schedule"),
+      campaignCopy: make("admin_sender_campaign_copy"),
+      campaignStats: make("admin_sender_campaign_stats"),
+      fields: make("admin_sender_fields"),
+      segments: make("admin_sender_segments"),
+      segmentSubscribers: make("admin_sender_segment_subscribers"),
+      transactional: make("admin_sender_transactional"),
+      transactionalSend: make("admin_sender_transactional_send"),
+    },
 
 
   

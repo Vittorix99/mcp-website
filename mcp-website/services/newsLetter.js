@@ -1,4 +1,5 @@
 import { endpoints } from "../config/endpoints"
+import { getApiErrorMessage } from "@/lib/api-errors"
 export async function sendNewsLetterRequest({ email }) {
   try {
     // Recupera l'endpoint per la richiesta di iscrizione alla newsletter
@@ -15,8 +16,8 @@ export async function sendNewsLetterRequest({ email }) {
 
     // Controlla se la risposta non è andata a buon fine
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Newsletter Server Error: ${errorText}`);
+      const errorPayload = await response.json().catch(() => null)
+      throw new Error(getApiErrorMessage(errorPayload, "Newsletter Server Error"))
     }
 
     // Ottieni il messaggio di risposta
@@ -27,7 +28,7 @@ export async function sendNewsLetterRequest({ email }) {
     console.error('Error while sending newsletter request:', error.message);
 
     // Ritorna un oggetto di errore strutturato
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, message: error.message };
   }
 }
 
@@ -58,8 +59,8 @@ export async function sendNewsLetterRequestParticipants(participants = []) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Newsletter Server Error: ${errorText}`);
+      const errorPayload = await response.json().catch(() => null)
+      throw new Error(getApiErrorMessage(errorPayload, "Newsletter Server Error"))
     }
 
     const responseData = await response.text();
@@ -67,6 +68,6 @@ export async function sendNewsLetterRequestParticipants(participants = []) {
     return { success: true, message: responseData };
   } catch (error) {
     console.error("Error while sending newsletter request:", error.message);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, message: error.message };
   }
 }

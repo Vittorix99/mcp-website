@@ -6,7 +6,11 @@ import sys
 #Append the path to the directory where the firebase_config.py file is located
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 IS_EMULATOR = os.environ.get("FIRESTORE_EMULATOR_HOST") == 'true'
-print("🔥 Firestore emulatore rilevato!" if IS_EMULATOR else "⚠️ Nessuna emulazione Firestore, connessione a Firestore cloud.")
+print(
+    "Firestore emulatore rilevato!"
+    if IS_EMULATOR
+    else "Nessuna emulazione Firestore, connessione a Firestore cloud."
+)
 
 cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service_account.json")
 cred = credentials.Certificate(cred_path)  # Path al file JSON

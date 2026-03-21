@@ -35,11 +35,23 @@ export const routes = {
     purchasesDetails: (id) => `/admin/purchases/${id}`,
     eventsPhotos: '/admin/events-photos',
     settings: '/admin/settings',
-    checkin: (id) => `/admin/events/${id}/checkin`,
-    
-    newsletter: '/admin/newsletter',
+    subscribers: '/admin/subscribers',
+    campaigns: '/admin/campaigns',
+    automations: '/admin/automations',
     signupRequests: '/admin/signup-requests',
     messages: '/admin/messages',
+    errorLogs: '/admin/error-logs',
+
+    sender: {
+      campaigns: '/admin/sender/campaigns',
+      campaignDetail: (id) => `/admin/sender/campaigns/${id}`,
+      subscribers: '/admin/sender/subscribers',
+      groups: '/admin/sender/groups',
+      segments: '/admin/sender/segments',
+      fields: '/admin/sender/fields',
+      transactional: '/admin/sender/transactional',
+      optinOptout: '/admin/sender/optin-optout',
+    },
   },
 
   user: {

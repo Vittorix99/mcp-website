@@ -4,7 +4,7 @@
 
 // Force SSR in Next.js (important for Firebase Hosting)
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { routes } from "@/config/routes"
 
@@ -25,6 +25,9 @@ import {
   StickyNote,
   X,
   FileText,
+  Check,
+  UserPlus,
+  RefreshCw,
 } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -51,6 +54,10 @@ import {
   TooltipTrigger
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { useAdminParticipants } from "@/hooks/useAdminParticipants"
@@ -61,6 +68,51 @@ import { EventStats } from "@/components/admin/events/EventStats"
 import { exportParticipantsToExcel } from "@/lib/excel" // ✅ NUOVO IMPORT
 import { resolvePurchaseMode } from "@/config/events-utils"
 import { getMembershipPrice } from "@/services/admin/memberships"
+import { generateScanToken as apiGenerateScanToken, verifyScanToken as apiVerifyScanToken, deactivateScanToken as apiDeactivateScanToken } from "@/services/admin/entrance"
+
+function QuickAddDialog({ open, onOpenChange, onSubmit }) {
+  const [form, setForm] = useState({ name: "", surname: "", email: "", birthdate: "" })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) setForm({ name: "", surname: "", email: "", birthdate: "" })
+  }, [open])
+
+  const handleBirthdateChange = (value) => {
+    const cleaned = value.replace(/\D/g, "")
+    let formatted = cleaned
+    if (cleaned.length > 4) formatted = `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 8)}`
+    else if (cleaned.length > 2) formatted = `${cleaned.slice(0, 2)}-${cleaned.slice(2)}`
+    setForm((f) => ({ ...f, birthdate: formatted }))
+  }
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    try { await onSubmit(form); onOpenChange(false) } finally { setSaving(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Aggiunta rapida</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div><Label>Nome</Label><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></div>
+          <div><Label>Cognome</Label><Input value={form.surname} onChange={(e) => setForm((f) => ({ ...f, surname: e.target.value }))} required /></div>
+          <div><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required /></div>
+          <div>
+            <Label>Data di nascita (gg-mm-aaaa)</Label>
+            <Input type="text" placeholder="es. 30-08-1999" value={form.birthdate} onChange={(e) => handleBirthdateChange(e.target.value)} pattern="^\d{2}-\d{2}-\d{4}$" inputMode="numeric" required />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+            <Button type="submit" disabled={saving}>{saving ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin"/> Salva…</span> : "Salva"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default function EventContent({ id: eventId }) {
   const router = useRouter()
@@ -108,6 +160,18 @@ export default function EventContent({ id: eventId }) {
   const [pageSize, setPageSize] = useState(25)
   // Nuovo stato per sapere se la barra è stata chiusa definitivamente
   const [jobProgressDismissed, setJobProgressDismissed] = useState(false)
+
+  // Checkin tab state
+  const [checkinSearch, setCheckinSearch] = useState("")
+  const [checkinOnlyMissing, setCheckinOnlyMissing] = useState(true)
+  const [checkinQuickOpen, setCheckinQuickOpen] = useState(false)
+
+  // Entrance / scan token state
+  const [scanToken, setScanToken] = useState(null)
+  const [scanUrl, setScanUrl] = useState(null)
+  const [scanTokenExpiry, setScanTokenExpiry] = useState(null)
+  const [scanTokenLoading, setScanTokenLoading] = useState(false)
+  const [scanCopied, setScanCopied] = useState(false)
 
   useEffect(() => {
     loadAll()
@@ -241,6 +305,97 @@ export default function EventContent({ id: eventId }) {
   const startIndex = (clampedPage - 1) * pageSize
   const endIndex = Math.min(startIndex + pageSize, totalItems)
   const pageRows = sorted.slice(startIndex, endIndex)
+
+  // Checkin computed data
+  const checkinCounters = useMemo(() => {
+    const total = participants.length
+    const entered = participants.filter((p) => !!p.entered).length
+    return { total, entered, missing: total - entered }
+  }, [participants])
+
+  const checkinNormalized = useMemo(() => {
+    const q = checkinSearch.trim().toLowerCase()
+    let list = participants
+      .map((p) => ({ ...p, _key: `${(p.name || "").toLowerCase()} ${(p.surname || "").toLowerCase()}`.trim() }))
+      .filter((p) => (q ? p._key.includes(q) : true))
+    if (checkinOnlyMissing) list = list.filter((p) => p.entered !== true)
+    return list.sort((a, b) => {
+      if (!!a.entered !== !!b.entered) return a.entered ? 1 : -1
+      return `${a.surname || ""} ${a.name || ""}`.toLowerCase().localeCompare(`${b.surname || ""} ${b.name || ""}`.toLowerCase())
+    })
+  }, [participants, checkinSearch, checkinOnlyMissing])
+
+  const checkinMarkEntered = useCallback(async (p, value = true) => {
+    try { await update(p.id, { entered: !!value, entered_at: new Date().toISOString() }) } catch {}
+  }, [update])
+
+  const checkinQuickAdd = useCallback(async ({ name, surname, email, birthdate }) => {
+    try {
+      await create({ name, surname, email, birthdate, phone: "", price: event?.price ?? null, ticket_sent: false, location_sent: false, purchase_id: null, source: "door" })
+      setCheckinQuickOpen(false)
+    } catch {}
+  }, [create, event?.price])
+
+  // Entrance: load stored token from localStorage on mount
+  useEffect(() => {
+    if (!eventId || typeof window === "undefined") return
+    const stored = (() => { try { return JSON.parse(localStorage.getItem(`mcp_scan_token_${eventId}`) || "null") } catch { return null } })()
+    if (!stored) return
+    const expiry = stored.expires_at ? new Date(stored.expires_at) : null
+    if (expiry && expiry < new Date()) { localStorage.removeItem(`mcp_scan_token_${eventId}`); return }
+    setScanToken(stored.token)
+    setScanUrl(stored.scan_url)
+    setScanTokenExpiry(expiry)
+  }, [eventId])
+
+  const buildScanUrl = (tok) =>
+    typeof window !== "undefined"
+      ? `${window.location.origin}/scan/${tok}`
+      : `https://musiconnectingpeople.com/scan/${tok}`
+
+  const handleGenerateScanToken = async () => {
+    setScanTokenLoading(true)
+    const res = await apiGenerateScanToken(eventId)
+    setScanTokenLoading(false)
+    if (res?.error) return
+    const expiry = new Date(Date.now() + 12 * 60 * 60 * 1000)
+    const url = buildScanUrl(res.token)
+    setScanToken(res.token)
+    setScanUrl(url)
+    setScanTokenExpiry(expiry)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`mcp_scan_token_${eventId}`, JSON.stringify({ token: res.token, scan_url: url, expires_at: expiry.toISOString() }))
+    }
+  }
+
+  const handleCopyScanUrl = async () => {
+    if (!scanUrl) return
+    try { await navigator.clipboard.writeText(scanUrl) } catch { }
+    setScanCopied(true)
+    setTimeout(() => setScanCopied(false), 2000)
+  }
+
+  const handleShareScanUrl = async () => {
+    if (!scanUrl) return
+    if (navigator.share) { try { await navigator.share({ url: scanUrl }) } catch { } }
+    else { handleCopyScanUrl() }
+  }
+
+  const handleDeactivateScanToken = async () => {
+    if (!scanToken) return
+    setScanTokenLoading(true)
+    await apiDeactivateScanToken(scanToken)
+    setScanTokenLoading(false)
+    setScanToken(null)
+    setScanUrl(null)
+    setScanTokenExpiry(null)
+    if (typeof window !== "undefined") localStorage.removeItem(`mcp_scan_token_${eventId}`)
+  }
+
+  const formatScanExpiry = (d) => {
+    if (!d) return ""
+    return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+  }
 
   // ✅ Nuova versione export
   const exportToExcel = () => {
@@ -488,25 +643,38 @@ export default function EventContent({ id: eventId }) {
             </div>
           )}
 
-          {/* Statistiche partecipanti */}
-          <EventStats participants={participants} onRefresh={loadAll} />
+          <Tabs defaultValue="partecipanti">
+            <TabsList>
+              <TabsTrigger value="partecipanti">Partecipanti</TabsTrigger>
+              <TabsTrigger value="statistiche">Statistiche</TabsTrigger>
+              <TabsTrigger value="ingresso">In the event</TabsTrigger>
+            </TabsList>
 
+            <TabsContent value="statistiche">
+              <EventStats participants={participants} onRefresh={loadAll} />
+            </TabsContent>
+
+            <TabsContent value="partecipanti">
           {/* Participants */}
           <Card>
-            <CardHeader className="flex flex-wrap justify-between items-center gap-4">
-              <div>
-                <CardTitle>Partecipanti ({filteredCount} / {stats.total})</CardTitle>
-                <CardDescription>Lista & azioni</CardDescription>
+            <CardHeader className="gap-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Partecipanti ({filteredCount} / {stats.total})</CardTitle>
+                  <CardDescription>Lista & azioni</CardDescription>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <input
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded flex-1 sm:w-64"
-                  placeholder="Cerca partecipante..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              {/* Search — full width */}
+              <input
+                className="px-3 py-2 bg-gray-800 border border-gray-700 rounded w-full"
+                placeholder="Cerca partecipante..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {/* Filters — 3 cols on mobile, inline on desktop */}
+              <div className="grid grid-cols-3 sm:flex gap-2">
                 <select
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded"
+                  className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm"
                   value={genderFilter}
                   onChange={(e) => setGenderFilter(e.target.value)}
                   aria-label="Filtra per genere"
@@ -516,9 +684,8 @@ export default function EventContent({ id: eventId }) {
                   <option value="female">Femmina</option>
                   <option value="nd">N/D</option>
                 </select>
-
                 <select
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded"
+                  className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm"
                   value={locationFilter}
                   onChange={(e) => setLocationFilter(e.target.value)}
                   aria-label="Filtra per location inviata"
@@ -527,9 +694,8 @@ export default function EventContent({ id: eventId }) {
                   <option value="yes">Inviata</option>
                   <option value="no">Non inviata</option>
                 </select>
-
                 <select
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded"
+                  className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm"
                   value={memberFilter}
                   onChange={(e) => setMemberFilter(e.target.value)}
                   aria-label="Filtra per membro"
@@ -538,21 +704,20 @@ export default function EventContent({ id: eventId }) {
                   <option value="yes">Sì</option>
                   <option value="no">No</option>
                 </select>
+              </div>
+              {/* Actions — 2 cols on mobile, inline on desktop */}
+              <div className="grid grid-cols-2 sm:flex gap-2">
                 <Button onClick={() => openParticipantModal()}>
-                  <Plus className="mr-2" /> Aggiungi
+                  <Plus className="mr-2 h-4 w-4" /> Aggiungi
                 </Button>
                 <Button onClick={() => openLocationModalForAll("tutti")}>
-                  <Send className="mr-2" /> Invia Location a tutti
+                  <Send className="mr-2 h-4 w-4" /> Location
                 </Button>
                 <Button onClick={exportToExcel} disabled={!sorted.length}>
-                  <Download className="mr-2" /> Esporta
+                  <Download className="mr-2 h-4 w-4" /> Esporta
                 </Button>
                 <Button onClick={exportToTxt} disabled={!participants.length}>
-                  <FileText className="mr-2" /> TXT
-                </Button>
-                <Button variant="secondary"   onClick={() => router.push(routes.admin.checkin(eventId))}
->
-                  In the event
+                  <FileText className="mr-2 h-4 w-4" /> TXT
                 </Button>
               </div>
             </CardHeader>
@@ -747,6 +912,130 @@ export default function EventContent({ id: eventId }) {
               )}
             </CardContent>
           </Card>
+            </TabsContent>
+
+            {/* ── In the event (check-in) ── */}
+            <TabsContent value="ingresso" className="space-y-4">
+              {/* Scan token panel */}
+              <Card className="bg-zinc-900 border-zinc-700">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Ingresso</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {!scanUrl ? (
+                    <Button onClick={handleGenerateScanToken} disabled={scanTokenLoading}>
+                      {scanTokenLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Genera link scanner
+                    </Button>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 text-emerald-400 text-sm">
+                        <Check className="h-4 w-4 shrink-0" />
+                        <span>Link attivo · scade alle {formatScanExpiry(scanTokenExpiry)}</span>
+                      </div>
+                      <div className="text-xs font-mono text-gray-300 break-all bg-zinc-800 rounded px-3 py-2">{scanUrl}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" onClick={handleCopyScanUrl} variant={scanCopied ? "secondary" : "outline"}>
+                          {scanCopied ? "Copiato!" : "Copia link"}
+                        </Button>
+                        <Button size="sm" onClick={handleShareScanUrl} variant="outline">Condividi</Button>
+                        <Button size="sm" variant="destructive" onClick={handleDeactivateScanToken} disabled={scanTokenLoading}>
+                          {scanTokenLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Disattiva
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Counters */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-zinc-900 rounded-md p-3 text-center">
+                  <div className="text-xs text-gray-400">Entrati</div>
+                  <div className="text-2xl font-bold text-emerald-400">{checkinCounters.entered}</div>
+                </div>
+                <div className="bg-zinc-900 rounded-md p-3 text-center">
+                  <div className="text-xs text-gray-400">Mancanti</div>
+                  <div className="text-2xl font-bold text-yellow-400">{checkinCounters.missing}</div>
+                </div>
+                <div className="bg-zinc-900 rounded-md p-3 text-center">
+                  <div className="text-xs text-gray-400">Totale</div>
+                  <div className="text-2xl font-bold text-blue-400">{checkinCounters.total}</div>
+                </div>
+              </div>
+
+              {/* Search + filter + actions */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  placeholder="Cerca per nome e cognome…"
+                  value={checkinSearch}
+                  onChange={(e) => setCheckinSearch(e.target.value)}
+                  className="h-10 bg-zinc-900 border-zinc-700 flex-1"
+                />
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <input
+                    id="only-missing-toggle"
+                    type="checkbox"
+                    checked={checkinOnlyMissing}
+                    onChange={(e) => setCheckinOnlyMissing(e.target.checked)}
+                  />
+                  <Label htmlFor="only-missing-toggle" className="cursor-pointer">Solo mancanti</Label>
+                </div>
+                <div className="grid grid-cols-2 sm:flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => loadAll()}>
+                    <RefreshCw className="h-4 w-4 mr-2"/> Aggiorna
+                  </Button>
+                  <Button size="sm" onClick={() => setCheckinQuickOpen(true)}>
+                    <UserPlus className="h-4 w-4 mr-2"/> Aggiungi
+                  </Button>
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="bg-zinc-900/60 rounded-lg border border-zinc-800">
+                <div className="divide-y divide-zinc-800">
+                  {pLoad ? (
+                    <div className="flex justify-center items-center py-12">
+                      <Loader2 className="animate-spin h-6 w-6 mr-2"/> Caricamento…
+                    </div>
+                  ) : checkinNormalized.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">Nessun risultato</div>
+                  ) : (
+                    checkinNormalized.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between gap-2 p-3">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className={`w-2.5 h-2.5 shrink-0 rounded-full ${p.entered ? "bg-emerald-500" : "bg-yellow-500"}`}/>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{p.name} {p.surname}</div>
+                            <div className="text-xs text-gray-400 truncate">{p.email}</div>
+                            {p.birthdate && <div className="text-xs text-gray-400">DN: {p.birthdate}</div>}
+                          </div>
+                          <div className="shrink-0">
+                            {p.membershipId ? (
+                              <Badge variant="success">Membro</Badge>
+                            ) : (
+                              <Badge variant="secondary">No</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0">
+                          {p.entered ? (
+                            <Button variant="outline" size="sm" onClick={() => checkinMarkEntered(p, false)}>Annulla</Button>
+                          ) : (
+                            <Button size="sm" onClick={() => checkinMarkEntered(p, true)}>
+                              <Check className="h-4 w-4 mr-1"/> Entra
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <QuickAddDialog open={checkinQuickOpen} onOpenChange={setCheckinQuickOpen} onSubmit={checkinQuickAdd} />
+            </TabsContent>
+          </Tabs>
         </motion.div>
 
         {/* Modali */}

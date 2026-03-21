@@ -31,7 +31,10 @@ export function ContactUs() {
     setIsSubmitting(true)
 
     try {
-      await sendContactRequest({ name, email, message })
+      const result = await sendContactRequest({ name, email, message })
+      if (!result?.success) {
+        throw new Error(result?.message || result?.error || "Failed to send message. Please try again.")
+      }
       setToast({ message: "Your message has been sent successfully!", type: "success" })
       setName("")
       setEmail("")

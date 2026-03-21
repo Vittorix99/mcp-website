@@ -19,6 +19,10 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
   const [locked, setLocked] = useState(false)
 
   const effectiveMode = useMemo(() => purchaseMode || resolvePurchaseMode(event), [purchaseMode, event])
+  const extractErrorMessage = (payload, fallback) =>
+    Array.isArray(payload?.messages) && payload.messages.length
+      ? payload.messages.join(" ")
+      : payload?.message || payload?.error || fallback
 
   const handleCreateOrder = async () => {
     setProcessing(true)
@@ -38,7 +42,7 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
       const order = await createOrder({ cart })
 
       if (order?.error) {
-        const message = order?.message || order?.error || "Errore nella creazione dell'ordine."
+        const message = extractErrorMessage(order, "Errore nella creazione dell'ordine.")
         setOrderError(message)
         toast.error(message)
         throw new Error(message)
@@ -85,7 +89,7 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
       }
 
       if (res?.error) {
-        const message = res?.message || res?.error || "Pagamento non completato."
+        const message = extractErrorMessage(res, "Pagamento non completato.")
         toast.error(message)
         if (analytics) {
           logEvent(analytics, "payment_failed", {

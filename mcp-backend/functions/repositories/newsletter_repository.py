@@ -33,3 +33,10 @@ class NewsletterRepository:
     def add_consent(self, payload: Union[Dict[str, Optional[str]], NewsletterConsentDTO]) -> str:
         data = payload.to_payload() if hasattr(payload, "to_payload") else payload
         return self.consents_collection.add(data)[1].id
+
+    def unsubscribe_by_email(self, email: str) -> None:
+        """Sets active=False on all newsletter_signups and newsletter_consents for this email."""
+        for doc in self.signup_collection.where("email", "==", email).stream():
+            doc.reference.update({"active": False})
+        for doc in self.consents_collection.where("email", "==", email).stream():
+            doc.reference.update({"active": False})

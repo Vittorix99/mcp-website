@@ -1,42 +1,9 @@
 import { endpoints } from '@/config/endpoints';
-import { getToken } from '@/config/firebase';
+import { safeFetch } from '@/lib/fetch';
 
 /**
  * Client-side service functions for Admin Event Management
  */
-
-async function safeFetch(url, method = 'GET', body = null) {
-  try {
-    const token = await getToken();
-    if (!token) return { error: 'Token non disponibile' };
-
-    const headers = {
-      'Authorization': `Bearer ${token}`,
-    };
-
-    const options = {
-      method,
-      headers,
-      cache: "no-store",
-    };
-    if (body !== null) {
-      headers['Content-Type'] = 'application/json';
-      options.body = JSON.stringify(body);
-    }
-
-    const response = await fetch(url, options);
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      return { error: data?.error || 'Errore generico dal server' };
-    }
-
-    return data || {};
-  } catch (err) {
-    console.error('Errore HTTP:', err);
-    return { error: 'Errore di rete o del server.' };
-  }
-}
 
 // 🆕 Crea un evento
 export async function createEvent(eventData) {

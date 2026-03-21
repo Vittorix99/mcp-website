@@ -27,7 +27,7 @@ def invert_png(input_path, output_path):
 
     # Salva l'immagine invertita
     inverted_pil.save(output_path, format="PNG")
-    print(f"✅ Immagine invertita salvata in: {output_path}")
+    print(f"Immagine invertita salvata in: {output_path}")
 
 # Esempio di utilizzo:
 input_png = "logonew.png"  # Sostituisci con il percorso del tuo PNG

@@ -1,4 +1,5 @@
 import { getToken as getAdminToken } from "@/config/firebase"
+import { getApiErrorMessage } from "@/lib/api-errors"
 
 /**
  * Safe fetch con gestione token, header, errori.
@@ -15,6 +16,7 @@ export async function safeFetch(url, method = 'GET', body = null) {
     const options = {
       method,
       headers,
+      cache: "no-store",
     }
 
     if (body !== null) {
@@ -26,13 +28,14 @@ export async function safeFetch(url, method = 'GET', body = null) {
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      return { error: data?.error || 'Errore generico dal server' }
+      const message = getApiErrorMessage(data)
+      return { error: message, error_code: data?.error, status: response.status }
     }
 
     return data || {}
   } catch (err) {
     console.error('Errore HTTP:', err)
-    return { error: 'Errore di rete o del server.' }
+    return { error: 'Errore di rete o del server.', status: 0 }
   }
 
 }
@@ -54,7 +57,8 @@ export async function safePublicFetch(url, method = 'GET', body = null) {
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      return { success: false, error: data?.error || 'Errore generico dal server' }
+      const message = getApiErrorMessage(data)
+      return { success: false, error: message, error_code: data?.error }
     }
 
     return { success: true, data: data || {} }
@@ -66,7 +70,7 @@ export async function safePublicFetch(url, method = 'GET', body = null) {
 
 
 
- export async function safeFetchId(url, method = 'GET', param = null) {
+export async function safeFetchId(url, method = 'GET', param = null) {
   try {
     // Aggiungi parametri come query string se presenti
     const fullUrl = param
@@ -80,13 +84,14 @@ export async function safePublicFetch(url, method = 'GET', body = null) {
       headers: { "Content-Type": "application/json" },
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      return { error: data.message || "Errore sconosciuto" };
+      const message = getApiErrorMessage(data, "Errore sconosciuto")
+      return { error: message, error_code: data?.error }
     }
 
-    return data;
+    return data || {}
   } catch (error) {
     console.error("❌ safeFetchId error:", error);
     return { error: error.message || "Errore di rete" };

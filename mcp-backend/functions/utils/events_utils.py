@@ -37,14 +37,14 @@ def calculate_end_of_year(date_input):
     Restituisce la fine dell'anno nel formato "gg-mm-aaaa" oppure None se errore.
     """
     try:
-        if isinstance(date_input, datetime):
-            dt = date_input
+        if isinstance(date_input, dt):
+            resolved = date_input
         elif isinstance(date_input, str):
-            dt = datetime.fromisoformat(date_input.replace("Z", ""))
+            resolved = dt.fromisoformat(date_input.replace("Z", ""))
         else:
             raise ValueError("Unsupported date input type")
 
-        return f"31-12-{dt.year}"
+        return f"31-12-{resolved.year}"
     except Exception:
         logging.exception("Failed to calculate end of year")
         return None
@@ -69,6 +69,45 @@ def calculate_end_of_year_membership(date_input):
         import logging
         logging.exception("Failed to calculate end of year")
         return None
+
+
+def to_iso8601_datetime(value: Optional[str]) -> Optional[str]:
+    """
+    Normalizza una data in ISO 8601 completo con timezone.
+    Accetta:
+    - ISO 8601 (es: 2026-12-31T23:59:59Z)
+    - formato legacy gg-mm-aaaa (es: 31-12-2026)
+    - formato yyyy-mm-dd
+    """
+    if value is None:
+        return None
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    try:
+        parsed = dt.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+        return parsed.isoformat(timespec="seconds")
+    except ValueError:
+        pass
+
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d"):
+        try:
+            parsed = datetime.datetime.strptime(raw, fmt).replace(
+                hour=23,
+                minute=59,
+                second=59,
+                tzinfo=datetime.timezone.utc,
+            )
+            return parsed.isoformat(timespec="seconds")
+        except ValueError:
+            continue
+
+    logging.warning("Invalid date time format: %s", raw)
+    return None
 
 
 def sanitize_event(event: dict) -> dict:

@@ -1,39 +1,63 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODE="local"        # local | test | prod
+ENVIRONMENT="test"   # test | prod
 AUTH=false
-PROJECT_ID=""
-CREDS=""
+USE_FIRESTORE_EMULATOR=false
+USE_PUBSUB_EMULATOR=false
+PUBSUB_FLAG_SET=false
+IMPORT_BACKUP=false
 EXPORT_DIR="./emulator-data"
+PROJECT_ID=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Usage: ./emulator.sh --db=local|test|prod [--auth=true|false] [--project=ID] [--creds=/path/service_account.json]
+Usage: ./emulator.sh [--env=test|prod] [--firestore-emulator=true|false] [--auth=true|false] [--import-backup=true|false] [--backup-dir=PATH]
 
 Examples:
-  ./emulator.sh --db=local
-  ./emulator.sh --db=test --project=PROJECT_ID_TEST --creds=/path/service_account_test.json
-  ./emulator.sh --db=prod --project=PROJECT_ID_PROD --creds=/path/service_account.json
-  ./emulator.sh --db=test --auth=true --project=PROJECT_ID_TEST --creds=/path/service_account_test.json
+  ./emulator.sh
+  ./emulator.sh --env=prod
+  ./emulator.sh --env=test --firestore-emulator=true
+  ./emulator.sh --env=test --auth=true --firestore-emulator=true
+  ./emulator.sh --env=test --auth=true --import-backup=true
+  ./emulator.sh --env=test --auth=true --import-backup=true --backup-dir=mcp-backend/functions/emulator_data
 
 Notes:
-- For test/prod, you can also set env vars PROJECT_ID_TEST/PROJECT_ID_PROD and GOOGLE_APPLICATION_CREDENTIALS.
-- For local, Firestore emulator runs at 127.0.0.1:8080.
-- When --auth=true, emulator data is exported on exit to ./emulator-data (and imported on start if present).
+- Default environment is test (loads .env.integration).
+- When --env=prod, MCP_ENV=prod is exported (loads .env).
+- Project ID is inferred from the Firebase service account JSON when available.
+- Firestore emulator can only be enabled in test.
+- Emulator data is exported on exit to backup dir whenever at least one emulator is enabled.
+- Import del backup avviene solo se --import-backup=true.
 USAGE
+}
+
+get_project_id() {
+  local sa_file="$1"
+  if [ -f "$sa_file" ]; then
+    python3 - <<PY
+import json
+with open("${sa_file}", "r", encoding="utf-8") as handle:
+    data = json.load(handle)
+print(data.get("project_id", ""))
+PY
+  fi
 }
 
 for arg in "$@"; do
   case "$arg" in
-    --db=local) MODE="local" ;;
-    --db=test) MODE="test" ;;
-    --db=prod|--db=production) MODE="prod" ;;
+    --env=test) ENVIRONMENT="test" ;;
+    --env=prod) ENVIRONMENT="prod" ;;
+    --firestore-emulator=true) USE_FIRESTORE_EMULATOR=true ;;
+    --firestore-emulator=false) USE_FIRESTORE_EMULATOR=false ;;
+    --pubsub-emulator=true) USE_PUBSUB_EMULATOR=true; PUBSUB_FLAG_SET=true ;;
+    --pubsub-emulator=false) USE_PUBSUB_EMULATOR=false; PUBSUB_FLAG_SET=true ;;
     --auth=true) AUTH=true ;;
     --auth=false) AUTH=false ;;
-    --project=*) PROJECT_ID="${arg#*=}" ;;
-    --creds=*) CREDS="${arg#*=}" ;;
+    --import-backup=true) IMPORT_BACKUP=true ;;
+    --import-backup=false) IMPORT_BACKUP=false ;;
+    --backup-dir=*) EXPORT_DIR="${arg#*=}" ;;
     -h|--help) usage; exit 0 ;;
     *)
       echo "Unknown arg: $arg" >&2
@@ -43,60 +67,62 @@ for arg in "$@"; do
   esac
 done
 
+if [ "$ENVIRONMENT" = "prod" ]; then
+  export MCP_ENV=prod
+  PROJECT_ID="$(get_project_id "$SCRIPT_DIR/mcp-backend/functions/service_account.json")"
+else
+  export MCP_ENV=test
+  PROJECT_ID="$(get_project_id "$SCRIPT_DIR/mcp-backend/functions/service_account_test.json")"
+fi
+
+if [ "$ENVIRONMENT" = "prod" ] && [ "$USE_FIRESTORE_EMULATOR" = true ]; then
+  echo "Firestore emulator can only be enabled in test." >&2
+  exit 1
+fi
+
+if [ "$USE_FIRESTORE_EMULATOR" = true ] && [ "$PUBSUB_FLAG_SET" = false ]; then
+  USE_PUBSUB_EMULATOR=true
+fi
+
 IMPORT_FLAG=""
 EXPORT_FLAG=""
-if [ "$AUTH" = true ]; then
+if [ "$AUTH" = true ] || [ "$USE_FIRESTORE_EMULATOR" = true ] || [ "$USE_PUBSUB_EMULATOR" = true ]; then
   mkdir -p "$EXPORT_DIR"
-  if [ -n "$(ls -A "$EXPORT_DIR" 2>/dev/null)" ]; then
-    IMPORT_FLAG="--import=$EXPORT_DIR"
-  fi
   EXPORT_FLAG="--export-on-exit=$EXPORT_DIR"
 fi
 
-if [ "$MODE" = "prod" ] || [ "$MODE" = "test" ]; then
-  unset FIRESTORE_EMULATOR_HOST
-
-  if [ -n "$CREDS" ]; then
-    if [[ "$CREDS" != /* ]]; then
-      CREDS="$SCRIPT_DIR/$CREDS"
-    fi
-    export GOOGLE_APPLICATION_CREDENTIALS="$CREDS"
-  fi
-
-  if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
-    echo "Missing GOOGLE_APPLICATION_CREDENTIALS. Use --creds=... or export it." >&2
-    exit 1
-  fi
-
-  if [ -z "$PROJECT_ID" ]; then
-    if [ "$MODE" = "prod" ] && [ -n "${PROJECT_ID_PROD:-}" ]; then
-      PROJECT_ID="$PROJECT_ID_PROD"
-    fi
-    if [ "$MODE" = "test" ] && [ -n "${PROJECT_ID_TEST:-}" ]; then
-      PROJECT_ID="$PROJECT_ID_TEST"
-    fi
-  fi
-
-  if [ -z "$PROJECT_ID" ]; then
-    echo "Missing project ID. Use --project=... or set PROJECT_ID_PROD/PROJECT_ID_TEST." >&2
-    exit 1
-  fi
-
-  if [ "$AUTH" = true ]; then
-    export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
-    firebase emulators:start --only functions,auth --project "$PROJECT_ID" $IMPORT_FLAG $EXPORT_FLAG
+if [ "$IMPORT_BACKUP" = true ]; then
+  if [ -d "$EXPORT_DIR" ] && [ -n "$(ls -A "$EXPORT_DIR" 2>/dev/null)" ]; then
+    IMPORT_FLAG="--import=$EXPORT_DIR"
   else
-    unset FIREBASE_AUTH_EMULATOR_HOST
-    firebase emulators:start --only functions --project "$PROJECT_ID"
+    echo "Backup dir '$EXPORT_DIR' non trovata o vuota: import saltato."
   fi
+fi
+
+ONLY_SERVICES="functions"
+if [ "$AUTH" = true ]; then
+  export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+  ONLY_SERVICES="$ONLY_SERVICES,auth"
 else
-  export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+  unset FIREBASE_AUTH_EMULATOR_HOST
+fi
 
-  if [ "$AUTH" = true ]; then
-    export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
-    firebase emulators:start --only functions,firestore,auth $IMPORT_FLAG $EXPORT_FLAG
-  else
-    unset FIREBASE_AUTH_EMULATOR_HOST
-    firebase emulators:start --only functions,firestore
-  fi
+if [ "$USE_FIRESTORE_EMULATOR" = true ]; then
+  export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+  ONLY_SERVICES="$ONLY_SERVICES,firestore"
+else
+  unset FIRESTORE_EMULATOR_HOST
+fi
+
+if [ "$USE_PUBSUB_EMULATOR" = true ]; then
+  export PUBSUB_EMULATOR_HOST=127.0.0.1:8085
+  ONLY_SERVICES="$ONLY_SERVICES,pubsub"
+else
+  unset PUBSUB_EMULATOR_HOST
+fi
+
+if [ -n "$PROJECT_ID" ]; then
+  firebase emulators:start --only "$ONLY_SERVICES" --project "$PROJECT_ID" $IMPORT_FLAG $EXPORT_FLAG
+else
+  firebase emulators:start --only "$ONLY_SERVICES" $IMPORT_FLAG $EXPORT_FLAG
 fi

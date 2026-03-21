@@ -93,14 +93,16 @@ export function MembershipModal({
           </div>
 
           {!isEditMode && (
-            <div className="flex items-center gap-2 pt-2">
-              <Checkbox
-                id="send_card_on_create"
-                name="send_card_on_create"
-                checked={defaultSendCard}
-                onCheckedChange={(val) => onCheckbox("send_card_on_create", val === true)}
-              />
-              <Label htmlFor="send_card_on_create">Invia tessera al salvataggio</Label>
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="send_card_on_create"
+                  name="send_card_on_create"
+                  checked={defaultSendCard}
+                  onCheckedChange={(val) => onCheckbox("send_card_on_create", val === true)}
+                />
+                <Label htmlFor="send_card_on_create">Invia tessera al salvataggio</Label>
+              </div>
             </div>
           )}
 

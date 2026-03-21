@@ -2,6 +2,7 @@ import { EventContent } from "./content"
 import { endpoints } from "@/config/endpoints"
 import { getBaseUrlFromHeaders } from "@/lib/seo/base-url"
 import { buildEventJsonLd } from "@/lib/seo/jsonld"
+import { getApiErrorMessage } from "@/lib/api-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -19,7 +20,7 @@ async function fetchEvent(eventSlug) {
     })
     if (!res.ok) {
       const errorPayload = await res.json().catch(() => ({}))
-      return { success: false, error: errorPayload?.error || "Evento non trovato" }
+      return { success: false, error: getApiErrorMessage(errorPayload, "Evento non trovato") }
     }
 
     const raw = await res.json()

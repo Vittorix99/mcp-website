@@ -5,13 +5,16 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 from firebase_functions import options
 
+from config.environment import load_environment
+
+load_environment()
+
 region = "us-central1"
 
-_env = os.environ.get("MCP_ENV", "").strip().lower()
-_default_cred = "service_account_test.json" if _env == "test" else "service_account.json"
 _explicit_cred = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-_raw_cred = _explicit_cred or _default_cred
+_raw_cred = _explicit_cred or "service_account.json"
 _base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_functions_dir = os.path.abspath(os.path.join(_base_dir, ".."))
 _repo_root = os.path.abspath(os.path.join(_base_dir, "..", ".."))
 
 
@@ -23,6 +26,7 @@ def _resolve_cred_path(path: str) -> str:
     candidates = [
         os.path.abspath(path),
         os.path.abspath(os.path.join(_base_dir, path)),
+        os.path.abspath(os.path.join(_functions_dir, path)),
         os.path.abspath(os.path.join(_repo_root, path)),
     ]
     for candidate in candidates:
@@ -62,7 +66,19 @@ def _load_credentials():
 if not firebase_admin._apps:
     cred = _load_credentials()
     storage_bucket = os.environ.get("STORAGE_BUCKET")
-    init_opts = {"storageBucket": storage_bucket} if storage_bucket else {}
+    project_id = os.environ.get("GCLOUD_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if not project_id:
+        raw_config = os.environ.get("FIREBASE_CONFIG")
+        if raw_config:
+            try:
+                project_id = json.loads(raw_config).get("projectId")
+            except (TypeError, ValueError):
+                project_id = None
+    init_opts = {}
+    if storage_bucket:
+        init_opts["storageBucket"] = storage_bucket
+    if project_id:
+        init_opts["projectId"] = project_id
     firebase_admin.initialize_app(cred, init_opts)
 else:
     cred = None
@@ -75,8 +91,9 @@ if os.environ.get("FIRESTORE_EMULATOR_HOST"):
 else:
     print(
         "Using Firestore cloud project "
-        f"(env={_env or 'prod'}, cred={_cred_path}, project={db.project})"
+        f"(cred={_cred_path}, project={db.project})"
     )
+print(f"Firebase credentials file: {_cred_path}")
 
 cors = options.CorsOptions(
     cors_origins="*",

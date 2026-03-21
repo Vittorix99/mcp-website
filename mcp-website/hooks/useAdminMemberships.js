@@ -12,7 +12,11 @@ import {
   deleteMembership as deleteMembershipService,
   sendMembershipCard as sendMembershipCardService,
   getMembershipPrice,
-  setMembershipFee
+  setMembershipFee,
+  getWalletModel,
+  setWalletModel,
+  createWalletPass as createWalletPassService,
+  invalidateWalletPass as invalidateWalletPassService,
 } from "@/services/admin/memberships";
 
 const envMembershipPriceRaw =
@@ -37,6 +41,7 @@ export function useAdminMemberships(options = {}) {
   const [loading, setLoading] = useState(false);
   const [membershipPrice, setMembershipPrice] = useState(null); // { price, year }
   const [extrasLoading, setExtrasLoading] = useState(false);
+  const [walletModelId, setWalletModelId] = useState(null);
   const loadOneReqRef = useRef(0);
   const loadAllInitializedRef = useRef(false);
 
@@ -135,7 +140,7 @@ export function useAdminMemberships(options = {}) {
     try {
       const payload = {
         ...data,
-        send_card_on_create: !!data?.send_card_on_create,
+        send_card_on_create: data?.send_card_on_create === true,
       };
       const res = await createMembershipService(payload);
       if (res?.error) setError(res.error);
@@ -292,6 +297,104 @@ export function useAdminMemberships(options = {}) {
 
   
 
+  const createWalletPass = useCallback(async (membershipId) => {
+    if (!membershipId) { setError("Missing membership_id"); return null; }
+    setLoading(true);
+    try {
+      const res = await createWalletPassService(membershipId);
+      if (res?.error) { setError(res.error); return null; }
+      setSelected((prev) => prev ? { ...prev, wallet_url: res.wallet_url, wallet_pass_id: res.wallet_pass_id } : prev);
+      return res;
+    } catch (e) {
+      console.error("createWalletPass error", e);
+      setError("Errore creazione wallet pass.");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [setError]);
+
+  const invalidateWalletPass = useCallback(async (membershipId) => {
+    if (!membershipId) { setError("Missing membership_id"); return; }
+    setLoading(true);
+    try {
+      const res = await invalidateWalletPassService(membershipId);
+      if (res?.error) setError(res.error);
+      else {
+        setSelected((prev) => prev ? { ...prev, wallet_url: null, wallet_pass_id: null } : prev);
+        await loadAll();
+      }
+    } catch (e) {
+      console.error("invalidateWalletPass error", e);
+      setError("Errore invalidazione wallet pass.");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadAll, setError]);
+
+  const fetchWalletModel = useCallback(async () => {
+    try {
+      const res = await getWalletModel();
+      if (res?.error) {
+        const message = String(res.error || "");
+        const lower = message.toLowerCase();
+        const missingConfig =
+          lower.includes("internal server error") ||
+          lower.includes("membership_settings/current_model") ||
+          lower.includes("model_id");
+
+        if (missingConfig) {
+          setWalletModelId(null);
+          return {
+            ok: true,
+            missing: true,
+            message: "Modello Wallet Pass2U non configurato.",
+          };
+        }
+
+        setError(res.error);
+        return { ok: false, missing: false, message };
+      }
+
+      const modelId =
+        typeof res?.model_id === "string" ? res.model_id.trim() : "";
+      setWalletModelId(modelId || null);
+      return {
+        ok: true,
+        missing: !modelId,
+        message: modelId ? "" : "Modello Wallet Pass2U non configurato.",
+      };
+    } catch (e) {
+      console.error("getWalletModel error", e);
+      setError("Errore nel recupero del wallet model.");
+      return {
+        ok: false,
+        missing: false,
+        message: "Errore nel recupero del wallet model.",
+      };
+    }
+  }, [setError]);
+
+  const saveWalletModel = useCallback(async (model_id) => {
+    if (!model_id?.trim()) { setError("Model ID non valido"); return false; }
+    setLoading(true);
+    try {
+      const res = await setWalletModel(model_id.trim());
+      if (res?.error) {
+        setError(res.error);
+        return false;
+      }
+      setWalletModelId(model_id.trim());
+      return true;
+    } catch (e) {
+      console.error("setWalletModel error", e);
+      setError("Errore aggiornamento wallet model.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [setError]);
+
   const isMembershipPriceReadOnly = hasEnvMembershipPrice;
 
   useEffect(() => {
@@ -320,6 +423,10 @@ export function useAdminMemberships(options = {}) {
     extrasLoading,
     membershipPrice,
     isMembershipPriceReadOnly,
-
+    walletModelId,
+    fetchWalletModel,
+    saveWalletModel,
+    createWalletPass,
+    invalidateWalletPass,
   };
 }
