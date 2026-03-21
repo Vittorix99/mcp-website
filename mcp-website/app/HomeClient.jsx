@@ -1,12 +1,16 @@
 "use client"
 
 import { useMemo, useRef, useState, useEffect } from "react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 import { LogoSection } from "@/components/pages/Logo"
 import { NextEventSection } from "@/components/pages/NextEventSection"
 import { AboutUs } from "@/components/pages/AboutUs"
 import { ContactUs } from "@/components/pages/ContactUs"
 import { AnimatedSectionDivider } from "@/components/AnimatedSectionDivider"
-import { MobileHeroVideoSmooth } from "@/components/pages/MobileHeroVideoSmooth"
+import { SectionTitle } from "@/components/ui/section-title"
+ 
+import { Volume, VolumeX } from "lucide-react"
 import { getNextEvent } from "@/services/events"
 
 /* -------------------------------------------------------
@@ -279,12 +283,7 @@ export default function HomeClient({ nextEvent = null, hasNextEvent = false } = 
         <LogoSection />
       </section>
 
-      
-    
-      <AnimatedSectionDivider
-        color="ORANGE"
-        className="relative z-[80]  md:mt-0"
-      />
+      <AnimatedSectionDivider color="ORANGE" />
 
       {clientHasNextEvent && (
         <>

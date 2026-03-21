@@ -21,7 +21,7 @@ export default function PurchasesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const legacyPurchaseId = searchParams.get("purchaseId")
-  const { purchases, loading, loadAll } = useAdminPurchases()
+  const { purchases, loading } = useAdminPurchases()
   const { events } = useAdminEvents()
 
   const filtersKey = "mcp_admin_purchases_filters"
@@ -43,10 +43,6 @@ export default function PurchasesPage() {
   const [dateSort, setDateSort] = useState(stored.dateSort || "desc")
   const [notFoundMsg, setNotFoundMsg] = useState("")
   const [selectedPurchase, setSelectedPurchase] = useState(null)
-
-  useEffect(() => {
-    loadAll()
-  }, [loadAll])
 
   useEffect(() => {
     if (legacyPurchaseId) {
@@ -137,6 +133,9 @@ export default function PurchasesPage() {
     setNotFoundMsg("")
     router.push(routes.admin.purchases)
   }
+
+  const getPurchaseKey = (purchase) =>
+    purchase.id || `${purchase.transaction_id || "purchase"}-${purchase.timestamp || "unknown"}`
 
   return (
     <TooltipProvider>
@@ -246,7 +245,7 @@ export default function PurchasesPage() {
                     </TableHeader>
                     <TableBody>
                       {filtered.map(p => (
-                        <TableRow key={p.transaction_id}>
+                        <TableRow key={getPurchaseKey(p)}>
                           <TableCell>
                             <div className="font-medium">{p.payer_name} {p.payer_surname}</div>
                             <div className="text-sm text-gray-400">{p.payer_email}</div>
@@ -276,7 +275,7 @@ export default function PurchasesPage() {
 
                 <div className="md:hidden space-y-4 p-4">
                   {filtered.map(p => (
-                    <Card key={p.transaction_id} className="bg-neutral-900 border-neutral-800">
+                    <Card key={getPurchaseKey(p)} className="bg-neutral-900 border-neutral-800">
                       <CardHeader className="flex justify-between items-center p-4">
                         <div>
                           <h3 className="font-bold">{p.payer_name} {p.payer_surname}</h3>
