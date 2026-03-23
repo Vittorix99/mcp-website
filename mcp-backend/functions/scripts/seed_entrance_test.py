@@ -4,15 +4,17 @@ Entrance Scanner — Test Data Seed
 ==================================
 
 Popola il Firestore emulator con tutti i dati necessari per testare
-la logica di ingresso con le tessere reali di Vittorio Di Giorgio.
+la logica di ingresso con le tessere reali di Vittorio Di Giorgio
+e una batteria di utenti seedati con email plus-addressed su mcpweb.test.
 
 Scenari coperti
 ---------------
-  1. KmSbPtCkafBLaoF9zGr4  → membership valida + partecipante  → "valid" al primo scan
-  2. HIWVbeT2RfjSv9jZGY9y  → membership valida + partecipante  → "valid" al primo scan
-  3. membro_no_purchase     → membership valida, NESSUN biglietto → "invalid_no_purchase"
-  4. membro_double_scan     → membership valida + partecipante + già scansionato → "already_scanned"
-  5. (tessera inesistente)  → nessun documento → "invalid_member_not_found" (testa lato scanner)
+  1. 2 tessere di Vittorio Di Giorgio → membership valida + partecipante → "valid"
+  2. 8 membri extra con ticket evento → membership valida + partecipante → "valid"
+  3. 5 membri extra senza ticket evento → "invalid_no_purchase"
+  4. 1 membro partecipante già scansionato → "already_scanned"
+  5. Tutte le email seedate usano plus addressing su mcpweb.test@gmail.com
+  6. (tessera inesistente) → nessun documento → "invalid_member_not_found"
 
 PRE-REQUISITO
   firebase emulators:start --only firestore
@@ -31,6 +33,7 @@ import os
 import secrets
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 # ── Punta sull'emulator se l'env non è già impostato ──────────────────────────
 if not os.environ.get("FIRESTORE_EMULATOR_HOST"):
@@ -39,11 +42,53 @@ if not os.environ.get("FIRESTORE_EMULATOR_HOST"):
 import firebase_admin
 from firebase_admin import credentials, firestore as admin_firestore
 
-# ── Init Firebase Admin (usa app default se già inizializzata) ─────────────────
+# ── Init Firebase Admin (emulator-safe, senza ADC locali) ──────────────────────
+def _resolve_credentials_path() -> Path:
+    raw_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "./service_account_test.json"
+    candidate = Path(raw_path)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate
+
+    functions_dir = Path(__file__).resolve().parents[1]
+    for path in ((Path.cwd() / candidate), (functions_dir / candidate)):
+        resolved = path.resolve()
+        if resolved.exists():
+            return resolved
+
+    raise FileNotFoundError(f"Firebase credentials file not found: {raw_path}")
+
+
 if not firebase_admin._apps:
-    firebase_admin.initialize_app(credentials.ApplicationDefault())
+    cred_path = _resolve_credentials_path()
+    project_id = (
+        os.environ.get("GCLOUD_PROJECT")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or "mcp-website-dev-39539"
+    )
+    firebase_admin.initialize_app(
+        credentials.Certificate(str(cred_path)),
+        {"projectId": project_id},
+    )
 
 db = admin_firestore.client()
+
+BASE_TEST_EMAIL = os.environ.get("ENTRANCE_TEST_EMAIL_BASE", "mcpweb.test@gmail.com")
+
+
+def _split_email(email: str):
+    value = (email or "").strip().lower()
+    if "@" not in value:
+        raise ValueError(f"Invalid base email: {email}")
+    local, domain = value.split("@", 1)
+    if not local or not domain:
+        raise ValueError(f"Invalid base email: {email}")
+    return local, domain
+
+
+def _plus_email(prefix: str, index: int) -> str:
+    local, domain = _split_email(BASE_TEST_EMAIL)
+    safe_prefix = (prefix or "entrance_test").strip().replace(" ", "_").lower()
+    return f"{local}+{safe_prefix}_{index:02d}@{domain}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dati fissi
@@ -54,7 +99,7 @@ REAL_MEMBER_IDS = {
     "KmSbPtCkafBLaoF9zGr4": {
         "name": "Vittorio",
         "surname": "Di Giorgio",
-        "email": "highdreams290@gmail.com",
+        "email": _plus_email("entrance_vittorio", 1),
         "phone": "+393401234567",
         "birthdate": "01-01-1998",
         "subscription_valid": True,
@@ -66,7 +111,7 @@ REAL_MEMBER_IDS = {
     "HIWVbeT2RfjSv9jZGY9y": {
         "name": "Vittorio",
         "surname": "Di Giorgio",
-        "email": "vittorio.digiorgio@hotmail.it",
+        "email": _plus_email("entrance_vittorio", 2),
         "phone": "+393401234568",
         "birthdate": "01-01-1998",
         "subscription_valid": True,
@@ -78,32 +123,48 @@ REAL_MEMBER_IDS = {
 }
 
 # Membri di test aggiuntivi (ID generati deterministicamente per riproducibilità)
-EXTRA_MEMBERS = {
-    "test_no_purchase_001": {
-        "name": "Mario",
-        "surname": "Rossi",
-        "email": "mario.rossi@test.it",
-        "phone": "+393500000001",
-        "birthdate": "15-06-1995",
-        "subscription_valid": True,
-        "end_date": "01-01-2027",
-        "start_date": "01-01-2026",
-        "membership_sent": False,
-        "membership_type": "standard",
-    },
-    "test_double_scan_002": {
-        "name": "Luca",
-        "surname": "Bianchi",
-        "email": "luca.bianchi@test.it",
-        "phone": "+393500000002",
-        "birthdate": "20-03-1993",
-        "subscription_valid": True,
-        "end_date": "01-01-2027",
-        "start_date": "01-01-2026",
-        "membership_sent": False,
-        "membership_type": "standard",
-    },
-}
+ATTENDING_MEMBER_SPECS = [
+    ("Aq7MxK2pLd9VrT6HnCb1", "Giulia", "Rossi", "15-06-1995", "+393500000001"),
+    ("Bw4NzJ8sQe1YpU5KfDm2", "Luca", "Bianchi", "20-03-1993", "+393500000002"),
+    ("Cx6PtR3mHg8LaV2JnEs4", "Chiara", "Esposito", "08-11-1997", "+393500000003"),
+    ("Dv9KsT5qWp2MbX7RhFu6", "Marco", "Ricci", "12-01-1994", "+393500000004"),
+    ("Ey2LuV7nRa4QcZ9TkGw8", "Sara", "Conti", "27-09-1996", "+393500000005"),
+    ("Fz5MvX1pSd7JkB3YnHa9", "Davide", "Romano", "03-07-1992", "+393500000006"),
+    ("Gp8NwQ4rTf1LmC6ZoIb3", "Elena", "Gallo", "18-04-1998", "+393500000007"),
+    ("Hq3PxR6sUg9VnD2AkJc5", "Federico", "Moretti", "30-12-1991", "+393500000008"),
+]
+
+NON_ATTENDING_MEMBER_SPECS = [
+    ("Ir6QyT9vHb3WpE7LmKd1", "Mario", "Rossi", "15-06-1995", "+393500000101"),
+    ("Js9RzU2wNc6XqF4PnLe8", "Anna", "Marino", "09-02-1990", "+393500000102"),
+    ("Kt2SvV5xPd8YrG1QoMf6", "Paolo", "Greco", "11-08-1989", "+393500000103"),
+    ("Lu5TwW8yQf1ZsH3RpNg9", "Marta", "Lombardi", "24-05-1997", "+393500000104"),
+    ("Mv8UxX2zRg4AtJ6SqOh7", "Simone", "Barbieri", "06-10-1994", "+393500000105"),
+]
+
+
+def _build_members(specs, prefix: str):
+    members = {}
+    for index, (member_id, name, surname, birthdate, phone) in enumerate(specs, start=1):
+        members[member_id] = {
+            "name": name,
+            "surname": surname,
+            "email": _plus_email(prefix, index),
+            "phone": phone,
+            "birthdate": birthdate,
+            "subscription_valid": True,
+            "end_date": "01-01-2027",
+            "start_date": "01-01-2026",
+            "membership_sent": False,
+            "membership_type": "standard",
+        }
+    return members
+
+
+ATTENDING_MEMBERS = _build_members(ATTENDING_MEMBER_SPECS, "entrance_attendee")
+NON_ATTENDING_MEMBERS = _build_members(NON_ATTENDING_MEMBER_SPECS, "entrance_member_only")
+EXTRA_MEMBERS = {**ATTENDING_MEMBERS, **NON_ATTENDING_MEMBERS}
+PRE_SCANNED_MEMBER_ID = "Bw4NzJ8sQe1YpU5KfDm2"
 
 ALL_MEMBER_IDS = list(REAL_MEMBER_IDS.keys()) + list(EXTRA_MEMBERS.keys())
 
@@ -208,10 +269,10 @@ def seed():
     _print(f"{len(all_members)} membri scritti in Firestore", "✓")
 
     # ── 5. Partecipanti ───────────────────────────────────────────────────────
-    # Scenari 1, 2, 4 (i due reali + double_scan) hanno biglietto
+    # I due Vittorio + 8 membri di test hanno il biglietto evento
     participants_to_add = [
         *[(mid, data) for mid, data in REAL_MEMBER_IDS.items()],
-        ("test_double_scan_002", EXTRA_MEMBERS["test_double_scan_002"]),
+        *[(mid, data) for mid, data in ATTENDING_MEMBERS.items()],
     ]
     participant_ids = []
     for mid, data in participants_to_add:
@@ -233,13 +294,13 @@ def seed():
         participant_ids.append((mid, p_ref.id))
     _print(f"{len(participant_ids)} partecipanti creati", "✓")
 
-    # ── 5. Pre-scansiona test_double_scan_002 ─────────────────────────────────
+    # ── 6. Pre-scansiona un partecipante di test ─────────────────────────────
     double_scan_time = now - timedelta(minutes=30)
-    db.collection("entrance_scans").document(event_id).collection("scans").document("test_double_scan_002").set({
+    db.collection("entrance_scans").document(event_id).collection("scans").document(PRE_SCANNED_MEMBER_ID).set({
         "scanned_at": double_scan_time,
         "scan_token": token,
     })
-    _print("Membro 'double_scan_002' pre-scansionato 30 min fa", "✓")
+    _print(f"Membro '{PRE_SCANNED_MEMBER_ID}' pre-scansionato 30 min fa", "✓")
 
     # ── Riepilogo ─────────────────────────────────────────────────────────────
     scan_url = f"http://localhost:3000/scan/{token}"
@@ -250,13 +311,19 @@ def seed():
     print(f"  Evento ID  : {event_id}")
     print(f"  Scan Token : {token}")
     print(f"  Scan URL   : {scan_url}")
+    print(f"  Base email : {BASE_TEST_EMAIL}")
     print()
     print("  TESSERE DA SCANSIONARE:")
     print(f"  KmSbPtCkafBLaoF9zGr4  → atteso: ✅ VALID (prima scan)")
     print(f"  HIWVbeT2RfjSv9jZGY9y  → atteso: ✅ VALID (prima scan)")
-    print(f"  test_no_purchase_001   → atteso: ❌ EVENTO NON ACQUISTATO")
-    print(f"  test_double_scan_002   → atteso: 🟡 GIÀ REGISTRATO")
+    print(f"  Aq7MxK2pLd9VrT6HnCb1  → atteso: ✅ VALID (prima scan)")
+    print(f"  Ir6QyT9vHb3WpE7LmKd1  → atteso: ❌ EVENTO NON ACQUISTATO")
+    print(f"  {PRE_SCANNED_MEMBER_ID}   → atteso: 🟡 GIÀ REGISTRATO")
     print(f"  (tessera inesistente)  → atteso: ❌ TESSERA NON RICONOSCIUTA")
+    print()
+    print(f"  Totale membri seedati       : {len(all_members)}")
+    print(f"  Membri con ticket evento    : {len(participants_to_add)}")
+    print(f"  Membri senza ticket evento  : {len(NON_ATTENDING_MEMBERS)}")
     print("─" * 60)
     print()
     print("  Per testare:")

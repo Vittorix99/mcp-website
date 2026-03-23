@@ -255,15 +255,37 @@ export default function MembershipsPage() {
     XLSX.writeFile(wb, "membri_onorari.xlsx")
   }
 
+  const parseMembershipDate = (value) => {
+    if (!value) return null
+    const raw = String(value).trim()
+    if (!raw) return null
+
+    if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+      const [day, month, year] = raw.split("-").map(Number)
+      const parsed = new Date(year, month - 1, day)
+      return Number.isNaN(parsed.getTime()) ? null : parsed
+    }
+
+    const parsed = new Date(raw)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
   const getMembershipYear = (m) => {
-    if (m?.end_date) {
-      const parts = m.end_date.split("-")
-      if (parts.length === 3 && parts[2]) return parts[2]
+    const startDate = parseMembershipDate(m?.start_date)
+    if (startDate) {
+      return startDate.getFullYear().toString()
     }
-    if (m?.start_date) {
-      const d = new Date(m.start_date)
-      if (!Number.isNaN(d.getTime())) return d.getFullYear().toString()
+
+    const endDate = parseMembershipDate(m?.end_date)
+    if (endDate) {
+      const isFirstDayOfYear =
+        endDate.getDate() === 1 && endDate.getMonth() === 0
+      const year = isFirstDayOfYear
+        ? endDate.getFullYear() - 1
+        : endDate.getFullYear()
+      return year.toString()
     }
+
     return null
   }
 
