@@ -26,3 +26,11 @@ VERIFY_SCAN_TOKEN_SCHEMA = {
         "error": "token is required and must be a string",
     },
 }
+
+DEACTIVATE_SCAN_TOKEN_SCHEMA = {
+    "token": {
+        "required": True,
+        "types": str,
+        "error": "token is required and must be a string",
+    },
+}
