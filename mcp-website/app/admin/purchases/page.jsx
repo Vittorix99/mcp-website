@@ -43,6 +43,7 @@ export default function PurchasesPage() {
   const [dateSort, setDateSort] = useState(stored.dateSort || "desc")
   const [notFoundMsg, setNotFoundMsg] = useState("")
   const [selectedPurchase, setSelectedPurchase] = useState(null)
+  const [dateKey, setDateKey] = useState(0)
 
   useEffect(() => {
     if (legacyPurchaseId) {
@@ -131,6 +132,7 @@ export default function PurchasesPage() {
     setEventFilter("all")
     setDateSort("desc")
     setNotFoundMsg("")
+    setDateKey(k => k + 1)
     router.push(routes.admin.purchases)
   }
 
@@ -186,18 +188,44 @@ export default function PurchasesPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Input
-                type="date"
-                className="flex-1"
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-              />
-              <Input
-                type="date"
-                className="flex-1"
-                value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
-              />
+              <div className="relative flex-1">
+                <Input
+                  key={`dateFrom-${dateKey}`}
+                  type="date"
+                  className="flex-1 w-full pr-7"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                />
+                {dateFrom && (
+                  <button
+                    type="button"
+                    onClick={() => setDateFrom("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-lg leading-none"
+                    aria-label="Cancella data da"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <div className="relative flex-1">
+                <Input
+                  key={`dateTo-${dateKey}`}
+                  type="date"
+                  className="flex-1 w-full pr-7"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                />
+                {dateTo && (
+                  <button
+                    type="button"
+                    onClick={() => setDateTo("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-lg leading-none"
+                    aria-label="Cancella data a"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
               <Select value={dateSort} onValueChange={setDateSort}>
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Ordina per data" />

@@ -59,9 +59,8 @@ def generate_membership_pdf(membership_data, logo_path, pattern_path):
 
 
 
-    # Scarica logo e pattern
+    # Scarica solo il logo: il pattern non viene usato nel template HTML corrente.
     local_logo_path = download_image_from_firebase(logo_path)
-    local_pattern_path = download_image_from_firebase(pattern_path)
 
     # Genera HTML
     html = generate_membership_card_html(membership_data, local_logo_path)

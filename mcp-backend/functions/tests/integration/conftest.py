@@ -63,6 +63,14 @@ def mailersend_api_key():
 def _ensure_storage_assets():
     if os.environ.get("SKIP_STORAGE_ASSET_BOOTSTRAP", "").lower() in {"1", "true", "yes"}:
         return
+    # When running against Firestore emulator, avoid implicit outbound calls to
+    # real Cloud Storage unless explicitly requested.
+    if (
+        os.environ.get("FIRESTORE_EMULATOR_HOST")
+        and not os.environ.get("STORAGE_EMULATOR_HOST")
+        and os.environ.get("FORCE_STORAGE_ASSET_BOOTSTRAP", "").lower() not in {"1", "true", "yes"}
+    ):
+        return
     if storage_bucket is None:
         return
 

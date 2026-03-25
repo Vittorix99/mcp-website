@@ -7,9 +7,34 @@ from dto import EventDTO, MembershipDTO
 from services.events.documents_service import DocumentsService
 
 
+class _InMemoryBlob:
+    def __init__(self, path: str, objects: dict):
+        self._path = path
+        self._objects = objects
+        self.public_url = f"https://storage.local/{path}"
+
+    def upload_from_string(self, data, content_type=None):
+        self._objects[self._path] = bytes(data)
+
+    def exists(self):
+        return self._path in self._objects
+
+    def delete(self):
+        self._objects.pop(self._path, None)
+
+
+class _InMemoryStorage:
+    def __init__(self):
+        self._objects = {}
+
+    def blob(self, path):
+        return _InMemoryBlob(path, self._objects)
+
+
 @pytest.fixture
 def documents_service():
-    return DocumentsService()
+    # Keep document integration tests fully local (no external GCS auth/network).
+    return DocumentsService(storage=_InMemoryStorage())
 
 
 @pytest.fixture

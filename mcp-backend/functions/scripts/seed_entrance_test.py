@@ -23,12 +23,14 @@ PRE-REQUISITO
 
 USO
   cd mcp-backend/functions
-  python scripts/seed_entrance_test.py [--reset]
+  python scripts/seed_entrance_test.py [--reset] [--pass-csv /path/to/Pass_Data.csv]
 
   --reset   elimina tutti i documenti creati da questo script prima di riseedare
+  --pass-csv  CSV Pass2U con colonne passId/barcode-NFC per associare wallet ai membri
 """
 
 import argparse
+import csv
 import os
 import secrets
 import sys
@@ -73,6 +75,11 @@ if not firebase_admin._apps:
 db = admin_firestore.client()
 
 BASE_TEST_EMAIL = os.environ.get("ENTRANCE_TEST_EMAIL_BASE", "mcpweb.test@gmail.com")
+DEFAULT_PASS_CSV_CANDIDATES = (
+    Path.home() / "Downloads" / "Pass_Data.csv",
+    Path(__file__).resolve().parents[3] / "Pass_Data.csv",
+    Path(__file__).resolve().parents[1] / "Pass_Data.csv",
+)
 
 
 def _split_email(email: str):
@@ -89,6 +96,62 @@ def _plus_email(prefix: str, index: int) -> str:
     local, domain = _split_email(BASE_TEST_EMAIL)
     safe_prefix = (prefix or "entrance_test").strip().replace(" ", "_").lower()
     return f"{local}+{safe_prefix}_{index:02d}@{domain}"
+
+
+def _clean_csv_cell(raw: str) -> str:
+    value = (raw or "").strip()
+    if value.startswith('="') and value.endswith('"'):
+        value = value[2:-1]
+    return value.strip().strip('"').strip()
+
+
+def _resolve_pass_csv_path(explicit_path: str | None) -> Path:
+    if explicit_path:
+        path = Path(explicit_path).expanduser()
+        if path.exists():
+            return path
+        raise FileNotFoundError(f"Pass CSV file not found: {path}")
+
+    env_path = os.environ.get("ENTRANCE_PASS_CSV")
+    if env_path:
+        path = Path(env_path).expanduser()
+        if path.exists():
+            return path
+        raise FileNotFoundError(f"Pass CSV file not found: {path}")
+
+    for candidate in DEFAULT_PASS_CSV_CANDIDATES:
+        if candidate.exists():
+            return candidate
+
+    searched = ", ".join(str(path) for path in DEFAULT_PASS_CSV_CANDIDATES)
+    raise FileNotFoundError(
+        "Pass CSV file not found. Provide --pass-csv or ENTRANCE_PASS_CSV. "
+        f"Searched: {searched}"
+    )
+
+
+def _load_pass_lookup(csv_path: Path):
+    lookup = {}
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            membership_id = _clean_csv_cell(row.get("barcode/NFC", ""))
+            pass_id = _clean_csv_cell(row.get("passId", ""))
+            if not membership_id or not pass_id:
+                continue
+
+            if membership_id in lookup:
+                continue
+
+            wallet_url = f"https://www.pass2u.net/d/{pass_id}"
+            lookup[membership_id] = {
+                "wallet_pass_id": pass_id,
+                "wallet_url": wallet_url,
+                "wallet_name": _clean_csv_cell(row.get("name(Name)", "")),
+                "wallet_validity": _clean_csv_cell(row.get("validity(Validity)", "")),
+                "wallet_mail": _clean_csv_cell(row.get("mail(Mail)", "")),
+            }
+    return lookup
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dati fissi
@@ -128,7 +191,7 @@ ATTENDING_MEMBER_SPECS = [
     ("Bw4NzJ8sQe1YpU5KfDm2", "Luca", "Bianchi", "20-03-1993", "+393500000002"),
     ("Cx6PtR3mHg8LaV2JnEs4", "Chiara", "Esposito", "08-11-1997", "+393500000003"),
     ("Dv9KsT5qWp2MbX7RhFu6", "Marco", "Ricci", "12-01-1994", "+393500000004"),
-    ("Ey2LuV7nRa4QcZ9TkGw8", "Sara", "Conti", "27-09-1996", "+393500000005"),
+    ("test_attendee_005", "Sara", "Conti", "27-09-1996", "+393500000005"),
     ("Fz5MvX1pSd7JkB3YnHa9", "Davide", "Romano", "03-07-1992", "+393500000006"),
     ("Gp8NwQ4rTf1LmC6ZoIb3", "Elena", "Gallo", "18-04-1998", "+393500000007"),
     ("Hq3PxR6sUg9VnD2AkJc5", "Federico", "Moretti", "30-12-1991", "+393500000008"),
@@ -217,7 +280,7 @@ def reset(event_id: str, token: str):
 # Seed
 # ─────────────────────────────────────────────────────────────────────────────
 
-def seed():
+def seed(pass_lookup):
     now = datetime.now(timezone.utc)
     tomorrow = now + timedelta(days=1)
     event_date_str = tomorrow.strftime("%d-%m-%Y")
@@ -264,9 +327,21 @@ def seed():
 
     # ── 4. Membri ─────────────────────────────────────────────────────────────
     all_members = {**REAL_MEMBER_IDS, **EXTRA_MEMBERS}
+    missing_pass_data = []
     for mid, data in all_members.items():
+        wallet = pass_lookup.get(mid)
+        if wallet:
+            data["wallet_pass_id"] = wallet["wallet_pass_id"]
+            data["wallet_url"] = wallet["wallet_url"]
+            data["membership_sent"] = True
+            data["wallet_name"] = wallet["wallet_name"]
+            data["wallet_validity"] = wallet["wallet_validity"]
+            data["wallet_mail"] = wallet["wallet_mail"]
+        else:
+            missing_pass_data.append(mid)
         db.collection("memberships").document(mid).set(data)
     _print(f"{len(all_members)} membri scritti in Firestore", "✓")
+    _print(f"{len(all_members) - len(missing_pass_data)} membri con wallet già associato", "✓")
 
     # ── 5. Partecipanti ───────────────────────────────────────────────────────
     # I due Vittorio + 8 membri di test hanno il biglietto evento
@@ -324,6 +399,7 @@ def seed():
     print(f"  Totale membri seedati       : {len(all_members)}")
     print(f"  Membri con ticket evento    : {len(participants_to_add)}")
     print(f"  Membri senza ticket evento  : {len(NON_ATTENDING_MEMBERS)}")
+    print(f"  Membri con wallet associato : {len(all_members) - len(missing_pass_data)}")
     print("─" * 60)
     print()
     print("  Per testare:")
@@ -343,6 +419,14 @@ def main():
     parser.add_argument("--reset", action="store_true", help="Delete previously seeded documents before re-seeding")
     parser.add_argument("--event-id", default=None, help="Existing event ID to reset (required with --reset if no prior seed)")
     parser.add_argument("--token", default=None, help="Existing token to delete (used with --reset)")
+    parser.add_argument(
+        "--pass-csv",
+        default=None,
+        help=(
+            "Path to Pass_Data.csv. If omitted, uses ENTRANCE_PASS_CSV or "
+            "~/Downloads/Pass_Data.csv when available."
+        ),
+    )
     args = parser.parse_args()
 
     emulator_host = os.environ.get("FIRESTORE_EMULATOR_HOST", "")
@@ -356,7 +440,18 @@ def main():
     if args.reset and args.event_id:
         reset(args.event_id, args.token or "")
 
-    seed()
+    pass_csv_path = _resolve_pass_csv_path(args.pass_csv)
+    pass_lookup = _load_pass_lookup(pass_csv_path)
+    missing_ids = [mid for mid in ALL_MEMBER_IDS if mid not in pass_lookup]
+    if missing_ids:
+        raise RuntimeError(
+            "Pass data missing for seeded membership IDs: "
+            + ", ".join(missing_ids)
+        )
+
+    _print(f"Pass CSV caricato: {pass_csv_path}", "✓")
+    _print(f"Mapping wallet trovati: {len(pass_lookup)}", "✓")
+    seed(pass_lookup)
 
 
 if __name__ == "__main__":

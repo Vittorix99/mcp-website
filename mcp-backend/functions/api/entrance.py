@@ -2,7 +2,9 @@ from firebase_functions import https_fn
 from flask import jsonify
 
 from api.validators.entrance import (
+    DEACTIVATE_SCAN_TOKEN_SCHEMA,
     GENERATE_SCAN_TOKEN_SCHEMA,
+    MANUAL_ENTRY_SCHEMA,
     VALIDATE_ENTRY_SCHEMA,
     VERIFY_SCAN_TOKEN_SCHEMA,
 )
@@ -70,6 +72,40 @@ def entrance_verify_scan_token(req, token):
     if not result.get("valid"):
         return jsonify(result), 401
     return jsonify(result), 200
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+@require_json_body
+@validate_body_fields(DEACTIVATE_SCAN_TOKEN_SCHEMA)
+@inject_payload_fields(["token"])
+def entrance_deactivate_scan_token(req, token):
+    """POST — disattiva un token di scansione esistente (solo admin)."""
+    if req.method != "POST":
+        return jsonify({"error": "Invalid method"}), 405
+    admin_uid = req.admin_token.get("uid", "")
+    try:
+        payload = entrance_service.deactivate_scan_token(token, admin_uid)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+@require_json_body
+@validate_body_fields(MANUAL_ENTRY_SCHEMA)
+@inject_payload_fields(["event_id", "membership_id", "entered"])
+def entrance_manual_entry(req, event_id, membership_id, entered):
+    """POST — segna manualmente entrata/uscita di un membro (solo admin)."""
+    if req.method != "POST":
+        return jsonify({"error": "Invalid method"}), 405
+    admin_uid = req.admin_token.get("uid", "")
+    try:
+        payload = entrance_service.manual_entry(event_id, membership_id, entered, admin_uid)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
 
 
 @https_fn.on_request(cors=cors, region=region)

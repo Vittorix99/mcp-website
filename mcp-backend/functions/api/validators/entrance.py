@@ -6,6 +6,14 @@ GENERATE_SCAN_TOKEN_SCHEMA = {
     },
 }
 
+DEACTIVATE_SCAN_TOKEN_SCHEMA = {
+    "token": {
+        "required": True,
+        "types": str,
+        "error": "token is required and must be a string",
+    },
+}
+
 VALIDATE_ENTRY_SCHEMA = {
     "membership_id": {
         "required": True,
@@ -24,5 +32,23 @@ VERIFY_SCAN_TOKEN_SCHEMA = {
         "required": True,
         "types": str,
         "error": "token is required and must be a string",
+    },
+}
+
+MANUAL_ENTRY_SCHEMA = {
+    "event_id": {
+        "required": True,
+        "types": str,
+        "error": "event_id is required and must be a string",
+    },
+    "membership_id": {
+        "required": True,
+        "types": str,
+        "error": "membership_id is required and must be a string",
+    },
+    "entered": {
+        "required": True,
+        "types": bool,
+        "error": "entered is required and must be a boolean",
     },
 }

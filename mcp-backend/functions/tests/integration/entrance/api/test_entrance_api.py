@@ -285,3 +285,168 @@ def test_validate_entry_wrong_method(entrance_seed):
     )
     resp, status = unwrap_response(entrance_api.entrance_validate(req))
     assert status == 405
+
+
+# ---------------------------------------------------------------------------
+# POST /entrance_deactivate_scan_token
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_deactivate_scan_token_success(entrance_seed):
+    """
+    POST admin con token valido → 200, is_active=False.
+    Subito dopo, verify dello stesso token deve ritornare invalid/inactive.
+    A fine test ripristina is_active=True per non influenzare gli altri casi.
+    """
+    token = entrance_seed.scan_token
+    req = DummyRequest(
+        method="POST",
+        json={"token": token},
+    )
+    resp, status = unwrap_response(entrance_api.entrance_deactivate_scan_token(req))
+    try:
+        assert status == 200, f"Atteso 200, ottenuto {status}: {resp}"
+        assert resp.get("ok") is True
+        assert resp.get("is_active") is False
+
+        verify_req = DummyRequest(method="GET", args={"token": token})
+        verify_resp, verify_status = unwrap_response(entrance_api.entrance_verify_scan_token(verify_req))
+        assert verify_status == 401
+        assert verify_resp.get("valid") is False
+        assert verify_resp.get("reason") == "inactive"
+    finally:
+        db.collection("scan_tokens").document(token).update({"is_active": True})
+
+
+@pytest.mark.integration
+def test_deactivate_scan_token_missing_token():
+    """POST senza token → 400 da @validate_body_fields."""
+    req = DummyRequest(method="POST", json={})
+    resp, status = unwrap_response(entrance_api.entrance_deactivate_scan_token(req))
+    assert status == 400
+    assert resp.get("error")
+
+
+@pytest.mark.integration
+def test_deactivate_scan_token_wrong_method():
+    """GET su endpoint POST → 405."""
+    req = DummyRequest(method="GET", json={"token": "any"})
+    resp, status = unwrap_response(entrance_api.entrance_deactivate_scan_token(req))
+    assert status == 405
+
+
+# ---------------------------------------------------------------------------
+# POST /entrance_manual_entry
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_manual_entry_success_enter(entrance_seed):
+    """
+    POST admin con event_id, membership_id validi e entered=True.
+    Il membro potrebbe già essere stato entrato dai service test (sessione condivisa),
+    quindi accettiamo 'entered' o 'already_entered'.
+    """
+    member = entrance_seed.member_for_manual_entry
+    req = DummyRequest(
+        method="POST",
+        json={
+            "event_id": entrance_seed.event_id,
+            "membership_id": member.membership_id,
+            "entered": True,
+        },
+    )
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+
+    assert status == 200, f"Atteso 200, ottenuto {status}: {resp}"
+    assert resp.get("result") in ("entered", "already_entered"), (
+        f"Atteso 'entered' o 'already_entered', ottenuto: {resp.get('result')}"
+    )
+
+
+@pytest.mark.integration
+def test_manual_entry_success_undo(entrance_seed):
+    """
+    POST admin con entered=False → 200 con result='undone'.
+    """
+    member = entrance_seed.member_for_manual_entry
+    req = DummyRequest(
+        method="POST",
+        json={
+            "event_id": entrance_seed.event_id,
+            "membership_id": member.membership_id,
+            "entered": False,
+        },
+    )
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+
+    assert status == 200, f"Atteso 200, ottenuto {status}: {resp}"
+    assert resp.get("result") == "undone", f"Atteso 'undone', ottenuto: {resp.get('result')}"
+
+
+@pytest.mark.integration
+def test_manual_entry_requires_admin_auth():
+    """POST senza Authorization header → 401."""
+    req = DummyRequest(method="POST", json={"event_id": "any", "membership_id": "any", "entered": True})
+    req.headers = {}
+    _, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+    assert status == 401
+
+
+@pytest.mark.integration
+def test_manual_entry_missing_event_id():
+    """POST senza event_id → 400."""
+    req = DummyRequest(method="POST", json={"membership_id": "mid", "entered": True})
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+    assert status == 400
+    assert resp.get("error")
+
+
+@pytest.mark.integration
+def test_manual_entry_missing_membership_id():
+    """POST senza membership_id → 400."""
+    req = DummyRequest(method="POST", json={"event_id": "eid", "entered": True})
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+    assert status == 400
+    assert resp.get("error")
+
+
+@pytest.mark.integration
+def test_manual_entry_missing_entered():
+    """POST senza campo entered → 400."""
+    req = DummyRequest(method="POST", json={"event_id": "eid", "membership_id": "mid"})
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+    assert status == 400
+    assert resp.get("error")
+
+
+@pytest.mark.integration
+def test_manual_entry_missing_body():
+    """POST senza JSON body → 400."""
+    req = DummyRequest(method="POST", json=None)
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+    assert status == 400
+
+
+@pytest.mark.integration
+def test_manual_entry_wrong_method():
+    """GET su endpoint POST → 405."""
+    req = DummyRequest(method="GET", json={"event_id": "e", "membership_id": "m", "entered": True})
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+    assert status == 405
+
+
+@pytest.mark.integration
+def test_manual_entry_member_not_found(entrance_seed):
+    """
+    POST con membership_id non registrata nell'evento → 404.
+    """
+    req = DummyRequest(
+        method="POST",
+        json={
+            "event_id": entrance_seed.event_id,
+            "membership_id": "membership-inesistente-0000",
+            "entered": True,
+        },
+    )
+    resp, status = unwrap_response(entrance_api.entrance_manual_entry(req))
+    assert status == 404, f"Atteso 404, ottenuto {status}: {resp}"

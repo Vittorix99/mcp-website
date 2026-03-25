@@ -17,6 +17,8 @@ class EventParticipantDTO:
     birthdate: Optional[str] = None
     membership_id: Optional[str] = None
     membership_included: Optional[bool] = None
+    entered: Optional[bool] = None
+    entered_at: Optional[Any] = None
     ticket_pdf_url: Optional[str] = None
     ticket_sent: Optional[bool] = None
     send_ticket_on_create: Optional[bool] = None
@@ -43,6 +45,8 @@ class EventParticipantDTO:
             birthdate=participant.birthdate,
             membership_id=participant.membership_id,
             membership_included=participant.membership_included,
+            entered=participant.entered,
+            entered_at=participant.entered_at,
             ticket_pdf_url=participant.ticket_pdf_url,
             ticket_sent=participant.ticket_sent,
             send_ticket_on_create=participant.send_ticket_on_create,
@@ -86,6 +90,8 @@ class EventParticipantDTO:
             birthdate=pick("birthdate"),
             membership_id=pick("membership_id", "membershipId"),
             membership_included=pick_bool("membership_included", "membershipIncluded"),
+            entered=pick_bool("entered"),
+            entered_at=pick("entered_at", "enteredAt"),
             ticket_pdf_url=pick("ticket_pdf_url"),
             ticket_sent=pick_bool("ticket_sent"),
             send_ticket_on_create=pick_bool("send_ticket_on_create", "sendTicketOnCreate"),
@@ -112,6 +118,8 @@ class EventParticipantDTO:
             "birthdate": self.birthdate,
             "membershipId": self.membership_id,
             "membership_included": self.membership_included,
+            "entered": self.entered,
+            "entered_at": self.entered_at,
             "ticket_pdf_url": self.ticket_pdf_url,
             "ticket_sent": self.ticket_sent,
             "send_ticket_on_create": self.send_ticket_on_create,

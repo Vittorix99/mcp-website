@@ -26,6 +26,33 @@ Scenari coperti
 
 import pytest
 
+from google.cloud.firestore_v1 import FieldFilter
+
+from config.firebase_config import db
+
+
+def _get_participant_doc(event_id: str, membership_id: str):
+    """Recupera il documento partecipante tramite collection_group su membershipId."""
+    docs = (
+        db.collection_group("participants_event")
+        .where(filter=FieldFilter("membershipId", "==", membership_id))
+        .get()
+    )
+    docs = [d for d in docs if d.reference.parent.parent.id == event_id]
+    return docs[0] if docs else None
+
+
+def _get_entrance_scan(event_id: str, membership_id: str):
+    """Recupera il documento entrance_scan (None se non esiste)."""
+    ref = (
+        db.collection("entrance_scans")
+        .document(event_id)
+        .collection("scans")
+        .document(membership_id)
+    )
+    doc = ref.get()
+    return doc if doc.exists else None
+
 
 # ---------------------------------------------------------------------------
 # Step 1 — Evento creato correttamente
@@ -75,7 +102,7 @@ def test_valid_members_all_enter(entrance_seed, entrance_service):
     """
     Step 3+4+5: I 3 membri con membership valida e biglietto acquistato
     vengono scansionati — tutti devono risultare "valid" con nome e cognome
-    corretti.
+    corretti. Verifica anche che participants.entered venga aggiornato (doppio write).
     """
     for member in entrance_seed.valid_members:
         result = entrance_service.validate_entry(
@@ -89,6 +116,17 @@ def test_valid_members_all_enter(entrance_seed, entrance_service):
         assert result["membership"]["surname"] == member.surname
         assert result["scanned_at"] is None, (
             "scanned_at deve essere None al primo ingresso valido"
+        )
+
+        # Verifica doppio write: entrance_scans + participants.entered
+        scan_doc = _get_entrance_scan(entrance_seed.event_id, member.membership_id)
+        assert scan_doc is not None, (
+            f"entrance_scan non trovato per {member.name} dopo validate_entry"
+        )
+        participant_doc = _get_participant_doc(entrance_seed.event_id, member.membership_id)
+        assert participant_doc is not None
+        assert participant_doc.to_dict().get("entered") is True, (
+            f"participants.entered non aggiornato per {member.name} dopo validate_entry"
         )
 
 
@@ -133,6 +171,14 @@ def test_already_scanned_member_blocked(entrance_seed, entrance_service):
         f"Prima scansione attesa 'valid', ottenuto: {first['result']}"
     )
 
+    # Verifica doppio write dopo prima scansione
+    scan_doc = _get_entrance_scan(entrance_seed.event_id, member.membership_id)
+    assert scan_doc is not None, "entrance_scan deve esistere dopo la prima scansione"
+    participant_doc = _get_participant_doc(entrance_seed.event_id, member.membership_id)
+    assert participant_doc.to_dict().get("entered") is True, (
+        "participants.entered deve essere True dopo la prima scansione"
+    )
+
     # Seconda scansione immediata: deve essere bloccata
     second = entrance_service.validate_entry(member.membership_id, token)
     assert second["result"] == "already_scanned", (
@@ -168,6 +214,109 @@ def test_member_with_invalid_subscription_rejected(entrance_seed, entrance_servi
         f"Atteso 'invalid_no_purchase' per membership non valida, "
         f"ottenuto: {result['result']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Extra — Token inesistente viene rifiutato in entrambi gli endpoint
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# manual_entry — ciclo vita completo: enter → already_entered → undo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_manual_entry_enter_writes_both_collections(entrance_seed, entrance_service):
+    """
+    manual_entry(entered=True): deve scrivere su entrance_scans (con manual=True)
+    e aggiornare participants.entered=True.
+    """
+    member = entrance_seed.member_for_manual_entry
+    event_id = entrance_seed.event_id
+
+    result = entrance_service.manual_entry(event_id, member.membership_id, True, "admin-test")
+    assert result["result"] == "entered", f"Atteso 'entered', ottenuto: {result['result']}"
+
+    # Verifica entrance_scans
+    scan_doc = _get_entrance_scan(event_id, member.membership_id)
+    assert scan_doc is not None, "entrance_scan deve essere creato da manual_entry"
+    assert scan_doc.to_dict().get("manual") is True, "Il campo 'manual' deve essere True"
+    assert scan_doc.to_dict().get("operator") == "admin-test"
+
+    # Verifica participants.entered
+    participant_doc = _get_participant_doc(event_id, member.membership_id)
+    assert participant_doc is not None
+    assert participant_doc.to_dict().get("entered") is True, (
+        "participants.entered deve essere True dopo manual_entry"
+    )
+
+
+@pytest.mark.integration
+def test_manual_entry_already_entered(entrance_seed, entrance_service):
+    """
+    manual_entry(entered=True) su un membro già entrato → 'already_entered'.
+    (il membro è già stato entrato dal test precedente nella sessione)
+    """
+    member = entrance_seed.member_for_manual_entry
+    event_id = entrance_seed.event_id
+
+    result = entrance_service.manual_entry(event_id, member.membership_id, True, "admin-test")
+    assert result["result"] == "already_entered", (
+        f"Atteso 'already_entered', ottenuto: {result['result']}"
+    )
+
+
+@pytest.mark.integration
+def test_manual_entry_undo_clears_both_collections(entrance_seed, entrance_service):
+    """
+    manual_entry(entered=False): elimina entrance_scans e imposta participants.entered=False.
+    """
+    member = entrance_seed.member_for_manual_entry
+    event_id = entrance_seed.event_id
+
+    result = entrance_service.manual_entry(event_id, member.membership_id, False, "admin-test")
+    assert result["result"] == "undone", f"Atteso 'undone', ottenuto: {result['result']}"
+
+    # entrance_scans deve essere eliminato
+    scan_doc = _get_entrance_scan(event_id, member.membership_id)
+    assert scan_doc is None, "entrance_scan deve essere eliminato dopo undo"
+
+    # participants.entered deve essere False
+    participant_doc = _get_participant_doc(event_id, member.membership_id)
+    assert participant_doc is not None
+    assert participant_doc.to_dict().get("entered") is False, (
+        "participants.entered deve essere False dopo undo"
+    )
+
+
+@pytest.mark.integration
+def test_manual_entry_can_reenter_after_undo(entrance_seed, entrance_service):
+    """
+    Dopo un undo, il QR scan torna a funzionare: validate_entry → 'valid'.
+    """
+    member = entrance_seed.member_for_manual_entry
+    event_id = entrance_seed.event_id
+
+    # Il membro è stato undone dal test precedente, ora il QR dovrebbe passare
+    result = entrance_service.validate_entry(member.membership_id, entrance_seed.scan_token)
+    assert result["result"] == "valid", (
+        f"Dopo undo, la scansione QR deve tornare 'valid', ottenuto: {result['result']}"
+    )
+
+
+@pytest.mark.integration
+def test_manual_entry_member_not_found(entrance_seed, entrance_service):
+    """
+    manual_entry con membership_id non registrata come partecipante all'evento
+    → NotFoundError (il service deve sollevare eccezione).
+    """
+    from errors.service_errors import NotFoundError
+    with pytest.raises(NotFoundError):
+        entrance_service.manual_entry(
+            entrance_seed.event_id,
+            "membership-id-inesistente-0000",
+            True,
+            "admin-test",
+        )
 
 
 # ---------------------------------------------------------------------------

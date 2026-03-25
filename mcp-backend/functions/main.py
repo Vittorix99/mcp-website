@@ -112,6 +112,8 @@ from triggers.jobs_trigger import process_send_location_job
 from api.entrance import (
     entrance_generate_scan_token,
     entrance_verify_scan_token,
+    entrance_deactivate_scan_token,
+    entrance_manual_entry,
     entrance_validate,
 )
 

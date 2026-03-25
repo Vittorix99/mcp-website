@@ -17,6 +17,8 @@ class EventParticipant(FirestoreModel):
     birthdate: Optional[str] = None
     membership_id: Optional[str] = field(default=None, metadata={"firestore_name": "membershipId"})
     membership_included: bool = field(default=False, metadata={"firestore_name": "membership_included"})
+    entered: bool = False
+    entered_at: Optional[Any] = field(default=None, metadata={"firestore_name": "entered_at"})
     ticket_pdf_url: Optional[str] = None
     ticket_sent: bool = False
     send_ticket_on_create: bool = field(default=True, metadata={"firestore_name": "send_ticket_on_create"})

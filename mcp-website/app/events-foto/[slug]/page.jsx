@@ -6,7 +6,7 @@ import { endpoints } from "@/config/endpoints"
 import { getFolderPage } from "@/config/firebaseStorage"
 import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
 
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
 const PAGE_SIZE = 16
 export const dynamicParams = true
 
@@ -32,8 +32,7 @@ async function fetchEvent(eventSlug) {
   try {
     const key = encodeURIComponent(eventSlug)
     const response = await fetch(`${endpoints.getEventById}?slug=${key}&id=${key}`, {
-      cache: "force-cache",
-      next: { revalidate },
+      cache: "no-store",
     })
     if (!response.ok) return null
     return await response.json()

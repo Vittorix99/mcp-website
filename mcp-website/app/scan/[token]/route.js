@@ -456,6 +456,10 @@ async function init() {
     const title = data.event_title || '';
     eventNameEl.textContent = title;
     tapEventEl.textContent  = title;
+    if (typeof data.entered_count === 'number' && Number.isFinite(data.entered_count)) {
+      entranceCount = Math.max(0, data.entered_count);
+      updateCounter();
+    }
     showState('tap');
   } catch {
     showState('error');
@@ -529,9 +533,15 @@ async function handleScan(membershipId) {
 
     const data = await res.json();
 
-    if (data.result === 'valid') {
+    if (typeof data.entered_count === 'number' && Number.isFinite(data.entered_count)) {
+      entranceCount = Math.max(0, data.entered_count);
+      updateCounter();
+    } else if (data.result === 'valid') {
       entranceCount++;
       updateCounter();
+    }
+
+    if (data.result === 'valid') {
       vibrate('success');
     } else if (data.result === 'already_scanned') {
       vibrate('scan');

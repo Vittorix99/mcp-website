@@ -20,8 +20,8 @@ Examples:
   ./emulator.sh --env=prod
   ./emulator.sh --env=test --firestore-emulator=true
   ./emulator.sh --env=test --auth=true --firestore-emulator=true
-  ./emulator.sh --env=test --auth=true --import-backup=true
-  ./emulator.sh --env=test --auth=true --import-backup=true --backup-dir=mcp-backend/functions/emulator_data
+  ./emulator.sh --env=test --auth=true 
+  ./emulator.sh --env=test --auth=true --import-backup=true --backup-dir=emulator-data --firestore-emulator=true
 
 Notes:
 - Default environment is test (loads .env.integration).

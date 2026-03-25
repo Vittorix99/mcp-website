@@ -68,7 +68,7 @@ import { EventStats } from "@/components/admin/events/EventStats"
 import { exportParticipantsToExcel } from "@/lib/excel" // ✅ NUOVO IMPORT
 import { resolvePurchaseMode } from "@/config/events-utils"
 import { getMembershipPrice } from "@/services/admin/memberships"
-import { generateScanToken as apiGenerateScanToken, verifyScanToken as apiVerifyScanToken, deactivateScanToken as apiDeactivateScanToken } from "@/services/admin/entrance"
+import { generateScanToken as apiGenerateScanToken, verifyScanToken as apiVerifyScanToken, deactivateScanToken as apiDeactivateScanToken, manualEntry as apiManualEntry } from "@/services/admin/entrance"
 
 function QuickAddDialog({ open, onOpenChange, onSubmit }) {
   const [form, setForm] = useState({ name: "", surname: "", email: "", birthdate: "" })
@@ -326,8 +326,16 @@ export default function EventContent({ id: eventId }) {
   }, [participants, checkinSearch, checkinOnlyMissing])
 
   const checkinMarkEntered = useCallback(async (p, value = true) => {
-    try { await update(p.id, { entered: !!value, entered_at: new Date().toISOString() }) } catch {}
-  }, [update])
+    try {
+      if (p.membershipId) {
+        const res = await apiManualEntry(eventId, p.membershipId, !!value)
+        if (res?.error) return
+        await loadAll()
+        return
+      }
+      await update(p.id, { entered: !!value, entered_at: value ? new Date().toISOString() : null })
+    } catch {}
+  }, [update, eventId, loadAll])
 
   const checkinQuickAdd = useCallback(async ({ name, surname, email, birthdate }) => {
     try {
@@ -339,13 +347,39 @@ export default function EventContent({ id: eventId }) {
   // Entrance: load stored token from localStorage on mount
   useEffect(() => {
     if (!eventId || typeof window === "undefined") return
-    const stored = (() => { try { return JSON.parse(localStorage.getItem(`mcp_scan_token_${eventId}`) || "null") } catch { return null } })()
-    if (!stored) return
-    const expiry = stored.expires_at ? new Date(stored.expires_at) : null
-    if (expiry && expiry < new Date()) { localStorage.removeItem(`mcp_scan_token_${eventId}`); return }
-    setScanToken(stored.token)
-    setScanUrl(stored.scan_url)
-    setScanTokenExpiry(expiry)
+    let mounted = true
+
+    const run = async () => {
+      const storageKey = `mcp_scan_token_${eventId}`
+      const stored = (() => {
+        try { return JSON.parse(localStorage.getItem(storageKey) || "null") } catch { return null }
+      })()
+      if (!stored) return
+
+      const expiry = stored.expires_at ? new Date(stored.expires_at) : null
+      if (expiry && expiry < new Date()) {
+        localStorage.removeItem(storageKey)
+        return
+      }
+
+      const verify = await apiVerifyScanToken(stored.token)
+      if (verify?.error || verify?.valid !== true) {
+        localStorage.removeItem(storageKey)
+        if (!mounted) return
+        setScanToken(null)
+        setScanUrl(null)
+        setScanTokenExpiry(null)
+        return
+      }
+
+      if (!mounted) return
+      setScanToken(stored.token)
+      setScanUrl(stored.scan_url)
+      setScanTokenExpiry(expiry)
+    }
+
+    run()
+    return () => { mounted = false }
   }, [eventId])
 
   const buildScanUrl = (tok) =>
@@ -384,12 +418,27 @@ export default function EventContent({ id: eventId }) {
   const handleDeactivateScanToken = async () => {
     if (!scanToken) return
     setScanTokenLoading(true)
-    await apiDeactivateScanToken(scanToken)
+    const res = await apiDeactivateScanToken(scanToken)
     setScanTokenLoading(false)
-    setScanToken(null)
-    setScanUrl(null)
-    setScanTokenExpiry(null)
-    if (typeof window !== "undefined") localStorage.removeItem(`mcp_scan_token_${eventId}`)
+    const clearLocalToken = () => {
+      setScanToken(null)
+      setScanUrl(null)
+      setScanTokenExpiry(null)
+      if (typeof window !== "undefined") localStorage.removeItem(`mcp_scan_token_${eventId}`)
+    }
+
+    if (!res?.error) {
+      clearLocalToken()
+      return
+    }
+
+    // Robustness: if transport failed but backend actually processed deactivation,
+    // verify current token status and reconcile local UI state.
+    const verify = await apiVerifyScanToken(scanToken)
+    if (verify?.valid === false && ["inactive", "expired", "not_found"].includes(verify?.reason)) {
+      clearLocalToken()
+      return
+    }
   }
 
   const formatScanExpiry = (d) => {

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { headers } from "next/headers"
 import { getAllEvents } from "@/services/events"
 import { getBaseUrlFromEnv } from "@/lib/seo/base-url"

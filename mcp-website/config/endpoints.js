@@ -81,6 +81,7 @@ export const endpoints = {
       generateScanToken: make("entrance_generate_scan_token"),
       verifyScanToken: make("entrance_verify_scan_token"),
       deactivateScanToken: make("entrance_deactivate_scan_token"),
+      manualEntry: make("entrance_manual_entry"),
     },
     
     

@@ -98,6 +98,9 @@ class EntranceSeed:
     # È registrato come partecipante ma NON ancora scansionato all'inizio
     member_for_double_scan: MemberSeed
 
+    # Membro dedicato ai test di manual_entry — ha biglietto, mai scansionato
+    member_for_manual_entry: MemberSeed
+
 
 # ---------------------------------------------------------------------------
 # Fixture di seed — scope="session", creazione unica prima di tutti i test
@@ -201,6 +204,11 @@ def entrance_seed():
         _add_participant(member_for_double_scan)
         entrance_scans_to_delete.append((event_id, member_for_double_scan.membership_id))
 
+        # Membro per test manual_entry — ha biglietto, mai scansionato all'inizio
+        member_for_manual_entry = _make_membership("Manuale", "Ingresso")
+        _add_participant(member_for_manual_entry)
+        entrance_scans_to_delete.append((event_id, member_for_manual_entry.membership_id))
+
         # Membro senza biglietto (step 6)
         member_no_purchase = _make_membership("Senza", "Biglietto")
 
@@ -217,6 +225,7 @@ def entrance_seed():
             member_no_purchase=member_no_purchase,
             member_invalid_subscription=member_invalid_subscription,
             member_for_double_scan=member_for_double_scan,
+            member_for_manual_entry=member_for_manual_entry,
         )
 
     finally:
