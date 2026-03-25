@@ -3,6 +3,7 @@ from flask import jsonify
 
 from api.validators.entrance import (
     DEACTIVATE_SCAN_TOKEN_SCHEMA,
+    DEACTIVATE_SCAN_TOKEN_SCHEMA,
     GENERATE_SCAN_TOKEN_SCHEMA,
     MANUAL_ENTRY_SCHEMA,
     VALIDATE_ENTRY_SCHEMA,

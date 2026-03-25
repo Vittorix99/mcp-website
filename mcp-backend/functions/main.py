@@ -107,6 +107,7 @@ from api.admin.error_logs_api import admin_error_logs
 
 from api.admin.setting_api import get_settings, set_settings
 from triggers.jobs_trigger import process_send_location_job
+from triggers.new_year_trigger import invalidate_memberships_new_year
 
 # === API Entrance Scanner ===
 from api.entrance import (
@@ -115,6 +116,7 @@ from api.entrance import (
     entrance_deactivate_scan_token,
     entrance_manual_entry,
     entrance_validate,
+    entrance_deactivate_scan_token,
 )
 
 # === API Admin: MailerLite ===

@@ -429,6 +429,7 @@ function showOverlay(data) {
     const msgs = {
       invalid_no_purchase:      'Evento non acquistato',
       invalid_member_not_found: 'Tessera non riconosciuta',
+      invalid_membership:       'Tessera scaduta',
     };
     overlayDetail.textContent = '';
     overlayStatus.textContent = (msgs[result] || result.replace(/_/g, ' ')).toUpperCase();

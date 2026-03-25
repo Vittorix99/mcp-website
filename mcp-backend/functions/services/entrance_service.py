@@ -89,6 +89,15 @@ class EntranceService:
             "scan_url": f"https://musiconnectingpeople.com/scan/{token}",
         }
 
+    def deactivate_scan_token(self, token: str) -> None:
+        """Disattiva un token di scansione impostando is_active=False."""
+        doc_ref = db.collection("scan_tokens").document(token)
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise NotFoundError("Token non trovato")
+        doc_ref.update({"is_active": False})
+        self.logger.info("Scan token disattivato: %s", token)
+
     def verify_scan_token(self, token: str) -> dict:
         """Verify a scan token and return event info if valid."""
         token = (token or "").strip()
@@ -134,7 +143,35 @@ class EntranceService:
 
         event_id = token_data.get("event_id", "")
 
-        # Step 2 — verifica che la membership abbia un acquisto per questo evento.
+        # Step 2 — verifica che la tessera esista e sia attiva (non scaduta/invalidata).
+        # Questo blocca screenshot di QR di anni precedenti: il membership_id non cambia
+        # ma subscription_valid viene azzerato a fine anno per tutte le tessere scadute.
+        membership_doc = db.collection("memberships").document(membership_id).get()
+        if not membership_doc.exists:
+            self.logger.info("validate_entry: membership non trovata — %s", membership_id)
+            return {
+                "result": "invalid_member_not_found",
+                "membership": None,
+                "scanned_at": None,
+            }
+
+        membership_data = membership_doc.to_dict() or {}
+        if not membership_data.get("subscription_valid", False):
+            member_info = {
+                "name": membership_data.get("name", ""),
+                "surname": membership_data.get("surname", ""),
+            }
+            self.logger.info(
+                "validate_entry: tessera non valida (subscription_valid=False) — membership %s",
+                membership_id,
+            )
+            return {
+                "result": "invalid_membership",
+                "membership": member_info,
+                "scanned_at": None,
+            }
+
+        # Step 3 — verifica che la membership abbia un acquisto per questo evento.
         # Usa collection_group per sfruttare l'indice COLLECTION_GROUP già esistente
         # su membershipId, poi filtra lato Python sull'event_id corretto.
         all_participant_docs = (
@@ -152,8 +189,10 @@ class EntranceService:
                 "validate_entry: nessun acquisto trovato — membership %s evento %s",
                 membership_id, event_id,
             )
-            # Try to return member name even if no purchase
-            member_info = self._get_member_info(membership_id)
+            member_info = {
+                "name": membership_data.get("name", ""),
+                "surname": membership_data.get("surname", ""),
+            }
             return {
                 "result": "invalid_no_purchase",
                 "membership": member_info,
@@ -167,7 +206,7 @@ class EntranceService:
         }
         counts = self._build_event_counts(event_id)
 
-        # Step 3 — verifica se già entrato
+        # Step 4 — verifica se già entrato
         scan_ref = (
             db.collection("entrance_scans")
             .document(event_id)
@@ -191,7 +230,7 @@ class EntranceService:
                 "entered_count": counts["entered_count"],
             }
 
-        # Step 4 — scrivi ingresso
+        # Step 5 — scrivi ingresso
         scan_ref.set({
             "scanned_at": firestore.SERVER_TIMESTAMP,
             "scan_token": scan_token,
