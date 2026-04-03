@@ -12,6 +12,8 @@ from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError, ForbiddenError
 from services.events.ticket_service import TicketService
+from services.communications.mail_service import EmailMessage, mail_service
+from utils.templates_mail import get_omaggio_email_template, get_omaggio_email_text
 from utils.events_utils import (
     calculate_end_of_year_membership,
     is_minor,
@@ -136,10 +138,6 @@ class ParticipantsService:
         if not event_model:
             raise NotFoundError("Evento non trovato")
 
-        purchase_mode = event_model.purchase_mode or EventPurchaseAccessType.PUBLIC
-        if purchase_mode == EventPurchaseAccessType.ONLY_MEMBERS and not (membership_id or is_member):
-            raise ForbiddenError("Per eventi riservati ai membri è richiesta la membership attiva")
-
         try:
             payment_enum = PaymentMethod(payment_method)
         except ValueError as exc:
@@ -158,8 +156,10 @@ class ParticipantsService:
             ticket_sent=bool(dto.ticket_sent) if dto.ticket_sent is not None else False,
             location_sent=bool(dto.location_sent) if dto.location_sent is not None else False,
             newsletter_consent=bool(dto.newsletter_consent) if dto.newsletter_consent is not None else False,
+            send_ticket_on_create=bool(dto.send_ticket_on_create) if dto.send_ticket_on_create is not None else False,
             price=price_value,
             purchase_id=purchase_id,
+            riduzione=bool(dto.riduzione) if dto.riduzione is not None else False,
             created_at=firestore.SERVER_TIMESTAMP,
         )
 
@@ -176,7 +176,37 @@ class ParticipantsService:
         if not participant:
             raise NotFoundError("Participant not found")
 
-        update_dto = data if isinstance(data, EventParticipantDTO) else EventParticipantDTO.from_payload(data)
+        manual_membership_override = False
+        manual_membership_id = None
+        update_data = data
+
+        if isinstance(data, dict):
+            manual_membership_override = "membership_id" in data or "membershipId" in data
+            if manual_membership_override:
+                raw_membership_id = data.get("membership_id") if "membership_id" in data else data.get("membershipId")
+                normalized_membership_id = (
+                    raw_membership_id.strip()
+                    if isinstance(raw_membership_id, str)
+                    else raw_membership_id
+                )
+                if normalized_membership_id in (None, ""):
+                    manual_membership_id = None
+                else:
+                    membership = self.membership_repository.get_model(normalized_membership_id)
+                    if not membership:
+                        raise NotFoundError("Membership not found")
+                    manual_membership_id = normalized_membership_id
+
+                update_data = dict(data)
+                update_data.pop("membership_id", None)
+                update_data.pop("membershipId", None)
+                update_data["membership_included"] = bool(manual_membership_id)
+
+        update_dto = (
+            update_data
+            if isinstance(update_data, EventParticipantDTO)
+            else EventParticipantDTO.from_payload(update_data)
+        )
 
         if participant.purchase_id and update_dto.payment_method is not None:
             raise ValidationError("Cannot change payment_method for website purchase")
@@ -184,7 +214,32 @@ class ParticipantsService:
         if participant.purchase_id and update_dto.price is not None:
             raise ValidationError("Modifica del prezzo non permessa: purchase già registrato")
 
+        # Re-check membership when email changes
+        should_update_membership = False
+        new_membership_id = participant.membership_id  # default: keep existing
+        clear_membership = False
+        if not manual_membership_override and update_dto.email:
+            new_email = normalize_email(update_dto.email)
+            old_email = normalize_email(participant.email or "")
+            if new_email != old_email:
+                membership = self._find_membership(new_email, None)
+                should_update_membership = True
+                if membership:
+                    new_membership_id = membership.id
+                else:
+                    new_membership_id = None
+                    clear_membership = True
+
         self.participant_repository.update(event_id, participant_id, update_dto)
+
+        if manual_membership_override:
+            self.participant_repository.set_membership(event_id, participant_id, manual_membership_id)
+        elif should_update_membership:
+            if clear_membership:
+                self.participant_repository.set_membership(event_id, participant_id, None)
+            else:
+                self.participant_repository.set_membership(event_id, participant_id, new_membership_id)
+
         return {"message": "Participant updated"}
 
     def delete(self, event_id, participant_id):
@@ -200,6 +255,58 @@ class ParticipantsService:
         if result.get("success"):
             return {"message": "Ticket inviato con successo"}
         raise ExternalServiceError(result.get("error", "Errore durante l'invio"))
+
+    def send_omaggio_emails(
+        self,
+        event_id: str,
+        entry_time: Optional[str] = None,
+        participant_id: Optional[str] = None,
+        skip_already_sent: bool = True,
+    ) -> dict:
+        event_model = self.event_repository.get_model(event_id)
+        if not event_model:
+            raise NotFoundError("Evento non trovato")
+
+        all_participants = self.participant_repository.list(event_id)
+        omaggi = [p for p in all_participants if (p.payment_method or "").lower() == "omaggio"]
+
+        if participant_id:
+            omaggi = [p for p in omaggi if p.id == participant_id]
+            if not omaggi:
+                raise NotFoundError("Omaggio non trovato")
+
+        sent_count = 0
+        failed_count = 0
+        skipped_count = 0
+
+        for p in omaggi:
+            if skip_already_sent and bool(getattr(p, "omaggio_email_sent", False)):
+                skipped_count += 1
+                continue
+            if not p.email:
+                failed_count += 1
+                continue
+            sent = self._send_omaggio_email(event_model, p, entry_time)
+            if sent:
+                sent_count += 1
+                self.participant_repository.update(
+                    event_id,
+                    p.id,
+                    {
+                        "omaggio_email_sent": True,
+                        "omaggio_email_sent_at": firestore.SERVER_TIMESTAMP,
+                    },
+                )
+            else:
+                failed_count += 1
+
+        return {
+            "sent": sent_count,
+            "failed": failed_count,
+            "skipped": skipped_count,
+            "total": len(omaggi),
+            "mode": "single" if participant_id else "bulk",
+        }
 
     def check_participants(self, event_id: str, participants: list):
         if not event_id or not isinstance(participants, list) or not participants:
@@ -237,3 +344,33 @@ class ParticipantsService:
             raise err
 
         return {"valid": True}
+    def _send_omaggio_email(self, event_model: EventDTO, participant: EventParticipantDTO, entry_time: Optional[str]) -> bool:
+        if not participant.email:
+            return False
+
+        name = f"{participant.name or ''} {participant.surname or ''}".strip() or "Ospite"
+        html_content = get_omaggio_email_template(
+            participant_name=name,
+            event_title=event_model.title or "",
+            event_date=event_model.date or "",
+            event_location=event_model.location or "",
+            entry_time=entry_time,
+        )
+        text_content = get_omaggio_email_text(
+            participant_name=name,
+            event_title=event_model.title or "",
+            event_date=event_model.date or "",
+            event_location=event_model.location or "",
+            entry_time=entry_time,
+        )
+        subject = f"Il tuo invito – {event_model.title}"
+        return mail_service.send(
+            EmailMessage(
+                to_email=participant.email,
+                subject=subject,
+                text_content=text_content,
+                html_content=html_content,
+                attachment=None,
+                category="omaggio",
+            )
+        )

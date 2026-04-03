@@ -25,12 +25,15 @@ class EventParticipantDTO:
     location_sent: Optional[bool] = None
     location_sent_at: Optional[Any] = None
     location_job_id: Optional[str] = None
+    omaggio_email_sent: Optional[bool] = None
+    omaggio_email_sent_at: Optional[Any] = None
     gender: Optional[str] = None
     gender_probability: Optional[float] = None
     newsletter_consent: Optional[bool] = None
     price: Optional[float] = None
     payment_method: Optional[str] = None
     purchase_id: Optional[str] = None
+    riduzione: Optional[bool] = None
     created_at: Optional[Any] = None
 
     @classmethod
@@ -53,12 +56,15 @@ class EventParticipantDTO:
             location_sent=participant.location_sent,
             location_sent_at=participant.location_sent_at,
             location_job_id=participant.location_job_id,
+            omaggio_email_sent=participant.omaggio_email_sent,
+            omaggio_email_sent_at=participant.omaggio_email_sent_at,
             gender=participant.gender,
             gender_probability=participant.gender_probability,
             newsletter_consent=participant.newsletter_consent,
             price=participant.price,
             payment_method=participant.payment_method.value if participant.payment_method else None,
             purchase_id=participant.purchase_id,
+            riduzione=participant.riduzione,
             created_at=participant.created_at,
         )
 
@@ -98,12 +104,15 @@ class EventParticipantDTO:
             location_sent=pick_bool("location_sent"),
             location_sent_at=pick("location_sent_at"),
             location_job_id=pick("location_job_id"),
+            omaggio_email_sent=pick_bool("omaggio_email_sent", "omaggioEmailSent"),
+            omaggio_email_sent_at=pick("omaggio_email_sent_at", "omaggioEmailSentAt"),
             gender=pick("gender"),
             gender_probability=pick("gender_probability"),
             newsletter_consent=pick_bool("newsletterConsent", "newsletter_consent"),
             price=pick("price"),
             payment_method=pick("payment_method"),
             purchase_id=pick("purchase_id"),
+            riduzione=pick_bool("riduzione"),
             created_at=pick("createdAt", "created_at"),
         )
 
@@ -126,12 +135,15 @@ class EventParticipantDTO:
             "location_sent": self.location_sent,
             "location_sent_at": self.location_sent_at,
             "location_job_id": self.location_job_id,
+            "omaggio_email_sent": self.omaggio_email_sent,
+            "omaggio_email_sent_at": self.omaggio_email_sent_at,
             "gender": self.gender,
             "gender_probability": self.gender_probability,
             "newsletterConsent": self.newsletter_consent,
             "price": self.price,
             "payment_method": self.payment_method,
             "purchase_id": self.purchase_id,
+            "riduzione": self.riduzione,
             "createdAt": self.created_at,
         }
         return {k: v for k, v in payload.items() if v is not None}

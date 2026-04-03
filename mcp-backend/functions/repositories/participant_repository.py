@@ -106,6 +106,19 @@ class ParticipantRepository:
         model = EventParticipant.from_firestore(docs[0].to_dict() or {}, docs[0].id)
         return EventParticipantDTO.from_model(model)
 
+    def set_membership(self, event_id: str, participant_id: str, membership_id: Optional[str]) -> None:
+        """Set or clear the membershipId field on a participant document."""
+        if membership_id:
+            self._collection(event_id).document(participant_id).update({
+                "membershipId": membership_id,
+                "membership_included": True,
+            })
+        else:
+            self._collection(event_id).document(participant_id).update({
+                "membershipId": firestore.DELETE_FIELD,
+                "membership_included": False,
+            })
+
     def clear_membership_reference(self, membership_id: str) -> int:
         if not membership_id:
             return 0

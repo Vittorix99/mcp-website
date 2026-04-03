@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,7 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "private_paypal", label: "Private PayPal" },
   { value: "iban", label: "IBAN" },
   { value: "cash", label: "Cash" },
+  { value: "omaggio", label: "Omaggio" },
 ]
 
 export function ParticipantModal({
@@ -22,16 +23,21 @@ export function ParticipantModal({
   form = {},
   isEditMode = false,
   loading: externalLoading = false,
+  membershipOptions = [],
+  currentMembershipYear = new Date().getFullYear().toString(),
+  membershipLoading = false,
   onSubmit,
   onInput,
   onCheckbox,
 }) {
-  const isMember = !!form.membershipId
+  const selectedMembershipId = form.membership_id ?? form.membershipId ?? null
+  const isMember = !!selectedMembershipId
   const isMobile = !useMediaQuery("(min-width: 768px)")
   const defaultMembershipIncluded = !!form.membership_included
   const defaultSendTicket = !!form.send_ticket_on_create
 
   const [internalLoading, setInternalLoading] = useState(false)
+  const [membershipSearch, setMembershipSearch] = useState("")
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -41,6 +47,30 @@ export function ParticipantModal({
   }
 
   const isLoading = internalLoading || externalLoading
+  const filteredMemberships = useMemo(() => {
+    const q = membershipSearch.trim().toLowerCase()
+    const base = Array.isArray(membershipOptions) ? membershipOptions : []
+    const result = q
+      ? base.filter((m) => `${m.name} ${m.surname} ${m.email} ${m.id}`.toLowerCase().includes(q))
+      : base
+    return result.slice(0, 100)
+  }, [membershipOptions, membershipSearch])
+
+  const selectedMembership = useMemo(
+    () => (Array.isArray(membershipOptions) ? membershipOptions.find((m) => m.id === selectedMembershipId) : null) || null,
+    [membershipOptions, selectedMembershipId]
+  )
+
+  const membershipSelectOptions = useMemo(() => {
+    const map = new Map()
+    if (selectedMembership) map.set(selectedMembership.id, selectedMembership)
+    filteredMemberships.forEach((m) => map.set(m.id, m))
+    return Array.from(map.values())
+  }, [selectedMembership, filteredMemberships])
+
+  useEffect(() => {
+    if (!isOpen) setMembershipSearch("")
+  }, [isOpen])
 
   const handleBirthdateChange = (value) => {
     const cleaned = value.replace(/\D/g, "")
@@ -142,6 +172,48 @@ export function ParticipantModal({
         </select>
       </div>
 
+      {isEditMode && (
+        <div className="space-y-2 rounded-lg border border-zinc-700 p-3 bg-zinc-900/40">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">Associazione membership ({currentMembershipYear})</Label>
+            {isMember && (
+              <span className="text-xs text-green-400">
+                {selectedMembership ? `${selectedMembership.name} ${selectedMembership.surname}`.trim() : selectedMembershipId}
+              </span>
+            )}
+          </div>
+          <Input
+            placeholder={`Cerca membro ${currentMembershipYear}...`}
+            value={membershipSearch}
+            onChange={(e) => setMembershipSearch(e.target.value)}
+            disabled={membershipLoading}
+          />
+          <select
+            value={selectedMembershipId || ""}
+            onChange={(e) => onInput({ target: { name: "membership_id", value: e.target.value || null } })}
+            className="w-full mt-1 rounded border border-zinc-700 bg-zinc-800 p-2 text-white"
+            disabled={membershipLoading || !membershipSelectOptions.length}
+          >
+            <option value="">Nessuna membership</option>
+            {membershipSelectOptions.map((m) => (
+              <option key={m.id} value={m.id}>
+                {`${m.surname || ""} ${m.name || ""}`.trim() || m.id} {m.email ? `· ${m.email}` : ""}
+              </option>
+            ))}
+          </select>
+          {isMember && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onInput({ target: { name: "membership_id", value: null } })}
+              className="w-full"
+            >
+              Rimuovi associazione membership
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-4 pt-2">
   {!isEditMode && (
     <>
@@ -174,6 +246,15 @@ export function ParticipantModal({
       </div>
     </>
   )}
+  <div className="flex items-center gap-2">
+    <Checkbox
+      id="riduzione"
+      name="riduzione"
+      checked={!!form.riduzione}
+      onCheckedChange={(val) => onCheckbox("riduzione", val)}
+    />
+    <Label htmlFor="riduzione">Riduzione (ha pagato meno)</Label>
+  </div>
   {isMember && (
     <div className="text-sm text-green-400 border border-green-600 bg-green-950 px-3 py-1 rounded">
       Già tesserato

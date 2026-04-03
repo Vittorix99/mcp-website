@@ -25,6 +25,8 @@ class EventParticipant(FirestoreModel):
     location_sent: bool = False
     location_sent_at: Optional[Any] = None
     location_job_id: Optional[str] = None
+    omaggio_email_sent: bool = field(default=False, metadata={"firestore_name": "omaggio_email_sent"})
+    omaggio_email_sent_at: Optional[Any] = field(default=None, metadata={"firestore_name": "omaggio_email_sent_at"})
     gender: Optional[str] = None
     gender_probability: Optional[float] = None
     newsletter_consent: bool = field(default=False, metadata={"firestore_name": "newsletterConsent"})
@@ -34,4 +36,5 @@ class EventParticipant(FirestoreModel):
         metadata={"firestore_name": "payment_method", "enum": PaymentMethod},
     )
     purchase_id: Optional[str] = field(default=None, metadata={"firestore_name": "purchase_id"})
+    riduzione: bool = field(default=False, metadata={"firestore_name": "riduzione"})
     created_at: Optional[Any] = field(default=None, metadata={"firestore_name": "createdAt"})

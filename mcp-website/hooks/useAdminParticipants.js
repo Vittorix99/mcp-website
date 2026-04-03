@@ -10,7 +10,8 @@ import {
   deleteParticipant as deleteParticipantService,
   sendLocationToParticipant,
   sendTicketToParticipant,
-  startSendLocationJobService
+  startSendLocationJobService,
+  sendOmaggioEmailsService,
 } from "@/services/admin/participants"; // Assicurati di esportare queste funzioni
 import { db } from "@/config/firebase"; 
 import { doc, onSnapshot } from "firebase/firestore";
@@ -205,6 +206,20 @@ const sendTicket = useCallback(async (participantId) => {
   }
 }, [eventId, loadAll, setError]);
 
+const sendOmaggioEmails = useCallback(async (entryTime, options = {}) => {
+  setLoading(true);
+  try {
+    const res = await sendOmaggioEmailsService(eventId, entryTime, options);
+    if (res?.error) setError(res.error);
+    else await loadAll();
+    return res;
+  } catch (e) {
+    setError("Errore invio email omaggi.");
+  } finally {
+    setLoading(false);
+  }
+}, [eventId, setError, loadAll]);
+
   useEffect(() => { 
     loadAll() 
   }, [loadAll]);
@@ -227,6 +242,7 @@ const sendTicket = useCallback(async (participantId) => {
     sendLocation,
     sendLocationToAll,
     sendTicket,
+    sendOmaggioEmails,
     jobId,
     jobStatus,
     jobPercent,

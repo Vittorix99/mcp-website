@@ -58,3 +58,16 @@ export async function sendTicketToParticipant(participantId, eventId) {
     eventId
   });
 }
+
+export async function sendOmaggioEmailsService(eventId, entryTime, options = {}) {
+  if (!eventId) {
+    throw new Error("eventId mancante per invio email omaggi");
+  }
+  const { participantId = null, skipAlreadySent = true } = options || {}
+  return safeFetch(endpoints.admin.sendOmaggioEmails, 'POST', {
+    eventId,
+    entryTime,
+    participantId,
+    skipAlreadySent,
+  });
+}

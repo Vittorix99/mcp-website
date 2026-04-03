@@ -33,6 +33,7 @@ class _DummyMembershipRepo:
     def __init__(self):
         self.by_email = {}
         self.by_phone = {}
+        self.by_id = {}
         self.updated = []
         self.created = []
         self.attended = []
@@ -54,16 +55,21 @@ class _DummyMembershipRepo:
         self.attended.append((membership_id, event_id))
         return True
 
+    def get_model(self, membership_id):
+        return self.by_id.get(membership_id)
+
 
 class _DummyParticipantRepo:
     def __init__(self):
         self.created = []
         self.updated = []
+        self.membership_updates = []
         self.deleted = []
         self._participant = None
+        self.list_items = []
 
     def list(self, event_id):
-        return []
+        return list(self.list_items)
 
     def get(self, event_id, participant_id):
         return self._participant
@@ -78,6 +84,9 @@ class _DummyParticipantRepo:
 
     def delete(self, event_id, participant_id):
         self.deleted.append((event_id, participant_id))
+
+    def set_membership(self, event_id, participant_id, membership_id):
+        self.membership_updates.append((event_id, participant_id, membership_id))
 
 
 class _DummyTicketService:
@@ -194,8 +203,8 @@ def test_create_event_not_found():
         service.create(payload)
 
 
-def test_create_requires_active_membership_for_members_only_events():
-    """Rejects non-members for members-only events."""
+def test_create_allows_manual_non_member_for_members_only_events():
+    """Admin manual create accepts non-members even for members-only events."""
     service = _make_service()
     service.event_repository = _DummyEventRepo(
         model=Event(
@@ -205,8 +214,22 @@ def test_create_requires_active_membership_for_members_only_events():
         )
     )
     payload = _participant_payload(membership_included=False)
-    with pytest.raises(ForbiddenError):
-        service.create(payload)
+    result = service.create(payload)
+    assert result["id"] == "part-1"
+    assert service.participant_repository.created
+
+
+def test_create_persists_riduzione_flag():
+    """Persists riduzione flag when participant is created manually."""
+    service = _make_service()
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
+    payload = _participant_payload(riduzione=True)
+
+    result = service.create(payload)
+
+    assert result["id"] == "part-1"
+    _, created_participant = service.participant_repository.created[0]
+    assert created_participant.riduzione is True
 
 
 def test_update_rejects_payment_method_change_for_purchase():
@@ -235,6 +258,43 @@ def test_update_happy_path():
     result = service.update("evt-1", "part-1", {"name": "Luigi"})
     assert result["message"]
     assert service.participant_repository.updated
+
+
+def test_update_allows_manual_membership_assignment():
+    """Assigns membership explicitly when membership_id is provided."""
+    service = _make_service()
+    participant = EventParticipantDTO(event_id="evt-1")
+    service.participant_repository._participant = participant
+    service.membership_repository.by_id["mem-42"] = Membership(name="Mario")
+
+    result = service.update("evt-1", "part-1", {"membership_id": "mem-42"})
+
+    assert result["message"]
+    assert service.participant_repository.updated
+    assert service.participant_repository.membership_updates == [("evt-1", "part-1", "mem-42")]
+
+
+def test_update_allows_manual_membership_clear():
+    """Clears membership explicitly when membership_id is null."""
+    service = _make_service()
+    participant = EventParticipantDTO(event_id="evt-1", membership_id="mem-old")
+    service.participant_repository._participant = participant
+
+    result = service.update("evt-1", "part-1", {"membership_id": None})
+
+    assert result["message"]
+    assert service.participant_repository.updated
+    assert service.participant_repository.membership_updates == [("evt-1", "part-1", None)]
+
+
+def test_update_rejects_unknown_manual_membership():
+    """Rejects manual assignment when membership does not exist."""
+    service = _make_service()
+    participant = EventParticipantDTO(event_id="evt-1")
+    service.participant_repository._participant = participant
+
+    with pytest.raises(NotFoundError):
+        service.update("evt-1", "part-1", {"membership_id": "mem-missing"})
 
 
 def test_delete_happy_path():
@@ -268,6 +328,47 @@ def test_send_ticket_happy_path():
     service.participant_repository._participant = EventParticipantDTO(event_id="evt-1")
     result = service.send_ticket("evt-1", "part-1")
     assert "Ticket inviato" in result["message"]
+
+
+def test_send_omaggio_emails_skips_already_sent(monkeypatch):
+    """Bulk omaggio send skips recipients already marked as sent."""
+    service = _make_service()
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", location="Roma"))
+    service.participant_repository.list_items = [
+        EventParticipantDTO(id="p1", name="A", surname="One", email="a@test.com", payment_method="omaggio", omaggio_email_sent=False),
+        EventParticipantDTO(id="p2", name="B", surname="Two", email="b@test.com", payment_method="omaggio", omaggio_email_sent=True),
+    ]
+
+    monkeypatch.setattr("services.events.participants_service.mail_service.send", lambda *_args, **_kwargs: True)
+
+    result = service.send_omaggio_emails("evt-1", "22:00", skip_already_sent=True)
+
+    assert result["sent"] == 1
+    assert result["skipped"] == 1
+    assert result["failed"] == 0
+    assert len(service.participant_repository.updated) == 1
+    event_id, participant_id, payload = service.participant_repository.updated[0]
+    assert event_id == "evt-1"
+    assert participant_id == "p1"
+    assert payload["omaggio_email_sent"] is True
+
+
+def test_send_omaggio_email_single_allows_resend(monkeypatch):
+    """Single send can resend even when already marked as sent."""
+    service = _make_service()
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", location="Roma"))
+    service.participant_repository.list_items = [
+        EventParticipantDTO(id="p2", name="B", surname="Two", email="b@test.com", payment_method="omaggio", omaggio_email_sent=True),
+    ]
+
+    monkeypatch.setattr("services.events.participants_service.mail_service.send", lambda *_args, **_kwargs: True)
+
+    result = service.send_omaggio_emails("evt-1", "22:00", participant_id="p2", skip_already_sent=False)
+
+    assert result["mode"] == "single"
+    assert result["sent"] == 1
+    assert result["skipped"] == 0
+    assert len(service.participant_repository.updated) == 1
 
 
 def test_check_participants_requires_inputs():

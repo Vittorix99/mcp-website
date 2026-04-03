@@ -10,6 +10,7 @@ from .location import build_location_email_payload
 from .membership import get_membership_email_template, get_membership_email_text
 from .newsletter import get_newsletter_signup_template, get_newsletter_signup_text
 from .ticket import get_ticket_email_template, get_ticket_email_text
+from .omaggio import get_omaggio_email_template, get_omaggio_email_text
 
 __all__ = [
     "build_location_email_payload",
@@ -23,4 +24,6 @@ __all__ = [
     "get_welcome_email_text",
     "get_membership_email_template",
     "get_membership_email_text",
+    "get_omaggio_email_template",
+    "get_omaggio_email_text",
 ]

@@ -67,8 +67,39 @@ import { LocationModal } from "@/components/admin/events/LocationModal"
 import { EventStats } from "@/components/admin/events/EventStats"
 import { exportParticipantsToExcel } from "@/lib/excel" // ✅ NUOVO IMPORT
 import { resolvePurchaseMode } from "@/config/events-utils"
-import { getMembershipPrice } from "@/services/admin/memberships"
+import { getMembershipPrice, getMemberships } from "@/services/admin/memberships"
 import { generateScanToken as apiGenerateScanToken, verifyScanToken as apiVerifyScanToken, deactivateScanToken as apiDeactivateScanToken, manualEntry as apiManualEntry } from "@/services/admin/entrance"
+
+function parseMembershipDate(value) {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+
+  if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+    const [day, month, year] = raw.split("-").map(Number)
+    const parsed = new Date(year, month - 1, day)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
+  const parsed = new Date(raw)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function getMembershipYear(membership) {
+  const startDate = parseMembershipDate(membership?.start_date)
+  if (startDate) {
+    return startDate.getFullYear().toString()
+  }
+
+  const endDate = parseMembershipDate(membership?.end_date)
+  if (endDate) {
+    const isFirstDayOfYear = endDate.getDate() === 1 && endDate.getMonth() === 0
+    const year = isFirstDayOfYear ? endDate.getFullYear() - 1 : endDate.getFullYear()
+    return year.toString()
+  }
+
+  return null
+}
 
 function QuickAddDialog({ open, onOpenChange, onSubmit }) {
   const [form, setForm] = useState({ name: "", surname: "", email: "", birthdate: "" })
@@ -127,6 +158,7 @@ export default function EventContent({ id: eventId }) {
     sendLocation,
     sendLocationToAll,
     sendTicket,
+    sendOmaggioEmails,
     jobId,
     jobStatus,
     jobPercent,
@@ -142,6 +174,16 @@ export default function EventContent({ id: eventId }) {
   const [genderFilter, setGenderFilter] = useState("all") // all | male | female | nd
   const [locationFilter, setLocationFilter] = useState("all") // all | yes | no
   const [memberFilter, setMemberFilter] = useState("all") // all | yes | no
+  const [paymentFilter, setPaymentFilter] = useState("all") // all | cash | iban | private_paypal | website
+  const [riduzioneFilter, setRiduzioneFilter] = useState("all") // all | yes | no
+
+  // Omaggio state
+  const [omaggioSearch, setOmaggioSearch] = useState("")
+  const [omaggioEntryTime, setOmaggioEntryTime] = useState("")
+  const [omaggioSending, setOmaggioSending] = useState(false)
+  const [omaggioRowSendingId, setOmaggioRowSendingId] = useState(null)
+  const [omaggioResult, setOmaggioResult] = useState(null)
+  const [omaggioPage, setOmaggioPage] = useState(1)
 
   const [isParticipantModalOpen, setParticipantModalOpen] = useState(false)
   const [participantForm, setParticipantForm] = useState({})
@@ -172,6 +214,9 @@ export default function EventContent({ id: eventId }) {
   const [scanTokenExpiry, setScanTokenExpiry] = useState(null)
   const [scanTokenLoading, setScanTokenLoading] = useState(false)
   const [scanCopied, setScanCopied] = useState(false)
+  const currentMembershipYear = useMemo(() => new Date().getFullYear().toString(), [])
+  const [currentYearMemberships, setCurrentYearMemberships] = useState([])
+  const [membershipsLoading, setMembershipsLoading] = useState(false)
 
   useEffect(() => {
     loadAll()
@@ -187,6 +232,8 @@ export default function EventContent({ id: eventId }) {
       if (stored.genderFilter) setGenderFilter(stored.genderFilter)
       if (stored.locationFilter) setLocationFilter(stored.locationFilter)
       if (stored.memberFilter) setMemberFilter(stored.memberFilter)
+      if (stored.paymentFilter) setPaymentFilter(stored.paymentFilter)
+      if (stored.riduzioneFilter) setRiduzioneFilter(stored.riduzioneFilter)
       if (stored.pageSize) setPageSize(stored.pageSize)
     } catch {}
     filtersLoadedRef.current = true
@@ -199,10 +246,12 @@ export default function EventContent({ id: eventId }) {
       genderFilter,
       locationFilter,
       memberFilter,
+      paymentFilter,
+      riduzioneFilter,
       pageSize,
     }
     window.localStorage.setItem(filtersKey, JSON.stringify(payload))
-  }, [eventId, filtersKey, search, genderFilter, locationFilter, memberFilter, pageSize])
+  }, [eventId, filtersKey, search, genderFilter, locationFilter, memberFilter, paymentFilter, riduzioneFilter, pageSize])
 
   useEffect(() => {
     let isMounted = true
@@ -216,6 +265,39 @@ export default function EventContent({ id: eventId }) {
       isMounted = false
     }
   }, [])
+
+  const loadCurrentYearMemberships = useCallback(async () => {
+    setMembershipsLoading(true)
+    try {
+      const res = await getMemberships()
+      if (!Array.isArray(res) || res?.error) {
+        setCurrentYearMemberships([])
+        return
+      }
+
+      const filtered = res
+        .filter((m) => getMembershipYear(m) === currentMembershipYear)
+        .map((m) => ({
+          id: m.id,
+          name: m.name || "",
+          surname: m.surname || "",
+          email: m.email || "",
+        }))
+        .sort((a, b) =>
+          `${a.surname} ${a.name}`.toLowerCase().localeCompare(`${b.surname} ${b.name}`.toLowerCase())
+        )
+
+      setCurrentYearMemberships(filtered)
+    } catch {
+      setCurrentYearMemberships([])
+    } finally {
+      setMembershipsLoading(false)
+    }
+  }, [currentMembershipYear])
+
+  useEffect(() => {
+    loadCurrentYearMemberships()
+  }, [loadCurrentYearMemberships])
 
   const targetEvent = useMemo(() => events.find((e) => e.id === eventId) || null, [events, eventId])
 
@@ -247,7 +329,11 @@ export default function EventContent({ id: eventId }) {
   // reset page when filters/search change or dataset changes
   useEffect(() => {
     setPage(1)
-  }, [search, genderFilter, locationFilter, memberFilter, participants.length])
+  }, [search, genderFilter, locationFilter, memberFilter, paymentFilter, riduzioneFilter, participants.length])
+
+  useEffect(() => {
+    setOmaggioPage(1)
+  }, [omaggioSearch, participants.length])
 
   const visibleCols = [
     { key: "name", label: "Nome e Cognome" },
@@ -263,9 +349,19 @@ export default function EventContent({ id: eventId }) {
     { key: "purchase_id", label: "Acquisto" },
   ]
 
+  // Separate omaggi from regular participants
+  const omaggioParticipants = useMemo(
+    () => participants.filter((p) => (p.payment_method || p.paymentMethod || "").toLowerCase() === "omaggio"),
+    [participants]
+  )
+  const regularParticipants = useMemo(
+    () => participants.filter((p) => (p.payment_method || p.paymentMethod || "").toLowerCase() !== "omaggio"),
+    [participants]
+  )
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return participants.filter((p) => {
+    return regularParticipants.filter((p) => {
       // search by name+surname
       const matchSearch = `${p.name} ${p.surname}`.toLowerCase().includes(q)
 
@@ -282,13 +378,35 @@ export default function EventContent({ id: eventId }) {
       const isMember = !!p.membershipId
       const matchMember = memberFilter === "all" || (memberFilter === "yes" ? isMember : !isMember)
 
-      return matchSearch && matchGender && matchLocation && matchMember
+      // payment method filter
+      const pm = (p.payment_method || p.paymentMethod || "").toLowerCase()
+      const matchPayment = paymentFilter === "all" || pm === paymentFilter
+
+      // riduzione filter
+      const isRiduzione = !!p.riduzione
+      const matchRiduzione = riduzioneFilter === "all" || (riduzioneFilter === "yes" ? isRiduzione : !isRiduzione)
+
+      return matchSearch && matchGender && matchLocation && matchMember && matchPayment && matchRiduzione
     })
-  }, [participants, search, genderFilter, locationFilter, memberFilter])
+  }, [regularParticipants, search, genderFilter, locationFilter, memberFilter, paymentFilter, riduzioneFilter])
+
+  const filteredOmaggi = useMemo(() => {
+    const q = omaggioSearch.toLowerCase()
+    return omaggioParticipants.filter((p) =>
+      `${p.name} ${p.surname}`.toLowerCase().includes(q)
+    )
+  }, [omaggioParticipants, omaggioSearch])
+
+  const omaggioUnsentCount = useMemo(
+    () => omaggioParticipants.filter((p) => !p.omaggio_email_sent).length,
+    [omaggioParticipants]
+  )
 
   const filteredCount = filtered.length
 
   const sorted = useMemo(() => [...filtered].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), [filtered])
+
+  const sortedOmaggi = useMemo(() => [...filteredOmaggi].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), [filteredOmaggi])
 
   const stats = useMemo(
     () => ({
@@ -298,13 +416,22 @@ export default function EventContent({ id: eventId }) {
     [participants],
   )
 
-  // Derived pagination
+  // Derived pagination (regular)
   const totalItems = sorted.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
   const clampedPage = Math.min(page, totalPages)
   const startIndex = (clampedPage - 1) * pageSize
   const endIndex = Math.min(startIndex + pageSize, totalItems)
   const pageRows = sorted.slice(startIndex, endIndex)
+
+  // Omaggio pagination
+  const omaggioPageSize = 25
+  const omaggioTotalItems = sortedOmaggi.length
+  const omaggioTotalPages = Math.max(1, Math.ceil(omaggioTotalItems / omaggioPageSize))
+  const omaggioClampedPage = Math.min(omaggioPage, omaggioTotalPages)
+  const omaggioStartIndex = (omaggioClampedPage - 1) * omaggioPageSize
+  const omaggioEndIndex = Math.min(omaggioStartIndex + omaggioPageSize, omaggioTotalItems)
+  const omaggioPageRows = sortedOmaggi.slice(omaggioStartIndex, omaggioEndIndex)
 
   // Checkin computed data
   const checkinCounters = useMemo(() => {
@@ -451,40 +578,71 @@ export default function EventContent({ id: eventId }) {
     exportParticipantsToExcel(sorted, event?.title, eventId)
   }
 
-  const exportToTxt = () => {
-    if (!participants.length) return
+  const exportOmaggioToExcel = () => {
+    exportParticipantsToExcel(sortedOmaggi, event?.title ? `${event.title} - Omaggi` : "Omaggi", eventId)
+  }
 
-    const alphabetical = [...participants].sort((a, b) => {
+  const downloadTxt = (list, filename) => {
+    if (!list.length) return
+    const alphabetical = [...list].sort((a, b) => {
       const aKey = `${(a.surname || "").toLowerCase()} ${(a.name || "").toLowerCase()}`
       const bKey = `${(b.surname || "").toLowerCase()} ${(b.name || "").toLowerCase()}`
       return aKey.localeCompare(bKey)
     })
-
-    const lines = alphabetical.map((p) => {
-      const priceNum = Number(p.price)
-      const isFree = !Number.isNaN(priceNum) && priceNum === 0
-      const displayName = `${p.name || ""} ${p.surname || ""}`.trim() || `Partecipante`
-      return `${displayName}${isFree ? " - OMAGGIO" : ""}`
-    })
-
-    const content = lines.join("\n")
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" })
+    const lines = alphabetical.map((p) => `${p.name || ""} ${p.surname || ""}`.trim() || "Partecipante")
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" })
     const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    const safeTitle = event?.title ? event.title.replace(/\s+/g, "_").toLowerCase() : "evento"
-    link.download = `partecipanti_${safeTitle}_${eventId}.txt`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  const safeEventTitle = event?.title ? event.title.replace(/\s+/g, "_").toLowerCase() : "evento"
+
+  const exportToTxt = () => {
+    downloadTxt(regularParticipants, `partecipanti_${safeEventTitle}_${eventId}.txt`)
+  }
+
+  const exportOmaggioTxt = () => {
+    downloadTxt(omaggioParticipants, `omaggi_${safeEventTitle}_${eventId}.txt`)
+  }
+
+  const exportRiduzioneTxt = () => {
+    const riduzione = regularParticipants.filter((p) => !!p.riduzione)
+    downloadTxt(riduzione, `riduzione_${safeEventTitle}_${eventId}.txt`)
+  }
+
+  const handleSendOmaggioEmails = async () => {
+    setOmaggioSending(true)
+    setOmaggioResult(null)
+    const res = await sendOmaggioEmails(omaggioEntryTime || null, { skipAlreadySent: true })
+    setOmaggioResult(res || null)
+    setOmaggioSending(false)
+  }
+
+  const handleSendSingleOmaggioEmail = async (participantId) => {
+    if (!participantId) return
+    setOmaggioRowSendingId(participantId)
+    setOmaggioResult(null)
+    const res = await sendOmaggioEmails(omaggioEntryTime || null, {
+      participantId,
+      skipAlreadySent: false,
+    })
+    setOmaggioResult(res || null)
+    setOmaggioRowSendingId(null)
   }
 
   const openParticipantModal = (p = null) => {
     if (p) {
+      const membershipId = p.membership_id ?? p.membershipId ?? null
       setEditMode(true)
-      setParticipantForm({ ...p })
-      setInitialForm({ ...p })
+      const normalized = { ...p, membership_id: membershipId, membershipId }
+      setParticipantForm(normalized)
+      setInitialForm(normalized)
     } else {
       setEditMode(false)
       setParticipantForm({
@@ -497,10 +655,31 @@ export default function EventContent({ id: eventId }) {
         price: "",
         payment_method: "cash",
         membership_included: false,
+        membership_id: null,
         send_ticket_on_create: false,
       })
       setInitialForm(null)
     }
+    setParticipantModalOpen(true)
+  }
+
+  const openOmaggioModal = () => {
+    setEditMode(false)
+    setParticipantForm({
+      name: "",
+      surname: "",
+      email: "musiconnectingpeople.to@gmail.com",
+      phone: "",
+      birthdate: "01-01-2000",
+      gender: "",
+      price: 0,
+      payment_method: "omaggio",
+      membership_included: false,
+      membership_id: null,
+      send_ticket_on_create: false,
+      riduzione: false,
+    })
+    setInitialForm(null)
     setParticipantModalOpen(true)
   }
 
@@ -695,6 +874,7 @@ export default function EventContent({ id: eventId }) {
           <Tabs defaultValue="partecipanti">
             <TabsList>
               <TabsTrigger value="partecipanti">Partecipanti</TabsTrigger>
+              <TabsTrigger value="omaggi">Omaggi</TabsTrigger>
               <TabsTrigger value="statistiche">Statistiche</TabsTrigger>
               <TabsTrigger value="ingresso">In the event</TabsTrigger>
             </TabsList>
@@ -703,264 +883,334 @@ export default function EventContent({ id: eventId }) {
               <EventStats participants={participants} onRefresh={loadAll} />
             </TabsContent>
 
-            <TabsContent value="partecipanti">
-          {/* Participants */}
-          <Card>
-            <CardHeader className="gap-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Partecipanti ({filteredCount} / {stats.total})</CardTitle>
-                  <CardDescription>Lista & azioni</CardDescription>
-                </div>
-              </div>
-              {/* Search — full width */}
-              <input
-                className="px-3 py-2 bg-gray-800 border border-gray-700 rounded w-full"
-                placeholder="Cerca partecipante..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              {/* Filters — 3 cols on mobile, inline on desktop */}
-              <div className="grid grid-cols-3 sm:flex gap-2">
-                <select
-                  className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm"
-                  value={genderFilter}
-                  onChange={(e) => setGenderFilter(e.target.value)}
-                  aria-label="Filtra per genere"
-                >
-                  <option value="all">Genere: tutti</option>
-                  <option value="male">Maschio</option>
-                  <option value="female">Femmina</option>
-                  <option value="nd">N/D</option>
-                </select>
-                <select
-                  className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm"
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  aria-label="Filtra per location inviata"
-                >
-                  <option value="all">Location: tutte</option>
-                  <option value="yes">Inviata</option>
-                  <option value="no">Non inviata</option>
-                </select>
-                <select
-                  className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm"
-                  value={memberFilter}
-                  onChange={(e) => setMemberFilter(e.target.value)}
-                  aria-label="Filtra per membro"
-                >
-                  <option value="all">Membro: tutti</option>
-                  <option value="yes">Sì</option>
-                  <option value="no">No</option>
-                </select>
-              </div>
-              {/* Actions — 2 cols on mobile, inline on desktop */}
-              <div className="grid grid-cols-2 sm:flex gap-2">
-                <Button onClick={() => openParticipantModal()}>
-                  <Plus className="mr-2 h-4 w-4" /> Aggiungi
-                </Button>
-                <Button onClick={() => openLocationModalForAll("tutti")}>
-                  <Send className="mr-2 h-4 w-4" /> Location
-                </Button>
-                <Button onClick={exportToExcel} disabled={!sorted.length}>
-                  <Download className="mr-2 h-4 w-4" /> Esporta
-                </Button>
-                <Button onClick={exportToTxt} disabled={!participants.length}>
-                  <FileText className="mr-2 h-4 w-4" /> TXT
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {pLoad && !isJobActive ? (
-                <Table>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={visibleCols.length + 2} className="py-12 text-center">
-                        <Loader2 className="animate-spin h-8 w-8 mx-auto" />
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                      <TableHead className="text-center">Modifica</TableHead>
-                      {visibleCols.map((c) => (
-                        <TableHead key={c.key}>{c.label}</TableHead>
-                      ))}
-                      <TableHead className="text-center">Azioni</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                        {pageRows.map((p) => (
-                          <TableRow key={p.id}>
-                            <TableCell className="text-center">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => openParticipantModal(p)}>
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Modifica</TooltipContent>
-                              </Tooltip>
-                            </TableCell>
-
-                            <TableCell>
-                              {p.name} {p.surname}
-                            </TableCell>
-                            <TableCell>{p.birthdate || "-"}</TableCell>
-                            <TableCell>
-                              {p.gender === "male" ? (
-                                <Badge variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-600">
-                                  Maschio
-                                </Badge>
-                              ) : p.gender === "female" ? (
-                                <Badge variant="outline" className="bg-pink-900/20 text-pink-300 border-pink-600">
-                                  Femmina
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="bg-gray-700 text-gray-300">
-                                  N/A
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>{p.price ?? "-"}</TableCell>
-                            <TableCell>{p.createdAt || "-"}</TableCell>
-                            <TableCell>{p.payment_method || p.paymentMethod || "-"}</TableCell>
-                            {/* Badge Membro cliccabile */}
-                            <TableCell className="text-center">
-                              {p.membershipId ? (
-                                <Button
-                                  variant="link"
-                                  onClick={() => router.push(routes.admin.membershipDetails(p.membershipId))}                                >
-                                  <Badge variant="success" className="p-2">
-                                    Membro
-                                  </Badge>
-                                </Button>
-                              ) : (
-                                <Badge variant="secondary" className="p-2">
-                                  No
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant={p.location_sent ? "success" : "secondary"}>
-                                {p.location_sent ? "Inviata" : "No"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant={p.ticket_sent ? "success" : "secondary"}>
-                                {p.ticket_sent ? "Inviato" : "No"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button
-                                variant="link"
-                                size="icon"
-                                onClick={() => p.ticket_pdf_url && downloadStorageFile(p.ticket_pdf_url)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                            {/* Colonna Acquisto */}
-                            <TableCell className="text-center">
-                              {p.purchase_id ? (
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  router.push(routes.admin.purchasesDetails(p.purchase_id));
-                                }}
-                              >
-                                Vai
-                              </Button>
-                              ) : (
-                                "-"
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right space-x-1 whitespace-nowrap">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setParticipantForm(p)
-                                      openLocationModalForOne(p)
-                                    }}
-                                  >
-                                    <MapPin className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Invia Location</TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => sendTicket(p.id)}>
-                                    <Ticket className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Invia Biglietto</TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="destructive" size="icon" onClick={() => remove(p.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Elimina</TooltipContent>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {pageRows.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={visibleCols.length + 2} className="text-center py-12">
-                              Nessun partecipante.
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+            <TabsContent value="partecipanti" className="space-y-6">
+              {/* ── Partecipanti (non-omaggio) ── */}
+              <Card>
+                <CardHeader className="gap-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Partecipanti ({filteredCount} / {regularParticipants.length})</CardTitle>
+                      <CardDescription>Lista & azioni — esclusi gli omaggi</CardDescription>
+                    </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 px-2">
-                    <div className="text-sm text-gray-400">
-                      Mostrando <span className="text-white">{totalItems ? startIndex + 1 : 0}</span>–<span className="text-white">{endIndex}</span> di <span className="text-white">{totalItems}</span>
-                    </div>
+                  <input
+                    className="px-3 py-2 bg-gray-800 border border-gray-700 rounded w-full"
+                    placeholder="Cerca partecipante..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  {/* Filters */}
+                  <div className="grid grid-cols-3 sm:flex gap-2 flex-wrap">
+                    <select className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm" value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)} aria-label="Filtra per genere">
+                      <option value="all">Genere: tutti</option>
+                      <option value="male">Maschio</option>
+                      <option value="female">Femmina</option>
+                      <option value="nd">N/D</option>
+                    </select>
+                    <select className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} aria-label="Filtra per location">
+                      <option value="all">Location: tutte</option>
+                      <option value="yes">Inviata</option>
+                      <option value="no">Non inviata</option>
+                    </select>
+                    <select className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm" value={memberFilter} onChange={(e) => setMemberFilter(e.target.value)} aria-label="Filtra per membro">
+                      <option value="all">Membro: tutti</option>
+                      <option value="yes">Sì</option>
+                      <option value="no">No</option>
+                    </select>
+                    <select className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm" value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} aria-label="Filtra per pagamento">
+                      <option value="all">Pagamento: tutti</option>
+                      <option value="cash">Cash</option>
+                      <option value="iban">IBAN</option>
+                      <option value="private_paypal">PayPal privato</option>
+                      <option value="website">Website</option>
+                    </select>
+                    <select className="px-2 py-2 bg-gray-800 border border-gray-700 rounded text-sm" value={riduzioneFilter} onChange={(e) => setRiduzioneFilter(e.target.value)} aria-label="Filtra per riduzione">
+                      <option value="all">Riduzione: tutti</option>
+                      <option value="yes">Con riduzione</option>
+                      <option value="no">Senza riduzione</option>
+                    </select>
+                  </div>
+                  {/* Actions */}
+                  <div className="grid grid-cols-2 sm:flex gap-2 flex-wrap">
+                    <Button onClick={() => openParticipantModal()}><Plus className="mr-2 h-4 w-4" /> Aggiungi</Button>
+                    <Button onClick={() => openLocationModalForAll("tutti")}><Send className="mr-2 h-4 w-4" /> Location</Button>
+                    <Button onClick={exportToExcel} disabled={!sorted.length}><Download className="mr-2 h-4 w-4" /> Esporta</Button>
+                    <Button onClick={exportToTxt} disabled={!regularParticipants.length}><FileText className="mr-2 h-4 w-4" /> TXT</Button>
+                    <Button variant="outline" onClick={exportRiduzioneTxt} disabled={!regularParticipants.filter(p => !!p.riduzione).length}>
+                      <FileText className="mr-2 h-4 w-4" /> TXT Riduzione
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {pLoad && !isJobActive ? (
+                    <Table><TableBody><TableRow><TableCell colSpan={visibleCols.length + 3} className="py-12 text-center"><Loader2 className="animate-spin h-8 w-8 mx-auto" /></TableCell></TableRow></TableBody></Table>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-center">Modifica</TableHead>
+                              {visibleCols.map((c) => <TableHead key={c.key}>{c.label}</TableHead>)}
+                              <TableHead>Riduzione</TableHead>
+                              <TableHead className="text-center">Azioni</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {pageRows.map((p) => (
+                              <TableRow key={p.id}>
+                                <TableCell className="text-center">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" onClick={() => openParticipantModal(p)}><Eye className="h-4 w-4" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Modifica</TooltipContent>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>{p.name} {p.surname}</TableCell>
+                                <TableCell>{p.birthdate || "-"}</TableCell>
+                                <TableCell>
+                                  {p.gender === "male" ? <Badge variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-600">Maschio</Badge>
+                                    : p.gender === "female" ? <Badge variant="outline" className="bg-pink-900/20 text-pink-300 border-pink-600">Femmina</Badge>
+                                    : <Badge variant="secondary" className="bg-gray-700 text-gray-300">N/A</Badge>}
+                                </TableCell>
+                                <TableCell>{p.price ?? "-"}</TableCell>
+                                <TableCell>{p.createdAt || "-"}</TableCell>
+                                <TableCell>{p.payment_method || p.paymentMethod || "-"}</TableCell>
+                                <TableCell className="text-center">
+                                  {p.membershipId ? (
+                                    <Button variant="link" onClick={() => router.push(routes.admin.membershipDetails(p.membershipId))}>
+                                      <Badge variant="success" className="p-2">Membro</Badge>
+                                    </Button>
+                                  ) : <Badge variant="secondary" className="p-2">No</Badge>}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant={p.location_sent ? "success" : "secondary"}>{p.location_sent ? "Inviata" : "No"}</Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant={p.ticket_sent ? "success" : "secondary"}>{p.ticket_sent ? "Inviato" : "No"}</Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Button variant="link" size="icon" onClick={() => p.ticket_pdf_url && downloadStorageFile(p.ticket_pdf_url)}>
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {p.purchase_id ? <Button size="sm" onClick={() => router.push(routes.admin.purchasesDetails(p.purchase_id))}>Vai</Button> : "-"}
+                                </TableCell>
+                                {/* Riduzione badge */}
+                                <TableCell className="text-center">
+                                  {p.riduzione ? <Badge variant="outline" className="bg-yellow-900/20 text-yellow-300 border-yellow-600">Riduzione</Badge> : <span className="text-gray-600">—</span>}
+                                </TableCell>
+                                <TableCell className="text-right space-x-1 whitespace-nowrap">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" onClick={() => { setParticipantForm(p); openLocationModalForOne(p) }}><MapPin className="h-4 w-4" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Invia Location</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" onClick={() => sendTicket(p.id)}><Ticket className="h-4 w-4" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Invia Biglietto</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="destructive" size="icon" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Elimina</TooltipContent>
+                                  </Tooltip>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {pageRows.length === 0 && (
+                              <TableRow><TableCell colSpan={visibleCols.length + 3} className="text-center py-12">Nessun partecipante.</TableCell></TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      {/* Pagination */}
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 px-2">
+                        <div className="text-sm text-gray-400">
+                          Mostrando <span className="text-white">{totalItems ? startIndex + 1 : 0}</span>–<span className="text-white">{endIndex}</span> di <span className="text-white">{totalItems}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-400">Righe per pagina</span>
+                          <select className="px-2 py-1 bg-gray-800 border border-gray-700 rounded" value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value, 10) || 25); setPage(1) }}>
+                            {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={clampedPage <= 1}>«</Button>
+                          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={clampedPage <= 1}>Prec</Button>
+                          <span className="text-sm text-gray-300">Pagina <span className="font-semibold text-white">{clampedPage}</span> / <span className="text-white">{totalPages}</span></span>
+                          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={clampedPage >= totalPages}>Succ</Button>
+                          <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={clampedPage >= totalPages}>»</Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400">Righe per pagina</span>
-                      <select
-                        className="px-2 py-1 bg-gray-800 border border-gray-700 rounded"
-                        value={pageSize}
-                        onChange={(e) => {
-                          const n = parseInt(e.target.value, 10) || 25
-                          setPageSize(n)
-                          setPage(1)
-                        }}
-                      >
-                        {[10, 25, 50, 100].map((n) => (
-                          <option key={n} value={n}>{n}</option>
-                        ))}
-                      </select>
-                    </div>
+            </TabsContent>
 
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={clampedPage <= 1}>«</Button>
-                      <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={clampedPage <= 1}>Prec</Button>
-                      <span className="text-sm text-gray-300">
-                        Pagina <span className="font-semibold text-white">{clampedPage}</span> / <span className="text-white">{totalPages}</span>
+            {/* ── Omaggi ── */}
+            <TabsContent value="omaggi" className="space-y-6">
+              <Card>
+                <CardHeader className="gap-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Omaggi ({filteredOmaggi.length} / {omaggioParticipants.length})</CardTitle>
+                      <CardDescription>Partecipanti con ingresso gratuito</CardDescription>
+                    </div>
+                  </div>
+                  <input
+                    className="px-3 py-2 bg-gray-800 border border-gray-700 rounded w-full"
+                    placeholder="Cerca omaggio..."
+                    value={omaggioSearch}
+                    onChange={(e) => setOmaggioSearch(e.target.value)}
+                  />
+                  {/* Send omaggio email panel */}
+                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center border border-zinc-700 rounded-lg p-3 bg-zinc-900/50">
+                    <div className="flex flex-col gap-1 flex-1">
+                      <Label htmlFor="omaggio-time" className="text-xs text-gray-400">Orario di entrata (es. 22:00)</Label>
+                      <Input
+                        id="omaggio-time"
+                        placeholder="es. 22:00"
+                        value={omaggioEntryTime}
+                        onChange={(e) => setOmaggioEntryTime(e.target.value)}
+                        className="h-9 w-40 bg-gray-800 border-gray-700"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSendOmaggioEmails}
+                      disabled={omaggioSending || omaggioUnsentCount === 0}
+                      className="mt-4 sm:mt-0 self-end"
+                    >
+                      {omaggioSending
+                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Invio…</>
+                        : <><Send className="mr-2 h-4 w-4" /> Invia email omaggi (non inviati)</>}
+                    </Button>
+                    {omaggioResult && (
+                      <span className="text-sm text-gray-300 self-end">
+                        Inviati: {omaggioResult.sent} / {omaggioResult.total}
+                        {omaggioResult.skipped > 0 && ` · Skippati: ${omaggioResult.skipped}`}
+                        {omaggioResult.failed > 0 && ` · Errori: ${omaggioResult.failed}`}
                       </span>
-                      <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={clampedPage >= totalPages}>Succ</Button>
-                      <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={clampedPage >= totalPages}>»</Button>
-                    </div>
+                    )}
                   </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                  {/* Actions */}
+                  <div className="flex gap-2 flex-wrap">
+                    <Button onClick={openOmaggioModal}><Plus className="mr-2 h-4 w-4" /> Aggiungi omaggio</Button>
+                    <Button onClick={exportOmaggioToExcel} disabled={!omaggioParticipants.length}><Download className="mr-2 h-4 w-4" /> Esporta</Button>
+                    <Button onClick={exportOmaggioTxt} disabled={!omaggioParticipants.length}><FileText className="mr-2 h-4 w-4" /> TXT Omaggi</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {pLoad ? (
+                    <Table><TableBody><TableRow><TableCell colSpan={9} className="py-12 text-center"><Loader2 className="animate-spin h-8 w-8 mx-auto" /></TableCell></TableRow></TableBody></Table>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-center">Modifica</TableHead>
+                              <TableHead>Nome e Cognome</TableHead>
+                              <TableHead>Data Nascita</TableHead>
+                              <TableHead>Genere</TableHead>
+                              <TableHead>Email</TableHead>
+                              <TableHead>Data Aggiunta</TableHead>
+                              <TableHead className="text-center">Email Omaggio</TableHead>
+                              <TableHead className="text-center">Membro</TableHead>
+                              <TableHead className="text-center">Azioni</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {omaggioPageRows.map((p) => (
+                              <TableRow key={p.id}>
+                                <TableCell className="text-center">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" onClick={() => openParticipantModal(p)}><Eye className="h-4 w-4" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Modifica</TooltipContent>
+                                  </Tooltip>
+                                </TableCell>
+                                <TableCell>{p.name} {p.surname}</TableCell>
+                                <TableCell>{p.birthdate || "-"}</TableCell>
+                                <TableCell>
+                                  {p.gender === "male" ? <Badge variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-600">Maschio</Badge>
+                                    : p.gender === "female" ? <Badge variant="outline" className="bg-pink-900/20 text-pink-300 border-pink-600">Femmina</Badge>
+                                    : <Badge variant="secondary" className="bg-gray-700 text-gray-300">N/A</Badge>}
+                                </TableCell>
+                                <TableCell>{p.email || "-"}</TableCell>
+                                <TableCell>{p.createdAt || "-"}</TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant={p.omaggio_email_sent ? "success" : "secondary"}>
+                                    {p.omaggio_email_sent ? "Inviata" : "Non inviata"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {p.membershipId ? (
+                                    <Button variant="link" onClick={() => router.push(routes.admin.membershipDetails(p.membershipId))}>
+                                      <Badge variant="success" className="p-2">Membro</Badge>
+                                    </Button>
+                                  ) : <Badge variant="secondary" className="p-2">No</Badge>}
+                                </TableCell>
+                                <TableCell className="text-right space-x-1 whitespace-nowrap">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" onClick={() => { setParticipantForm(p); openLocationModalForOne(p) }}><MapPin className="h-4 w-4" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Invia Location</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={!p.email || omaggioRowSendingId === p.id}
+                                        onClick={() => handleSendSingleOmaggioEmail(p.id)}
+                                      >
+                                        {omaggioRowSendingId === p.id
+                                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                                          : <Send className="h-4 w-4" />}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{p.omaggio_email_sent ? "Reinvia email omaggio" : "Invia email omaggio"}</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="destructive" size="icon" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Elimina</TooltipContent>
+                                  </Tooltip>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {omaggioPageRows.length === 0 && (
+                              <TableRow><TableCell colSpan={9} className="text-center py-12">Nessun omaggio.</TableCell></TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      {/* Omaggio pagination */}
+                      {omaggioTotalItems > omaggioPageSize && (
+                        <div className="flex items-center justify-end gap-2 mt-4 px-2">
+                          <Button variant="outline" size="sm" onClick={() => setOmaggioPage(1)} disabled={omaggioClampedPage <= 1}>«</Button>
+                          <Button variant="outline" size="sm" onClick={() => setOmaggioPage((p) => Math.max(1, p - 1))} disabled={omaggioClampedPage <= 1}>Prec</Button>
+                          <span className="text-sm text-gray-300">Pagina <span className="font-semibold text-white">{omaggioClampedPage}</span> / <span className="text-white">{omaggioTotalPages}</span></span>
+                          <Button variant="outline" size="sm" onClick={() => setOmaggioPage((p) => Math.min(omaggioTotalPages, p + 1))} disabled={omaggioClampedPage >= omaggioTotalPages}>Succ</Button>
+                          <Button variant="outline" size="sm" onClick={() => setOmaggioPage(omaggioTotalPages)} disabled={omaggioClampedPage >= omaggioTotalPages}>»</Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* ── In the event (check-in) ── */}
@@ -1093,11 +1343,22 @@ export default function EventContent({ id: eventId }) {
           onClose={closeParticipantModal}
           form={participantForm}
           isEditMode={isEditMode}
+          membershipOptions={currentYearMemberships}
+          currentMembershipYear={currentMembershipYear}
+          membershipLoading={membershipsLoading}
           onSubmit={handleParticipantSubmit}
           onInput={(e) =>
             setParticipantForm((f) => ({
               ...f,
-              [e.target.name]: e.target.name === "gender" ? e.target.value.toLowerCase() : e.target.value,
+              [e.target.name]: e.target.name === "gender"
+                ? (e.target.value || "").toLowerCase()
+                : e.target.value,
+              ...(e.target.name === "membership_id"
+                ? {
+                    membershipId: e.target.value || null,
+                    membership_included: !!e.target.value,
+                  }
+                : {}),
             }))
           }
           onCheckbox={(name, value) => setParticipantForm((f) => ({ ...f, [name]: value }))}

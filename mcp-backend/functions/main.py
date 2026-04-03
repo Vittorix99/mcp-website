@@ -66,7 +66,8 @@ from api.admin.participants_api import (
     delete_participant,
     send_location,
     send_location_to_all,
-    send_ticket
+    send_ticket,
+    send_omaggio_emails,
 )
 
 # === API Admin: Memberships ===

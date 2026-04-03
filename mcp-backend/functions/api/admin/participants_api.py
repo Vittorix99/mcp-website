@@ -173,6 +173,34 @@ def send_location_to_all(req):
         return _handle_service_error(err)
 
 
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def send_omaggio_emails(req):
+    """Invia email personalizzate agli omaggi dell'evento."""
+    if req.method != 'POST':
+        return {'error': 'Invalid request method'}, 405
+
+    body = req.get_json()
+    event_id = body.get("eventId") if body else None
+    entry_time = body.get("entryTime") if body else None
+    participant_id = body.get("participantId") if body else None
+    skip_already_sent = body.get("skipAlreadySent", True) if body else True
+
+    if not event_id:
+        return {'error': 'Missing eventId'}, 400
+
+    try:
+        payload = participants_service.send_omaggio_emails(
+            event_id,
+            entry_time,
+            participant_id=participant_id,
+            skip_already_sent=bool(skip_already_sent),
+        )
+        return payload, 200
+    except Exception as err:
+        return _handle_service_error(err)
+
+
 def _handle_service_error(err: Exception):
     if isinstance(err, ValidationError):
         return {"error": str(err)}, 400

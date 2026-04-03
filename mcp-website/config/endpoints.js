@@ -51,6 +51,7 @@ export const endpoints = {
     sendLocation: make("send_location"),
     sendLocationToAll: make("send_location_to_all"),
     sendTicket: make("send_ticket"),
+    sendOmaggioEmails: make("send_omaggio_emails"),
     
     
     
