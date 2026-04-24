@@ -16,6 +16,16 @@ from paypalserversdk.models.order_request import OrderRequest
 from paypalserversdk.models.purchase_unit_request import PurchaseUnitRequest
 from paypalserversdk.paypal_serversdk_client import PaypalServersdkClient
 from dto import CheckoutParticipantDTO, PreOrderDTO, OrderCaptureDTO, EventDTO, MembershipDTO
+from domain.membership_rules import build_renewal_record, membership_years_from_renewals
+from interfaces.repositories import (
+    EventRepositoryProtocol,
+    MembershipRepositoryProtocol,
+    MembershipSettingsRepositoryProtocol,
+    OrderRepositoryProtocol,
+    ParticipantRepositoryProtocol,
+    PurchaseRepositoryProtocol,
+)
+from interfaces.services import MembershipsServiceProtocol
 from models import (
     Event,
     EventOrder,
@@ -57,8 +67,18 @@ class EventPaymentService:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
-        self.paypal_client = PaypalServersdkClient(
+    def __init__(
+        self,
+        event_repository: Optional[EventRepositoryProtocol] = None,
+        membership_repository: Optional[MembershipRepositoryProtocol] = None,
+        membership_settings_repository: Optional[MembershipSettingsRepositoryProtocol] = None,
+        order_repository: Optional[OrderRepositoryProtocol] = None,
+        purchase_repository: Optional[PurchaseRepositoryProtocol] = None,
+        participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+        memberships_service: Optional[MembershipsServiceProtocol] = None,
+        paypal_client: Optional[PaypalServersdkClient] = None,
+    ):
+        self.paypal_client = paypal_client or PaypalServersdkClient(
             client_credentials_auth_credentials=ClientCredentialsAuthCredentials(
                 o_auth_client_id=(
                     os.getenv("PAYPAL_CLIENT_ID")
@@ -77,12 +97,16 @@ class EventPaymentService:
         )
         self.orders_controller: OrdersController = self.paypal_client.orders
         self.debug = os.getenv("EVENT_PAYMENT_DEBUG", "true").lower() in {"1", "true", "yes"}
-        self.event_repository = EventRepository()
-        self.membership_repository = MembershipRepository()
-        self.membership_settings_repository = MembershipSettingsRepository()
-        self.order_repository = OrderRepository()
-        self.purchase_repository = PurchaseRepository()
-        self.participant_repository = ParticipantRepository()
+        self.event_repository = event_repository or EventRepository()
+        self.membership_repository = membership_repository or MembershipRepository()
+        self.membership_settings_repository = membership_settings_repository or MembershipSettingsRepository()
+        self.order_repository = order_repository or OrderRepository()
+        self.purchase_repository = purchase_repository or PurchaseRepository()
+        self.participant_repository = participant_repository or ParticipantRepository()
+        if memberships_service is None:
+            from services.memberships.memberships_service import MembershipsService
+            memberships_service = MembershipsService()
+        self.memberships_service = memberships_service
 
     def _get_membership_fee(self, year: Optional[int] = None) -> Optional[float]:
         target_year = str(year or datetime.now(timezone.utc).year)
@@ -259,19 +283,39 @@ class EventPaymentService:
         if not order_id:
             raise ValidationError("Missing order_id in request body")
 
+        # Read staging order BEFORE calling PayPal so we can guard against
+        # double-processing if the function is retried after a partial failure.
+        order_data_dict = self.order_repository.get(order_id)
+        if not order_data_dict:
+            raise NotFoundError("Order not found")
+
+        stored_order = EventOrder.from_firestore(order_data_dict, order_id)
+
+        # IDEMPOTENCY GUARD: if PayPal was already captured and the purchase was
+        # created, return the existing result without reprocessing.
+        if stored_order.captured and stored_order.purchase_id:
+            self._debug("Order %s already processed, returning existing purchase %s", order_id, stored_order.purchase_id)
+            return {
+                "message": "Order captured and processed successfully",
+                "purchase_id": stored_order.purchase_id,
+                "payment_method": stored_order.payment_method or "unknown",
+            }
+
         order_data = self.capture_paypal_order(order_id)
         order_info = PayPalOrderInfo.from_payload(order_data)
         try:
             self.validate_capture_payload(order_info)
+            self._validate_capture_amount(order_info, order_data_dict)
         except ValidationError:
             self._debug("Capture validation failed for %s", order_id)
             self._update_order_status(order_id, order_info.status or "UNKNOWN")
             raise
 
-        order_data_dict = self.order_repository.get(order_id)
-        if not order_data_dict:
-            raise NotFoundError("Order not found")
-        event_order = EventOrder.from_firestore(order_data_dict, order_id)
+        # Mark as PayPal-captured immediately. If the post-processing below
+        # fails, a retry will skip the PayPal call and resume from here.
+        self.order_repository.mark_captured(order_id, order_info.payment_method or "unknown")
+
+        event_order = stored_order
 
         event_id = event_order.event_id
         participants = self._participants_from_payload(event_order.participants or [])
@@ -284,6 +328,8 @@ class EventPaymentService:
             event_id,
             purchase_mode,
         )
+        # Persist purchase_id in the staging doc so a retry can return it.
+        self.order_repository.set_purchase_id(order_id, purchase_id)
 
         existing_memberships = event_order.membership_lookup or {}
         membership_refs = []
@@ -441,6 +487,30 @@ class EventPaymentService:
         if not order_info.capture.final_capture:
             logger.warning("Capture is not marked as final_capture=True (id=%s)", order_info.capture.capture_id)
 
+    def _validate_capture_amount(self, order_info: PayPalOrderInfo, stored_order: Dict[str, Any]) -> None:
+        """Verify the captured amount matches what was stored at order creation."""
+        expected = stored_order.get("total")
+        if expected is None:
+            logger.warning("No stored total found for order — skipping amount validation")
+            return
+        try:
+            captured = float(order_info.capture.amount_value)
+            expected = float(expected)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Amount validation skipped — could not parse values (captured=%s, expected=%s)",
+                order_info.capture.amount_value, expected,
+            )
+            return
+        if abs(captured - expected) > 0.01:
+            logger.error(
+                "Amount mismatch: captured=%.2f expected=%.2f (order_id=%s)",
+                captured, expected, order_info.capture.capture_id,
+            )
+            raise ValidationError(
+                f"Captured amount ({captured:.2f}) does not match expected amount ({expected:.2f})"
+            )
+
     def save_purchase(
         self,
         order_id: str,
@@ -481,7 +551,7 @@ class EventPaymentService:
         fee_value = float(membership_fee) if membership_fee is not None else None
         for person in targets:
             normalized_email = normalize_email(person.email)
-            existing = self.membership_repository.find_model_by_email(normalized_email) if normalized_email else None
+            existing = self.membership_repository.find_by_email(normalized_email) if normalized_email else None
 
             end_date = calculate_end_of_year(capture_time)
             if not end_date:
@@ -489,6 +559,15 @@ class EventPaymentService:
                 end_date = f"31-12-{fallback_year}"
 
             if existing:
+                renewals = list(existing.renewals or [])
+                renewals.append(
+                    build_renewal_record(
+                        start_date=capture_time,
+                        end_date=end_date,
+                        purchase_id=purchase_id,
+                        fee=fee_value,
+                    )
+                )
                 update_dto = MembershipDTO(
                     subscription_valid=True,
                     start_date=capture_time,
@@ -497,6 +576,12 @@ class EventPaymentService:
                     send_card_on_create=True,
                     membership_type=PurchaseTypes.EVENT.value,
                     membership_fee=fee_value,
+                    renewals=renewals,
+                    membership_years=membership_years_from_renewals(
+                        renewals,
+                        fallback_start_date=capture_time,
+                        fallback_end_date=end_date,
+                    ),
                 )
                 if not existing.purchase_id:
                     update_dto.purchase_id = purchase_id
@@ -512,15 +597,10 @@ class EventPaymentService:
                 self.membership_repository.update_from_model(existing.id, update_dto)
                 # Clear stale wallet fields so send_card generates a fresh pass
                 if existing.wallet_url or existing.wallet_pass_id:
-                    from google.cloud.firestore_v1 import DELETE_FIELD
-                    self.membership_repository.update_fields(existing.id, {
-                        "wallet_pass_id": DELETE_FIELD,
-                        "wallet_url": DELETE_FIELD,
-                    })
+                    self.membership_repository.clear_wallet(existing.id)
                 self.membership_repository.append_purchase(existing.id, purchase_id)
                 try:
-                    from services.memberships.memberships_service import MembershipsService
-                    MembershipsService().send_card(existing.id)
+                    self.memberships_service.send_card(existing.id)
                 except Exception as e:
                     logger.warning(
                         "[renewal] send_card fallita per membro rinnovato %s (non-bloccante): %s",
@@ -531,7 +611,14 @@ class EventPaymentService:
                 )
                 continue
 
+            renewal_record = build_renewal_record(
+                start_date=capture_time,
+                end_date=end_date,
+                purchase_id=purchase_id,
+                fee=fee_value,
+            )
             membership = Membership(
+                renewals=[renewal_record],
                 name=person.name,
                 surname=person.surname,
                 email=normalized_email,
@@ -547,6 +634,11 @@ class EventPaymentService:
                 purchases=[purchase_id],
                 attended_events=[],
                 membership_fee=fee_value,
+                membership_years=membership_years_from_renewals(
+                    [renewal_record],
+                    fallback_start_date=capture_time,
+                    fallback_end_date=end_date,
+                ),
             )
             membership_id = self.membership_repository.create_from_model(membership)
             membership_refs.append(

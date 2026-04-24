@@ -38,10 +38,10 @@ class _DummyMembershipRepo:
         self.created = []
         self.attended = []
 
-    def find_model_by_email(self, email):
+    def find_by_email(self, email):
         return self.by_email.get(email)
 
-    def find_model_by_phone(self, phone):
+    def find_by_phone(self, phone):
         return self.by_phone.get(phone)
 
     def update_from_model(self, membership_id, dto):
@@ -55,8 +55,11 @@ class _DummyMembershipRepo:
         self.attended.append((membership_id, event_id))
         return True
 
-    def get_model(self, membership_id):
+    def get(self, membership_id):
         return self.by_id.get(membership_id)
+
+    def get_model(self, membership_id):
+        return self.get(membership_id)
 
 
 class _DummyParticipantRepo:
@@ -150,6 +153,14 @@ def test_create_rejects_invalid_payment_method():
     """Rejects invalid payment_method."""
     service = _make_service()
     payload = _participant_payload(payment_method="invalid")
+    with pytest.raises(ValidationError):
+        service.create(payload)
+
+
+def test_create_rejects_invalid_email_format():
+    service = _make_service()
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
+    payload = _participant_payload(email="invalid-email")
     with pytest.raises(ValidationError):
         service.create(payload)
 
@@ -258,6 +269,14 @@ def test_update_happy_path():
     result = service.update("evt-1", "part-1", {"name": "Luigi"})
     assert result["message"]
     assert service.participant_repository.updated
+
+
+def test_update_rejects_invalid_email_format():
+    service = _make_service()
+    participant = EventParticipantDTO(event_id="evt-1", email="old@example.com")
+    service.participant_repository._participant = participant
+    with pytest.raises(ValidationError):
+        service.update("evt-1", "part-1", {"email": "invalid-email"})
 
 
 def test_update_allows_manual_membership_assignment():

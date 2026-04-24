@@ -8,10 +8,12 @@ from google.cloud import firestore
 
 from config.firebase_config import db
 from dto import EventDTO, EventParticipantDTO
+from interfaces.repositories import EventRepositoryProtocol, ParticipantRepositoryProtocol
+from interfaces.services import DocumentsServiceProtocol
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
 from services.events.documents_service import DocumentsService
-from services.communications.mail_service import EmailAttachment, EmailMessage, mail_service
+from services.communications.mail_service import EmailAttachment, EmailMessage, MailService, mail_service
 from utils.templates_mail import get_ticket_email_template, get_ticket_email_text
 
 
@@ -28,14 +30,16 @@ class TicketDocument:
 class TicketService:
     def __init__(
         self,
-        documents_service: Optional[DocumentsService] = None,
-        event_repository: Optional[EventRepository] = None,
-        participant_repository: Optional[ParticipantRepository] = None,
+        documents_service: Optional[DocumentsServiceProtocol] = None,
+        event_repository: Optional[EventRepositoryProtocol] = None,
+        participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+        mail_service_instance: Optional[MailService] = None,
     ):
         self.logger = logging.getLogger("TicketService")
         self.documents_service = documents_service or DocumentsService()
         self.event_repository = event_repository or EventRepository()
         self.participant_repository = participant_repository or ParticipantRepository()
+        self.mail_service = mail_service_instance or mail_service
 
     def _normalize_participant(self, payload: Any) -> EventParticipantDTO:
         if isinstance(payload, EventParticipantDTO):
@@ -135,7 +139,7 @@ class TicketService:
                     has_attachment=bool(attachment),
                 )
                 text_content = get_ticket_email_text(ticket_payload, event_payload)
-                sent = mail_service.send(
+                sent = self.mail_service.send(
                     EmailMessage(
                         to_email=participant_dto.email,
                         subject=subject,

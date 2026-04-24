@@ -1,11 +1,10 @@
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
 
-from models import Membership
-
 from dto import MembershipDTO
+from models import Membership
 from repositories.base import BaseRepository
 from utils.slug_utils import build_slug
 
@@ -14,13 +13,20 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
     def __init__(self):
         super().__init__("memberships", Membership, MembershipDTO)
 
-    def get_model(self, membership_id: str) -> Optional[Membership]:
+    def get(self, membership_id: str) -> Optional[Membership]:
         if not membership_id:
             return None
         doc = self.collection.document(membership_id).get()
         if not doc.exists:
             return None
         return self._model_from_snapshot(doc)
+
+    # Backward compatibility for existing callers.
+    def get_model(self, membership_id: str) -> Optional[Membership]:
+        return self.get(membership_id)
+
+    def list(self) -> List[Membership]:
+        return [self._model_from_snapshot(doc) for doc in self.collection.stream()]
 
     def get_last_by_start_date(self) -> Optional[MembershipDTO]:
         docs = (
@@ -49,16 +55,7 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
         self.update(membership_id, payload)
         return True
 
-    def find_by_email(self, email: str) -> Optional[Tuple[str, Dict]]:
-        if not email:
-            return None
-        docs = self.collection.where("email", "==", email).limit(1).get()
-        if not docs:
-            return None
-        doc = docs[0]
-        return doc.id, doc.to_dict() or {}
-
-    def find_model_by_email(self, email: str) -> Optional[Membership]:
+    def find_by_email(self, email: str) -> Optional[Membership]:
         if not email:
             return None
         docs = self.collection.where("email", "==", email).limit(1).get()
@@ -66,22 +63,18 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
             return None
         return self._model_from_snapshot(docs[0])
 
-    def find_by_phone(self, phone: str) -> Optional[Tuple[str, Dict]]:
-        if not phone:
-            return None
-        docs = self.collection.where("phone", "==", phone).limit(1).get()
-        if not docs:
-            return None
-        doc = docs[0]
-        return doc.id, doc.to_dict() or {}
-
-    def find_model_by_phone(self, phone: str) -> Optional[Membership]:
+    def find_by_phone(self, phone: str) -> Optional[Membership]:
         if not phone:
             return None
         docs = self.collection.where("phone", "==", phone).limit(1).get()
         if not docs:
             return None
         return self._model_from_snapshot(docs[0])
+
+    def create(self, payload: Union[Dict[str, Any], MembershipDTO, Membership]) -> str:
+        if isinstance(payload, Membership):
+            return self.create_from_model(payload)
+        return super().create(payload)
 
     def create_from_model(self, membership: Membership) -> str:
         ref = self.collection.document()
@@ -89,7 +82,7 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
         ref.set(membership.to_firestore(include_none=True))
         return ref.id
 
-    def update_fields(self, membership_id: str, payload: Dict) -> bool:
+    def update_fields(self, membership_id: str, payload: Dict[str, Any]) -> bool:
         self.collection.document(membership_id).update(payload)
         return True
 
@@ -122,6 +115,36 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
         )
         return True
 
+    def add_renewal(self, membership_id: str, renewal_dict: Dict[str, Any]) -> bool:
+        if not membership_id or not isinstance(renewal_dict, dict):
+            return False
+
+        year = renewal_dict.get("year")
+        try:
+            year = int(year) if year is not None else None
+        except (TypeError, ValueError):
+            year = None
+
+        membership = self.get(membership_id)
+        if not membership:
+            return False
+
+        existing_years = set(membership.membership_years or [])
+        if year is not None and year in existing_years:
+            return True
+
+        updates: Dict[str, Any] = {
+            "renewals": firestore.ArrayUnion([renewal_dict]),
+        }
+        if year is not None:
+            updates["membership_years"] = firestore.ArrayUnion([year])
+        self.collection.document(membership_id).update(updates)
+        return True
+
+    def find_by_year(self, year: int) -> List[Membership]:
+        docs = self.collection.where("membership_years", "array_contains", int(year)).stream()
+        return [self._model_from_snapshot(doc) for doc in docs]
+
     def update_from_model(self, membership_id: str, payload: Union[Membership, MembershipDTO]) -> bool:
         if isinstance(payload, MembershipDTO):
             update_payload = payload.to_update_payload()
@@ -142,6 +165,21 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
         )
         for snap in snaps:
             yield self._model_from_snapshot(snap)
+
+    def clear_wallet(self, membership_id: str) -> None:
+        self.collection.document(membership_id).update({
+            "wallet_pass_id": None,
+            "wallet_url": None,
+        })
+
+    def set_wallet(self, membership_id: str, pass_id: str, wallet_url: str) -> None:
+        self.collection.document(membership_id).update({
+            "wallet_pass_id": pass_id,
+            "wallet_url": wallet_url,
+        })
+
+    def set_merging(self, membership_id: str, value: Optional[bool]) -> None:
+        self.collection.document(membership_id).update({"merging": value})
 
     def list_by_ids(self, membership_ids: List[str]) -> Iterable[Membership]:
         if not membership_ids:

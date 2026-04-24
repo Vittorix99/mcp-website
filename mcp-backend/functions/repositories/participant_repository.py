@@ -127,6 +127,42 @@ class ParticipantRepository:
         )
         updated = 0
         for snap in query.stream():
-            snap.reference.update({"membershipId": firestore.DELETE_FIELD})
+            snap.reference.update({
+                "membershipId": firestore.DELETE_FIELD,
+                "membership_included": False,
+            })
+            updated += 1
+        return updated
+
+    def get_by_membership_id(self, event_id: str, membership_id: str) -> Optional["EventParticipant"]:
+        """Return the first participant in the given event whose membershipId matches."""
+        docs = (
+            db.collection_group("participants_event")
+            .where(filter=FieldFilter("membershipId", "==", membership_id))
+            .get()
+        )
+        for doc in docs:
+            if doc.reference.parent.parent.id == event_id:
+                return EventParticipant.from_firestore(doc.to_dict() or {}, doc.id)
+        return None
+
+    def update_entered(self, event_id: str, participant_id: str, entered: bool) -> None:
+        self._collection(event_id).document(participant_id).update({
+            "entered": entered,
+            "entered_at": firestore.SERVER_TIMESTAMP if entered else None,
+        })
+
+    def update_membership_reference(self, old_membership_id: str, new_membership_id: str) -> int:
+        if not old_membership_id or not new_membership_id:
+            return 0
+        query = db.collection_group("participants_event").where(
+            filter=FieldFilter("membershipId", "==", old_membership_id)
+        )
+        updated = 0
+        for snap in query.stream():
+            snap.reference.update({
+                "membershipId": new_membership_id,
+                "membership_included": True,
+            })
             updated += 1
         return updated

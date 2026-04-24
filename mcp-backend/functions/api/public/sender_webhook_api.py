@@ -1,3 +1,4 @@
+import hmac
 import logging
 
 from firebase_functions import https_fn
@@ -31,7 +32,7 @@ def sender_webhook(req):
     # Verify webhook secret if configured
     if SENDER_WEBHOOK_SECRET:
         token = req.headers.get("X-Sender-Token") or req.headers.get("X-Webhook-Token", "")
-        if token != SENDER_WEBHOOK_SECRET:
+        if not hmac.compare_digest(token, SENDER_WEBHOOK_SECRET):
             logger.warning("[SenderWebhook] Invalid or missing webhook secret")
             return {"error": "Unauthorized"}, 403
 

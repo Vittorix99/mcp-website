@@ -2,6 +2,7 @@ import logging
 from typing import Dict, List, Optional
 
 from dto import PurchaseDTO
+from interfaces.repositories import PurchaseRepositoryProtocol
 from models import Purchase
 from models.enums import PurchaseTypes
 from repositories.purchase_repository import PurchaseRepository
@@ -9,9 +10,9 @@ from errors.service_errors import NotFoundError, ValidationError
 
 
 class PurchasesService:
-    def __init__(self):
+    def __init__(self, purchase_repository: Optional[PurchaseRepositoryProtocol] = None):
         self.logger = logging.getLogger("PurchasesService")
-        self.purchase_repository = PurchaseRepository()
+        self.purchase_repository = purchase_repository or PurchaseRepository()
 
     def _serialize(self, purchase: Purchase) -> Dict:
         payload = PurchaseDTO.from_model(purchase).to_payload()

@@ -9,6 +9,7 @@ import {
   getMembershipEvents,
   createMembership as createMembershipService,
   updateMembership as updateMembershipService,
+  mergeMemberships as mergeMembershipsService,
   deleteMembership as deleteMembershipService,
   sendMembershipCard as sendMembershipCardService,
   getMembershipPrice,
@@ -33,6 +34,8 @@ const buildEnvMembershipPricePayload = (year) => ({
   year: (year || new Date().getFullYear()).toString(),
 });
 
+const yearStorageKey = "mcp_admin_memberships_year";
+
 export function useAdminMemberships(options = {}) {
   const { autoLoadList = true } = options;
   const { setError } = useError();
@@ -42,13 +45,18 @@ export function useAdminMemberships(options = {}) {
   const [membershipPrice, setMembershipPrice] = useState(null); // { price, year }
   const [extrasLoading, setExtrasLoading] = useState(false);
   const [walletModelId, setWalletModelId] = useState(null);
+  const [selectedYear, _setSelectedYear] = useState(() => {
+    if (typeof window === "undefined") return new Date().getFullYear().toString();
+    return window.localStorage.getItem(yearStorageKey) || new Date().getFullYear().toString();
+  });
   const loadOneReqRef = useRef(0);
   const loadAllInitializedRef = useRef(false);
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (yearOverride) => {
+    const year = yearOverride !== undefined ? yearOverride : selectedYear;
     setLoading(true);
     try {
-      const res = await getMemberships();
+      const res = await getMemberships(year);
       if (res?.error) {
         setError(res.error);
         setMemberships([]);
@@ -57,15 +65,21 @@ export function useAdminMemberships(options = {}) {
           res.sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
         );
       }
-
-
     } catch (e) {
       console.error("loadMemberships error", e);
       setError("Errore caricamento membership.");
     } finally {
       setLoading(false);
     }
-  }, [setError]);
+  }, [setError, selectedYear]);
+
+  const setSelectedYear = useCallback(async (year) => {
+    _setSelectedYear(year);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(yearStorageKey, year);
+    }
+    await loadAll(year);
+  }, [loadAll]);
   
   
   
@@ -143,11 +157,16 @@ export function useAdminMemberships(options = {}) {
         send_card_on_create: data?.send_card_on_create === true,
       };
       const res = await createMembershipService(payload);
-      if (res?.error) setError(res.error);
-      else await loadAll();
+      if (res?.error) {
+        setError(res.error);
+        return res;
+      }
+      await loadAll();
+      return res;
     } catch (e) {
       console.error("createMembership error", e);
       setError("Errore creazione membership.");
+      return { error: "Errore creazione membership.", status: 0 };
     } finally {
       setLoading(false);
     }
@@ -158,11 +177,39 @@ export function useAdminMemberships(options = {}) {
     setLoading(true);
     try {
       const res = await updateMembershipService(membershipId, data);
-      if (res?.error) setError(res.error);
-      else await loadAll();
+      if (res?.error) {
+        if (res.status === 409 && res.mergeable) {
+          return res;
+        }
+        setError(res.error);
+        return res;
+      }
+      await loadAll();
+      return res;
     } catch (e) {
       console.error("updateMembership error", e);
       setError("Errore aggiornamento membership.");
+      return { error: "Errore aggiornamento membership.", status: 0 };
+    } finally {
+      setLoading(false);
+    }
+  }, [loadAll, setError]);
+
+  const merge = useCallback(async (sourceId, targetId) => {
+    if (!sourceId || !targetId) return { error: "Missing source/target", status: 400 };
+    setLoading(true);
+    try {
+      const res = await mergeMembershipsService(sourceId, targetId);
+      if (res?.error) {
+        setError(res.error);
+        return res;
+      }
+      await loadAll();
+      return res;
+    } catch (e) {
+      console.error("mergeMemberships error", e);
+      setError("Errore durante il merge.");
+      return { error: "Errore durante il merge.", status: 0 };
     } finally {
       setLoading(false);
     }
@@ -413,6 +460,7 @@ export function useAdminMemberships(options = {}) {
     loadOne,
     create,
     update,
+    merge,
     remove,
     sendCard,
     fetchMembershipPurchases,
@@ -428,5 +476,7 @@ export function useAdminMemberships(options = {}) {
     saveWalletModel,
     createWalletPass,
     invalidateWalletPass,
+    selectedYear,
+    setSelectedYear,
   };
 }

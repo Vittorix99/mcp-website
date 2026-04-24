@@ -4,7 +4,9 @@ import time
 from typing import List, Optional
 
 from google.cloud import firestore
+from google.cloud.firestore_v1 import transactional as _fs_transactional
 
+from config.firebase_config import db
 from config.location_config import (
     LOCATION_BASE_DELAY,
     LOCATION_MAX_DELAY,
@@ -12,25 +14,55 @@ from config.location_config import (
     LOCATION_MIN_INTERVAL,
 )
 from dto import EventDTO, EventParticipantDTO, JobDTO
+from interfaces.repositories import (
+    EventRepositoryProtocol,
+    JobRepositoryProtocol,
+    ParticipantRepositoryProtocol,
+)
 from models import Job
 from repositories import EventRepository, ParticipantRepository
 from repositories.job_repository import JobRepository
-from services.communications.mail_service import EmailMessage, mail_service
+from services.communications.mail_service import EmailMessage, MailService, mail_service
 from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from utils.templates_mail import build_location_email_payload
 
 
-
 logger = logging.getLogger('LocationService')
+
+
+@_fs_transactional
+def _claim_job(transaction, job_ref):
+    """
+    Atomically transitions a job from 'queued' → 'running'.
+    Returns True if this caller successfully claimed the job, False otherwise.
+    Prevents concurrent workers from processing the same job simultaneously
+    when Firestore at-least-once triggers fire more than once.
+    """
+    snap = job_ref.get(transaction=transaction)
+    if not snap.exists:
+        return False
+    status = (snap.to_dict() or {}).get("status")
+    if status != "queued":
+        return False
+    transaction.update(job_ref, {"status": "running"})
+    return True
+
+
 def _sleep_with_jitter(seconds: float) -> None:
     jitter = seconds * (0.8 + 0.4 * random.random())
     time.sleep(jitter)
 
-def _send_with_retry(email: str, subject: str, text: str, html: str) -> bool:
+def _send_with_retry(
+    email: str,
+    subject: str,
+    text: str,
+    html: str,
+    mail_service_instance: MailService,
+) -> bool:
     delay = LOCATION_BASE_DELAY
     for attempt in range(1, LOCATION_MAX_RETRIES + 1):
         try:
-            ok = mail_service.send(
+            ok = mail_service_instance.send(
                 EmailMessage(
                     to_email=email,
                     subject=subject,
@@ -61,10 +93,17 @@ def _send_with_retry(email: str, subject: str, text: str, html: str) -> bool:
 
 
 class LocationService:
-    def __init__(self) -> None:
-        self.event_repository = EventRepository()
-        self.participant_repository = ParticipantRepository()
-        self.job_repository = JobRepository()
+    def __init__(
+        self,
+        event_repository: Optional[EventRepositoryProtocol] = None,
+        participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+        job_repository: Optional[JobRepositoryProtocol] = None,
+        mail_service_instance: Optional[MailService] = None,
+    ) -> None:
+        self.event_repository = event_repository or EventRepository()
+        self.participant_repository = participant_repository or ParticipantRepository()
+        self.job_repository = job_repository or JobRepository()
+        self.mail_service = mail_service_instance or mail_service
 
     def _load_event_dto(self, event_id: str) -> Optional[EventDTO]:
         event_model = self.event_repository.get_model(event_id)
@@ -110,7 +149,7 @@ class LocationService:
             message,
         )
 
-        sent = mail_service.send(
+        sent = self.mail_service.send(
             EmailMessage(
                 to_email=email,
                 subject=subject,
@@ -184,6 +223,19 @@ class LocationService:
         """
         try:
             logger.info("[LocationService] Avvio worker per job %s", job_id)
+
+            # Claim atomico: solo un worker alla volta può processare il job.
+            # Se il trigger Firestore viene eseguito due volte (at-least-once),
+            # il secondo invocation vede status != "queued" ed esce subito.
+            job_ref = db.collection("jobs").document(job_id)
+            claimed = _claim_job(db.transaction(), job_ref)
+            if not claimed:
+                logger.info(
+                    "[LocationService] Job %s non rivendicato (già in esecuzione o stato non processabile), skip",
+                    job_id,
+                )
+                return
+
             job = self.job_repository.get_model(job_id)
             if not job:
                 logger.warning("[LocationService] Job %s non trovato.", job_id)
@@ -252,7 +304,7 @@ class LocationService:
                     time.sleep(LOCATION_MIN_INTERVAL - elapsed)
 
                 # Invio con retry
-                ok = _send_with_retry(email, subject, text, html)
+                ok = _send_with_retry(email, subject, text, html, self.mail_service)
                 last_send_ts = time.monotonic()
 
                 if ok:
@@ -336,7 +388,7 @@ class LocationService:
                 message,
             )
 
-            sent = mail_service.send(
+            sent = self.mail_service.send(
                 EmailMessage(
                     to_email=email,
                     subject=subject,

@@ -29,8 +29,11 @@ class _DummyMembershipRepo:
     def get_all(self):
         return self._all
 
-    def get_model(self, membership_id):
+    def get(self, membership_id):
         return self.models.get(membership_id)
+
+    def get_model(self, membership_id):
+        return self.get(membership_id)
 
     def get_model_by_slug(self, slug):
         return self.by_slug.get(slug)
@@ -50,14 +53,10 @@ class _DummyMembershipRepo:
         self.models.pop(membership_id, None)
 
     def find_by_email(self, email):
-        if email in self.by_email:
-            return self.by_email[email]
-        return None
+        return self.by_email.get(email)
 
     def find_by_phone(self, phone):
-        if phone in self.by_phone:
-            return self.by_phone[phone]
-        return None
+        return self.by_phone.get(phone)
 
     def update_fields(self, membership_id, fields: dict):
         self.updated.append((membership_id, fields))
@@ -203,9 +202,18 @@ def test_create_requires_contact():
         service.create(dto)
 
 
+def test_create_rejects_invalid_email_format():
+    service = _make_service()
+    dto = MembershipDTO(birthdate="01-01-1990", email="invalid-email")
+    with pytest.raises(ValidationError):
+        service.create(dto)
+
+
 def test_create_conflict_email():
     service = _make_service()
-    service.membership_repository.by_email["test@example.com"] = ("mem-x", {})
+    conflict = Membership(email="test@example.com", birthdate="01-01-1990")
+    conflict.id = "mem-x"
+    service.membership_repository.by_email["test@example.com"] = conflict
     dto = MembershipDTO(birthdate="01-01-1990", email="test@example.com")
     with pytest.raises(ConflictError):
         service.create(dto)
@@ -232,6 +240,8 @@ def test_create_happy_path():
     assert created.membership_sent is False
     assert created.start_date is not None
     assert created.end_date is not None
+    assert created.renewals
+    assert created.membership_years
 
 
 def test_update_rejects_protected_fields():
@@ -264,13 +274,38 @@ def test_update_requires_contact():
         service.update("mem-1", dto)
 
 
+def test_update_rejects_invalid_email_format():
+    service = _make_service()
+    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990", email="old@example.com")
+    dto = MembershipDTO(email="invalid-email")
+    with pytest.raises(ValidationError):
+        service.update("mem-1", dto)
+
+
 def test_update_conflict_email():
     service = _make_service()
     service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990", email="old@example.com")
-    service.membership_repository.by_email["new@example.com"] = ("mem-2", {})
+    conflict = Membership(name="Luigi", surname="Verdi", email="new@example.com", birthdate="01-01-1990")
+    conflict.id = "mem-2"
+    service.membership_repository.by_email["new@example.com"] = conflict
     dto = MembershipDTO(email="new@example.com")
     with pytest.raises(ConflictError):
         service.update("mem-1", dto)
+
+
+def test_update_conflict_email_marks_mergeable():
+    service = _make_service()
+    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990", email="old@example.com")
+    conflict = Membership(name="Luigi", surname="Verdi", email="new@example.com", birthdate="01-01-1990")
+    conflict.id = "mem-2"
+    service.membership_repository.by_email["new@example.com"] = conflict
+
+    with pytest.raises(ConflictError) as exc:
+        service.update("mem-1", MembershipDTO(email="new@example.com"))
+
+    payload = getattr(exc.value, "payload", {})
+    assert payload.get("mergeable") is True
+    assert payload.get("conflicting_id") == "mem-2"
 
 
 def test_update_email_change_does_not_regenerate_card():
@@ -448,8 +483,9 @@ def _make_prev_year_member(**kwargs) -> Membership:
 
 def _seed_prev_year_member(service, member_id="mem-prev"):
     member = _make_prev_year_member()
+    member.id = member_id
     service.membership_repository.models[member_id] = member
-    service.membership_repository.by_email[member.email] = (member_id, {})
+    service.membership_repository.by_email[member.email] = member
     return member_id, member
 
 

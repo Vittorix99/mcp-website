@@ -7,6 +7,7 @@ from config.firebase_config import cors
 from services.core.auth_service import require_admin
 from services.memberships.memberships_service import MembershipsService
 from services.memberships.membership_reports_service import MembershipReportsService
+from services.memberships.merge_service import MergeService
 from errors.service_errors import (
     ConflictError,
     ForbiddenError,
@@ -18,6 +19,7 @@ from dto import MembershipDTO
 
 memberships_service = MembershipsService()
 membership_reports_service = MembershipReportsService()
+merge_service = MergeService()
 
 
 def _handle_service_error(err: Exception):
@@ -28,7 +30,11 @@ def _handle_service_error(err: Exception):
     if isinstance(err, NotFoundError):
         return jsonify({"error": str(err)}), 404
     if isinstance(err, ConflictError):
-        return jsonify({"error": str(err)}), 409
+        payload = {"error": str(err)}
+        details = getattr(err, "payload", None)
+        if isinstance(details, dict):
+            payload.update(details)
+        return jsonify(payload), 409
     if isinstance(err, ServiceError):
         return jsonify({"error": str(err)}), 500
     return jsonify({"error": "Internal server error"}), 500
@@ -39,7 +45,12 @@ def get_memberships(req):
     if req.method != "GET":
         return "Invalid method", 405
     try:
-        payload = memberships_service.get_all()
+        year_str = req.args.get("year", "").strip()
+        try:
+            year = int(year_str) if year_str else None
+        except ValueError:
+            year = None
+        payload = memberships_service.get_all(year=year)
         return jsonify(payload), 200
     except Exception as err:
         return _handle_service_error(err)
@@ -86,6 +97,23 @@ def update_membership(req):
     dto = MembershipDTO.from_payload(data)
     try:
         payload = memberships_service.update(membership_id, dto)
+        return jsonify(payload), 200
+    except Exception as err:
+        return _handle_service_error(err)
+
+
+@https_fn.on_request(cors=cors, region=region)
+@require_admin
+def merge_memberships(req):
+    if req.method != "POST":
+        return "Invalid method", 405
+    data = request.get_json() or {}
+    source_id = (data.get("source_id") or "").strip()
+    target_id = (data.get("target_id") or "").strip()
+    if not source_id or not target_id:
+        return {"error": "Missing source_id or target_id"}, 400
+    try:
+        payload = merge_service.merge(source_id, target_id)
         return jsonify(payload), 200
     except Exception as err:
         return _handle_service_error(err)

@@ -1,23 +1,24 @@
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from firebase_admin import firestore
 
 from config.firebase_config import db
 from models import NewsletterSignup, NewsletterConsent
 from dto import NewsletterConsentDTO
-from services.communications.mail_service import EmailMessage, mail_service
+from services.communications.mail_service import EmailMessage, MailService, mail_service
 from utils.templates_mail import get_newsletter_signup_template, get_newsletter_signup_text
 
 logger = logging.getLogger("NewsletterService")
 
 
 class NewsletterService:
-    def __init__(self):
-        self.db = db
-        self.collection = db.collection("newsletter_signups")
-        self.participants_collection = db.collection("newsletter_participants")
+    def __init__(self, firestore_db=None, mail_service_instance: Optional[MailService] = None):
+        self.db = firestore_db or db
+        self.collection = self.db.collection("newsletter_signups")
+        self.participants_collection = self.db.collection("newsletter_participants")
+        self.mail_service = mail_service_instance or mail_service
         self.logger = logger
 
     def _serialize(self, signup: NewsletterSignup) -> Dict[str, Any]:
@@ -44,7 +45,7 @@ class NewsletterService:
 
             subject = "Welcome to MCP Newsletter!"
 
-            mail_service.send(
+            self.mail_service.send(
                 EmailMessage(
                     to_email=email,
                     subject=subject,
@@ -83,7 +84,7 @@ class NewsletterService:
 
     def get_all_consents(self) -> tuple:
         try:
-            docs = db.collection("newsletter_consents").order_by("timestamp", direction=firestore.Query.DESCENDING).get()
+            docs = self.db.collection("newsletter_consents").order_by("timestamp", direction=firestore.Query.DESCENDING).get()
             consents = [
                 NewsletterConsentDTO.from_model(NewsletterConsent.from_firestore(doc.to_dict() or {}, doc.id)).to_payload()
                 for doc in docs

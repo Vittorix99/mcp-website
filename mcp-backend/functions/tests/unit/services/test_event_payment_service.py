@@ -79,7 +79,7 @@ class _DummyMembershipRepo:
         self.attended = []
         self.models_by_email = {}
 
-    def find_model_by_email(self, email):
+    def find_by_email(self, email):
         return self.models_by_email.get(email)
 
     def update_from_model(self, membership_id, dto):

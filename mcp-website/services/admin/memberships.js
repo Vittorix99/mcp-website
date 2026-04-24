@@ -3,8 +3,11 @@ import { endpoints } from "@/config/endpoints";
 
 // CRUD & Azioni extra
 
-export async function getMemberships() {
-  return safeFetch(endpoints.admin.getMemberships, "GET");
+export async function getMemberships(year) {
+  const url = year
+    ? `${endpoints.admin.getMemberships}?year=${encodeURIComponent(year)}`
+    : endpoints.admin.getMemberships;
+  return safeFetch(url, "GET");
 }
 
 export async function getMembershipById(membership_id) {
@@ -18,6 +21,10 @@ export async function createMembership(data) {
 
 export async function updateMembership(membership_id, data) {
   return safeFetch(endpoints.admin.updateMembership, "PUT", { membership_id, ...data });
+}
+
+export async function mergeMemberships(source_id, target_id) {
+  return safeFetch(endpoints.admin.mergeMemberships, "POST", { source_id, target_id });
 }
 
 export async function deleteMembership(membership_id) {

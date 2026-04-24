@@ -164,6 +164,47 @@ export default function MembershipContent({ id }) {
             </CardContent>
           </Card>
 
+          {/* Storico Rinnovi */}
+          <Card className="bg-zinc-900 border border-zinc-700 shadow-lg">
+            <CardHeader><CardTitle>Storico Rinnovi ({(member.renewals || []).length})</CardTitle></CardHeader>
+            <CardContent>
+              {(member.renewals || []).length ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Anno</TableHead>
+                        <TableHead>Dal</TableHead>
+                        <TableHead>Al</TableHead>
+                        <TableHead>Quota</TableHead>
+                        <TableHead>Acquisto</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[...(member.renewals || [])].sort((a, b) => b.year - a.year).map((r) => (
+                        <TableRow key={r.year}>
+                          <TableCell><Badge variant="secondary">{r.year}</Badge></TableCell>
+                          <TableCell>{formatDate(r.start_date)}</TableCell>
+                          <TableCell>{r.end_date || "-"}</TableCell>
+                          <TableCell>{r.fee != null ? `${r.fee} €` : "-"}</TableCell>
+                          <TableCell>
+                            {r.purchase_id ? (
+                              <Button size="sm" variant="link" onClick={() => router.push(routes.admin.purchasesDetails(r.purchase_id))}>
+                                Vai
+                              </Button>
+                            ) : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">Nessun rinnovo registrato.</p>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Acquisti */}
           <Card>
             <CardHeader>

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from .base import FirestoreModel
 
@@ -22,6 +22,8 @@ class Membership(FirestoreModel):
     purchase_id: Optional[str] = field(default=None, metadata={"firestore_name": "purchase_id"})
     purchases: List[str] = field(default_factory=list)
     attended_events: List[str] = field(default_factory=list, metadata={"firestore_name": "attended_events"})
+    renewals: List[Dict[str, Any]] = field(default_factory=list)
+    membership_years: List[int] = field(default_factory=list, metadata={"firestore_name": "membership_years"})
     card_url: Optional[str] = None
     card_storage_path: Optional[str] = None
     send_card_on_create: bool = field(default=False, metadata={"firestore_name": "send_card_on_create"})

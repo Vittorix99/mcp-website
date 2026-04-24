@@ -1,7 +1,6 @@
 """
 Sender marketing service layer (sender.net).
 Business logic that orchestrates calls to SenderRoutes.
-Mirrors the purpose of services/mailer_lite/subscribers_client.py.
 
 Never raises externally — logs errors and returns None/False on failure.
 """

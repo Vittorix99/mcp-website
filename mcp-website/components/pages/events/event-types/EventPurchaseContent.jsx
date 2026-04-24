@@ -29,15 +29,8 @@ const splitLines = (txt = "") =>
     .split("\n")
     .filter((line) => line.trim().length)
 
-const isEventActive = (event) =>
-  (event?.status || "active") === "active" && typeof event?.price === "number"
-
-const isEventPast = (event) => {
-  if (!event?.date) return false
-  const [d, m, y] = event.date.split("-").map(Number)
-  const eventEnd = new Date(y, m - 1, d + 1)
-  return new Date() >= eventEnd
-}
+const isEventEnded = (event) =>
+  (event?.status || "active") === "ended"
 
 const MODE_BADGES = {
   [PURCHASE_MODES.PUBLIC]: null,
@@ -66,12 +59,8 @@ export default function EventPurchaseContent({ id, event, settings }) {
   const [eventMeta, setEventMeta] = useState({ nonMembers: [] })
 
   const purchaseMode = resolvePurchaseMode(event)
-  const active = isEventActive(event)
-  const past = isEventPast(event)
   const status = event?.status || "active"
-  const isEnded = status === "ended" || past
-  const isComingSoon = status === "coming_soon"
-  const isSoldOut = status === "sold_out"
+  const isEnded = isEventEnded(event)
   const hasPricing = typeof event?.price === "number"
   const paymentBlocked = Boolean(settings?.payment_blocked)
   const iban = settings?.company_iban || ""
@@ -180,7 +169,7 @@ export default function EventPurchaseContent({ id, event, settings }) {
               </div>
             )}
 
-            {(active || isSoldOut) && event.note && (
+            {!isEnded && event.note && (
               <div className="bg-mcp-orange/10 border border-mcp-orange/20 rounded-md p-4 mb-6 text-white font-helvetica text-sm">
                 {splitLines(event.note).map((line, idx) => (
                   <p key={idx} className="mb-2 last:mb-0">
@@ -190,7 +179,19 @@ export default function EventPurchaseContent({ id, event, settings }) {
               </div>
             )}
 
-            {isOnRequest && active && !past ? (
+            {isEnded ? (
+              <div className="text-center mt-10">
+                <div className="italic text-white mb-4">Evento concluso</div>
+                {event.photosReady && (
+                  <Link
+                    href={`/events-foto/${event.slug}`}
+                    className="bg-white text-black px-6 py-2 rounded-md font-semibold hover:bg-gray-200"
+                  >
+                    Guarda le foto
+                  </Link>
+                )}
+              </div>
+            ) : isOnRequest ? (
               <Alert className="bg-mcp-orange/10 border-mcp-orange/40 text-white">
                 <AlertDescription className="space-y-3 text-center">
                   <p className="uppercase tracking-wide text-sm text-mcp-orange">
@@ -205,28 +206,8 @@ export default function EventPurchaseContent({ id, event, settings }) {
                   </p>
                 </AlertDescription>
               </Alert>
-            ) : paymentBlocked && active && !past ? (
+            ) : paymentBlocked ? (
               <PaymentBlockedWarning price={event.price ?? 18} iban={iban} intestatario={intestatario} />
-            ) : isEnded ? (
-              <div className="text-center mt-10">
-                <div className="italic text-white mb-4">Evento concluso</div>
-                {event.photosReady && (
-                  <Link
-                    href={`/events-foto/${event.slug}`}
-                    className="bg-white text-black px-6 py-2 rounded-md font-semibold hover:bg-gray-200"
-                  >
-                    Guarda le foto
-                  </Link>
-                )}
-              </div>
-            ) : isComingSoon ? (
-              <div className="flex justify-center mt-12">
-                <div className="bg-white text-black px-4 py-3 rounded-md text-sm">Evento in arrivo</div>
-              </div>
-            ) : isSoldOut ? (
-              <div className="flex justify-center mt-12">
-                <div className="bg-white text-black px-4 py-3 rounded-md text-sm">Evento sold out</div>
-              </div>
             ) : (
               <>
                 <QuantitySelector

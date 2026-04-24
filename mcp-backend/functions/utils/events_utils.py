@@ -6,7 +6,12 @@ from typing import Any, Dict, Optional, Union
 
 from models import Event, EventPurchaseAccessType
 
-EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
+# RFC-5322 semplificata (pragmatica): valida local-part comune e dominio con almeno un dot.
+EMAIL_REGEX = re.compile(
+    r"^(?!\.)[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+(?<!\.)@"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+)
 
 
 def is_minor(birthdate_str):
@@ -117,46 +122,29 @@ def sanitize_event(event: dict) -> dict:
 
 
 def is_valid_email(email: str) -> bool:
-    return bool(EMAIL_REGEX.match(email.strip().lower()))
+    return validate_email_format(email)
+
+
+def validate_email_format(email: str) -> bool:
+    if not email:
+        return False
+    return bool(EMAIL_REGEX.match(str(email).strip().lower()))
 
 
 def ensure_event_is_active(event_data: Union[Event, Dict[str, Any]]):
     """
-    Ensure an event (model or raw dict) is active, not sold out, and scheduled in the future.
+    Block purchases only when the event is explicitly marked as 'ended'.
+    All other statuses (active, sold_out, coming_soon) allow purchases.
     """
     if isinstance(event_data, Event):
         status = event_data.status.value if event_data.status else "active"
-        date_str = event_data.date
-        max_participants = event_data.max_participants
-        participants_count = event_data.participants_count
     else:
         if not event_data:
             raise ValueError("Invalid or inactive event")
         status = str(event_data.get("status") or "active")
-        date_str = event_data.get("date")
-        max_participants = event_data.get("maxParticipants") or event_data.get("max_participants")
-        participants_count = event_data.get("participantsCount") or event_data.get("participants_count")
 
-    if status != "active":
-        raise ValueError("Invalid or inactive event")
-
-    if max_participants is not None and participants_count is not None:
-        try:
-            if int(participants_count) >= int(max_participants):
-                raise ValueError("Event is sold out")
-        except (TypeError, ValueError):
-            pass
-
-    if not date_str:
-        return
-
-    try:
-        event_date = datetime.datetime.strptime(date_str, "%d-%m-%Y").date()
-    except ValueError as exc:
-        raise ValueError("Invalid event date format") from exc
-
-    if event_date < datetime.date.today():
-        raise ValueError("Event date has already passed")
+    if status == "ended":
+        raise ValueError("Evento terminato: acquisti non consentiti")
 
 
 def map_purchase_mode(value: Optional[str]) -> EventPurchaseAccessType:

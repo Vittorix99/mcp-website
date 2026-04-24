@@ -29,7 +29,8 @@ export async function safeFetch(url, method = 'GET', body = null) {
 
     if (!response.ok) {
       const message = getApiErrorMessage(data)
-      return { error: message, error_code: data?.error, status: response.status }
+      const payload = data && typeof data === "object" ? data : {}
+      return { ...payload, error: message, error_code: payload?.error, status: response.status }
     }
 
     return data || {}

@@ -23,6 +23,8 @@ class MembershipDTO:
     purchase_id: Optional[str] = None
     purchases: Optional[List[str]] = None
     attended_events: Optional[List[str]] = None
+    renewals: Optional[List[Dict[str, Any]]] = None
+    membership_years: Optional[List[int]] = None
     card_url: Optional[str] = None
     card_storage_path: Optional[str] = None
     send_card_on_create: Optional[bool] = None
@@ -48,6 +50,8 @@ class MembershipDTO:
             purchase_id=membership.purchase_id,
             purchases=membership.purchases or [],
             attended_events=membership.attended_events or [],
+            renewals=membership.renewals or [],
+            membership_years=membership.membership_years or [],
             card_url=membership.card_url,
             card_storage_path=membership.card_storage_path,
             send_card_on_create=membership.send_card_on_create,
@@ -103,6 +107,8 @@ class MembershipDTO:
             purchase_id=pick("purchase_id"),
             purchases=pick("purchases"),
             attended_events=pick("attended_events"),
+            renewals=pick("renewals"),
+            membership_years=pick("membership_years", "membershipYears"),
             card_url=pick("card_url"),
             card_storage_path=pick("card_storage_path"),
             send_card_on_create=pick_bool("send_card_on_create", "sendCardOnCreate"),
@@ -156,6 +162,8 @@ class MembershipDTO:
             "purchase_id": self.purchase_id,
             "purchases": self.purchases,
             "attended_events": self.attended_events,
+            "renewals": self.renewals,
+            "membership_years": self.membership_years,
             "card_url": self.card_url,
             "card_storage_path": self.card_storage_path,
             "send_card_on_create": self.send_card_on_create,

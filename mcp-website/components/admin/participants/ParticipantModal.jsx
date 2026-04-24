@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 import { Loader2, X } from "lucide-react"
+import { detectEmailTypo } from "@/lib/emailValidation"
 
 const PAYMENT_METHOD_OPTIONS = [
   { value: "website", label: "Website" },
@@ -29,12 +30,14 @@ export function ParticipantModal({
   onSubmit,
   onInput,
   onCheckbox,
+  onMemberSelect,
 }) {
   const selectedMembershipId = form.membership_id ?? form.membershipId ?? null
   const isMember = !!selectedMembershipId
   const isMobile = !useMediaQuery("(min-width: 768px)")
   const defaultMembershipIncluded = !!form.membership_included
   const defaultSendTicket = !!form.send_ticket_on_create
+  const emailTypo = detectEmailTypo(form.email || "")
 
   const [internalLoading, setInternalLoading] = useState(false)
   const [membershipSearch, setMembershipSearch] = useState("")
@@ -85,6 +88,69 @@ export function ParticipantModal({
 
   const renderFields = () => (
     <>
+      {/* ── Selezione membro esistente (solo creazione) ── */}
+      {!isEditMode && (
+        <div className="rounded-lg border border-zinc-700 p-3 bg-zinc-900/40 space-y-2">
+          <Label className="text-sm font-semibold text-zinc-300">
+            Collega a membro esistente <span className="text-zinc-500 font-normal">(opzionale — pre-compila i campi)</span>
+          </Label>
+
+          {isMember ? (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-green-400 border border-green-700 bg-green-950 px-3 py-1 rounded">
+                {selectedMembership
+                  ? `${selectedMembership.name} ${selectedMembership.surname}`.trim()
+                  : selectedMembershipId}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onMemberSelect && onMemberSelect(null)}
+              >
+                Rimuovi
+              </Button>
+            </div>
+          ) : (
+            <>
+              <Input
+                placeholder={`Cerca per nome, cognome o email…`}
+                value={membershipSearch}
+                onChange={(e) => setMembershipSearch(e.target.value)}
+                disabled={membershipLoading}
+              />
+              {membershipSearch.trim() && (
+                <select
+                  size={Math.min(membershipSelectOptions.length + 1, 6)}
+                  className="w-full rounded border border-zinc-700 bg-zinc-800 p-2 text-white text-sm"
+                  disabled={membershipLoading || !membershipSelectOptions.length}
+                  onChange={(e) => {
+                    if (!e.target.value) return
+                    const member = membershipOptions.find((m) => m.id === e.target.value)
+                    if (member && onMemberSelect) {
+                      onMemberSelect(member)
+                      setMembershipSearch("")
+                    }
+                  }}
+                  defaultValue=""
+                >
+                  <option value="" disabled>Seleziona membro…</option>
+                  {membershipSelectOptions.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {`${m.surname || ""} ${m.name || ""}`.trim() || m.id}
+                      {m.email ? ` · ${m.email}` : ""}
+                    </option>
+                  ))}
+                  {membershipSelectOptions.length === 0 && (
+                    <option value="" disabled>Nessun risultato</option>
+                  )}
+                </select>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="name">Nome</Label>
@@ -99,6 +165,11 @@ export function ParticipantModal({
       <div>
         <Label htmlFor="email">Email</Label>
         <Input id="email" name="email" type="email" value={form.email || ""} onChange={onInput} required />
+        {emailTypo && (
+          <p className="mt-1 text-xs text-amber-400">
+            Hai scritto '{emailTypo.typedDomain}'. Intendevi '{emailTypo.suggestedDomain}'?
+          </p>
+        )}
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
@@ -217,15 +288,17 @@ export function ParticipantModal({
       <div className="flex flex-wrap items-center gap-4 pt-2">
   {!isEditMode && (
     <>
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="membership_included"
-          name="membership_included"
-          checked={defaultMembershipIncluded}
-          onCheckedChange={(val) => onCheckbox("membership_included", val)}
-        />
-        <Label htmlFor="membership_included">Tessera da includere</Label>
-      </div>
+      {!isMember && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="membership_included"
+            name="membership_included"
+            checked={defaultMembershipIncluded}
+            onCheckedChange={(val) => onCheckbox("membership_included", val)}
+          />
+          <Label htmlFor="membership_included">Tessera da includere</Label>
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Checkbox
           id="send_ticket_on_create"
@@ -255,7 +328,7 @@ export function ParticipantModal({
     />
     <Label htmlFor="riduzione">Riduzione (ha pagato meno)</Label>
   </div>
-  {isMember && (
+  {isEditMode && isMember && (
     <div className="text-sm text-green-400 border border-green-600 bg-green-950 px-3 py-1 rounded">
       Già tesserato
     </div>

@@ -3,6 +3,13 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from dto import MembershipDTO, PurchaseDTO
+from interfaces.repositories import (
+    EventRepositoryProtocol,
+    MembershipRepositoryProtocol,
+    MembershipSettingsRepositoryProtocol,
+    ParticipantRepositoryProtocol,
+    PurchaseRepositoryProtocol,
+)
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
@@ -12,13 +19,20 @@ from errors.service_errors import NotFoundError, ValidationError
 
 
 class MembershipReportsService:
-    def __init__(self):
+    def __init__(
+        self,
+        event_repository: Optional[EventRepositoryProtocol] = None,
+        membership_repository: Optional[MembershipRepositoryProtocol] = None,
+        settings_repository: Optional[MembershipSettingsRepositoryProtocol] = None,
+        participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+        purchase_repository: Optional[PurchaseRepositoryProtocol] = None,
+    ):
         self.logger = logging.getLogger("MembershipReportsService")
-        self.event_repository = EventRepository()
-        self.membership_repository = MembershipRepository()
-        self.settings_repository = MembershipSettingsRepository()
-        self.participant_repository = ParticipantRepository()
-        self.purchase_repository = PurchaseRepository()
+        self.event_repository = event_repository or EventRepository()
+        self.membership_repository = membership_repository or MembershipRepository()
+        self.settings_repository = settings_repository or MembershipSettingsRepository()
+        self.participant_repository = participant_repository or ParticipantRepository()
+        self.purchase_repository = purchase_repository or PurchaseRepository()
 
     def _parse_iso_date(self, value):
         if not value:

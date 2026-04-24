@@ -19,6 +19,13 @@
       ]
     },
     {
+      "collectionGroup": "memberships",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "membership_years", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
       "collectionGroup": "contact_message",
       "queryScope": "COLLECTION",
       "fields": [

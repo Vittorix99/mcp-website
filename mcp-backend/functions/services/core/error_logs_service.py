@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from dto.error_log import ErrorLogDTO
+from interfaces.repositories import ErrorLogRepositoryProtocol
 from repositories.error_log_repository import ErrorLogRepository
 
 logger = logging.getLogger("ErrorLogsService")
@@ -38,8 +39,8 @@ def _normalize_message(value: Any) -> str:
 
 
 class ErrorLogsService:
-    def __init__(self):
-        self.repository = ErrorLogRepository()
+    def __init__(self, repository: Optional[ErrorLogRepositoryProtocol] = None):
+        self.repository = repository or ErrorLogRepository()
 
     def list_logs(self, limit: int = 100, service: Optional[str] = None, resolved: Optional[bool] = None):
         return [entry.to_payload() for entry in self.repository.list_dtos(limit=limit, service=service, resolved=resolved)]

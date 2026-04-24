@@ -95,7 +95,7 @@ export function CustomSidebar() {
 
   const isActive = (url) =>
     url !== routes.admin.dashboard
-      ? pathname.startsWith(url)
+      ? pathname === url || pathname.startsWith(url + "/")
       : pathname === url
 
   return (

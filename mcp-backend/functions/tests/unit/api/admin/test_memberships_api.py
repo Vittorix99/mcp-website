@@ -105,6 +105,32 @@ def test_update_membership_happy_path(monkeypatch):
     assert resp["id"] == "mem-1"
 
 
+def test_merge_memberships_missing_ids(monkeypatch):
+    monkeypatch.setattr(members_api.request, "get_json", lambda: {})
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.merge_memberships(req))
+    assert status == 400
+    assert resp["error"] == "Missing source_id or target_id"
+
+
+def test_merge_memberships_happy_path(monkeypatch):
+    monkeypatch.setattr(
+        members_api,
+        "merge_service",
+        types.SimpleNamespace(merge=lambda source_id, target_id: {"source": source_id, "target": target_id}),
+    )
+    monkeypatch.setattr(
+        members_api.request,
+        "get_json",
+        lambda: {"source_id": "mem-old", "target_id": "mem-new"},
+    )
+    req = DummyRequest(method="POST")
+    resp, status = unwrap_response(members_api.merge_memberships(req))
+    assert status == 200
+    assert resp["source"] == "mem-old"
+    assert resp["target"] == "mem-new"
+
+
 def test_delete_membership_missing_id(monkeypatch):
     monkeypatch.setattr(members_api.request, "get_json", lambda: {})
     req = DummyRequest(method="DELETE")

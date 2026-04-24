@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 
-const ENV = process.env.NEXT_PUBLIC_ENV || "local";
-const SERVER_BASE_URL =
-  ENV === "production"
-    ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
-    : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1";
-
 async function forward(request, context) {
+  const ENV = process.env.NEXT_PUBLIC_ENV || "local";
+  const SERVER_BASE_URL =
+    ENV === "production"
+      ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
+      : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1";
+
   const params = await context.params;
   const path = Array.isArray(params?.path) ? params.path.join("/") : "";
   const url = new URL(request.url);

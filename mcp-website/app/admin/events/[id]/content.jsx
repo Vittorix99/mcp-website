@@ -282,6 +282,8 @@ export default function EventContent({ id: eventId }) {
           name: m.name || "",
           surname: m.surname || "",
           email: m.email || "",
+          phone: m.phone || "",
+          birthdate: m.birthdate || "",
         }))
         .sort((a, b) =>
           `${a.surname} ${a.name}`.toLowerCase().localeCompare(`${b.surname} ${b.name}`.toLowerCase())
@@ -1362,6 +1364,28 @@ export default function EventContent({ id: eventId }) {
             }))
           }
           onCheckbox={(name, value) => setParticipantForm((f) => ({ ...f, [name]: value }))}
+          onMemberSelect={(member) => {
+            if (!member) {
+              setParticipantForm((f) => ({
+                ...f,
+                membership_id: null,
+                membershipId: null,
+                membership_included: false,
+              }))
+              return
+            }
+            setParticipantForm((f) => ({
+              ...f,
+              name: member.name || f.name,
+              surname: member.surname || f.surname,
+              email: member.email || f.email,
+              phone: member.phone || f.phone,
+              birthdate: member.birthdate || f.birthdate,
+              membership_id: member.id,
+              membershipId: member.id,
+              membership_included: true,
+            }))
+          }}
         />
 
         <LocationModal

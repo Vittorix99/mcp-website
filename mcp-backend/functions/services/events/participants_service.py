@@ -6,31 +6,50 @@ from google.cloud import firestore
 
 from dto import EventDTO, EventParticipantDTO, MembershipDTO
 from dto.preorder import CheckoutParticipantDTO
+from domain.membership_rules import (
+    build_renewal_record,
+    membership_years_from_renewals,
+)
+from interfaces.repositories import (
+    EventRepositoryProtocol,
+    MembershipRepositoryProtocol,
+    ParticipantRepositoryProtocol,
+)
+from interfaces.services import TicketServiceProtocol
 from models import EventParticipant, EventPurchaseAccessType, Membership, PaymentMethod
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError, ForbiddenError
 from services.events.ticket_service import TicketService
-from services.communications.mail_service import EmailMessage, mail_service
+from services.communications.mail_service import EmailMessage, MailService, mail_service
 from utils.templates_mail import get_omaggio_email_template, get_omaggio_email_text
 from utils.events_utils import (
     calculate_end_of_year_membership,
     is_minor,
     normalize_email,
     normalize_phone,
+    validate_email_format,
 )
 from domain.participant_rules import run_basic_checks
 
 
 class ParticipantsService:
-    def __init__(self):
+    def __init__(
+        self,
+        event_repository: Optional[EventRepositoryProtocol] = None,
+        membership_repository: Optional[MembershipRepositoryProtocol] = None,
+        participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+        ticket_service: Optional[TicketServiceProtocol] = None,
+        mail_service_instance: Optional[MailService] = None,
+    ):
         self.logger = logging.getLogger("ParticipantsService")
-        self.event_repository = EventRepository()
-        self.membership_repository = MembershipRepository()
-        self.participant_repository = ParticipantRepository()
+        self.event_repository = event_repository or EventRepository()
+        self.membership_repository = membership_repository or MembershipRepository()
+        self.participant_repository = participant_repository or ParticipantRepository()
         self.allowed_payment_methods = {method.value for method in PaymentMethod}
-        self.ticket_service = TicketService()
+        self.ticket_service = ticket_service or TicketService()
+        self.mail_service = mail_service_instance or mail_service
 
     def _normalize_price(self, price: Optional[Any]) -> Optional[float]:
         if price in (None, ""):
@@ -58,9 +77,9 @@ class ParticipantsService:
         return method
 
     def _find_membership(self, email: str, phone: str) -> Optional[Membership]:
-        membership = self.membership_repository.find_model_by_email(email) if email else None
+        membership = self.membership_repository.find_by_email(email) if email else None
         if not membership and phone:
-            membership = self.membership_repository.find_model_by_phone(phone)
+            membership = self.membership_repository.find_by_phone(phone)
         return membership
 
     def get_all(self, event_id):
@@ -85,6 +104,8 @@ class ParticipantsService:
 
         email = normalize_email(dto.email)
         phone = normalize_phone(dto.phone)
+        if email and not validate_email_format(email):
+            raise ValidationError("Formato email non valido")
         membership_included = bool(dto.membership_included)
         purchase_id = dto.purchase_id
         price_value = self._normalize_price(dto.price)
@@ -102,20 +123,45 @@ class ParticipantsService:
 
         if membership_included and not is_member and membership_id:
             now = datetime.now(timezone.utc)
+            start_date = now.isoformat()
             end_date = calculate_end_of_year_membership(now)
+            renewals = list(membership.renewals or []) if membership else []
+            renewals.append(
+                build_renewal_record(
+                    start_date=start_date,
+                    end_date=end_date,
+                    purchase_id=getattr(membership, "purchase_id", None),
+                    fee=getattr(membership, "membership_fee", None),
+                )
+            )
             update_dto = MembershipDTO(
                 subscription_valid=True,
-                start_date=now.isoformat(),
+                start_date=start_date,
                 end_date=end_date,
                 membership_sent=False,
                 membership_type="manual",
+                renewals=renewals,
+                membership_years=membership_years_from_renewals(
+                    renewals,
+                    fallback_start_date=start_date,
+                    fallback_end_date=end_date,
+                ),
             )
             self.membership_repository.update_from_model(membership_id, update_dto)
             is_member = True
 
         if membership_included and not is_member and not membership_id:
             now = datetime.now(timezone.utc)
+            start_date = now.isoformat()
             end_date = calculate_end_of_year_membership(now)
+            renewals = [
+                build_renewal_record(
+                    start_date=start_date,
+                    end_date=end_date,
+                    purchase_id=None,
+                    fee=None,
+                )
+            ]
 
             membership_model = Membership(
                 name=dto.name or "",
@@ -123,12 +169,18 @@ class ParticipantsService:
                 email=email,
                 phone=phone,
                 birthdate=birthdate,
-                start_date=now.isoformat(),
+                start_date=start_date,
                 end_date=end_date,
                 subscription_valid=True,
                 membership_sent=False,
                 membership_type="manual",
                 purchase_id=None,
+                renewals=renewals,
+                membership_years=membership_years_from_renewals(
+                    renewals,
+                    fallback_start_date=start_date,
+                    fallback_end_date=end_date,
+                ),
             )
 
             membership_id = self.membership_repository.create_from_model(membership_model)
@@ -192,7 +244,7 @@ class ParticipantsService:
                 if normalized_membership_id in (None, ""):
                     manual_membership_id = None
                 else:
-                    membership = self.membership_repository.get_model(normalized_membership_id)
+                    membership = self.membership_repository.get(normalized_membership_id)
                     if not membership:
                         raise NotFoundError("Membership not found")
                     manual_membership_id = normalized_membership_id
@@ -207,6 +259,12 @@ class ParticipantsService:
             if isinstance(update_data, EventParticipantDTO)
             else EventParticipantDTO.from_payload(update_data)
         )
+
+        if update_dto.email:
+            normalized_update_email = normalize_email(update_dto.email)
+            if not validate_email_format(normalized_update_email):
+                raise ValidationError("Formato email non valido")
+            update_dto.email = normalized_update_email
 
         if participant.purchase_id and update_dto.payment_method is not None:
             raise ValidationError("Cannot change payment_method for website purchase")
@@ -364,7 +422,7 @@ class ParticipantsService:
             entry_time=entry_time,
         )
         subject = f"Il tuo invito – {event_model.title}"
-        return mail_service.send(
+        return self.mail_service.send(
             EmailMessage(
                 to_email=participant.email,
                 subject=subject,

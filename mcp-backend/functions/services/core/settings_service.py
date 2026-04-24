@@ -1,11 +1,14 @@
+from typing import Optional
+
 from dto import SettingDTO
+from interfaces.repositories import SettingsRepositoryProtocol
 from repositories.settings_repository import SettingsRepository
 from errors.service_errors import NotFoundError, ValidationError
 
 
 class SettingsService:
-    def __init__(self):
-        self.settings_repository = SettingsRepository()
+    def __init__(self, settings_repository: Optional[SettingsRepositoryProtocol] = None):
+        self.settings_repository = settings_repository or SettingsRepository()
 
     def get_setting(self, key):
         if not key:

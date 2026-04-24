@@ -70,12 +70,19 @@ def _get_gender_cached(name: str):
 def _is_valid_member(member: Membership, today: Optional[datetime] = None) -> bool:
     if today is None:
         today = datetime.now(timezone.utc)
-    # A membership from a previous year is always expired, regardless of subscription_valid
+    current_year = today.year
+
+    # Primary check: membership_years is the authoritative list of valid years.
+    # A member is valid only if the current year is explicitly in that list.
+    if member.membership_years:
+        return current_year in [int(y) for y in member.membership_years]
+
+    # Legacy fallback for members without membership_years yet.
     start_date_s = member.start_date
     if start_date_s:
         try:
             start_dt = datetime.fromisoformat(str(start_date_s).replace("Z", "+00:00"))
-            if start_dt.year < today.year:
+            if start_dt.year < current_year:
                 return False
         except Exception:
             pass
@@ -195,7 +202,7 @@ def run_basic_checks(
         is_member = False
         member_model: Optional[Membership] = None
         if email:
-            member_model = membership_repository.find_model_by_email(email)
+            member_model = membership_repository.find_by_email(email)
             if member_model and _is_valid_member(member_model, today):
                 m_name_norm = _normalize_text(member_model.name)
                 m_surname_norm = _normalize_text(member_model.surname)

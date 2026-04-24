@@ -1,11 +1,10 @@
 from firebase_admin import auth
 from functools import wraps
 from firebase_functions import https_fn
+from typing import Optional
 
+from interfaces.repositories import UserRepositoryProtocol
 from repositories.user_repository import UserRepository
-
-
-user_repository = UserRepository()
 
 
 def verify_admin_token(id_token):
@@ -41,13 +40,17 @@ def require_admin(handler):
     return decorated_function
 
 
-def verify_admin_service(req: https_fn.CallableRequest) -> dict:
+def verify_admin_service(
+    req: https_fn.CallableRequest,
+    user_repository: Optional[UserRepositoryProtocol] = None,
+) -> dict:
     """Handles checking if a user is an admin"""
     if not req.auth:
         return {"isAdmin": False}
 
     try:
-        user_data = user_repository.get_by_id(req.auth.uid) or {}
+        repository = user_repository or UserRepository()
+        user_data = repository.get_by_id(req.auth.uid) or {}
 
         return {
             "isAdmin": user_data.get("isAdmin", False),

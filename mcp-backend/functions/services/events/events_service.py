@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Set
 from firebase_admin import firestore
 
 from dto import EventDTO
+from interfaces.repositories import EventRepositoryProtocol, ParticipantRepositoryProtocol
 from models import Event
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
@@ -15,10 +16,14 @@ logger = logging.getLogger("EventsService")
 
 
 class EventsService:
-    def __init__(self):
+    def __init__(
+        self,
+        event_repository: Optional[EventRepositoryProtocol] = None,
+        participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+    ):
         self.logger = logger
-        self.event_repository = EventRepository()
-        self.participant_repository = ParticipantRepository()
+        self.event_repository = event_repository or EventRepository()
+        self.participant_repository = participant_repository or ParticipantRepository()
 
     # ----------------------- Date helpers -----------------------
     def _normalize_date_string(self, date_str: str) -> str:

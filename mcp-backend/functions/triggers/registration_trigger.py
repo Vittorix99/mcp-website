@@ -21,7 +21,6 @@ from utils.events_utils import is_valid_email
 from utils.templates_mail import get_membership_email_template, get_membership_email_text
 from config.external_services import GENDER_API_URL
 from models import EventParticipant, Membership as MembershipModel
-from services.mailer_lite import SubscribersClient
 from services.sender.sender_sync import sync_participant_to_sender, sync_membership_to_sender
 from services.core.error_logs_service import log_external_error
 
@@ -59,11 +58,22 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         event_id = event.params["eventId"]
         print(f"New participant registered: {participant_id} for event {event_id}")
 
+        # IDEMPOTENCY GUARD: re-read the current document state to protect against
+        # Firestore at-least-once trigger retries sending duplicate tickets.
+        current_doc = snapshot.reference.get()
+        if not current_doc.exists:
+            print("Participant document no longer exists, skipping")
+            return
+        current_data = current_doc.to_dict() or {}
+        ticket_already_sent = current_data.get("ticket_sent", False)
+
         participant_data = snapshot.to_dict()
         print(f"Participant data: {participant_data}")
 
-        # Gender detection
-        name = participant_data.get("name", "").split(" ")[0].strip().lower()
+        participant_model = EventParticipant.from_firestore(participant_data, doc_id=participant_id)
+
+        # Gender detection (idempotent: always produces the same result)
+        name = (participant_model.name or "").split(" ")[0].strip().lower()
         gender = "N/A"
         probability = 0.0
 
@@ -89,57 +99,28 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         })
         print(f"Gender saved: {gender} ({probability})")
 
-        # Ticket sending
-        send = participant_data.get("send_ticket_on_create", True)
-        if not send:
-            print("Skipping ticket send")
-        result = ticket_service.process_new_ticket(participant_id, participant_data, send)
-        if not result.get("success", False):
-            ticket_service.log_failed_ticket_email(
-                participant_id,
-                participant_data,
-                result.get("error", "Unknown error"),
-            )
+        # Ticket sending — skip if already sent (retry protection)
+        send = participant_model.send_ticket_on_create
+        if ticket_already_sent:
+            print(f"Ticket already sent for {participant_id}, skipping to avoid duplicate")
+        elif not send:
+            print("Skipping ticket send (send_ticket_on_create=False)")
+        else:
+            result = ticket_service.process_new_ticket(participant_id, participant_data, send)
+            if not result.get("success", False):
+                ticket_service.log_failed_ticket_email(
+                    participant_id,
+                    participant_data,
+                    result.get("error", "Unknown error"),
+                )
 
         # Newsletter consent handling
-        email = participant_data.get("email", "").strip().lower()
-        newsletter_consent = participant_data.get("newsletterConsent", False)
-
-        consent_timestamp = None
-        if newsletter_consent and is_valid_email(email):
-            # Newsletter consents insertion disabled for now.
-            print("Skipping newsletter_consents insert")
-        else:
-            print("No consent or invalid email")
-
-        # MailerLite sync for newsletter consent
-        if newsletter_consent and is_valid_email(email):
-            try:
-                sync_service = SubscribersClient()
-                membership_id = participant_data.get("membershipId") or participant_data.get("membership_id")
-                fields = {
-                    "name": participant_data.get("name"),
-                    "last_name": participant_data.get("surname"),
-                    "phone": participant_data.get("phone"),
-                    "birthdate": participant_data.get("birthdate"),
-                    "gender": gender,
-                    "membership_id": membership_id,
-                    "participant_id": participant_id,
-                }
-                opted_in_at = None
-                if consent_timestamp:
-                    try:
-                        opted_in_at = consent_timestamp.strftime("%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        opted_in_at = None
-                sync_service.sync_newsletter_consent(email, fields, opted_in_at=opted_in_at)
-            except Exception as e:
-                print(f"MailerLite sync failed for {email}: {e}")
+        email = (participant_model.email or "").strip().lower()
+        newsletter_consent = participant_model.newsletter_consent
 
         # Sender sync for newsletter consent
         if newsletter_consent and is_valid_email(email):
             try:
-                participant_model = EventParticipant.from_firestore(participant_data, doc_id=participant_id)
                 event_doc = db.collection("events").document(event_id).get()
                 event_title = (event_doc.to_dict() or {}).get("title", "") if event_doc.exists else ""
                 sync_participant_to_sender(participant_id, participant_model, event_id, event_title=event_title)
@@ -176,15 +157,29 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
 
     try:
         membership_id = event.params["membershipId"]
-        membership_data = snapshot.to_dict()
 
+        # IDEMPOTENCY GUARD: re-read the current document state to protect against
+        # Firestore at-least-once trigger retries creating duplicate wallet passes
+        # or sending duplicate card emails.
+        current_doc = snapshot.reference.get()
+        if not current_doc.exists:
+            print("Membership document no longer exists, skipping")
+            return
+        current_data = current_doc.to_dict() or {}
+
+        if current_data.get("trigger_processed"):
+            print(f"Trigger already processed for {membership_id}, skipping")
+            return
+        # Mark as being processed before any side effect so a concurrent retry exits.
+        snapshot.reference.update({"trigger_processed": True})
+
+        membership_data = snapshot.to_dict()
         print(f"Membership data for {membership_id}: {membership_data}")
 
+        membership_model = MembershipModel.from_firestore(membership_data, doc_id=membership_id)
+
         # Determine whether to send the card based on `send_card_on_create`
-        send_card = _coerce_bool(
-            membership_data.get("send_card_on_create", membership_data.get("sendCardOnCreate")),
-            default=False,
-        )
+        send_card = bool(membership_model.send_card_on_create)
         if not send_card:
             print("Skipping membership email send (send_card_on_create=False)")
 
@@ -215,40 +210,37 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
         # else:
         #     print("Membership already has a card_url, skipping card generation")
 
-        wallet_url = None
-        try:
-            from services.memberships.pass2u_service import Pass2UService
-            pass2u = Pass2UService()
-            membership_model = MembershipModel(
-                name=membership_data.get("name", ""),
-                surname=membership_data.get("surname", ""),
-                email=membership_data.get("email", ""),
-                end_date=membership_data.get("end_date", ""),
-                start_date=membership_data.get("start_date", ""),
-                birthdate=membership_data.get("birthdate", ""),
-                phone=membership_data.get("phone", ""),
-                subscription_valid=membership_data.get("subscription_valid", True),
-                membership_type=membership_data.get("membership_type", "manual"),
-                membership_fee=membership_data.get("membership_fee"),
-            )
-            wallet = pass2u.create_membership_pass(membership_id, membership_model)
-            if wallet:
-                wallet_url = wallet.wallet_url
-                snapshot.reference.update({
-                    "wallet_pass_id": wallet.pass_id,
-                    "wallet_url": wallet_url,
-                })
-                print(f"[Pass2U] Wallet pass created: {wallet_url}")
-        except Exception as e:
-            print(f"[Pass2U] Wallet creation failed (non-blocking): {e}")
-            log_external_error(
-                service="Pass2U",
-                operation="membership_trigger_create_wallet",
-                source="triggers.registration_trigger.on_membership_created",
-                message=str(e),
-                status_code=0,
-                context={"membership_id": membership_id},
-            )
+        # Wallet pass — skip if one already exists (idempotency for retries)
+        wallet_url = current_data.get("wallet_url")
+        if current_data.get("wallet_pass_id"):
+            print(f"[Pass2U] Wallet pass already exists for {membership_id}, skipping creation")
+        else:
+            try:
+                from services.memberships.pass2u_service import Pass2UService
+                pass2u = Pass2UService()
+                wallet = pass2u.create_membership_pass(membership_id, membership_model)
+                if wallet:
+                    wallet_url = wallet.wallet_url
+                    snapshot.reference.update({
+                        "wallet_pass_id": wallet.pass_id,
+                        "wallet_url": wallet_url,
+                    })
+                    print(f"[Pass2U] Wallet pass created: {wallet_url}")
+            except Exception as e:
+                print(f"[Pass2U] Wallet creation failed (non-blocking): {e}")
+                log_external_error(
+                    service="Pass2U",
+                    operation="membership_trigger_create_wallet",
+                    source="triggers.registration_trigger.on_membership_created",
+                    message=str(e),
+                    status_code=0,
+                    context={"membership_id": membership_id},
+                )
+
+        # Card email — skip if already sent (idempotency for retries)
+        if send_card and current_data.get("membership_sent"):
+            print(f"Membership card already sent for {membership_id}, skipping")
+            send_card = False
 
         if send_card:
             payload = membership_dto.to_payload()
@@ -276,7 +268,7 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
 
             sent = mail_service.send(
                 EmailMessage(
-                    to_email=membership_data.get("email"),
+                    to_email=membership_model.email,
                     subject=subject,
                     text_content=text_content,
                     html_content=html_content,
@@ -285,32 +277,15 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
             )
             if sent:
                 snapshot.reference.update({"membership_sent": True})
-                print(f"Membership card sent to {membership_data.get('email')}")
+                print(f"Membership card sent to {membership_model.email}")
             else:
                 print("Membership card email failed to send")
 
-        # MailerLite sync for memberships
-        try:
-            email = (membership_data.get("email") or "").strip().lower()
-            if is_valid_email(email):
-                sync_service = SubscribersClient()
-                fields = {
-                    "name": membership_data.get("name"),
-                    "last_name": membership_data.get("surname"),
-                    "phone": membership_data.get("phone"),
-                    "birthdate": membership_data.get("birthdate"),
-                    "membership_id": membership_id,
-                }
-                sync_service.sync_membership(email, fields)
-        except Exception as e:
-            print(f"MailerLite sync failed for membership {membership_id}: {e}")
-
         # Sender sync for memberships
         try:
-            email = (membership_data.get("email") or "").strip().lower()
+            email = (membership_model.email or "").strip().lower()
             if is_valid_email(email):
-                membership_model_for_sender = MembershipModel.from_firestore(membership_data, doc_id=membership_id)
-                sync_membership_to_sender(membership_id, membership_model_for_sender)
+                sync_membership_to_sender(membership_id, membership_model)
         except Exception as e:
             print(f"Sender sync failed for membership {membership_id}: {e}")
             log_external_error(

@@ -86,14 +86,6 @@ def test_on_participant_created_updates_gender_and_sends_ticket(monkeypatch):
         "log_failed_ticket_email",
         lambda *args, **kwargs: called.setdefault("ticket_error", True),
     )
-    monkeypatch.setattr(
-        registration_trigger,
-        "SubscribersClient",
-        lambda: types.SimpleNamespace(
-            sync_newsletter_consent=lambda *args, **kwargs: called.setdefault("newsletter", True)
-        ),
-    )
-
     registration_trigger.on_participant_created.__wrapped__(event)
 
     assert any(
@@ -101,7 +93,6 @@ def test_on_participant_created_updates_gender_and_sends_ticket(monkeypatch):
         for update in snap.reference.updates
     )
     assert called.get("ticket") == (participant_id, True)
-    assert "newsletter" not in called
 
 
 def test_on_participant_created_newsletter_sync_and_skip_ticket(monkeypatch):
@@ -133,13 +124,6 @@ def test_on_participant_created_newsletter_sync_and_skip_ticket(monkeypatch):
         "get",
         lambda *args, **kwargs: pytest.fail("Gender API should not be called for Andrea"),
     )
-    monkeypatch.setattr(
-        registration_trigger,
-        "SubscribersClient",
-        lambda: types.SimpleNamespace(
-            sync_newsletter_consent=lambda *args, **kwargs: called.setdefault("newsletter", True)
-        ),
-    )
 
     registration_trigger.on_participant_created.__wrapped__(event)
 
@@ -147,7 +131,6 @@ def test_on_participant_created_newsletter_sync_and_skip_ticket(monkeypatch):
         update.get("gender") == "male" and update.get("gender_probability") == 1.0
         for update in snap.reference.updates
     )
-    assert called.get("newsletter") is True
     assert called.get("send_flag") is False
 
 
@@ -179,11 +162,6 @@ def test_on_membership_created_generates_card_and_sends_email(monkeypatch):
 
     monkeypatch.setattr("services.memberships.pass2u_service.Pass2UService", _DummyPass2UService)
     monkeypatch.setattr(registration_trigger.mail_service, "send", _fake_send)
-    monkeypatch.setattr(
-        registration_trigger,
-        "SubscribersClient",
-        lambda: types.SimpleNamespace(sync_membership=lambda *args, **kwargs: None),
-    )
 
     registration_trigger.on_membership_created.__wrapped__(event)
 
@@ -223,11 +201,6 @@ def test_on_membership_created_does_not_send_email_when_send_flag_false(monkeypa
         "send",
         lambda *_args, **_kwargs: called.__setitem__("email", True),
     )
-    monkeypatch.setattr(
-        registration_trigger,
-        "SubscribersClient",
-        lambda: types.SimpleNamespace(sync_membership=lambda *args, **kwargs: None),
-    )
 
     registration_trigger.on_membership_created.__wrapped__(event)
 
@@ -253,11 +226,6 @@ def test_on_membership_created_accepts_camelcase_send_flag(monkeypatch):
             return types.SimpleNamespace(pass_id="pass-3", wallet_url="https://www.pass2u.net/d/pass-3")
 
     monkeypatch.setattr("services.memberships.pass2u_service.Pass2UService", _DummyPass2UService)
-    monkeypatch.setattr(
-        registration_trigger,
-        "SubscribersClient",
-        lambda: types.SimpleNamespace(sync_membership=lambda *args, **kwargs: None),
-    )
 
     called = {"email": False}
     monkeypatch.setattr(

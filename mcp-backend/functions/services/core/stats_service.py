@@ -2,6 +2,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from dto import PurchaseDTO
+from interfaces.repositories import (
+    EventRepositoryProtocol,
+    MembershipRepositoryProtocol,
+    MessageRepositoryProtocol,
+    ParticipantRepositoryProtocol,
+    PurchaseRepositoryProtocol,
+)
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.message_repository import MessageRepository
@@ -10,12 +17,19 @@ from repositories.purchase_repository import PurchaseRepository
 
 
 class StatsService:
-    def __init__(self):
-        self.event_repository = EventRepository()
-        self.membership_repository = MembershipRepository()
-        self.purchase_repository = PurchaseRepository()
-        self.participant_repository = ParticipantRepository()
-        self.message_repository = MessageRepository()
+    def __init__(
+        self,
+        event_repository: Optional[EventRepositoryProtocol] = None,
+        membership_repository: Optional[MembershipRepositoryProtocol] = None,
+        purchase_repository: Optional[PurchaseRepositoryProtocol] = None,
+        participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+        message_repository: Optional[MessageRepositoryProtocol] = None,
+    ):
+        self.event_repository = event_repository or EventRepository()
+        self.membership_repository = membership_repository or MembershipRepository()
+        self.purchase_repository = purchase_repository or PurchaseRepository()
+        self.participant_repository = participant_repository or ParticipantRepository()
+        self.message_repository = message_repository or MessageRepository()
 
     def get_general_stats(self):
         total_active_members = sum(

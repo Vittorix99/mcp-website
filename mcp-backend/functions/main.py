@@ -75,6 +75,7 @@ from api.admin.members_api import (
     get_membership,
     get_memberships,
     create_membership,
+    merge_memberships,
     update_membership,
     delete_membership,
     send_membership_card,
@@ -109,6 +110,7 @@ from api.admin.error_logs_api import admin_error_logs
 from api.admin.setting_api import get_settings, set_settings
 from triggers.jobs_trigger import process_send_location_job
 from triggers.new_year_trigger import invalidate_memberships_new_year
+from triggers.cleanup_trigger import cleanup_stale_data
 
 # === API Entrance Scanner ===
 from api.entrance import (
@@ -118,32 +120,6 @@ from api.entrance import (
     entrance_manual_entry,
     entrance_validate,
     entrance_deactivate_scan_token,
-)
-
-# === API Admin: MailerLite ===
-from api.admin.mailer_lite.groups_api import (
-    admin_mailerlite_groups,
-    admin_mailerlite_group_subscribers,
-    admin_mailerlite_group_assign_subscriber,
-    admin_mailerlite_group_unassign_subscriber,
-)
-from api.admin.mailer_lite.subscribers_api import (
-    admin_mailerlite_subscribers,
-    admin_mailerlite_subscriber_forget,
-)
-from api.admin.mailer_lite.campaigns_api import (
-    admin_mailerlite_campaigns,
-    admin_mailerlite_campaign_schedule,
-    admin_mailerlite_campaign_cancel_ready,
-)
-from api.admin.mailer_lite.fields_api import admin_mailerlite_fields
-from api.admin.mailer_lite.automations_api import (
-    admin_mailerlite_automations,
-    admin_mailerlite_automation_activity,
-)
-from api.admin.mailer_lite.segments_api import (
-    admin_mailerlite_segments,
-    admin_mailerlite_segment_subscribers,
 )
 
 # === API Admin: Sender ===

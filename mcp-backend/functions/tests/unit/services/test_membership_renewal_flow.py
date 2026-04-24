@@ -102,7 +102,7 @@ class _DummyMembershipRepo:
         self.created = []
         self.attended = []
 
-    def find_model_by_email(self, email):
+    def find_by_email(self, email):
         if self.existing and self.existing.email == email:
             return self.existing
         return None

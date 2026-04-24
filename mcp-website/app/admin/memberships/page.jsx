@@ -27,12 +27,12 @@ import { getMembershipsReport } from "@/services/admin/memberships"
 
 export default function MembershipsPage() {
   const router = useRouter()
-  const yearStorageKey = "mcp_admin_memberships_year"
   const {
     memberships,
     loadAll,
     create,
     update,
+    merge,
     remove,
     sendCard,
     getMembershipPriceForYear,
@@ -43,6 +43,8 @@ export default function MembershipsPage() {
     fetchWalletModel,
     saveWalletModel,
     loading,
+    selectedYear,
+    setSelectedYear,
   } = useAdminMemberships()
   const { events } = useAdminEvents()
   const { setError } = useError()
@@ -60,10 +62,12 @@ export default function MembershipsPage() {
 
   const [search, setSearch] = useState(stored.search || "")
   const [showOnlyNotSent, setShowOnlyNotSent] = useState(!!stored.showOnlyNotSent)
+  const [statusFilter, setStatusFilter] = useState(stored.statusFilter || "all") // all | valid | expired | honorary
   const [modalOpen, setModalOpen] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [form, setForm] = useState({})
   const [initial, setInitial] = useState({})
+  const [mergeConflict, setMergeConflict] = useState(null)
   const [priceEditing, setPriceEditing] = useState(false)
   const [tempPrice, setTempPrice] = useState("")
   const [walletModelEditing, setWalletModelEditing] = useState(false)
@@ -74,22 +78,12 @@ export default function MembershipsPage() {
   const [walletModelWarningText, setWalletModelWarningText] = useState(
     "Modello Wallet Pass2U non configurato. Configuralo dalle impostazioni."
   )
-  const [selectedYear, setSelectedYear] = useState(() => {
-    if (typeof window === "undefined") {
-      return new Date().getFullYear().toString()
-    }
-    const stored = window.localStorage.getItem(yearStorageKey)
-    if (stored) return stored
-    const match = document.cookie.match(/(?:^|; )mcp_admin_memberships_year=([^;]*)/)
-    return match ? decodeURIComponent(match[1]) : new Date().getFullYear().toString()
-  })
   const [selectedEventId, setSelectedEventId] = useState(stored.selectedEventId || "")
   const [exportEventLoading, setExportEventLoading] = useState(false)
   const [sortBy, setSortBy] = useState(stored.sortBy || "name_asc")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(stored.pageSize || 25)
 
-  const currentYear = new Date().getFullYear().toString()
 
   useEffect(() => {
     getMembershipPriceForYear(selectedYear)
@@ -113,21 +107,16 @@ export default function MembershipsPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    window.localStorage.setItem(yearStorageKey, selectedYear)
-    document.cookie = `${yearStorageKey}=${encodeURIComponent(selectedYear)}; path=/; max-age=31536000`
-  }, [selectedYear])
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
     const payload = {
       search,
       showOnlyNotSent,
+      statusFilter,
       sortBy,
       selectedEventId,
       pageSize,
     }
     window.localStorage.setItem(filtersKey, JSON.stringify(payload))
-  }, [search, showOnlyNotSent, sortBy, selectedEventId, pageSize])
+  }, [search, showOnlyNotSent, statusFilter, sortBy, selectedEventId, pageSize])
 
   const exportExcel = () => {
     const filteredData = filtered.map((m) => ({
@@ -270,41 +259,14 @@ export default function MembershipsPage() {
     return Number.isNaN(parsed.getTime()) ? null : parsed
   }
 
-  const getMembershipYear = (m) => {
-    const startDate = parseMembershipDate(m?.start_date)
-    if (startDate) {
-      return startDate.getFullYear().toString()
-    }
-
-    const endDate = parseMembershipDate(m?.end_date)
-    if (endDate) {
-      const isFirstDayOfYear =
-        endDate.getDate() === 1 && endDate.getMonth() === 0
-      const year = isFirstDayOfYear
-        ? endDate.getFullYear() - 1
-        : endDate.getFullYear()
-      return year.toString()
-    }
-
-    return null
-  }
-
   const yearOptions = useMemo(() => {
-    const years = new Set()
-    memberships.forEach((m) => {
-      const y = getMembershipYear(m)
-      if (y) years.add(y)
-    })
-    years.add(currentYear)
-    if (selectedYear) years.add(selectedYear)
-    return Array.from(years).sort((a, b) => b.localeCompare(a))
-  }, [memberships, currentYear, selectedYear])
-
-  useEffect(() => {
-    if (!yearOptions.includes(selectedYear)) {
-      setSelectedYear(currentYear)
+    const currentYearNum = new Date().getFullYear()
+    const years = []
+    for (let y = currentYearNum + 1; y >= 2024; y--) {
+      years.push(y.toString())
     }
-  }, [yearOptions, selectedYear, currentYear])
+    return years
+  }, [])
 
   const eventOptions = useMemo(() => {
     return (events || []).slice().sort((a, b) => {
@@ -331,22 +293,20 @@ export default function MembershipsPage() {
       const phoneVal = (m.phone || "")
       const emailVal = (m.email || "").toLowerCase()
 
-      const y = getMembershipYear(m)
-      if (selectedYear && y !== selectedYear) return false
-      if (
-        s &&
-        !(
-          fullName.includes(s) ||
-          emailVal.includes(s) ||
-          phoneVal.includes(s)
-        )
-      ) {
-        return false
-      }
+      if (s && !(fullName.includes(s) || emailVal.includes(s) || phoneVal.includes(s))) return false
       if (showOnlyNotSent && !!m.membership_sent) return false
+
+      if (statusFilter === "valid") {
+        if (!m.subscription_valid || isExpired(m.end_date)) return false
+      } else if (statusFilter === "expired") {
+        if (m.subscription_valid && !isExpired(m.end_date)) return false
+      } else if (statusFilter === "honorary") {
+        if (m.purchase_id) return false
+      }
+
       return true
     })
-  }, [memberships, search, showOnlyNotSent, selectedYear])
+  }, [memberships, search, showOnlyNotSent, statusFilter, selectedYear])
 
   const sortedMembers = useMemo(() => {
     const list = [...filtered]
@@ -377,7 +337,7 @@ export default function MembershipsPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, showOnlyNotSent, selectedYear, sortBy, selectedEventId, memberships.length])
+  }, [search, showOnlyNotSent, statusFilter, selectedYear, sortBy, selectedEventId, memberships.length])
 
   const totalItems = sortedMembers.length
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
@@ -397,11 +357,7 @@ export default function MembershipsPage() {
 
   const totalTesseramenti = useMemo(() => {
     if (!membershipPrice || membershipPrice.year !== selectedYear) return 0
-    const count = memberships.filter((m) => {
-      const d = new Date(m.start_date)
-      return !Number.isNaN(d.getTime()) && d.getFullYear().toString() === selectedYear
-    }).length
-    return count * membershipPrice.price
+    return memberships.length * membershipPrice.price
   }, [memberships, membershipPrice, selectedYear])
 
   const onSavePrice = async () => {
@@ -440,6 +396,7 @@ export default function MembershipsPage() {
     setForm({})
     setInitial({})
     setEditMode(false)
+    setMergeConflict(null)
   }
 
   const submitForm = async (e) => {
@@ -449,8 +406,34 @@ export default function MembershipsPage() {
       Object.keys(form).forEach((k) => {
         if (form[k] !== initial[k]) diff[k] = form[k]
       })
-      if (Object.keys(diff).length) await update(form.id, diff)
-    } else await create(form)
+      if (!Object.keys(diff).length) {
+        closeForm()
+        return
+      }
+
+      const response = await update(form.id, diff)
+      if (response?.status === 409 && response?.mergeable) {
+        setMergeConflict({
+          sourceId: response.conflicting_id,
+          targetId: form.id,
+          conflictingName: response.conflicting_name,
+        })
+        return
+      }
+      if (response?.error) return
+      closeForm()
+      return
+    }
+
+    const created = await create(form)
+    if (!created?.error) closeForm()
+  }
+
+  const confirmMerge = async (conflict) => {
+    if (!conflict?.sourceId || !conflict?.targetId) return
+    const response = await merge(conflict.sourceId, conflict.targetId)
+    if (response?.error) return
+    setMergeConflict(null)
     closeForm()
   }
 
@@ -533,7 +516,7 @@ export default function MembershipsPage() {
             </Button>
           </div>
         </div>
-        <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
+        <div className="flex flex-col md:flex-row gap-2 items-start md:items-center flex-wrap">
           <label className="flex items-center gap-2 text-sm text-gray-300">
             <input
               type="checkbox"
@@ -542,6 +525,17 @@ export default function MembershipsPage() {
             />
             Solo senza tessera inviata
           </label>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="md:max-w-[180px]">
+              <SelectValue placeholder="Stato" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="valid">Validi</SelectItem>
+              <SelectItem value="expired">Scaduti</SelectItem>
+              <SelectItem value="honorary">Onorari</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="md:max-w-xs">
               <SelectValue placeholder="Ordina per" />
@@ -572,7 +566,7 @@ export default function MembershipsPage() {
                       <TableRow>
                         <TableHead>Nome</TableHead>
                         <TableHead>Email</TableHead>
-                        <TableHead>Data</TableHead>
+                        <TableHead>Anni</TableHead>
                         <TableHead>Validità</TableHead>
                         <TableHead>Eventi</TableHead>
                         <TableHead>Tessera</TableHead>
@@ -589,7 +583,17 @@ export default function MembershipsPage() {
                             <div className="text-sm text-gray-400">{m.phone || "N/D"}</div>
                           </TableCell>
                           <TableCell>{m.email}</TableCell>
-                          <TableCell>{formatDate(m.start_date)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {(m.membership_years || []).length ? (
+                                (m.membership_years || []).map((y) => (
+                                  <Badge key={y} variant="secondary" className="text-xs">{y}</Badge>
+                                ))
+                              ) : (
+                                <span className="text-gray-500 text-xs">{formatDate(m.start_date)}</span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {!m.subscription_valid || isExpired(m.end_date) ? (
                               <Badge variant="destructive">Scaduta</Badge>
@@ -713,8 +717,16 @@ export default function MembershipsPage() {
                           </Badge>
                         </div>
                         <div>
-                          <p className="font-semibold">Data</p>
-                          <p className="text-sm text-gray-300">{formatDate(m.start_date)}</p>
+                          <p className="font-semibold">Anni</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(m.membership_years || []).length ? (
+                              (m.membership_years || []).map((y) => (
+                                <Badge key={y} variant="secondary" className="text-xs">{y}</Badge>
+                              ))
+                            ) : (
+                              <p className="text-sm text-gray-300">{formatDate(m.start_date)}</p>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <p className="font-semibold">Tessera</p>
@@ -1083,6 +1095,16 @@ export default function MembershipsPage() {
           onSubmit={submitForm}
           onInput={(e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))}
           onCheckbox={(name, val) => setForm((f) => ({ ...f, [name]: val }))}
+          mergeConflict={mergeConflict ? {
+            sourceId: mergeConflict.sourceId,
+            targetId: mergeConflict.targetId,
+            conflicting_name: mergeConflict.conflictingName,
+          } : null}
+          onConfirmMerge={(conflict) => confirmMerge({
+            sourceId: conflict.sourceId,
+            targetId: conflict.targetId,
+          })}
+          onCancelMerge={() => setMergeConflict(null)}
         />
       </motion.div>
     </TooltipProvider>

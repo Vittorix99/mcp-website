@@ -1,12 +1,14 @@
 import logging
 import os
+from typing import Optional
 
 from google.cloud import firestore
 
 from dto import ContactMessageDTO
+from interfaces.repositories import MessageRepositoryProtocol
 from models import ContactMessage
 from repositories.message_repository import MessageRepository
-from services.communications.mail_service import EmailMessage, mail_service
+from services.communications.mail_service import EmailMessage, MailService, mail_service
 from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 
 logger = logging.getLogger("MessagesService")
@@ -28,8 +30,13 @@ def _resolve_contact_destination_email() -> str:
 
 
 class MessagesService:
-    def __init__(self):
-        self.message_repository = MessageRepository()
+    def __init__(
+        self,
+        message_repository: Optional[MessageRepositoryProtocol] = None,
+        mail_service_instance: Optional[MailService] = None,
+    ):
+        self.message_repository = message_repository or MessageRepository()
+        self.mail_service = mail_service_instance or mail_service
         self.logger = logger
 
     def get_all(self):
@@ -55,7 +62,7 @@ class MessagesService:
         if not to or not body or not message_id:
             raise ValidationError("Missing required fields")
 
-        sent = mail_service.send(
+        sent = self.mail_service.send(
             EmailMessage(
                 to_email=to,
                 subject=subject or "Risposta al tuo messaggio",
@@ -86,7 +93,7 @@ class MessagesService:
             f"Messaggio:\n{dto.message}"
         )
 
-        sent = mail_service.send(
+        sent = self.mail_service.send(
             EmailMessage(
                 to_email=to_email,
                 subject=subject,
@@ -118,7 +125,7 @@ class MessagesService:
                 f"Email: {dto.email}\n\n"
                 f"Messaggio inviato:\n{dto.message}"
             )
-            mail_service.send(
+            self.mail_service.send(
                 EmailMessage(
                     to_email=dto.email,
                     subject="Copia del tuo messaggio",

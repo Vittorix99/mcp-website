@@ -1,10 +1,11 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { detectEmailTypo } from "@/lib/emailValidation"
 
 export function MembershipModal({
   isOpen,
@@ -15,9 +16,13 @@ export function MembershipModal({
   onSubmit,
   onInput,
   onCheckbox,
+  mergeConflict = null,
+  onConfirmMerge,
+  onCancelMerge,
 }) {
   const defaultSendCard = form.send_card_on_create === true
   const defaultSubscriptionValid = form.subscription_valid ?? true
+  const emailTypo = detectEmailTypo(form.email || "")
   const startDateValue = (() => {
     if (!form.start_date) return ""
     const parsed = new Date(form.start_date)
@@ -68,6 +73,11 @@ export function MembershipModal({
               onChange={onInput}
               required
             />
+            {emailTypo && (
+              <p className="mt-1 text-xs text-amber-400">
+                Hai scritto '{emailTypo.typedDomain}'. Intendevi '{emailTypo.suggestedDomain}'?
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -142,6 +152,32 @@ export function MembershipModal({
           </div>
         </form>
       </DialogContent>
+
+      <Dialog open={!!mergeConflict} onOpenChange={(open) => { if (!open) onCancelMerge?.() }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unire i due profili?</DialogTitle>
+            <DialogDescription>
+              Esiste già un membro con questa email
+              {mergeConflict?.conflicting_name ? ` (${mergeConflict.conflicting_name})` : ""}.
+              Confermando, acquisti ed eventi partecipati verranno unificati.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => onCancelMerge?.()}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => {
+                if (!mergeConflict) return
+                onConfirmMerge?.(mergeConflict)
+              }}
+            >
+              Conferma merge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }
