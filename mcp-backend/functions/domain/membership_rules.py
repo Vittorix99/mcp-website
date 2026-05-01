@@ -33,6 +33,7 @@ def resolve_membership_contact_conflict(
 
 
 def parse_membership_year(start_date: Optional[str], end_date: Optional[str] = None) -> Optional[int]:
+    """Ricava l'anno associativo dalle date salvate sul model membership."""
     if start_date:
         try:
             return datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).year
@@ -56,6 +57,7 @@ def build_renewal_record(
     fee: Optional[float],
     year: Optional[int] = None,
 ) -> Dict[str, Any]:
+    """Crea una voce storica di rinnovo, usata sia dal flusso admin sia dai pagamenti."""
     resolved_year = year or parse_membership_year(start_date, end_date)
     return {
         "year": resolved_year,
@@ -67,6 +69,7 @@ def build_renewal_record(
 
 
 def dedupe_renewals_by_year(renewals: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Mantiene una sola voce per anno, fondendo eventuali dati mancanti."""
     deduped: Dict[int, Dict[str, Any]] = {}
     for renewal in renewals:
         if not isinstance(renewal, dict):
@@ -87,7 +90,7 @@ def dedupe_renewals_by_year(renewals: Iterable[Dict[str, Any]]) -> List[Dict[str
             continue
 
         current = deduped[year]
-        # Merge purchase references while keeping a single record per year.
+        # Se arrivano due record per lo stesso anno, conserviamo il più completo.
         if not current.get("purchase_id") and renewal.get("purchase_id"):
             current["purchase_id"] = renewal.get("purchase_id")
         if current.get("fee") is None and renewal.get("fee") is not None:
@@ -106,6 +109,7 @@ def membership_years_from_renewals(
     fallback_start_date: Optional[str] = None,
     fallback_end_date: Optional[str] = None,
 ) -> List[int]:
+    """Deriva l'indice interrogabile degli anni validi a partire dalla cronologia rinnovi."""
     years = {
         int(item["year"])
         for item in dedupe_renewals_by_year(renewals)
@@ -119,6 +123,7 @@ def membership_years_from_renewals(
 
 
 def is_membership_renewable(membership: Membership, now: Optional[datetime] = None) -> bool:
+    """Una membership è rinnovabile solo se non copre già l'anno corrente."""
     now = now or datetime.now(timezone.utc)
     current_year = now.year
 

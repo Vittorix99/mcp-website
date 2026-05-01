@@ -17,7 +17,7 @@ def test_get_participants_by_event_missing_event():
     req = DummyRequest(method="POST", json={})
     resp, status = unwrap_response(participants_api.get_participants_by_event(req))
     assert status == 400
-    assert resp["error"] == "Missing eventId"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_get_participants_by_event_happy_path(monkeypatch):
@@ -25,7 +25,7 @@ def test_get_participants_by_event_happy_path(monkeypatch):
     monkeypatch.setattr(
         participants_api,
         "participants_service",
-        types.SimpleNamespace(get_all=lambda event_id: [{"id": "part-1"}]),
+        types.SimpleNamespace(get_all=lambda event_id: [types.SimpleNamespace(to_payload=lambda: {"id": "part-1"})]),
     )
     req = DummyRequest(method="POST", json={"eventId": "evt-1"})
     resp, status = unwrap_response(participants_api.get_participants_by_event(req))
@@ -38,7 +38,7 @@ def test_get_participant_missing_params():
     req = DummyRequest(method="POST", json={"eventId": "evt-1"})
     resp, status = unwrap_response(participants_api.get_participant(req))
     assert status == 400
-    assert resp["error"] == "Missing participantId or eventId"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_create_participant_missing_body():
@@ -46,7 +46,7 @@ def test_create_participant_missing_body():
     req = DummyRequest(method="POST", json=None)
     resp, status = unwrap_response(participants_api.create_participant(req))
     assert status == 400
-    assert resp["error"] == "Missing participant data or event_id"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_create_participant_validation_error(monkeypatch):
@@ -67,7 +67,7 @@ def test_update_participant_missing_params():
     req = DummyRequest(method="PUT", json={"event_id": "evt-1"})
     resp, status = unwrap_response(participants_api.update_participant(req))
     assert status == 400
-    assert resp["error"] == "Missing participantId or event_id"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_delete_participant_missing_params():
@@ -75,7 +75,7 @@ def test_delete_participant_missing_params():
     req = DummyRequest(method="DELETE", json={"event_id": "evt-1"})
     resp, status = unwrap_response(participants_api.delete_participant(req))
     assert status == 400
-    assert resp["error"] == "Missing participantId or event_id"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_send_ticket_missing_params():
@@ -83,7 +83,7 @@ def test_send_ticket_missing_params():
     req = DummyRequest(method="POST", json={"eventId": "evt-1"})
     resp, status = unwrap_response(participants_api.send_ticket(req))
     assert status == 400
-    assert resp["error"] == "Missing eventId or participantId"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_send_ticket_external_error(monkeypatch):

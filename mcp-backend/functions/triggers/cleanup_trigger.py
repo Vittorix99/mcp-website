@@ -15,10 +15,8 @@ _BATCH_SIZE = 500
 @scheduler_fn.on_schedule(schedule="0 3 * * *", timezone="Europe/Rome")
 def cleanup_stale_data(event: scheduler_fn.ScheduledEvent) -> None:
     """
-    Runs daily at 03:00 Europe/Rome. Removes:
-    - Abandoned PayPal orders (never captured, created_at > 24h ago)
-    - Expired scan tokens (expires_at > 7 days ago)
-    - Failed jobs (status=failed, created_at > 30 days ago)
+    Esegue pulizia giornaliera alle 03:00 Europe/Rome.
+    Rimuove ordini PayPal abbandonati, scan token scaduti e job falliti vecchi.
     """
     now = datetime.now(timezone.utc)
     orders_deleted = _cleanup_orders(now)
@@ -31,6 +29,7 @@ def cleanup_stale_data(event: scheduler_fn.ScheduledEvent) -> None:
 
 
 def _batch_delete(refs: List) -> int:
+    # Firestore accetta massimo 500 operazioni per batch.
     batch = db.batch()
     count = 0
     total = 0
@@ -72,7 +71,7 @@ def _cleanup_orders(now: datetime) -> int:
 
 
 def _cleanup_scan_tokens(now: datetime) -> int:
-    """Delete scan tokens whose expiry was more than 7 days ago."""
+    """Elimina token scanner scaduti da piu' di 7 giorni."""
     threshold = now - timedelta(days=7)
     refs = []
     for doc in db.collection("scan_tokens").stream():

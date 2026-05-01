@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from dto import PurchaseDTO
 from interfaces.repositories import (
     EventRepositoryProtocol,
     MembershipRepositoryProtocol,
@@ -9,6 +8,10 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
+from mappers.membership_mappers import membership_to_response
+from mappers.message_mappers import contact_message_to_response
+from mappers.participant_mappers import participant_to_response
+from mappers.purchase_mappers import purchase_to_response
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.message_repository import MessageRepository
@@ -56,10 +59,12 @@ class StatsService:
         time_limit = now - timedelta(hours=24)
         last_24h_unanswered = self.message_repository.count_unanswered_since(time_limit)
 
-        last_message = self._message_payload(self.message_repository.get_last_dto())
+        last_message = self._message_payload(self.message_repository.get_last_model())
         last_membership = self._membership_payload(self.membership_repository.get_last_by_start_date())
         last_purchase = self._purchase_payload(self.purchase_repository.get_last_by_timestamp())
-        last_participant = self._participant_payload(self.participant_repository.get_last_across_events())
+        last_participant = self._participant_payload(
+            self.participant_repository.get_last_across_events()
+        )
 
         response = {
             "total_active_members": total_active_members,
@@ -84,27 +89,25 @@ class StatsService:
         except (TypeError, ValueError):
             return 0.0
 
-    def _message_payload(self, dto) -> Optional[Dict[str, Any]]:
-        if not dto:
+    def _message_payload(self, model) -> Optional[Dict[str, Any]]:
+        if not model:
             return None
-        return dto.to_payload()
+        return contact_message_to_response(model).to_payload()
 
-    def _membership_payload(self, dto) -> Optional[Dict[str, Any]]:
-        if not dto:
+    def _membership_payload(self, membership) -> Optional[Dict[str, Any]]:
+        if not membership:
             return None
-        return dto.to_payload()
+        return membership_to_response(membership).to_payload()
 
     def _purchase_payload(self, model) -> Optional[Dict[str, Any]]:
         if not model:
             return None
-        payload = PurchaseDTO.from_model(model).to_payload()
-        payload["id"] = model.id
-        return payload
+        return purchase_to_response(model).to_payload()
 
-    def _participant_payload(self, dto) -> Optional[Dict[str, Any]]:
-        if not dto:
+    def _participant_payload(self, model) -> Optional[Dict[str, Any]]:
+        if not model:
             return None
-        return dto.to_payload()
+        return participant_to_response(model).to_payload()
 
     def _safe_parse_date(self, date_str: str):
         if not date_str:

@@ -40,7 +40,6 @@ export const routes = {
     automations: '/admin/automations',
     signupRequests: '/admin/signup-requests',
     messages: '/admin/messages',
-    errorLogs: '/admin/error-logs',
 
     sender: {
       campaigns: '/admin/sender/campaigns',

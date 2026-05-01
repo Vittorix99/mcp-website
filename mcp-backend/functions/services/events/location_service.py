@@ -1,6 +1,7 @@
 import logging
 import random
 import time
+from dataclasses import replace
 from typing import List, Optional
 
 from google.cloud import firestore
@@ -13,31 +14,32 @@ from config.location_config import (
     LOCATION_MAX_RETRIES,
     LOCATION_MIN_INTERVAL,
 )
-from dto import EventDTO, EventParticipantDTO, JobDTO
+from dto.participant_api import (
+    LocationActionResponseDTO,
+    LocationBulkActionResponseDTO,
+    LocationJobResponseDTO,
+    SendLocationRequestDTO,
+    SendLocationToAllRequestDTO,
+)
+from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from interfaces.repositories import (
     EventRepositoryProtocol,
     JobRepositoryProtocol,
     ParticipantRepositoryProtocol,
 )
-from models import Job
+from mappers.participant_mappers import mark_participant_location_sent
+from models import Event, EventParticipant, Job
 from repositories import EventRepository, ParticipantRepository
 from repositories.job_repository import JobRepository
 from services.communications.mail_service import EmailMessage, MailService, mail_service
-from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from utils.templates_mail import build_location_email_payload
 
 
-logger = logging.getLogger('LocationService')
+logger = logging.getLogger("LocationService")
 
 
 @_fs_transactional
 def _claim_job(transaction, job_ref):
-    """
-    Atomically transitions a job from 'queued' → 'running'.
-    Returns True if this caller successfully claimed the job, False otherwise.
-    Prevents concurrent workers from processing the same job simultaneously
-    when Firestore at-least-once triggers fire more than once.
-    """
     snap = job_ref.get(transaction=transaction)
     if not snap.exists:
         return False
@@ -51,6 +53,7 @@ def _claim_job(transaction, job_ref):
 def _sleep_with_jitter(seconds: float) -> None:
     jitter = seconds * (0.8 + 0.4 * random.random())
     time.sleep(jitter)
+
 
 def _send_with_retry(
     email: str,
@@ -73,18 +76,25 @@ def _send_with_retry(
             )
             if ok:
                 return True
-            logger.warning(f"Send returned False for {email} (attempt {attempt})")
-        except Exception as e:
-            msg = str(e).lower()
-            # errori "transitori": quota, rate limit, 429, ecc.
-            transient = any(k in msg for k in (
-                "429", "ratelimit", "quota", "userrateratexceeded",
-                "backenderror", "internalerror", "retry-after"
-            ))
+            logger.warning("Send returned False for %s (attempt %s)", email, attempt)
+        except Exception as exc:
+            msg = str(exc).lower()
+            transient = any(
+                token in msg
+                for token in (
+                    "429",
+                    "ratelimit",
+                    "quota",
+                    "userrateratexceeded",
+                    "backenderror",
+                    "internalerror",
+                    "retry-after",
+                )
+            )
             if not transient:
-                logger.warning("Non-retriable error for %s: %s", email, e)
+                logger.warning("Non-retriable error for %s: %s", email, exc)
                 return False
-            logger.warning("Transient error for %s, retry %s: %s", email, attempt, e)
+            logger.warning("Transient error for %s, retry %s: %s", email, attempt, exc)
 
         if attempt < LOCATION_MAX_RETRIES:
             _sleep_with_jitter(delay)
@@ -105,102 +115,96 @@ class LocationService:
         self.job_repository = job_repository or JobRepository()
         self.mail_service = mail_service_instance or mail_service
 
-    def _load_event_dto(self, event_id: str) -> Optional[EventDTO]:
+    def _load_event_model(self, event_id: str) -> Event:
         event_model = self.event_repository.get_model(event_id)
         if not event_model:
-            return None
-        return EventDTO.from_model(event_model)
-
-    def _pending_participants(self, event_id: str) -> List[EventParticipantDTO]:
-        participants: List[EventParticipantDTO] = []
-        for participant in self.participant_repository.stream(event_id):
-            if participant.location_sent is True:
-                continue
-            participants.append(participant)
-        return participants
-
-    def send_location(self, event_id, participant_id, address=None, link=None, message=None):
-        # sanitize optional fields
-        address = (address or "").strip() or None
-        link = (link or "").strip() or None
-        message = (message or "").strip() or None
-
-        if not event_id or not participant_id:
-            raise ValidationError("Missing eventId or participantId")
-
-        event_data = self._load_event_dto(event_id)
-        if not event_data:
             raise NotFoundError(f"Event {event_id} not found")
+        return event_model
 
-        participant = self.participant_repository.get(event_id, participant_id)
+    def _pending_participants(self, event_id: str) -> List[EventParticipant]:
+        return [
+            participant
+            for participant in self.participant_repository.stream(event_id)
+            if participant.location_sent is not True
+        ]
+
+    def _mark_location_sent(
+        self,
+        event_id: str,
+        participant: EventParticipant,
+        *,
+        job_id: str | None = None,
+    ) -> None:
+        if not participant.id:
+            return
+        updated_participant = mark_participant_location_sent(
+            participant,
+            sent_at=firestore.SERVER_TIMESTAMP,
+            job_id=job_id,
+        )
+        self.participant_repository.update_from_model(
+            event_id,
+            participant.id,
+            updated_participant,
+        )
+
+    def _update_job(self, job_id: str, job: Job, **changes) -> Job:
+        self.job_repository.update(job_id, changes)
+        return replace(job, **changes)
+
+    def send_location(self, dto: SendLocationRequestDTO) -> LocationActionResponseDTO:
+        event_model = self._load_event_model(dto.event_id)
+
+        participant = self.participant_repository.get(dto.event_id, dto.participant_id)
         if not participant:
-            raise NotFoundError(f"Participant {participant_id} not found")
+            raise NotFoundError(f"Participant {dto.participant_id} not found")
 
-        name = participant.name or "Partecipante"
-        email = participant.email
-        if not email:
+        if not participant.email:
             raise ValidationError("Missing participant email")
 
+        name = participant.name or "Partecipante"
         subject, text_content, html_content = build_location_email_payload(
             name,
-            event_data,
-            address,
-            link,
-            message,
+            event_model,
+            dto.address,
+            dto.link,
+            dto.message,
         )
 
         sent = self.mail_service.send(
             EmailMessage(
-                to_email=email,
+                to_email=participant.email,
                 subject=subject,
                 text_content=text_content,
                 html_content=html_content,
                 category="location",
             )
         )
-
         if not sent:
             raise ExternalServiceError("Errore invio email")
 
-        participant_update = EventParticipantDTO(
-            location_sent=True,
-            location_sent_at=firestore.SERVER_TIMESTAMP,
+        self._mark_location_sent(dto.event_id, participant)
+        return LocationActionResponseDTO(message="Location inviata con successo")
+
+    def start_send_location_job(
+        self,
+        dto: SendLocationToAllRequestDTO,
+    ) -> LocationJobResponseDTO:
+        event_model = self._load_event_model(dto.event_id)
+
+        remaining = sum(
+            1
+            for participant in self.participant_repository.stream(dto.event_id)
+            if participant.email and not participant.location_sent
         )
-        self.participant_repository.update(
-            event_id,
-            participant_id,
-            participant_update,
-        )
-        return {"message": "Location inviata con successo"}
-
-    
-    def start_send_location_job(self, event_id, address=None, link=None, message=None):
-        if not event_id:
-            raise ValidationError("Missing eventId")
-
-        # sanitize optional fields
-        address = (address or "").strip() or None
-        link = (link or "").strip() or None
-        message = (message or "").strip() or None
-
-        # check evento
-        event_data = self._load_event_dto(event_id)
-        if not event_data:
-            raise NotFoundError(f"Event {event_id} not found")
-
-        # conta quanti partecipanti ancora da inviare
-        remaining = 0
-        for participant in self.participant_repository.stream(event_id):
-            if participant.email and not participant.location_sent:
-                remaining += 1
 
         job = Job(
             type="send_location",
-            event_id=event_id,
+            event_id=event_model.id or dto.event_id,
             status="queued",
-            address=address,
-            link=link,
-            message=message,
+            address=dto.address,
+            link=dto.link,
+            message=dto.message,
             total=remaining,
             sent=0,
             failed=0,
@@ -209,24 +213,18 @@ class LocationService:
         )
         job_id = self.job_repository.create_from_model(job)
 
-        return {
-            "message": "Job queued",
-            "jobId": job_id,
-            "total": remaining,
-            "status": "queued",
-        }
-        
+        return LocationJobResponseDTO(
+            message="Job queued",
+            job_id=job_id,
+            total=remaining,
+            status="queued",
+        )
+
     def _worker_send_location(self, job_id: str):
-        """
-        Elabora un job di tipo 'send_location', inviando email ai partecipanti che non hanno ancora ricevuto la location.
-        Aggiorna lo stato del job e i contatori di progresso a ogni invio.
-        """
+        job: Optional[Job] = None
         try:
             logger.info("[LocationService] Avvio worker per job %s", job_id)
 
-            # Claim atomico: solo un worker alla volta può processare il job.
-            # Se il trigger Firestore viene eseguito due volte (at-least-once),
-            # il secondo invocation vede status != "queued" ed esce subito.
             job_ref = db.collection("jobs").document(job_id)
             claimed = _claim_job(db.transaction(), job_ref)
             if not claimed:
@@ -241,139 +239,84 @@ class LocationService:
                 logger.warning("[LocationService] Job %s non trovato.", job_id)
                 return
 
-            event_id = job.event_id
-            if not event_id:
-                logger.warning("[LocationService] Il job %s non contiene un event_id valido.", job_id)
-                self.job_repository.update_from_model(
-                    job_id,
-                    JobDTO(status="failed", error="Missing event_id"),
-                )
+            if not job.event_id:
+                self._update_job(job_id, job, status="failed", error="Missing event_id")
                 return
 
-            # Recupera dati dell'evento
-            event_payload = self._load_event_dto(event_id)
-            if not event_payload:
-                logger.warning("[LocationService] Evento %s non trovato.", event_id)
-                self.job_repository.update_from_model(
-                    job_id,
-                    JobDTO(status="failed", error=f"Evento {event_id} missing"),
-                )
-                return
+            event_model = self._load_event_model(job.event_id)
+            logger.info("[LocationService] Job per evento %s: %s", job.event_id, event_model.title)
 
-            logger.info("[LocationService] Job per evento %s: %s", event_id, event_payload.title)
-
-            # Recupera tutti i partecipanti che non hanno ancora ricevuto la location
-            participants = self._pending_participants(event_id)
-            logger.info("[LocationService] Partecipanti da notificare: %s", len(participants))
-
-            # Aggiorna eventualmente il totale se diverso
-            total = job.total if job.total else len(participants)
-            if total != len(participants):
-                logger.info("[LocationService] Aggiorno totale job (da %s a %s)", total, len(participants))
-                total = len(participants)
-                self.job_repository.update_from_model(job_id, JobDTO(total=total))
+            participants = self._pending_participants(job.event_id)
+            total = len(participants)
+            if job.total != total:
+                job = self._update_job(job_id, job, total=total)
 
             sent = 0
             failed = 0
             last_send_ts = 0.0
 
-            # Itera sui partecipanti e invia email
             for idx, participant in enumerate(participants, start=1):
                 email = participant.email
                 name = participant.name or "Partecipante"
-                logger.info("[LocationService] (%s/%s) Invio a %s…", idx, len(participants), email)
+                logger.info("[LocationService] (%s/%s) Invio a %s…", idx, total, email)
 
                 if not email:
                     failed += 1
-                    logger.warning("[LocationService] Nessuna email per %s, incremento failed a %s", name, failed)
-                    continue
-
-                # Costruisce subject, testo e html
-                subject, text, html = build_location_email_payload(
-                    name,
-                    event_payload,
-                    job.address,
-                    job.link,
-                    job.message,
-                )
-
-                # Throttling: rispetta MIN_INTERVAL tra invii
-                now = time.monotonic()
-                elapsed = now - last_send_ts
-                if elapsed < LOCATION_MIN_INTERVAL:
-                    time.sleep(LOCATION_MIN_INTERVAL - elapsed)
-
-                # Invio con retry
-                ok = _send_with_retry(email, subject, text, html, self.mail_service)
-                last_send_ts = time.monotonic()
-
-                if ok:
-                    # Aggiorna il partecipante
-                    if participant.id:
-                        participant_update = EventParticipantDTO(
-                            location_sent=True,
-                            location_job_id=job_id,
-                            location_sent_at=firestore.SERVER_TIMESTAMP,
-                        )
-                        self.participant_repository.update(
-                            event_id,
-                            participant.id,
-                            participant_update,
-                        )
-                    sent += 1
                 else:
-                    failed += 1
-                # Aggiorna la progress del job
+                    subject, text, html = build_location_email_payload(
+                        name,
+                        event_model,
+                        job.address,
+                        job.link,
+                        job.message,
+                    )
+
+                    now = time.monotonic()
+                    elapsed = now - last_send_ts
+                    if elapsed < LOCATION_MIN_INTERVAL:
+                        time.sleep(LOCATION_MIN_INTERVAL - elapsed)
+
+                    ok = _send_with_retry(email, subject, text, html, self.mail_service)
+                    last_send_ts = time.monotonic()
+
+                    if ok:
+                        self._mark_location_sent(job.event_id, participant, job_id=job_id)
+                        sent += 1
+                    else:
+                        failed += 1
+
                 percent = int(((sent + failed) / max(total, 1)) * 100)
-                self.job_repository.update_from_model(
+                job = self._update_job(
                     job_id,
-                    JobDTO(
-                        sent=sent,
-                        failed=failed,
-                        percent=percent,
-                    ),
-                )
-                logger.info(
-                    "[LocationService] Progress job %s: sent=%s, failed=%s, percent=%s%%",
-                    job_id,
-                    sent,
-                    failed,
-                    percent,
+                    job,
+                    sent=sent,
+                    failed=failed,
+                    percent=percent,
                 )
 
-            # Fine invio: aggiorna lo status
-            self.job_repository.update_from_model(job_id, JobDTO(status="completed"))
-            logger.info("[LocationService] Job %s completato. Inviati=%s, errori=%s", job_id, sent, failed)
-
-        except Exception as e:
-            # Log e aggiornamento status in caso di crash
-            logger.exception("[LocationService] Errore in worker per job %s: %s", job_id, e)
-            self.job_repository.update_from_model(
+            self._update_job(job_id, job, status="completed")
+            logger.info(
+                "[LocationService] Job %s completato. Inviati=%s, errori=%s",
                 job_id,
-                JobDTO(status="failed", error=str(e)),
+                sent,
+                failed,
             )
-        
-        
-        
-         
-    
-    def send_location_to_all(self, event_id, address=None, link=None, message=None):
-        if not event_id:
-            raise ValidationError("Missing eventId")
 
-        # sanitize optional fields
-        address = (address or "").strip() or None
-        link = (link or "").strip() or None
-        message = (message or "").strip() or None
+        except Exception as exc:
+            logger.exception("[LocationService] Errore in worker per job %s: %s", job_id, exc)
+            failed_job = job or self.job_repository.get_model(job_id)
+            if failed_job:
+                self._update_job(job_id, failed_job, status="failed", error=str(exc))
 
-        event_data = self._load_event_dto(event_id)
-        if not event_data:
-            raise NotFoundError(f"Event {event_id} not found")
+    def send_location_to_all(
+        self,
+        dto: SendLocationToAllRequestDTO,
+    ) -> LocationBulkActionResponseDTO:
+        event_model = self._load_event_model(dto.event_id)
 
         success_count = 0
         fail_count = 0
-
-        for participant in self._pending_participants(event_id):
+        for participant in self._pending_participants(dto.event_id):
             email = participant.email
             name = participant.name or "Partecipante"
             if not email:
@@ -382,12 +325,11 @@ class LocationService:
 
             subject, text_content, html_content = build_location_email_payload(
                 name,
-                event_data,
-                address,
-                link,
-                message,
+                event_model,
+                dto.address,
+                dto.link,
+                dto.message,
             )
-
             sent = self.mail_service.send(
                 EmailMessage(
                     to_email=email,
@@ -399,22 +341,13 @@ class LocationService:
             )
 
             if sent:
-                if participant.id:
-                    participant_update = EventParticipantDTO(
-                        location_sent=True,
-                        location_sent_at=firestore.SERVER_TIMESTAMP,
-                    )
-                    self.participant_repository.update(
-                        event_id,
-                        participant.id,
-                        participant_update,
-                    )
+                self._mark_location_sent(dto.event_id, participant)
                 success_count += 1
             else:
                 fail_count += 1
 
-        return {
-            "message": "Location inviata",
-            "success": success_count,
-            "failures": fail_count,
-        }
+        return LocationBulkActionResponseDTO(
+            message="Location inviata",
+            success=success_count,
+            failures=fail_count,
+        )

@@ -1,43 +1,51 @@
-from firebase_functions import https_fn
-from config.firebase_config import cors, region
-from services.core.auth_service import require_admin
-from .helpers import get_payload, get_query_params, pick, get_sender_service
+import logging
+
+from flask import jsonify
+from pydantic import ValidationError as PydanticValidationError
+
+from api.decorators import admin_endpoint
+from dto.sender_api import SegmentDeleteRequestDTO, SegmentQueryDTO, SegmentSubscribersQueryDTO
+from utils.http_responses import handle_pydantic_error, handle_service_error
+from .helpers import get_sender_service
+
+logger = logging.getLogger("AdminSenderSegmentsAPI")
 
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("GET", "DELETE"))
 def admin_sender_segments(req):
-    svc = get_sender_service()
+    sender_service = get_sender_service()
 
     if req.method == "GET":
-        params = get_query_params(req)
-        segment_id = pick(params, "id", "segment_id")
-        if segment_id:
-            return svc.get_segment(segment_id) or {}, 200
-        return svc.list_segments() or {}, 200
+        try:
+            dto = SegmentQueryDTO.model_validate(dict(req.args or {}))
+            if dto.id:
+                return jsonify(sender_service.get_segment(dto.id) or {}), 200
+            return jsonify(sender_service.list_segments() or {}), 200
+        except PydanticValidationError as err:
+            return handle_pydantic_error(err)
+        except Exception as err:
+            return handle_service_error(err)
 
-    if req.method == "DELETE":
-        segment_id = req.args.get("id") or req.args.get("segment_id")
-        if not segment_id:
-            payload = get_payload(req)
-            segment_id = pick(payload, "id", "segment_id")
-        if not segment_id:
-            return {"error": "Missing segment_id"}, 400
-        ok = svc.delete_segment(segment_id)
+    try:
+        data = {**(req.get_json(silent=True) or {}), **dict(req.args or {})}
+        dto = SegmentDeleteRequestDTO.model_validate(data)
+        ok = sender_service.delete_segment(dto.id)
         if not ok:
-            return {"error": "Impossibile eliminare il segmento."}, 500
-        return {"deleted": True}, 200
+            return jsonify({"error": "Impossibile eliminare il segmento."}), 500
+        return jsonify({"deleted": True}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)
 
-    return {"error": "Invalid request method"}, 405
 
-
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("GET",))
 def admin_sender_segment_subscribers(req):
-    if req.method != "GET":
-        return {"error": "Invalid request method"}, 405
-    segment_id = req.args.get("segment_id") or req.args.get("id")
-    if not segment_id:
-        return {"error": "Missing segment_id"}, 400
-    svc = get_sender_service()
-    return svc.list_segment_subscribers(segment_id) or {}, 200
+    sender_service = get_sender_service()
+    try:
+        dto = SegmentSubscribersQueryDTO.model_validate(dict(req.args or {}))
+        return jsonify(sender_service.list_segment_subscribers(dto.id) or {}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)

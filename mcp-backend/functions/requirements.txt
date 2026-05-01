@@ -9,3 +9,4 @@ pillow==10.3.0  # Required for image processing in PDFs
 opencv-python
 weasyprint
 python-dotenv
+pydantic[email]>=2.0,<3.0

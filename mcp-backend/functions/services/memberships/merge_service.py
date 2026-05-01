@@ -95,25 +95,23 @@ class MergeService:
             participants_updated = self.participant_repository.update_membership_reference(source_id, target_id)
 
             # 8. Aggiorna target con i dati unificati (mantiene contatti del target)
-            updates = {
-                "name": target.name or source.name,
-                "surname": target.surname or source.surname,
-                "email": target.email or source.email,
-                "phone": target.phone or source.phone,
-                "birthdate": target.birthdate or source.birthdate,
-                "start_date": target.start_date or source.start_date,
-                "end_date": target.end_date or source.end_date,
-                "subscription_valid": bool(target.subscription_valid or source.subscription_valid),
-                "membership_sent": bool(target.membership_sent or source.membership_sent),
-                "membership_type": target.membership_type or source.membership_type,
-                "purchase_id": target.purchase_id or source.purchase_id,
-                "membership_fee": target.membership_fee if target.membership_fee is not None else source.membership_fee,
-                "purchases": merged_purchases,
-                "attended_events": merged_events,
-                "renewals": merged_renewals,
-                "membership_years": merged_years,
-            }
-            self.membership_repository.update_fields(target_id, updates)
+            target.name = target.name or source.name
+            target.surname = target.surname or source.surname
+            target.email = target.email or source.email
+            target.phone = target.phone or source.phone
+            target.birthdate = target.birthdate or source.birthdate
+            target.start_date = target.start_date or source.start_date
+            target.end_date = target.end_date or source.end_date
+            target.subscription_valid = bool(target.subscription_valid or source.subscription_valid)
+            target.membership_sent = bool(target.membership_sent or source.membership_sent)
+            target.membership_type = target.membership_type or source.membership_type
+            target.purchase_id = target.purchase_id or source.purchase_id
+            target.membership_fee = target.membership_fee if target.membership_fee is not None else source.membership_fee
+            target.purchases = merged_purchases
+            target.attended_events = merged_events
+            target.renewals = merged_renewals
+            target.membership_years = merged_years
+            self.membership_repository.update_from_model(target_id, target)
             self.membership_repository.clear_wallet(target_id)
 
             # 9b. Secondo sweep: cattura partecipanti creati su source_id durante

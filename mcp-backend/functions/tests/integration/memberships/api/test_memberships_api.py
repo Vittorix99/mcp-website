@@ -1,17 +1,15 @@
 import pytest
 
 from api.admin import members_api
-from dto import MembershipDTO
 from tests.utils import DummyRequest, unwrap_response
 
 
 @pytest.mark.integration
-def test_memberships_api_crud(membership_payload, monkeypatch):
+def test_memberships_api_crud(membership_payload):
     """Creates, fetches, updates, lists, and deletes a membership via admin API."""
     membership_id = None
     try:
-        monkeypatch.setattr(members_api.request, "get_json", lambda: membership_payload)
-        create_req = DummyRequest(method="POST")
+        create_req = DummyRequest(method="POST", json=membership_payload)
         resp, status = unwrap_response(members_api.create_membership(create_req))
         assert status == 201
         membership_id = resp.get("id")
@@ -22,12 +20,10 @@ def test_memberships_api_crud(membership_payload, monkeypatch):
         assert status == 200
         assert resp.get("id") == membership_id
 
-        monkeypatch.setattr(
-            members_api.request,
-            "get_json",
-            lambda: {"membership_id": membership_id, "phone": "+390000000222"},
+        update_req = DummyRequest(
+            method="PUT",
+            json={"membership_id": membership_id, "phone": "+390000000222"},
         )
-        update_req = DummyRequest(method="PUT")
         resp, status = unwrap_response(members_api.update_membership(update_req))
         assert status == 200
 
@@ -37,12 +33,7 @@ def test_memberships_api_crud(membership_payload, monkeypatch):
         assert any(item.get("id") == membership_id for item in resp)
     finally:
         if membership_id:
-            monkeypatch.setattr(
-                members_api.request,
-                "get_json",
-                lambda: {"membership_id": membership_id},
-            )
-            delete_req = DummyRequest(method="DELETE")
+            delete_req = DummyRequest(method="DELETE", json={"membership_id": membership_id})
             unwrap_response(members_api.delete_membership(delete_req))
 
 
@@ -56,14 +47,9 @@ def test_memberships_api_missing_id():
 
 
 @pytest.mark.integration
-def test_memberships_api_set_get_price(monkeypatch):
+def test_memberships_api_set_get_price():
     """Sets and retrieves the membership price via admin API."""
-    monkeypatch.setattr(
-        members_api.request,
-        "get_json",
-        lambda: {"membership_fee": 30.0, "year": "2026"},
-    )
-    set_req = DummyRequest(method="POST")
+    set_req = DummyRequest(method="POST", json={"membership_fee": 30.0, "year": "2026"})
     resp, status = unwrap_response(members_api.set_membership_price(set_req))
     assert status == 200
 
@@ -87,10 +73,8 @@ def test_memberships_api_get_purchases_and_events(
     purchase_id = create_purchase()
     event_id = create_event()
 
-    membership_repository.update_from_model(
-        membership_id,
-        MembershipDTO(purchases=[purchase_id], attended_events=[event_id]),
-    )
+    membership_repository.append_purchase(membership_id, purchase_id)
+    membership_repository.add_attended_event(membership_id, event_id)
 
     purchases_req = DummyRequest(method="GET", args={"id": membership_id})
     resp, status = unwrap_response(members_api.get_membership_purchases(purchases_req))

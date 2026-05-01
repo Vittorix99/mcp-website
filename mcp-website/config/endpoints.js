@@ -77,7 +77,6 @@ export const endpoints = {
     createPurchase: make("create_purchase"),
     deletePurchase: make("delete_purchase"),
     getGeneralStats:make("admin_get_general_stats"),
-    errorLogs: make("admin_error_logs"),
 
     entrance: {
       generateScanToken: make("entrance_generate_scan_token"),

@@ -1,70 +1,41 @@
-from firebase_functions import https_fn
-from flask import request, jsonify
-from config.firebase_config import cors, region
-from services.core.auth_service import require_admin
+from flask import jsonify
+from pydantic import ValidationError as PydanticValidationError
+
+from api.decorators import admin_endpoint
+from dto.message_api import MessageIdRequestDTO, ReplyMessageRequestDTO
 from services.communications.messages_service import MessagesService
-from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
+from utils.http_responses import handle_pydantic_error, handle_service_error
 
 messages_service = MessagesService()
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("GET",))
 def get_messages(req):
-    if req.method != "GET":
-        return "Invalid method", 405
     try:
         payload = messages_service.get_all()
-        return jsonify(payload), 200
+        return jsonify([item.to_payload() for item in payload]), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
     except Exception as err:
-        return _handle_service_error(err)
+        return handle_service_error(err)
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("DELETE",))
 def delete_message(req):
-    if req.method != "DELETE":
-        return "Invalid method", 405
-
-    data = request.get_json()
-    message_id = data.get("message_id")
-    if not message_id:
-        return {"error": "Missing message_id"}, 400
-
     try:
-        payload = messages_service.delete_by_id(message_id)
-        return jsonify(payload), 200
+        dto = MessageIdRequestDTO.model_validate(req.get_json(silent=True) or {})
+        payload = messages_service.delete_by_id(dto.message_id)
+        return jsonify(payload.to_payload()), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
     except Exception as err:
-        return _handle_service_error(err)
+        return handle_service_error(err)
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("POST",))
 def reply_to_message(req):
-    if req.method != "POST":
-        return "Invalid method", 405
-
     try:
-        data = request.get_json()
-        to = data.get("email")
-        subject = data.get("subject", "Risposta al tuo messaggio")
-        body = data.get("body")
-        message_id = data.get("message_id")
-
-        if not to or not body or not message_id:
-            return {"error": "Missing email, message body or message ID"}, 400
-
-        payload = messages_service.reply(to, subject, body, message_id)
-        return jsonify(payload), 200
-
-    except Exception as e:
-        return _handle_service_error(e)
-
-
-def _handle_service_error(err: Exception):
-    if isinstance(err, ValidationError):
-        return {"error": str(err)}, 400
-    if isinstance(err, NotFoundError):
-        return {"error": str(err)}, 404
-    if isinstance(err, ExternalServiceError):
-        return {"error": str(err)}, 502
-    if isinstance(err, ServiceError):
-        return {"error": str(err)}, 500
-    return {"error": "Internal server error"}, 500
+        dto = ReplyMessageRequestDTO.model_validate(req.get_json(silent=True) or {})
+        payload = messages_service.reply(dto)
+        return jsonify(payload.to_payload()), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)

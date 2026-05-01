@@ -1,16 +1,23 @@
-from typing import Dict, Iterable, Optional
+from typing import Iterable, Optional
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
 
 from config.firebase_config import db
-from models import Purchase
+from models import EventPurchase, Purchase, PurchaseTypes
 from utils.slug_utils import build_slug
 
 
 class PurchaseRepository:
     def __init__(self):
         self.collection = db.collection("purchases")
+
+    def _model_from_snapshot(self, snapshot) -> Purchase:
+        data = snapshot.to_dict() or {}
+        purchase_type = data.get("type")
+        if purchase_type == PurchaseTypes.EVENT.value:
+            return EventPurchase.from_firestore(data, snapshot.id)
+        return Purchase.from_firestore(data, snapshot.id)
 
     def create(self, purchase: Purchase) -> str:
         ref = self.collection.document()
@@ -21,9 +28,6 @@ class PurchaseRepository:
     def create_from_model(self, purchase: Purchase) -> str:
         return self.create(purchase)
 
-    def update_fields(self, purchase_id: str, payload: Dict) -> None:
-        self.collection.document(purchase_id).update(payload)
-
     def update_participants(self, purchase_id: str, participants_count: int, membership_ids: list[str]) -> None:
         payload = {
             "participants_count": participants_count,
@@ -33,13 +37,13 @@ class PurchaseRepository:
 
     def stream_models(self) -> Iterable[Purchase]:
         for snap in self.collection.stream():
-            yield Purchase.from_firestore(snap.to_dict() or {}, snap.id)
+            yield self._model_from_snapshot(snap)
 
     def get_model(self, purchase_id: str) -> Optional[Purchase]:
         doc = self.collection.document(purchase_id).get()
         if not doc.exists:
             return None
-        return Purchase.from_firestore(doc.to_dict() or {}, doc.id)
+        return self._model_from_snapshot(doc)
 
     def get_model_by_slug(self, slug: str) -> Optional[Purchase]:
         matches = (
@@ -49,7 +53,7 @@ class PurchaseRepository:
         )
         if not matches:
             return None
-        return Purchase.from_firestore(matches[0].to_dict() or {}, matches[0].id)
+        return self._model_from_snapshot(matches[0])
 
     def get_last_by_timestamp(self) -> Optional[Purchase]:
         docs = (
@@ -61,26 +65,7 @@ class PurchaseRepository:
         if not docs:
             return None
         doc = docs[0]
-        return Purchase.from_firestore(doc.to_dict() or {}, doc.id)
-
-    def get(self, purchase_id: str) -> Optional[Dict]:
-        doc = self.collection.document(purchase_id).get()
-        if not doc.exists:
-            return None
-        data = doc.to_dict() or {}
-        data["id"] = purchase_id
-        return data
-
-    def list_by_ref_id(self, event_id: str) -> Iterable[Dict]:
-        snaps = (
-            self.collection
-            .where(filter=FieldFilter("ref_id", "==", event_id))
-            .stream()
-        )
-        for snap in snaps:
-            data = snap.to_dict() or {}
-            data["id"] = snap.id
-            yield data
+        return self._model_from_snapshot(doc)
 
     def list_models_by_ref_id(self, event_id: str) -> Iterable[Purchase]:
         snaps = (
@@ -89,7 +74,7 @@ class PurchaseRepository:
             .stream()
         )
         for snap in snaps:
-            yield Purchase.from_firestore(snap.to_dict() or {}, snap.id)
+            yield self._model_from_snapshot(snap)
 
     def delete(self, purchase_id: str) -> bool:
         doc_ref = self.collection.document(purchase_id)

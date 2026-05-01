@@ -1,10 +1,14 @@
 """Repository helpers for Firestore persistence."""
 
+from .admin_auth_repository import AdminAuthRepository
+from .admin_repository import AdminRepository
 from .base import BaseRepository
 from .entrance_scan_repository import EntranceScanRepository
 from .event_repository import EventRepository
 from .job_repository import JobRepository
 from interfaces.repositories import (
+    AdminAuthRepositoryProtocol,
+    AdminRepositoryProtocol,
     EventRepositoryProtocol,
     MembershipRepositoryProtocol,
     MembershipSettingsRepositoryProtocol,
@@ -18,9 +22,12 @@ from .order_repository import OrderRepository
 from .participant_repository import ParticipantRepository
 from .scan_token_repository import ScanTokenRepository
 from .settings_repository import SettingsRepository
-from .error_log_repository import ErrorLogRepository
 
 __all__ = [
+    "AdminAuthRepository",
+    "AdminRepository",
+    "AdminAuthRepositoryProtocol",
+    "AdminRepositoryProtocol",
     "BaseRepository",
     "EntranceScanRepository",
     "EventRepository",
@@ -37,5 +44,4 @@ __all__ = [
     "NewsletterRepository",
     "ScanTokenRepository",
     "SettingsRepository",
-    "ErrorLogRepository",
 ]

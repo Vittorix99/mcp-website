@@ -8,13 +8,14 @@
 
 ## Indice
 
+0. [Come Orientarsi Velocemente](#0-come-orientarsi-velocemente)
 1. [Struttura del Progetto](#1-struttura-del-progetto)
 2. [Entry Point e Inizializzazione](#2-entry-point-e-inizializzazione)
 3. [Layer API](#3-layer-api)
    - [Endpoint Pubblici](#31-endpoint-pubblici)
    - [Endpoint Admin](#32-endpoint-admin)
-   - [Integrazione MailerLite](#33-integrazione-mailerlite)
-   - [Integrazione Sender.net](#34-integrazione-sendernet)
+   - [API Admin Sender.net](#33-api-admin-sendernet)
+   - [Sync Automatico Sender.net](#34-sync-automatico-sendernet)
    - [Sistema Entrata (Entrance)](#35-sistema-entrata-entrance)
 4. [Layer Services](#4-layer-services)
 5. [Layer Domain](#5-layer-domain)
@@ -31,6 +32,69 @@
 
 ---
 
+## 0. Come Orientarsi Velocemente
+
+Questa codebase è leggibile se la si affronta nel verso giusto. Il backend non è organizzato per framework "magico", ma per layer abbastanza netti:
+
+1. `main.py` espone le Cloud Functions importando i moduli endpoint e trigger.
+2. `api/*` valida l'HTTP, legge il payload e delega.
+3. `services/*` contiene quasi tutta la business logic.
+4. `repositories/*` parla con Firestore.
+5. `domain/*` contiene regole pure riusabili nei flussi più complessi.
+6. `triggers/*` aggiunge side effect asincroni dopo la scrittura su Firestore.
+
+### Percorso di lettura consigliato
+
+Se prendi il progetto oggi, questo è l'ordine più utile:
+
+1. `functions/main.py`
+2. `functions/config/firebase_config.py` e `functions/config/environment.py`
+3. `functions/models/` + `functions/dto/`
+4. `functions/api/admin/participants_api.py`, `functions/api/admin/members_api.py`, `functions/api/public/event_payment_api.py`
+5. `functions/services/events/participants_service.py`
+6. `functions/services/memberships/memberships_service.py`
+7. `functions/services/payments/event_payment_service.py`
+8. `functions/triggers/registration_trigger.py`
+
+### Lifecycle di una request
+
+```text
+HTTP request
+  -> api/* handler
+  -> eventuali decorator auth / validation
+  -> DTO.from_payload(...)
+  -> service method
+  -> repository read/write
+  -> payload dict di risposta
+  -> eventuale trigger Firestore post-write
+```
+
+### Convenzioni che confondono se non le sai prima
+
+- Il backend usa sia `snake_case` sia `camelCase`.
+  - Nei payload HTTP in ingresso vengono accettate spesso entrambe.
+  - Nei model Python i campi sono normalmente `snake_case`.
+  - In Firestore alcuni campi storici restano `camelCase` (`membershipId`, `createdAt`, `newsletterConsent`).
+- I repository non restituiscono sempre model puri.
+  - In molti casi tornano già DTO (`ParticipantRepository.get/list`, per esempio).
+- `main.py` non contiene logica applicativa.
+  - Serve soprattutto a registrare funzioni Cloud importando i moduli giusti.
+  - Se aggiungi un endpoint e non lo importi in `main.py`, Firebase non lo espone.
+- I trigger fanno side effect importanti.
+  - Ticket email, wallet pass, gender enrichment e sync Sender partono dopo la scrittura, non dentro ogni endpoint.
+- `membership_included` sul partecipante non significa solo "tessera venduta in questo flusso".
+  - In pratica viene usato anche come flag di "partecipante associato a una membership".
+  - Se un partecipante viene collegato a un socio esistente, il campo può risultare `true` anche senza creazione/rinnovo membership nello stesso endpoint.
+
+### Flussi da conoscere prima di toccare il codice
+
+- Acquisto evento: `event_payment_api.py` -> `EventPaymentService` -> `ParticipantRules` -> `registration_trigger.py`
+- Admin partecipanti: `participants_api.py` -> `ParticipantsService` -> `ParticipantRepository`
+- Admin membership: `members_api.py` -> `MembershipsService` -> `registration_trigger.py`
+- Entrance QR: `api/entrance.py` -> `EntranceService` / `ParticipantRepository`
+
+---
+
 ## 1. Struttura del Progetto
 
 ```
@@ -38,8 +102,7 @@ mcp-backend/functions/
 ├── api/
 │   ├── public/                   # Endpoint senza autenticazione
 │   ├── admin/                    # Endpoint riservati ad admin
-│   │   ├── sender/               # Proxy API Sender.net
-│   │   └── mailer_lite/          # Proxy API MailerLite
+│   │   └── sender/               # Proxy API Sender.net
 │   ├── entrance.py               # Sistema scansione QR entrata eventi
 │   ├── decorators/               # Decoratori HTTP (@require_admin, ecc.)
 │   └── validators/               # Validatori e iniettori di payload
@@ -65,8 +128,7 @@ mcp-backend/functions/
 │   ├── events/                   # Gestione eventi e partecipanti
 │   ├── memberships/              # Iscrizioni, merge, wallet pass
 │   ├── payments/                 # PayPal, acquisti
-│   ├── sender/                   # Sync con Sender.net
-│   └── mailer_lite/              # Wrapper API MailerLite
+│   └── sender/                   # Sync con Sender.net
 ├── triggers/                     # Cloud Function triggers Firestore
 ├── tests/unit/                   # Suite test pytest
 ├── utils/                        # Funzioni di utilità
@@ -90,6 +152,15 @@ mcp-backend/functions/
    - Creazione client Firestore (`db`) e bucket Storage (`bucket`)
 5. Import e registrazione di tutti gli endpoint pubblici e admin
 6. Registrazione dei Firestore triggers
+
+### Nota pratica su `main.py`
+
+- Firebase esporta come Cloud Functions tutti i simboli top-level importati nel modulo.
+- Per questo `main.py` sembra soprattutto un grande file di import.
+- Quando aggiungi un nuovo endpoint o trigger:
+  1. definisci la funzione nel modulo corretto;
+  2. importala in `main.py`;
+  3. solo a quel punto verrà deployata.
 
 ### Variabili d'ambiente chiave
 
@@ -189,7 +260,7 @@ Tutti gli endpoint sono Firebase Cloud Functions (`@https_fn.on_request`).
 | `POST` | `/send_location` | Invia posizione a un partecipante |
 | `POST` | `/send_location_to_all` | Invio asincrono posizione a tutti (202 Accepted) |
 | `POST` | `/send_ticket` | Reinvia email biglietto |
-| `POST` | `/send_omaggio_emails` | Invia email biglietti omaggio |
+| `POST` | `/send_omaggio_emails` | Invia email dedicate agli omaggi (`payment_method=omaggio`) |
 
 #### Gestione Iscrizioni (Membership) — `api/admin/members_api.py`
 
@@ -259,24 +330,9 @@ Tutti gli endpoint sono Firebase Cloud Functions (`@https_fn.on_request`).
 
 ---
 
-### 3.3 Integrazione MailerLite
+### 3.3 API Admin Sender.net
 
-> `api/admin/mailer_lite/` — proxy verso le API MailerLite v1.
-
-| Area | Endpoint disponibili |
-|---|---|
-| Gruppi | `admin_mailerlite_groups`, `admin_mailerlite_group_subscribers`, `assign/unassign` |
-| Subscribers | `admin_mailerlite_subscribers`, `admin_mailerlite_subscriber_forget` |
-| Campagne | `admin_mailerlite_campaigns`, `schedule`, `cancel_ready` |
-| Campi | `admin_mailerlite_fields` |
-| Automazioni | `admin_mailerlite_automations`, `admin_mailerlite_automation_activity` |
-| Segmenti | `admin_mailerlite_segments`, `admin_mailerlite_segment_subscribers` |
-
----
-
-### 3.4 Integrazione Sender.net
-
-> `api/admin/sender/` — proxy verso le API Sender.net.
+> `api/admin/sender/` — proxy verso le API Sender.net usato dall'admin per subscriber, gruppi, campagne e invii transazionali.
 
 | Area | Endpoint disponibili |
 |---|---|
@@ -286,6 +342,21 @@ Tutti gli endpoint sono Firebase Cloud Functions (`@https_fn.on_request`).
 | Campi | `admin_sender_fields` |
 | Segmenti | `admin_sender_segments`, `segment_subscribers` |
 | Transazionale | `admin_sender_transactional`, `transactional_send` |
+
+---
+
+### 3.4 Sync Automatico Sender.net
+
+> `services/sender/sender_sync.py` — sincronizzazione automatica verso Sender a valle di trigger o signup pubblici.
+
+Regole principali attuali:
+
+- `sync_membership_to_sender()` -> gruppo `Memberships`
+- `sync_participant_to_sender()` -> gruppo `Newsletter` e gruppo dinamico `Participant-{event_title}` se c'è consenso newsletter
+- `sync_newsletter_signup_to_sender()` -> gruppo `Newsletter`
+- `sender_webhook` -> riceve unsubscribe/bounce/spam e aggiorna Firestore
+
+Tutte queste integrazioni sono best-effort: loggano e non bloccano il flusso principale.
 
 ---
 
@@ -350,6 +421,21 @@ Tutti gli endpoint sono Firebase Cloud Functions (`@https_fn.on_request`).
 - CRUD: `create`, `get_all`, `get_by_id`, `update`, `delete`
 - `check_participants(event_id, participants)` — Validazione pre-acquisto
 - `send_ticket(event_id, participant_id)` — Reinvia biglietto
+- `send_omaggio_emails(event_id, entry_time, participant_id?, skip_already_sent?)` — Invio email dedicata agli omaggi
+
+Comportamenti non banali di `create()`:
+
+- Se arriva `membership_id`, il partecipante viene collegato esplicitamente a quella membership e il backend non prova a creare o rinnovare nulla.
+- Se `membership_id` non arriva, il backend prova comunque a trovare una membership esistente via email o telefono.
+- Se `membership_included=true` e trova una membership attiva, alza `ConflictError`.
+- Se `membership_included=true` e trova una membership scaduta, la rinnova.
+- Se `membership_included=true` e non trova nessuna membership, ne crea una nuova.
+- Se `membership_included=false` ma trova una membership esistente via email/telefono, collega comunque il partecipante a quel socio.
+
+Comportamenti non banali di `update()`:
+
+- Se il payload contiene `membership_id`, questo valore viene trattato come override manuale.
+- Se il payload non contiene `membership_id` ma cambia l'email, il backend ricalcola il collegamento membership in automatico.
 
 #### `LocationService` — `services/events/location_service.py`
 - `send_location(event_id, participant_id, address, link, message)` — Sincrono, uno
@@ -752,7 +838,6 @@ Consultabili via `GET /admin_error_logs` con filtri `service`, `resolved`, `limi
 | `firebase-functions` | 0.4.3 | Cloud Functions |
 | `google-auth` | 2.22.0 | Auth Google |
 | `mailersend` | latest | Invio email transazionale |
-| `mailerlite` | latest | Email marketing |
 | `requests` | 2.32.3 | Client HTTP generico |
 | `paypal-server-sdk` | 0.6.1 | Pagamenti PayPal |
 | `reportlab` | 4.0.4 | Generazione PDF |
@@ -767,7 +852,6 @@ Consultabili via `GET /admin_error_logs` con filtri `service`, `resolved`, `limi
 | **Firebase / Firestore** | Database primario e autenticazione |
 | **PayPal Server SDK** | Elaborazione pagamenti eventi |
 | **MailerSend** | Invio email transazionali (biglietti, tessere) |
-| **MailerLite** | Gestione newsletter e campagne |
 | **Sender.net** | Email marketing, subscriber management |
 | **Pass2U** | Generazione Apple / Google Wallet pass |
 | **Genderize.io** | Predizione genere da nome (validazione partecipanti) |
@@ -822,6 +906,29 @@ POST /create_membership
   │    ├─ Pass2U: crea Wallet pass
   │    └─ Sync Sender.net
   └─ → { message, membershipId }
+```
+
+### Creazione Partecipante Admin
+
+```text
+POST /create_participant
+  │
+  ├─ ParticipantsService.create()
+  │    ├─ valida età, email, payment_method
+  │    ├─ se membership_id presente:
+  │    │    └─ collega il partecipante alla membership esplicita
+  │    ├─ altrimenti prova lookup membership via email / telefono
+  │    ├─ se membership_included=true:
+  │    │    ├─ membership attiva -> ConflictError
+  │    │    ├─ membership scaduta -> rinnovo
+  │    │    └─ nessuna membership -> creazione nuova membership
+  │    ├─ crea EventParticipant
+  │    └─ se membership_id esiste -> add_attended_event()
+  ├─ Trigger: on_participant_created
+  │    ├─ gender enrichment
+  │    ├─ eventuale invio ticket
+  │    └─ eventuale sync Sender se newsletter_consent=true
+  └─ → { message, id }
 ```
 
 ### Invio Posizione a Tutti i Partecipanti

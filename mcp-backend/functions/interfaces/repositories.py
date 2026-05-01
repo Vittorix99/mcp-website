@@ -1,20 +1,60 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Union
+from typing import Any, Dict, Iterable, List, Optional, Protocol
 
-from dto import ContactMessageDTO, EventParticipantDTO, JobDTO, MembershipDTO, SettingDTO
-from dto.error_log import ErrorLogDTO
 from models import (
+    AdminUser,
     ContactMessage,
-    ErrorLog,
+    EntranceScan,
     Event,
     EventOrder,
     EventParticipant,
     Job,
     Membership,
+    NewsletterConsent,
+    NewsletterParticipant,
+    NewsletterSignup,
     Purchase,
     Setting,
+    UserProfile,
 )
+from models.scan_token import ScanToken
+
+
+class AdminRepositoryProtocol(Protocol):
+    def list_models(self) -> List[AdminUser]:
+        ...
+
+    def get(self, admin_id: str) -> Optional[AdminUser]:
+        ...
+
+    def create_with_id(self, admin_id: str, admin_user: AdminUser) -> None:
+        ...
+
+    def update_from_model(self, admin_id: str, admin_user: AdminUser) -> None:
+        ...
+
+    def delete(self, admin_id: str) -> None:
+        ...
+
+
+class AdminAuthRepositoryProtocol(Protocol):
+    def create_admin_user(self, email: str, password: str, display_name: str = "") -> str:
+        ...
+
+    def set_admin_claims(self, admin_id: str) -> None:
+        ...
+
+    def update_admin_user(
+        self,
+        admin_id: str,
+        email: Optional[str] = None,
+        display_name: Optional[str] = None,
+    ) -> None:
+        ...
+
+    def delete_admin_user(self, admin_id: str) -> None:
+        ...
 
 
 class EventRepositoryProtocol(Protocol):
@@ -38,7 +78,7 @@ class EventRepositoryProtocol(Protocol):
 
 
 class MembershipRepositoryProtocol(Protocol):
-    def get_all(self) -> List[MembershipDTO]:
+    def get_all(self) -> List[Membership]:
         ...
 
     def get(self, membership_id: str) -> Optional[Membership]:
@@ -47,10 +87,10 @@ class MembershipRepositoryProtocol(Protocol):
     def list(self) -> List[Membership]:
         ...
 
-    def stream(self) -> Iterable[MembershipDTO]:
+    def stream(self) -> Iterable[Membership]:
         ...
 
-    def get_last_by_start_date(self) -> Optional[MembershipDTO]:
+    def get_last_by_start_date(self) -> Optional[Membership]:
         ...
 
     def get_model_by_slug(self, slug: str) -> Optional[Membership]:
@@ -62,16 +102,13 @@ class MembershipRepositoryProtocol(Protocol):
     def find_by_phone(self, phone: str) -> Optional[Membership]:
         ...
 
-    def create(self, payload: Union[Dict[str, Any], MembershipDTO, Membership]) -> str:
+    def create(self, membership: Membership) -> str:
         ...
 
     def create_from_model(self, membership: Membership) -> str:
         ...
 
-    def update_fields(self, membership_id: str, payload: Dict[str, Any]) -> bool:
-        ...
-
-    def update_from_model(self, membership_id: str, payload: Union[Membership, MembershipDTO]) -> bool:
+    def update_from_model(self, membership_id: str, payload: Membership) -> bool:
         ...
 
     def delete(self, membership_id: str) -> None:
@@ -87,9 +124,6 @@ class MembershipRepositoryProtocol(Protocol):
         ...
 
     def find_by_year(self, year: int) -> List[Membership]:
-        ...
-
-    def add_renewal(self, membership_id: str, renewal_dict: Dict[str, Any]) -> bool:
         ...
 
     def list_by_purchase_ids(self, purchase_ids: List[str]) -> Iterable[Membership]:
@@ -115,24 +149,27 @@ class MembershipSettingsRepositoryProtocol(Protocol):
     def get_price_by_year(self, year: str) -> Optional[float]:
         ...
 
+    def get_wallet_model(self) -> Optional[str]:
+        ...
+
+    def set_wallet_model(self, model_id: str) -> None:
+        ...
+
 
 class ParticipantRepositoryProtocol(Protocol):
-    def list(self, event_id: str) -> List[EventParticipantDTO]:
+    def list(self, event_id: str) -> List[EventParticipant]:
         ...
 
-    def stream(self, event_id: str) -> Iterable[EventParticipantDTO]:
+    def stream(self, event_id: str) -> Iterable[EventParticipant]:
         ...
 
-    def get(self, event_id: str, participant_id: str) -> Optional[EventParticipantDTO]:
-        ...
-
-    def create(self, event_id: str, payload: Union[Dict[str, Any], EventParticipantDTO]) -> str:
+    def get(self, event_id: str, participant_id: str) -> Optional[EventParticipant]:
         ...
 
     def create_from_model(self, event_id: str, participant: EventParticipant) -> str:
         ...
 
-    def update(self, event_id: str, participant_id: str, payload: Union[Dict[str, Any], EventParticipantDTO]) -> bool:
+    def update_from_model(self, event_id: str, participant_id: str, participant: EventParticipant) -> bool:
         ...
 
     def delete(self, event_id: str, participant_id: str) -> None:
@@ -144,7 +181,7 @@ class ParticipantRepositoryProtocol(Protocol):
     def any_with_contacts(self, event_id: str, emails: List[str], phones: List[str]) -> bool:
         ...
 
-    def get_last_across_events(self) -> Optional[EventParticipantDTO]:
+    def get_last_across_events(self) -> Optional[EventParticipant]:
         ...
 
     def set_membership(self, event_id: str, participant_id: str, membership_id: Optional[str]) -> None:
@@ -153,7 +190,13 @@ class ParticipantRepositoryProtocol(Protocol):
     def clear_membership_reference(self, membership_id: str) -> int:
         ...
 
+    def get_by_membership_id(self, event_id: str, membership_id: str) -> Optional[EventParticipant]:
+        ...
+
     def update_membership_reference(self, old_membership_id: str, new_membership_id: str) -> int:
+        ...
+
+    def update_entered(self, event_id: str, participant_id: str, entered: bool) -> None:
         ...
 
 
@@ -187,16 +230,16 @@ class PurchaseRepositoryProtocol(Protocol):
 
 
 class MessageRepositoryProtocol(Protocol):
-    def list_ordered_by_name(self) -> List[ContactMessageDTO]:
+    def list_models_ordered_by_name(self) -> List[ContactMessage]:
         ...
 
     def count_unanswered_since(self, time_limit: Any) -> int:
         ...
 
-    def get_last_dto(self) -> Optional[ContactMessageDTO]:
+    def get_last_model(self) -> Optional[ContactMessage]:
         ...
 
-    def get(self, message_id: str) -> Optional[ContactMessageDTO]:
+    def get_model(self, message_id: str) -> Optional[ContactMessage]:
         ...
 
     def create_from_model(self, payload: ContactMessage) -> str:
@@ -205,18 +248,18 @@ class MessageRepositoryProtocol(Protocol):
     def delete(self, message_id: str) -> None:
         ...
 
-    def update(self, message_id: str, payload: Union[Dict[str, Any], ContactMessageDTO, ContactMessage]) -> None:
+    def update_from_model(self, message_id: str, payload: ContactMessage) -> None:
         ...
 
 
 class SettingsRepositoryProtocol(Protocol):
-    def get_dto(self, key: str) -> Optional[SettingDTO]:
+    def get(self, key: str) -> Optional[Setting]:
         ...
 
     def save(self, key: str, value: Any) -> Setting:
         ...
 
-    def list_dtos(self) -> List[SettingDTO]:
+    def list(self) -> List[Setting]:
         ...
 
 
@@ -224,7 +267,7 @@ class OrderRepositoryProtocol(Protocol):
     def save(self, order_id: str, order: EventOrder) -> None:
         ...
 
-    def get(self, order_id: str) -> Optional[Dict[str, Any]]:
+    def get_model(self, order_id: str) -> Optional[EventOrder]:
         ...
 
     def delete(self, order_id: str) -> None:
@@ -247,35 +290,73 @@ class JobRepositoryProtocol(Protocol):
     def get_model(self, job_id: str) -> Optional[Job]:
         ...
 
-    def update_from_model(self, job_id: str, payload: Union[JobDTO, Job]) -> None:
+    def update(self, job_id: str, payload: Dict[str, Any]) -> None:
         ...
 
-
-class ErrorLogRepositoryProtocol(Protocol):
-    def list_dtos(
-        self,
-        limit: int = 100,
-        service: Optional[str] = None,
-        resolved: Optional[bool] = None,
-    ) -> List[ErrorLogDTO]:
-        ...
-
-    def get_dto(self, error_log_id: str) -> Optional[ErrorLogDTO]:
-        ...
-
-    def create_from_dto(self, dto: ErrorLogDTO) -> str:
-        ...
-
-    def update_from_payload(self, error_log_id: str, payload: Dict[str, Any]) -> bool:
-        ...
-
-    def get_model(self, error_log_id: str) -> Optional[ErrorLog]:
-        ...
-
-    def delete(self, error_log_id: str) -> None:
+    def update_from_model(self, job_id: str, job: Job) -> None:
         ...
 
 
 class UserRepositoryProtocol(Protocol):
-    def get_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_by_id(self, user_id: str) -> Optional[UserProfile]:
+        ...
+
+
+class NewsletterRepositoryProtocol(Protocol):
+    def stream_signups(self) -> Iterable[NewsletterSignup]:
+        ...
+
+    def stream_consents(self) -> Iterable[NewsletterConsent]:
+        ...
+
+    def get_signup(self, signup_id: str) -> Optional[NewsletterSignup]:
+        ...
+
+    def find_signup_by_email(self, email: str) -> Optional[NewsletterSignup]:
+        ...
+
+    def add_signup_from_model(self, signup: NewsletterSignup) -> str:
+        ...
+
+    def update_signup_from_model(self, signup_id: str, signup: NewsletterSignup) -> None:
+        ...
+
+    def delete_signup(self, signup_id: str) -> None:
+        ...
+
+    def unsubscribe_by_email(self, email: str) -> None:
+        ...
+
+    def add_participants_batch(self, participants: List[NewsletterParticipant]) -> None:
+        ...
+
+
+class ScanTokenRepositoryProtocol(Protocol):
+    def get(self, token: str) -> Optional[ScanToken]:
+        ...
+
+    def create(self, token: str, event_id: str, admin_uid: str, expires_at: Any) -> None:
+        ...
+
+    def deactivate(self, token: str, admin_uid: str) -> None:
+        ...
+
+
+class EntranceScanRepositoryProtocol(Protocol):
+    def get(self, event_id: str, membership_id: str) -> Optional[EntranceScan]:
+        ...
+
+    def exists(self, event_id: str, membership_id: str) -> bool:
+        ...
+
+    def create_scan(self, event_id: str, membership_id: str, scan_token: str) -> Optional[EntranceScan]:
+        ...
+
+    def create_manual(self, event_id: str, membership_id: str, admin_uid: str) -> None:
+        ...
+
+    def delete(self, event_id: str, membership_id: str) -> None:
+        ...
+
+    def count(self, event_id: str) -> int:
         ...

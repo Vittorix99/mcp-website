@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from dto import MembershipDTO, PurchaseDTO
+from mappers.membership_mappers import membership_to_response
 from interfaces.repositories import (
     EventRepositoryProtocol,
     MembershipRepositoryProtocol,
@@ -10,6 +10,7 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
+from mappers.purchase_mappers import purchase_to_response
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
@@ -81,8 +82,7 @@ class MembershipReportsService:
             purchase_id = purchase.id
             if not purchase_id:
                 continue
-            purchase_payload = PurchaseDTO.from_model(purchase).to_payload()
-            purchase_payload["id"] = purchase_id
+            purchase_payload = purchase_to_response(purchase).to_payload()
             purchases[purchase_id] = purchase_payload
             net_amount = self._parse_amount(purchase_payload.get("net_amount")) or 0.0
             total_net_collected += net_amount
@@ -99,7 +99,7 @@ class MembershipReportsService:
         purchase_ids = list(purchases.keys())
         for batch in self._chunked(purchase_ids, 10):
             for membership in self.membership_repository.list_by_purchase_ids(batch):
-                m_data = MembershipDTO.from_model(membership).to_payload()
+                m_data = membership_to_response(membership).to_payload()
                 purchase_id = membership.purchase_id
                 if purchase_id:
                     memberships_by_purchase.setdefault(purchase_id, []).append(m_data)
@@ -128,7 +128,7 @@ class MembershipReportsService:
         ]
         for batch in self._chunked(missing_member_ids, 10):
             for membership in self.membership_repository.list_by_ids(batch):
-                membership_cache[membership.id] = MembershipDTO.from_model(membership).to_payload()
+                membership_cache[membership.id] = membership_to_response(membership).to_payload()
 
         for purchase_id, members in memberships_by_purchase.items():
             purchase = purchases.get(purchase_id, {})

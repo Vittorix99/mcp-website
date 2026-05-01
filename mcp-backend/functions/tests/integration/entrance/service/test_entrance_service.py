@@ -29,6 +29,24 @@ import pytest
 from google.cloud.firestore_v1 import FieldFilter
 
 from config.firebase_config import db
+from dto.entrance_api import ManualEntryRequestDTO, ValidateEntryRequestDTO, VerifyScanTokenQueryDTO
+
+
+def _verify_scan_token(entrance_service, token: str):
+    return entrance_service.verify_scan_token(VerifyScanTokenQueryDTO(token=token)).to_payload()
+
+
+def _validate_entry(entrance_service, membership_id: str, scan_token: str):
+    return entrance_service.validate_entry(
+        ValidateEntryRequestDTO(membership_id=membership_id, scan_token=scan_token)
+    ).to_payload()
+
+
+def _manual_entry(entrance_service, event_id: str, membership_id: str, entered: bool, admin_uid: str = "admin-test"):
+    return entrance_service.manual_entry(
+        ManualEntryRequestDTO(event_id=event_id, membership_id=membership_id, entered=entered),
+        admin_uid,
+    ).to_payload()
 
 
 def _get_participant_doc(event_id: str, membership_id: str):
@@ -86,7 +104,7 @@ def test_verify_scan_token_valid(entrance_seed, entrance_service):
     Step 2: verify_scan_token su un token attivo ritorna valid=True con
     event_id e titolo dell'evento valorizzati.
     """
-    result = entrance_service.verify_scan_token(entrance_seed.scan_token)
+    result = _verify_scan_token(entrance_service, entrance_seed.scan_token)
 
     assert result["valid"] is True
     assert result["event_id"] == entrance_seed.event_id
@@ -105,9 +123,7 @@ def test_valid_members_all_enter(entrance_seed, entrance_service):
     corretti. Verifica anche che participants.entered venga aggiornato (doppio write).
     """
     for member in entrance_seed.valid_members:
-        result = entrance_service.validate_entry(
-            member.membership_id, entrance_seed.scan_token
-        )
+        result = _validate_entry(entrance_service, member.membership_id, entrance_seed.scan_token)
         assert result["result"] == "valid", (
             f"Atteso 'valid' per {member.name} {member.surname}, "
             f"ottenuto: {result['result']}"
@@ -141,9 +157,7 @@ def test_member_without_purchase_rejected(entrance_seed, entrance_service):
     per questo evento. Nessun record in participants_event → "invalid_no_purchase".
     """
     member = entrance_seed.member_no_purchase
-    result = entrance_service.validate_entry(
-        member.membership_id, entrance_seed.scan_token
-    )
+    result = _validate_entry(entrance_service, member.membership_id, entrance_seed.scan_token)
     assert result["result"] == "invalid_no_purchase", (
         f"Atteso 'invalid_no_purchase', ottenuto: {result['result']}"
     )
@@ -166,7 +180,7 @@ def test_already_scanned_member_blocked(entrance_seed, entrance_service):
     token = entrance_seed.scan_token
 
     # Prima scansione: deve passare
-    first = entrance_service.validate_entry(member.membership_id, token)
+    first = _validate_entry(entrance_service, member.membership_id, token)
     assert first["result"] == "valid", (
         f"Prima scansione attesa 'valid', ottenuto: {first['result']}"
     )
@@ -180,7 +194,7 @@ def test_already_scanned_member_blocked(entrance_seed, entrance_service):
     )
 
     # Seconda scansione immediata: deve essere bloccata
-    second = entrance_service.validate_entry(member.membership_id, token)
+    second = _validate_entry(entrance_service, member.membership_id, token)
     assert second["result"] == "already_scanned", (
         f"Seconda scansione attesa 'already_scanned', ottenuto: {second['result']}"
     )
@@ -207,11 +221,9 @@ def test_member_with_invalid_subscription_rejected(entrance_seed, entrance_servi
     mai potuto completare l'acquisto.
     """
     member = entrance_seed.member_invalid_subscription
-    result = entrance_service.validate_entry(
-        member.membership_id, entrance_seed.scan_token
-    )
-    assert result["result"] == "invalid_no_purchase", (
-        f"Atteso 'invalid_no_purchase' per membership non valida, "
+    result = _validate_entry(entrance_service, member.membership_id, entrance_seed.scan_token)
+    assert result["result"] == "invalid_membership", (
+        f"Atteso 'invalid_membership' per membership non valida, "
         f"ottenuto: {result['result']}"
     )
 
@@ -233,7 +245,7 @@ def test_manual_entry_enter_writes_both_collections(entrance_seed, entrance_serv
     member = entrance_seed.member_for_manual_entry
     event_id = entrance_seed.event_id
 
-    result = entrance_service.manual_entry(event_id, member.membership_id, True, "admin-test")
+    result = _manual_entry(entrance_service, event_id, member.membership_id, True)
     assert result["result"] == "entered", f"Atteso 'entered', ottenuto: {result['result']}"
 
     # Verifica entrance_scans
@@ -259,7 +271,7 @@ def test_manual_entry_already_entered(entrance_seed, entrance_service):
     member = entrance_seed.member_for_manual_entry
     event_id = entrance_seed.event_id
 
-    result = entrance_service.manual_entry(event_id, member.membership_id, True, "admin-test")
+    result = _manual_entry(entrance_service, event_id, member.membership_id, True)
     assert result["result"] == "already_entered", (
         f"Atteso 'already_entered', ottenuto: {result['result']}"
     )
@@ -273,7 +285,7 @@ def test_manual_entry_undo_clears_both_collections(entrance_seed, entrance_servi
     member = entrance_seed.member_for_manual_entry
     event_id = entrance_seed.event_id
 
-    result = entrance_service.manual_entry(event_id, member.membership_id, False, "admin-test")
+    result = _manual_entry(entrance_service, event_id, member.membership_id, False)
     assert result["result"] == "undone", f"Atteso 'undone', ottenuto: {result['result']}"
 
     # entrance_scans deve essere eliminato
@@ -297,7 +309,7 @@ def test_manual_entry_can_reenter_after_undo(entrance_seed, entrance_service):
     event_id = entrance_seed.event_id
 
     # Il membro è stato undone dal test precedente, ora il QR dovrebbe passare
-    result = entrance_service.validate_entry(member.membership_id, entrance_seed.scan_token)
+    result = _validate_entry(entrance_service, member.membership_id, entrance_seed.scan_token)
     assert result["result"] == "valid", (
         f"Dopo undo, la scansione QR deve tornare 'valid', ottenuto: {result['result']}"
     )
@@ -311,12 +323,7 @@ def test_manual_entry_member_not_found(entrance_seed, entrance_service):
     """
     from errors.service_errors import NotFoundError
     with pytest.raises(NotFoundError):
-        entrance_service.manual_entry(
-            entrance_seed.event_id,
-            "membership-id-inesistente-0000",
-            True,
-            "admin-test",
-        )
+        _manual_entry(entrance_service, entrance_seed.event_id, "membership-id-inesistente-0000", True)
 
 
 # ---------------------------------------------------------------------------
@@ -331,9 +338,9 @@ def test_nonexistent_token_rejected(entrance_seed, entrance_service):
     """
     fake_token = "0000000000000000000000000000ffff"
 
-    validate_result = entrance_service.validate_entry("any-membership-id", fake_token)
+    validate_result = _validate_entry(entrance_service, "any-membership-id", fake_token)
     assert validate_result["result"] == "invalid_token"
 
-    verify_result = entrance_service.verify_scan_token(fake_token)
+    verify_result = _verify_scan_token(entrance_service, fake_token)
     assert verify_result["valid"] is False
     assert verify_result["reason"] == "not_found"

@@ -1,10 +1,9 @@
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Iterable, List, Optional
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
 
 from config.firebase_config import db
-from dto import EventParticipantDTO
 from models import EventParticipant
 
 
@@ -22,45 +21,23 @@ class ParticipantRepository:
     def _model_from_snapshot(self, snapshot: firestore.DocumentSnapshot, event_id: str) -> EventParticipant:
         return EventParticipant.from_firestore(snapshot.to_dict() or {}, snapshot.id)
 
-    def _dto_from_snapshot(self, snapshot: firestore.DocumentSnapshot, event_id: str) -> EventParticipantDTO:
-        model = self._model_from_snapshot(snapshot, event_id)
-        return EventParticipantDTO.from_model(model)
-
-    def list(self, event_id: str) -> List[EventParticipantDTO]:
+    def list(self, event_id: str) -> List[EventParticipant]:
         docs = self._collection(event_id).stream()
-        return [self._dto_from_snapshot(doc, event_id) for doc in docs]
+        return [self._model_from_snapshot(doc, event_id) for doc in docs]
 
-    def stream(self, event_id: str) -> Iterable[EventParticipantDTO]:
+    def stream(self, event_id: str) -> Iterable[EventParticipant]:
         for doc in self._collection(event_id).stream():
-            yield self._dto_from_snapshot(doc, event_id)
+            yield self._model_from_snapshot(doc, event_id)
 
-    def get(self, event_id: str, participant_id: str) -> Optional[EventParticipantDTO]:
+    def get(self, event_id: str, participant_id: str) -> Optional[EventParticipant]:
         doc = self._collection(event_id).document(participant_id).get()
         if not doc.exists:
             return None
-        return self._dto_from_snapshot(doc, event_id)
-
-    def create(self, event_id: str, payload: Union[Dict[str, Optional[str]], EventParticipantDTO]) -> str:
-        if hasattr(payload, "to_payload"):
-            data = payload.to_payload()
-        else:
-            data = payload
-        doc_ref = self._collection(event_id).add(data)[1]
-        return doc_ref.id
+        return self._model_from_snapshot(doc, event_id)
 
     def create_from_model(self, event_id: str, participant: EventParticipant) -> str:
         doc_ref = self._collection(event_id).add(participant.to_firestore(include_none=True))[1]
         return doc_ref.id
-
-    def update(self, event_id: str, participant_id: str, payload: Union[Dict[str, Optional[str]], EventParticipantDTO]) -> bool:
-        if hasattr(payload, "to_update_payload"):
-            data = payload.to_update_payload()  # type: ignore[attr-defined]
-        elif hasattr(payload, "to_payload"):
-            data = payload.to_payload()
-        else:
-            data = payload
-        self._collection(event_id).document(participant_id).set(data, merge=True)
-        return True
 
     def update_from_model(self, event_id: str, participant_id: str, participant: EventParticipant) -> bool:
         self._collection(event_id).document(participant_id).set(
@@ -94,7 +71,7 @@ class ParticipantRepository:
                     return True
         return False
 
-    def get_last_across_events(self) -> Optional[EventParticipantDTO]:
+    def get_last_across_events(self) -> Optional[EventParticipant]:
         docs = (
             db.collection_group("participants_event")
             .order_by("createdAt", direction=firestore.Query.DESCENDING)
@@ -103,8 +80,7 @@ class ParticipantRepository:
         )
         if not docs:
             return None
-        model = EventParticipant.from_firestore(docs[0].to_dict() or {}, docs[0].id)
-        return EventParticipantDTO.from_model(model)
+        return EventParticipant.from_firestore(docs[0].to_dict() or {}, docs[0].id)
 
     def set_membership(self, event_id: str, participant_id: str, membership_id: Optional[str]) -> None:
         """Set or clear the membershipId field on a participant document."""

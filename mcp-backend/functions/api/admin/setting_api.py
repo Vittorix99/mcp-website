@@ -1,52 +1,40 @@
-from firebase_functions import https_fn
-from config.firebase_config import cors
-from services.core.auth_service import require_admin
-from config.firebase_config import region
-from services.core.settings_service import SettingsService
+import logging
+
 from flask import jsonify
-from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
+from pydantic import ValidationError as PydanticValidationError
 
+from api.decorators import admin_endpoint, public_endpoint
+from dto.setting_api import GetSettingQueryDTO, SetSettingRequestDTO
+from services.core.settings_service import SettingsService
+from utils.http_responses import handle_pydantic_error, handle_service_error
 
+logger = logging.getLogger("SettingAPI")
 settings_service = SettingsService()
 
 
-
-
-@https_fn.on_request(cors=cors, region=region)
+@public_endpoint(methods=("GET",))
 def get_settings(req):
     try:
-        key = req.args.get("key")
-        if key:
-            setting = settings_service.get_setting(key)
+        dto = GetSettingQueryDTO.model_validate(dict(req.args or {}))
+        if dto.key:
+            setting = settings_service.get_setting(dto.key)
             return jsonify(setting.to_payload()), 200
-
-        all_settings = [entry.to_payload() for entry in settings_service.get_all_settings()]
-        return jsonify({"settings": all_settings}), 200
+        result = settings_service.get_all_settings()
+        return jsonify(result.to_payload()), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
     except Exception as err:
-        return _handle_service_error(err)
+        return handle_service_error(err)
 
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("POST",))
 def set_settings(req):
     try:
-        data = req.get_json()
-        key = data.get("key") if data else None
-        value = data.get("value") if data else None
-
-        setting = settings_service.set_setting(key, value)
-        return jsonify({"message": f"Setting '{key}' updated", "setting": setting.to_payload()}), 200
+        dto = SetSettingRequestDTO.model_validate(req.get_json(silent=True) or {})
+        result = settings_service.set_setting(dto)
+        return jsonify(result.to_payload()), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
     except Exception as err:
-        return _handle_service_error(err)
-
-
-def _handle_service_error(err: Exception):
-    if isinstance(err, ValidationError):
-        return jsonify({"error": str(err)}), 400
-    if isinstance(err, NotFoundError):
-        return jsonify({"error": str(err)}), 404
-    if isinstance(err, ExternalServiceError):
-        return jsonify({"error": str(err)}), 502
-    if isinstance(err, ServiceError):
-        return jsonify({"error": str(err)}), 500
-    return jsonify({"error": "Internal server error"}), 500
+        logger.error("[set_settings] %s", str(err))
+        return handle_service_error(err)

@@ -1,31 +1,41 @@
-from firebase_functions import https_fn
-from config.firebase_config import cors, region
-from services.core.auth_service import require_admin
-from .helpers import get_payload, get_query_params, pick, get_sender_service
+import logging
+
+from flask import jsonify
+from pydantic import ValidationError as PydanticValidationError
+
+from api.decorators import admin_endpoint
+from dto.sender_api import CreateFieldRequestDTO, FieldDeleteRequestDTO
+from utils.http_responses import handle_pydantic_error, handle_service_error
+from .helpers import get_sender_service
+
+logger = logging.getLogger("AdminSenderFieldsAPI")
 
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("GET", "POST", "DELETE"))
 def admin_sender_fields(req):
-    svc = get_sender_service()
+    sender_service = get_sender_service()
 
     if req.method == "GET":
-        return svc.list_fields() or {}, 200
+        try:
+            return jsonify(sender_service.list_fields() or {}), 200
+        except Exception as err:
+            return handle_service_error(err)
 
     if req.method == "POST":
-        payload = get_payload(req)
-        title = pick(payload, "title")
-        field_type = pick(payload, "type", "field_type") or "string"
-        if not title:
-            return {"error": "Missing required field: title"}, 400
-        return svc.create_field(title, field_type) or {}, 200
+        try:
+            dto = CreateFieldRequestDTO.model_validate(req.get_json(silent=True) or {})
+            return jsonify(sender_service.create_field(dto.title, dto.type) or {}), 200
+        except PydanticValidationError as err:
+            return handle_pydantic_error(err)
+        except Exception as err:
+            return handle_service_error(err)
 
-    if req.method == "DELETE":
-        payload = get_payload(req)
-        field_id = pick(payload, "id", "field_id") or req.args.get("id")
-        if not field_id:
-            return {"error": "Missing field_id"}, 400
-        svc.delete_field(field_id)
-        return {"deleted": True}, 200
-
-    return {"error": "Invalid request method"}, 405
+    try:
+        data = {**(req.get_json(silent=True) or {}), **dict(req.args or {})}
+        dto = FieldDeleteRequestDTO.model_validate(data)
+        sender_service.delete_field(dto.id)
+        return jsonify({"deleted": True}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)

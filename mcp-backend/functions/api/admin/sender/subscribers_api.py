@@ -1,87 +1,103 @@
-from firebase_functions import https_fn
-from config.firebase_config import cors, region
-from services.core.auth_service import require_admin
-from .helpers import get_payload, get_query_params, pick, get_sender_service
+import logging
+
+from flask import jsonify
+from pydantic import ValidationError as PydanticValidationError
+
+from api.decorators import admin_endpoint
+from dto.sender_api import (
+    DeleteSubscriberRequestDTO,
+    SubscriberEventQueryDTO,
+    SubscriberGroupRequestDTO,
+    SubscriberQueryDTO,
+    UpdateSubscriberRequestDTO,
+    UpsertSubscriberRequestDTO,
+)
+from utils.http_responses import handle_pydantic_error, handle_service_error
+from .helpers import get_sender_service
+
+logger = logging.getLogger("AdminSenderSubscribersAPI")
 
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("GET", "POST", "PUT", "DELETE"))
 def admin_sender_subscribers(req):
-    svc = get_sender_service()
+    sender_service = get_sender_service()
 
     if req.method == "GET":
-        params = get_query_params(req)
-        email = pick(params, "email")
-        if email:
-            return svc.get_subscriber(email) or {}, 200
-        return svc.list_subscribers(params=params) or {}, 200
+        try:
+            dto = SubscriberQueryDTO.model_validate(dict(req.args or {}))
+            if dto.email:
+                return jsonify(sender_service.get_subscriber(str(dto.email)) or {}), 200
+            return jsonify(sender_service.list_subscribers(params=dict(req.args or {})) or {}), 200
+        except PydanticValidationError as err:
+            return handle_pydantic_error(err)
+        except Exception as err:
+            return handle_service_error(err)
 
     if req.method == "POST":
-        payload = get_payload(req)
-        email = pick(payload, "email")
-        if not email:
-            return {"error": "Missing email"}, 400
-        result = svc.upsert_subscriber(
-            email=email,
-            firstname=payload.get("firstname"),
-            lastname=payload.get("lastname"),
-            phone=payload.get("phone"),
-            groups=payload.get("groups"),
-            fields=payload.get("fields"),
-        )
-        return result or {}, 200
+        try:
+            dto = UpsertSubscriberRequestDTO.model_validate(req.get_json(silent=True) or {})
+            result = sender_service.upsert_subscriber(
+                email=str(dto.email),
+                firstname=dto.firstname,
+                lastname=dto.lastname,
+                phone=dto.phone,
+                groups=dto.groups,
+                fields=dto.fields,
+            )
+            return jsonify(result or {}), 200
+        except PydanticValidationError as err:
+            return handle_pydantic_error(err)
+        except Exception as err:
+            return handle_service_error(err)
 
     if req.method == "PUT":
-        payload = get_payload(req)
-        email = pick(payload, "email")
-        if not email:
-            return {"error": "Missing email"}, 400
-        payload.pop("email", None)
-        return svc.update_subscriber(email, payload) or {}, 200
+        try:
+            dto = UpdateSubscriberRequestDTO.model_validate(req.get_json(silent=True) or {})
+            result = sender_service.update_subscriber(str(dto.email), dto.changes())
+            return jsonify(result or {}), 200
+        except PydanticValidationError as err:
+            return handle_pydantic_error(err)
+        except Exception as err:
+            return handle_service_error(err)
 
-    if req.method == "DELETE":
-        payload = get_payload(req)
-        email = pick(payload, "email") or req.args.get("email")
-        if not email:
-            return {"error": "Missing email"}, 400
-        svc.delete_subscriber(email)
-        return {"deleted": True}, 200
+    try:
+        dto = DeleteSubscriberRequestDTO.model_validate(req.get_json(silent=True) or {})
+        sender_service.delete_subscriber(str(dto.email))
+        return jsonify({"deleted": True}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)
 
-    return {"error": "Invalid request method"}, 405
 
-
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("POST", "DELETE"))
 def admin_sender_subscriber_groups(req):
-    """Add or remove a subscriber from a group."""
-    svc = get_sender_service()
-    payload = get_payload(req)
-    params = get_query_params(req)
-    email = pick(payload, "email") or pick(params, "email")
-    group_id = pick(payload, "group_id", "groupId") or pick(params, "group_id", "groupId")
+    sender_service = get_sender_service()
+    try:
+        data = {**(req.get_json(silent=True) or {}), **dict(req.args or {})}
+        dto = SubscriberGroupRequestDTO.model_validate(data)
 
-    if not email or not group_id:
-        return {"error": "Missing email or group_id"}, 400
+        if req.method == "POST":
+            result = sender_service.add_to_group(str(dto.email), dto.group_id)
+            return jsonify({"added": result}), 200
 
-    if req.method == "POST":
-        result = svc.add_to_group(email, group_id)
-        return {"added": result}, 200
-
-    if req.method == "DELETE":
-        result = svc.remove_from_group(email, group_id)
-        return {"removed": result}, 200
-
-    return {"error": "Invalid request method"}, 405
+        result = sender_service.remove_from_group(str(dto.email), dto.group_id)
+        return jsonify({"removed": result}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)
 
 
-@https_fn.on_request(cors=cors, region=region)
-@require_admin
+@admin_endpoint(methods=("GET",))
 def admin_sender_subscriber_events(req):
-    if req.method != "GET":
-        return {"error": "Invalid request method"}, 405
-    identifier = req.args.get("email") or req.args.get("id")
-    if not identifier:
-        return {"error": "Missing email or id"}, 400
-    actions = req.args.get("actions")
-    svc = get_sender_service()
-    return svc.get_subscriber_events(identifier, actions=actions) or {}, 200
+    sender_service = get_sender_service()
+    try:
+        dto = SubscriberEventQueryDTO.model_validate(dict(req.args or {}))
+        identifier = str(dto.email) if dto.email else dto.id
+        result = sender_service.get_subscriber_events(identifier, actions=dto.actions)
+        return jsonify(result or {}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)

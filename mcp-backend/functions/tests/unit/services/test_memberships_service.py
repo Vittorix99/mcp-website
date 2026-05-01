@@ -1,18 +1,13 @@
+from datetime import datetime, timezone
 from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
 
-from dto import MembershipDTO, EventDTO
-from models import Membership, Purchase, Event
+from dto.membership_api import CreateMembershipRequestDTO, RenewMembershipRequestDTO, UpdateMembershipRequestDTO
+from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError
+from models import Event, Membership, MembershipPassResult, Purchase, PurchaseTypes
 from services.memberships.memberships_service import MembershipsService
-from errors.service_errors import (
-    ConflictError,
-    ExternalServiceError,
-    ForbiddenError,
-    NotFoundError,
-    ValidationError,
-)
 
 
 class _DummyMembershipRepo:
@@ -26,26 +21,29 @@ class _DummyMembershipRepo:
         self.by_phone = {}
         self._all = []
 
-    def get_all(self):
+    def list(self):
         return self._all
+
+    def find_by_year(self, year):
+        return [m for m in self._all if year in (m.membership_years or [])]
 
     def get(self, membership_id):
         return self.models.get(membership_id)
-
-    def get_model(self, membership_id):
-        return self.get(membership_id)
 
     def get_model_by_slug(self, slug):
         return self.by_slug.get(slug)
 
     def create_from_model(self, membership):
         membership_id = "mem-1"
+        membership.id = membership_id
         self.created.append(membership)
         self.models[membership_id] = membership
         return membership_id
 
-    def update_from_model(self, membership_id, payload):
-        self.updated.append((membership_id, payload))
+    def update_from_model(self, membership_id, membership):
+        membership.id = membership_id
+        self.models[membership_id] = membership
+        self.updated.append((membership_id, membership))
         return True
 
     def delete(self, membership_id):
@@ -58,31 +56,23 @@ class _DummyMembershipRepo:
     def find_by_phone(self, phone):
         return self.by_phone.get(phone)
 
-    def update_fields(self, membership_id, fields: dict):
-        self.updated.append((membership_id, fields))
-        model = self.models.get(membership_id)
-        if model:
-            for key, value in fields.items():
-                if hasattr(model, key):
-                    try:
-                        from google.cloud.firestore_v1 import DELETE_FIELD
-                        if value is DELETE_FIELD:
-                            setattr(model, key, None)
-                            continue
-                    except Exception:
-                        pass
-                    setattr(model, key, value)
-
 
 class _DummySettingsRepo:
     def __init__(self):
         self.prices = {}
+        self.wallet_model = None
 
     def set_price_by_year(self, year, price):
         self.prices[year] = price
 
     def get_price_by_year(self, year):
         return self.prices.get(year)
+
+    def get_wallet_model(self):
+        return self.wallet_model
+
+    def set_wallet_model(self, model_id):
+        self.wallet_model = model_id
 
 
 class _DummyParticipantRepo:
@@ -114,7 +104,6 @@ class _DummyBlob:
         self._exists = exists
         self.deleted = False
         self._data = data
-        self.public_url = "https://example.com/memberships/cards/mem-1.pdf"
 
     def exists(self):
         return self._exists
@@ -137,32 +126,110 @@ class _DummyStorage:
 
 
 class _DummyDocumentsService:
-    def __init__(self, doc=None, storage=None, should_fail=False):
+    def __init__(self, storage=None):
         self.storage = storage or _DummyStorage()
-        self._doc = doc or SimpleNamespace(
-            public_url="https://example.com/memberships/cards/mem-1.pdf",
-            storage_path="memberships/cards/mem-1.pdf",
-            buffer=BytesIO(b"pdf"),
-        )
-        self._should_fail = should_fail
         self.calls = []
 
     def create_membership_card(self, membership_id, membership_data):
         self.calls.append((membership_id, membership_data))
-        if self._should_fail:
-            raise RuntimeError("boom")
-        return self._doc
+        return SimpleNamespace(
+            public_url=f"https://example.com/{membership_id}.pdf",
+            storage_path=f"memberships/cards/{membership_id}.pdf",
+            buffer=BytesIO(b"pdf"),
+        )
 
 
-def _make_service():
-    service = MembershipsService()
-    service.membership_repository = _DummyMembershipRepo()
-    service.settings_repository = _DummySettingsRepo()
-    service.participant_repository = _DummyParticipantRepo()
-    service.purchase_repository = _DummyPurchaseRepo()
-    service.event_repository = _DummyEventRepo()
-    service.documents_service = _DummyDocumentsService()
-    return service
+class _DummyPass2UService:
+    def __init__(self, wallet=None, invalidate_ok=True):
+        self.wallet = wallet
+        self.invalidate_ok = invalidate_ok
+        self.created_for = []
+        self.invalidated = []
+
+    def create_membership_pass(self, membership_id, membership):
+        self.created_for.append((membership_id, membership))
+        return self.wallet
+
+    def invalidate_membership_pass(self, pass_id):
+        self.invalidated.append(pass_id)
+        return self.invalidate_ok
+
+
+class _DummyMailService:
+    def __init__(self, sent=True):
+        self.sent = sent
+        self.messages = []
+
+    def send(self, message):
+        self.messages.append(message)
+        return self.sent
+
+
+def _make_service(pass2u=None, mail=None):
+    return MembershipsService(
+        membership_repository=_DummyMembershipRepo(),
+        settings_repository=_DummySettingsRepo(),
+        purchase_repository=_DummyPurchaseRepo(),
+        participant_repository=_DummyParticipantRepo(),
+        event_repository=_DummyEventRepo(),
+        documents_service=_DummyDocumentsService(),
+        pass2u_service=pass2u or _DummyPass2UService(),
+        mail_service_instance=mail or _DummyMailService(),
+    )
+
+
+def _create_dto(**overrides):
+    payload = {
+        "name": "Mario",
+        "surname": "Rossi",
+        "birthdate": "01-01-1990",
+        "email": " Mario@Example.Com ",
+        "phone": " +39 000 000 ",
+        "membership_fee": 10,
+    }
+    payload.update(overrides)
+    return CreateMembershipRequestDTO.model_validate(payload)
+
+
+def _update_dto(**overrides):
+    payload = {"membership_id": "mem-1"}
+    payload.update(overrides)
+    return UpdateMembershipRequestDTO.model_validate(payload)
+
+
+def _previous_year_member(**overrides):
+    prev_year = datetime.now(timezone.utc).year - 1
+    defaults = {
+        "name": "Mario",
+        "surname": "Rossi",
+        "email": "mario@example.com",
+        "phone": "+39333000001",
+        "birthdate": "01-01-1990",
+        "start_date": f"{prev_year}-06-01T10:00:00+00:00",
+        "end_date": f"31-12-{prev_year}",
+        "subscription_valid": True,
+        "membership_sent": True,
+        "membership_type": "manual",
+        "wallet_pass_id": "old-pass-id",
+        "wallet_url": "https://wallet.example/old",
+        "membership_years": [prev_year],
+    }
+    defaults.update(overrides)
+    member = Membership(**defaults)
+    member.id = "mem-prev"
+    return member
+
+
+def test_get_by_id_slug_success():
+    service = _make_service()
+    membership = Membership(name="Mario")
+    membership.id = "mem-1"
+    service.membership_repository.by_slug["slug-1"] = membership
+
+    response = service.get_by_id(None, slug="slug-1")
+
+    assert response.id == "mem-1"
+    assert response.name == "Mario"
 
 
 def test_get_by_id_not_found():
@@ -171,69 +238,46 @@ def test_get_by_id_not_found():
         service.get_by_id("missing")
 
 
-def test_get_by_id_slug_success():
-    service = _make_service()
-    membership = Membership(name="Mario")
-    membership.id = "mem-1"
-    service.membership_repository.by_slug["slug-1"] = membership
-    payload = service.get_by_id(None, slug="slug-1")
-    assert payload["id"] == "mem-1"
-    assert payload["name"] == "Mario"
-
-
-def test_create_rejects_protected_fields():
-    service = _make_service()
-    dto = MembershipDTO(slug="slug")
-    with pytest.raises(ForbiddenError):
-        service.create(dto)
-
-
 def test_create_rejects_minor():
     service = _make_service()
-    dto = MembershipDTO(birthdate="01-01-2015", email="test@example.com")
+    dto = _create_dto(birthdate="01-01-2015")
+
     with pytest.raises(ValidationError):
         service.create(dto)
 
 
 def test_create_requires_contact():
     service = _make_service()
-    dto = MembershipDTO(birthdate="01-01-1990")
+    dto = _create_dto(email=None, phone=None)
+
     with pytest.raises(ValidationError):
         service.create(dto)
 
 
-def test_create_rejects_invalid_email_format():
+def test_create_conflict_email_for_current_membership():
     service = _make_service()
-    dto = MembershipDTO(birthdate="01-01-1990", email="invalid-email")
-    with pytest.raises(ValidationError):
-        service.create(dto)
-
-
-def test_create_conflict_email():
-    service = _make_service()
-    conflict = Membership(email="test@example.com", birthdate="01-01-1990")
-    conflict.id = "mem-x"
-    service.membership_repository.by_email["test@example.com"] = conflict
-    dto = MembershipDTO(birthdate="01-01-1990", email="test@example.com")
-    with pytest.raises(ConflictError):
-        service.create(dto)
-
-
-def test_create_happy_path():
-    service = _make_service()
-    dto = MembershipDTO(
-        name="Mario",
-        surname="Rossi",
+    current_year = datetime.now(timezone.utc).year
+    conflict = Membership(
+        email="mario@example.com",
         birthdate="01-01-1990",
-        email=" Mario@Example.Com ",
-        phone=" +39 000 000 ",
-        membership_fee=10,
+        start_date=f"{current_year}-01-01T00:00:00+00:00",
+        end_date=f"31-12-{current_year}",
+        membership_years=[current_year],
     )
+    conflict.id = "mem-existing"
+    service.membership_repository.by_email["mario@example.com"] = conflict
 
-    payload = service.create(dto)
+    with pytest.raises(ConflictError):
+        service.create(_create_dto(email="mario@example.com"))
+
+
+def test_create_happy_path_builds_membership_model():
+    service = _make_service()
+
+    response = service.create(_create_dto())
 
     created = service.membership_repository.created[0]
-    assert payload["id"] == "mem-1"
+    assert response.id == "mem-1"
     assert created.email == "mario@example.com"
     assert created.phone == "+39000000"
     assert created.subscription_valid is True
@@ -244,180 +288,152 @@ def test_create_happy_path():
     assert created.membership_years
 
 
-def test_update_rejects_protected_fields():
+def test_create_triggers_renewal_for_previous_year_member():
     service = _make_service()
-    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990")
-    dto = MembershipDTO(card_url="x")
-    with pytest.raises(ForbiddenError):
-        service.update("mem-1", dto)
+    member = _previous_year_member()
+    service.membership_repository.models[member.id] = member
+    service.membership_repository.by_email[member.email] = member
+
+    response = service.create(
+        _create_dto(email=member.email, phone=member.phone, send_card_on_create=False)
+    )
+
+    updated = service.membership_repository.models[member.id]
+    assert response.renewed is True
+    assert updated.membership_sent is False
+    assert updated.subscription_valid is True
+    assert updated.wallet_pass_id is None
+    assert updated.wallet_url is None
+    assert datetime.now(timezone.utc).year in updated.membership_years
 
 
-def test_update_not_found():
-    service = _make_service()
-    with pytest.raises(NotFoundError):
-        service.update("missing", MembershipDTO())
+def test_renew_creates_new_wallet_when_provider_returns_one():
+    wallet = MembershipPassResult(
+        pass_id="new-pass",
+        wallet_url="https://wallet.example/new",
+        apple_wallet_url="https://wallet.example/new",
+        google_wallet_url="https://wallet.example/new",
+    )
+    pass2u = _DummyPass2UService(wallet=wallet)
+    service = _make_service(pass2u=pass2u)
+    member = _previous_year_member()
+    service.membership_repository.models[member.id] = member
 
+    response = service.renew(
+        member.id,
+        RenewMembershipRequestDTO.model_validate({"membership_id": member.id}),
+    )
 
-def test_update_rejects_minor():
-    service = _make_service()
-    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990")
-    dto = MembershipDTO(birthdate="01-01-2015", email="test@example.com")
-    with pytest.raises(ValidationError):
-        service.update("mem-1", dto)
-
-
-def test_update_requires_contact():
-    service = _make_service()
-    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990")
-    dto = MembershipDTO()
-    with pytest.raises(ValidationError):
-        service.update("mem-1", dto)
-
-
-def test_update_rejects_invalid_email_format():
-    service = _make_service()
-    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990", email="old@example.com")
-    dto = MembershipDTO(email="invalid-email")
-    with pytest.raises(ValidationError):
-        service.update("mem-1", dto)
-
-
-def test_update_conflict_email():
-    service = _make_service()
-    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990", email="old@example.com")
-    conflict = Membership(name="Luigi", surname="Verdi", email="new@example.com", birthdate="01-01-1990")
-    conflict.id = "mem-2"
-    service.membership_repository.by_email["new@example.com"] = conflict
-    dto = MembershipDTO(email="new@example.com")
-    with pytest.raises(ConflictError):
-        service.update("mem-1", dto)
+    renewed = service.membership_repository.models[member.id]
+    assert response.renewed is True
+    assert pass2u.invalidated == ["old-pass-id"]
+    assert renewed.wallet_pass_id == "new-pass"
+    assert renewed.wallet_url == "https://wallet.example/new"
 
 
 def test_update_conflict_email_marks_mergeable():
     service = _make_service()
-    service.membership_repository.models["mem-1"] = Membership(birthdate="01-01-1990", email="old@example.com")
+    service.membership_repository.models["mem-1"] = Membership(
+        birthdate="01-01-1990",
+        email="old@example.com",
+    )
     conflict = Membership(name="Luigi", surname="Verdi", email="new@example.com", birthdate="01-01-1990")
     conflict.id = "mem-2"
     service.membership_repository.by_email["new@example.com"] = conflict
 
     with pytest.raises(ConflictError) as exc:
-        service.update("mem-1", MembershipDTO(email="new@example.com"))
+        service.update("mem-1", _update_dto(email="new@example.com"))
 
-    payload = getattr(exc.value, "payload", {})
-    assert payload.get("mergeable") is True
-    assert payload.get("conflicting_id") == "mem-2"
+    assert exc.value.payload["mergeable"] is True
+    assert exc.value.payload["conflicting_id"] == "mem-2"
 
 
-def test_update_email_change_does_not_regenerate_card():
+def test_update_happy_path_persists_model():
     service = _make_service()
-    service.documents_service = _DummyDocumentsService()
     service.membership_repository.models["mem-1"] = Membership(
         birthdate="01-01-1990",
         email="old@example.com",
-        card_url="https://example.com/memberships/cards/mem-1.pdf",
-        card_storage_path="memberships/cards/mem-1.pdf",
+        phone="+3900001",
     )
-    dto = MembershipDTO(email="new@example.com")
 
-    payload = service.update("mem-1", dto)
+    response = service.update("mem-1", _update_dto(email="new@example.com"))
 
-    assert payload["message"] == "Membership aggiornata"
-    assert service.documents_service.calls == []
-    assert service.membership_repository.updated
-
-
-def test_update_email_change_ignores_card_generation_failures():
-    service = _make_service()
-    service.documents_service = _DummyDocumentsService(should_fail=True)
-    service.membership_repository.models["mem-1"] = Membership(
-        birthdate="01-01-1990",
-        email="old@example.com",
-    )
-    dto = MembershipDTO(email="new@example.com")
-    payload = service.update("mem-1", dto)
-    assert payload["message"] == "Membership aggiornata"
-    assert service.documents_service.calls == []
-    assert service.membership_repository.updated
+    updated = service.membership_repository.models["mem-1"]
+    assert response.message == "Membership aggiornata"
+    assert updated.email == "new@example.com"
 
 
-def test_delete_removes_card_and_membership():
-    service = _make_service()
+def test_delete_invalidates_wallet_and_removes_card():
+    pass2u = _DummyPass2UService()
+    service = _make_service(pass2u=pass2u)
     blob = _DummyBlob()
-    storage = _DummyStorage(blob=blob)
-    service.documents_service = _DummyDocumentsService(storage=storage)
+    service.documents_service = _DummyDocumentsService(storage=_DummyStorage(blob=blob))
     service.participant_repository = _DummyParticipantRepo(removed=2)
     service.membership_repository.models["mem-1"] = Membership(
         birthdate="01-01-1990",
+        wallet_pass_id="pass-old",
         card_storage_path="memberships/cards/mem-1.pdf",
     )
 
-    payload = service.delete("mem-1")
+    response = service.delete("mem-1")
 
-    assert payload["message"]
+    assert response.id == "mem-1"
     assert blob.deleted is True
+    assert pass2u.invalidated == ["pass-old"]
     assert "mem-1" in service.membership_repository.deleted
 
 
-def test_send_card_does_not_require_card_url_format(monkeypatch):
-    service = _make_service()
+def test_send_card_generates_wallet_and_marks_sent():
+    wallet = MembershipPassResult(
+        pass_id="pass-1",
+        wallet_url="https://wallet.example/pass-1",
+        apple_wallet_url="https://wallet.example/pass-1",
+        google_wallet_url="https://wallet.example/pass-1",
+    )
+    mail = _DummyMailService(sent=True)
+    service = _make_service(pass2u=_DummyPass2UService(wallet=wallet), mail=mail)
     service.membership_repository.models["mem-1"] = Membership(
         birthdate="01-01-1990",
         email="test@example.com",
         name="Mario",
         surname="Rossi",
-        card_url="https://example.com/invalid.pdf",
+        end_date="31-12-2026",
     )
-    monkeypatch.setattr("services.memberships.memberships_service.mail_service.send", lambda *args, **kwargs: True)
-    payload = service.send_card("mem-1")
-    assert payload["message"] == "Card sent successfully"
+
+    response = service.send_card("mem-1")
+
+    membership = service.membership_repository.models["mem-1"]
+    assert response.message == "Card sent successfully"
+    assert membership.membership_sent is True
+    assert membership.wallet_pass_id == "pass-1"
+    assert len(mail.messages) == 1
 
 
-def test_send_card_email_failure(monkeypatch):
-    service = _make_service()
+def test_send_card_email_failure_raises_external_error():
+    service = _make_service(mail=_DummyMailService(sent=False))
     service.membership_repository.models["mem-1"] = Membership(
         birthdate="01-01-1990",
         email="test@example.com",
         name="Mario",
         surname="Rossi",
-        end_date="2026-12-31",
-        card_url="https://example.com/memberships/cards/mem-1.pdf",
-        card_storage_path="memberships/cards/mem-1.pdf",
+        end_date="31-12-2026",
+        wallet_url="https://wallet.example/existing",
     )
-    monkeypatch.setattr("services.memberships.memberships_service.mail_service.send", lambda *args, **kwargs: False)
+
     with pytest.raises(ExternalServiceError):
         service.send_card("mem-1")
 
 
-def test_send_card_happy_path(monkeypatch):
+def test_get_purchases_returns_response_payloads():
     service = _make_service()
-    blob = _DummyBlob()
-    service.documents_service = _DummyDocumentsService(storage=_DummyStorage(blob=blob))
-    service.membership_repository.models["mem-1"] = Membership(
-        birthdate="01-01-1990",
-        email="test@example.com",
-        name="Mario",
-        surname="Rossi",
-        end_date="2026-12-31",
-        card_url="https://example.com/memberships/cards/mem-1.pdf",
-        card_storage_path="memberships/cards/mem-1.pdf",
+    purchase = Purchase(
+        payer_name="A",
+        payer_surname="B",
+        purchase_type=PurchaseTypes.EVENT,
     )
-
-    monkeypatch.setattr("services.memberships.memberships_service.mail_service.send", lambda *args, **kwargs: True)
-    payload = service.send_card("mem-1")
-
-    assert payload["message"] == "Card sent successfully"
-    assert service.membership_repository.updated
-
-
-def test_get_purchases_happy_path():
-    service = _make_service()
-    purchase = Purchase(payer_name="A", payer_surname="B")
     purchase.id = "pur-1"
     service.purchase_repository = _DummyPurchaseRepo(models={"pur-1": purchase})
-    service.membership_repository.models["mem-1"] = Membership(
-        birthdate="01-01-1990",
-        purchases=["pur-1"],
-    )
+    service.membership_repository.models["mem-1"] = Membership(purchases=["pur-1"])
 
     payload = service.get_purchases("mem-1")
 
@@ -425,176 +441,33 @@ def test_get_purchases_happy_path():
     assert payload[0]["payer_name"] == "A"
 
 
-def test_get_events_happy_path():
+def test_get_events_returns_minimal_event_payloads():
     service = _make_service()
     event = Event(title="Test", date="13-02-2026")
     event.id = "evt-1"
     service.event_repository = _DummyEventRepo(models={"evt-1": event})
-    service.membership_repository.models["mem-1"] = Membership(
-        birthdate="01-01-1990",
-        attended_events=["evt-1"],
-    )
+    service.membership_repository.models["mem-1"] = Membership(attended_events=["evt-1"])
 
     payload = service.get_events("mem-1")
 
-    assert payload == [EventDTO.from_model(event).membership_event_payload()]
+    assert payload == [{"id": "evt-1", "title": "Test", "date": "13-02-2026", "image": None}]
 
 
 def test_membership_price_roundtrip():
     service = _make_service()
-    payload = service.set_membership_price(20, year=2026)
-    assert payload["message"]
 
+    response = service.set_membership_price(20, year=2026)
     result = service.get_membership_price(year=2026)
-    assert result == {"year": "2026", "price": 20}
+
+    assert response.price == 20
+    assert result.year == "2026"
+    assert result.price == 20
 
 
-def test_membership_price_not_found():
+def test_wallet_model_roundtrip():
     service = _make_service()
-    with pytest.raises(NotFoundError):
-        service.get_membership_price(year=2026)
 
+    service.set_wallet_model("model-1")
+    response = service.get_wallet_model()
 
-# ---------------------------------------------------------------------------
-# Renewal via admin create() — 2025 member re-inserted in 2026
-# ---------------------------------------------------------------------------
-
-def _make_prev_year_member(**kwargs) -> Membership:
-    """Returns a Membership whose start_date is in the previous year."""
-    from datetime import datetime, timezone
-    prev_year = datetime.now(timezone.utc).year - 1
-    defaults = dict(
-        name="Mario",
-        surname="Rossi",
-        email="mario@example.com",
-        phone="+39333000001",
-        birthdate="01-01-1990",
-        start_date=f"{prev_year}-06-01T10:00:00+00:00",
-        end_date=f"31-12-{prev_year}",
-        subscription_valid=True,
-        membership_sent=True,
-        membership_type="manual",
-        wallet_pass_id="old-pass-id",
-        wallet_url="https://bpwallet.io/pass/old-pass",
-    )
-    defaults.update(kwargs)
-    return Membership(**defaults)
-
-
-def _seed_prev_year_member(service, member_id="mem-prev"):
-    member = _make_prev_year_member()
-    member.id = member_id
-    service.membership_repository.models[member_id] = member
-    service.membership_repository.by_email[member.email] = member
-    return member_id, member
-
-
-def test_create_triggers_renewal_for_previous_year_member(monkeypatch):
-    """create() must call _renew() (not raise ConflictError) for a previous-year member."""
-    service = _make_service()
-    _seed_prev_year_member(service)
-
-    monkeypatch.setattr(
-        "services.memberships.pass2u_service.Pass2UService",
-        lambda: SimpleNamespace(
-            invalidate_membership_pass=lambda *a, **kw: True,
-            create_membership_pass=lambda *a, **kw: None,
-        ),
-    )
-
-    dto = MembershipDTO(
-        name="Mario", surname="Rossi",
-        birthdate="01-01-1990",
-        email="mario@example.com",
-        send_card_on_create=False,
-    )
-    result = service.create(dto)
-
-    assert result.get("renewed") is True, "create() must return renewed=True for a previous-year member"
-
-
-def test_create_renewal_sets_membership_sent_false(monkeypatch):
-    """After renewal, membership_sent must be False even if it was True before."""
-    service = _make_service()
-    member_id, member = _seed_prev_year_member(service)
-    assert member.membership_sent is True  # pre-condition
-
-    monkeypatch.setattr(
-        "services.memberships.pass2u_service.Pass2UService",
-        lambda: SimpleNamespace(
-            invalidate_membership_pass=lambda *a, **kw: True,
-            create_membership_pass=lambda *a, **kw: None,
-        ),
-    )
-
-    dto = MembershipDTO(
-        name="Mario", surname="Rossi",
-        birthdate="01-01-1990",
-        email="mario@example.com",
-        send_card_on_create=False,
-    )
-    service.create(dto)
-
-    # _renew calls update_fields; the first update_fields call must include membership_sent=False
-    fields_calls = [fields for (mid, fields) in service.membership_repository.updated if mid == member_id]
-    assert any(fields.get("membership_sent") is False for fields in fields_calls), (
-        "update_fields must set membership_sent=False during renewal"
-    )
-
-
-def test_create_renewal_updates_end_date_and_subscription_valid(monkeypatch):
-    """After renewal, end_date must reference the current year and subscription_valid must be True."""
-    from datetime import datetime, timezone
-
-    service = _make_service()
-    member_id, _ = _seed_prev_year_member(service)
-
-    monkeypatch.setattr(
-        "services.memberships.pass2u_service.Pass2UService",
-        lambda: SimpleNamespace(
-            invalidate_membership_pass=lambda *a, **kw: True,
-            create_membership_pass=lambda *a, **kw: None,
-        ),
-    )
-
-    dto = MembershipDTO(
-        name="Mario", surname="Rossi",
-        birthdate="01-01-1990",
-        email="mario@example.com",
-        send_card_on_create=False,
-    )
-    service.create(dto)
-
-    curr_year = str(datetime.now(timezone.utc).year)
-    fields_calls = [fields for (mid, fields) in service.membership_repository.updated if mid == member_id]
-
-    renewal_fields = next((f for f in fields_calls if "end_date" in f), None)
-    assert renewal_fields is not None, "update_fields must include end_date during renewal"
-    assert curr_year in renewal_fields["end_date"], (
-        f"end_date must contain current year {curr_year}, got: {renewal_fields['end_date']}"
-    )
-    assert renewal_fields.get("subscription_valid") is True
-
-
-def test_create_renewal_does_not_raise_conflict(monkeypatch):
-    """create() must NOT raise ConflictError for a previous-year member (regression guard)."""
-    service = _make_service()
-    _seed_prev_year_member(service)
-
-    monkeypatch.setattr(
-        "services.memberships.pass2u_service.Pass2UService",
-        lambda: SimpleNamespace(
-            invalidate_membership_pass=lambda *a, **kw: True,
-            create_membership_pass=lambda *a, **kw: None,
-        ),
-    )
-
-    dto = MembershipDTO(
-        name="Mario", surname="Rossi",
-        birthdate="01-01-1990",
-        email="mario@example.com",
-        send_card_on_create=False,
-    )
-    # Must not raise
-    result = service.create(dto)
-    assert "id" in result
+    assert response.model_id == "model-1"

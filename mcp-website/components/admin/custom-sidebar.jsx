@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Calendar, Receipt, CreditCard,
   Inbox, Images, Zap, SlidersHorizontal,
-  Users, Megaphone, UserCheck, Bug,
+  Users, Megaphone, UserCheck,
   ChevronRight, LogOut,
 } from "lucide-react"
 import "@/app/style/admin.css"
@@ -61,7 +61,6 @@ const navigationSections = [
     title: "Impostazioni",
     items: [
       { title: "Settings",   url: routes.admin.settings,  icon: SlidersHorizontal },
-      { title: "Error Logs", url: routes.admin.errorLogs, icon: Bug               },
     ],
   },
 ]

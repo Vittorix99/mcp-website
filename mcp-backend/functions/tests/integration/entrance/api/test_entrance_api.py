@@ -19,7 +19,7 @@ PRE-REQUISITO: Firestore emulator attivo su porta 8080.
 
 import pytest
 
-from api import entrance as entrance_api
+from api.entrance import entrance_api
 from config.firebase_config import db
 from tests.utils import DummyRequest, unwrap_response
 
@@ -204,7 +204,7 @@ def test_validate_entry_no_purchase(entrance_seed):
 def test_validate_entry_invalid_subscription(entrance_seed):
     """
     POST membro con subscription_valid=False e nessun biglietto
-    → 200 con result='invalid_no_purchase'.
+    → 200 con result='invalid_membership'.
     """
     member = entrance_seed.member_invalid_subscription
     req = DummyRequest(
@@ -217,7 +217,7 @@ def test_validate_entry_invalid_subscription(entrance_seed):
     resp, status = unwrap_response(entrance_api.entrance_validate(req))
 
     assert status == 200
-    assert resp.get("result") == "invalid_no_purchase"
+    assert resp.get("result") == "invalid_membership"
 
 
 @pytest.mark.integration

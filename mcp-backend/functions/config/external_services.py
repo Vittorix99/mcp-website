@@ -15,6 +15,8 @@ SENDER_GROUP_MEMBERS = os.environ.get("SENDER_GROUP_MEMBERS")
 SENDER_GROUP_TICKET_BUYERS = os.environ.get("SENDER_GROUP_TICKET_BUYERS")
 SENDER_WEBHOOK_SECRET = os.environ.get("SENDER_WEBHOOK_SECRET")
 
+SCAN_BASE_URL = os.environ.get("SCAN_BASE_URL", "https://musiconnectingpeople.com")
+
 __all__ = [
     "GMAIL_TOKEN_URL",
     "GENDER_API_URL",
@@ -26,4 +28,5 @@ __all__ = [
     "SENDER_GROUP_MEMBERS",
     "SENDER_GROUP_TICKET_BUYERS",
     "SENDER_WEBHOOK_SECRET",
+    "SCAN_BASE_URL",
 ]

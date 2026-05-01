@@ -8,7 +8,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from config.external_services import SENDER_API_KEY
-from routes.sender_routes import SenderRoutes, SenderApiResult
+from clients.sender_client import SenderRoutes, SenderApiResult
 from services.core.error_logs_service import log_external_error
 
 logger = logging.getLogger("SenderService")

@@ -1,30 +1,37 @@
 from typing import Optional
 
-from dto import SettingDTO
+from dto.setting_api import (
+    SetSettingRequestDTO,
+    SetSettingResponseDTO,
+    SettingResponseDTO,
+    SettingsListResponseDTO,
+)
+from errors.service_errors import NotFoundError, ValidationError
 from interfaces.repositories import SettingsRepositoryProtocol
 from repositories.settings_repository import SettingsRepository
-from errors.service_errors import NotFoundError, ValidationError
 
 
 class SettingsService:
     def __init__(self, settings_repository: Optional[SettingsRepositoryProtocol] = None):
         self.settings_repository = settings_repository or SettingsRepository()
 
-    def get_setting(self, key):
+    def get_setting(self, key: str) -> SettingResponseDTO:
         if not key:
             raise ValidationError("Missing key")
-        setting = self.settings_repository.get_dto(key)
+        setting = self.settings_repository.get(key)
         if not setting:
             raise NotFoundError("Setting not found")
-        return setting
+        return SettingResponseDTO(key=setting.key, value=setting.value)
 
-    def set_setting(self, key, value):
-        if not key:
-            raise ValidationError("Missing key")
-        if value is None:
-            raise ValidationError("Missing value")
-        setting = self.settings_repository.save(key, value)
-        return SettingDTO.from_model(setting)
+    def get_all_settings(self) -> SettingsListResponseDTO:
+        settings = self.settings_repository.list()
+        return SettingsListResponseDTO(
+            settings=[SettingResponseDTO(key=s.key, value=s.value) for s in settings]
+        )
 
-    def get_all_settings(self):
-        return self.settings_repository.list_dtos()
+    def set_setting(self, dto: SetSettingRequestDTO) -> SetSettingResponseDTO:
+        setting = self.settings_repository.save(dto.key, dto.value)
+        return SetSettingResponseDTO(
+            message=f"Setting '{dto.key}' updated",
+            setting=SettingResponseDTO(key=setting.key, value=setting.value),
+        )

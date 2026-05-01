@@ -1,6 +1,6 @@
 import pytest
 
-from dto import EventDTO
+from dto.event_api import CreateEventRequestDTO, UpdateEventRequestDTO
 from models import EventPurchaseAccessType
 
 
@@ -10,16 +10,16 @@ def test_events_service_crud(events_service, event_repository, event_dto):
     event_id = None
     try:
         created = events_service.create_event(event_dto, admin_uid="admin-test")
-        event_id = created.get("eventId")
+        event_id = created.event_id
         assert event_id
 
         stored = event_repository.get_model(event_id)
         assert stored is not None
         assert stored.title == event_dto.title
 
-        update_dto = EventDTO.from_payload({"title": "Updated Title", "price": 15.0})
-        updated = events_service.update_event(event_id, update_dto, admin_uid="admin-test")
-        assert updated.get("eventId") == event_id
+        update_dto = UpdateEventRequestDTO.model_validate({"id": event_id, "title": "Updated Title", "price": 15.0})
+        updated = events_service.update_event(update_dto, admin_uid="admin-test")
+        assert updated.event_id == event_id
 
         refreshed = event_repository.get_model(event_id)
         assert refreshed is not None
@@ -36,16 +36,16 @@ def test_events_service_get_by_id_and_slug(events_service, event_repository, eve
     event_id = None
     try:
         created = events_service.create_event(event_dto, admin_uid="admin-test")
-        event_id = created.get("eventId")
+        event_id = created.event_id
         assert event_id
 
         payload = events_service.get_event_by_id(event_id=event_id)
-        assert payload.get("event", {}).get("id") == event_id
+        assert payload.event.id == event_id
 
         model = event_repository.get_model(event_id)
         assert model is not None
         payload_by_slug = events_service.get_event_by_id(slug=model.slug)
-        assert payload_by_slug.get("event", {}).get("id") == event_id
+        assert payload_by_slug.event.id == event_id
     finally:
         if event_id:
             events_service.delete_event(event_id, admin_uid="admin-test")
@@ -57,14 +57,14 @@ def test_events_service_public_list_and_next(events_service, event_dto):
     event_id = None
     try:
         created = events_service.create_event(event_dto, admin_uid="admin-test")
-        event_id = created.get("eventId")
+        event_id = created.event_id
         assert event_id
 
-        public_events = events_service.list_public_events(view="card")
-        assert any(item.get("id") == event_id for item in public_events)
+        public_events = events_service.list_public_events()
+        assert any(item.id == event_id for item in public_events)
 
         next_events = events_service.get_next_public_event()
-        assert any(item.get("id") == event_id for item in next_events)
+        assert any(item.id == event_id for item in next_events)
     finally:
         if event_id:
             events_service.delete_event(event_id, admin_uid="admin-test")
@@ -85,9 +85,9 @@ def test_events_service_purchase_mode_and_flags(events_service, event_repository
                 "maxParticipants": 80,
             }
         )
-        dto = EventDTO.from_payload(payload)
+        dto = CreateEventRequestDTO.model_validate(payload)
         created = events_service.create_event(dto, admin_uid="admin-test")
-        event_id = created.get("eventId")
+        event_id = created.event_id
         assert event_id
 
         stored = event_repository.get_model(event_id)

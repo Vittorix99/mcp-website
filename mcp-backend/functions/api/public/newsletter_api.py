@@ -1,52 +1,31 @@
-from firebase_functions import https_fn
-from config.firebase_config import cors, region
+import logging
+
+from flask import jsonify
+from pydantic import ValidationError as PydanticValidationError
+
+from api.decorators import public_endpoint
+from dto.newsletter_api import NewsletterSignupRequestDTO
 from services.communications.newsletter_service import NewsletterService
 from services.sender.sender_sync import sync_newsletter_signup_to_sender
+from utils.http_responses import handle_pydantic_error, handle_service_error
 
+logger = logging.getLogger("PublicNewsletterAPI")
 newsletter_service = NewsletterService()
 
-@https_fn.on_request(cors=cors, region=region)
+
+@public_endpoint(methods=("POST",))
 def newsletter_signup(req):
-    """Public: Handle newsletter signup"""
-    if req.method != "POST":
-        return {"error": "Invalid request method"}, 405
-
     try:
-        data = req.get_json()
-    except Exception:
-        return {"error": "Invalid JSON"}, 400
+        dto = NewsletterSignupRequestDTO.model_validate(req.get_json(silent=True) or {})
+        payload = newsletter_service.signup(dto)
 
-    if not data or "email" not in data:
-        return {"error": "Missing email"}, 400
+        try:
+            sync_newsletter_signup_to_sender(email=dto.email, name=dto.name)
+        except Exception as exc:
+            logger.warning("[newsletter_signup] Sender sync failed: %s", exc)
 
-    result = newsletter_service.signup(data)
-
-    # Sync to Sender (fire-and-forget, does not affect response)
-    try:
-        sync_newsletter_signup_to_sender(
-            email=data.get("email", ""),
-            name=data.get("name"),
-        )
-    except Exception as exc:
-        print(f"[newsletter_signup] Sender sync failed: {exc}")
-
-    return result
-
-
-
-@https_fn.on_request(cors=cors, region=region)
-def newsletter_participants(req):
-    """Admin: Add newsletter participants in bulk"""
-    if req.method != "POST":
-        return {"error": "Invalid request method"}, 405
-
-    try:
-        data = req.get_json()
-    except Exception:
-        return {"error": "Invalid JSON"}, 400
-
-    if not data or "participants" not in data:
-        return {"error": "Missing participants"}, 400
-
-    participants = data.get("participants", [])
-    return newsletter_service.add_participants(participants)
+        return jsonify(payload.to_payload()), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)

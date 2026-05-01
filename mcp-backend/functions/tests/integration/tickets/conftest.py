@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from dto import EventDTO
+from dto.event_api import CreateEventRequestDTO
 from models import EventParticipant, PaymentMethod
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
@@ -32,7 +32,7 @@ def create_event(events_service):
 
     def _create():
         date_value = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%d-%m-%Y")
-        dto = EventDTO.from_payload(
+        dto = CreateEventRequestDTO.model_validate(
             {
                 "title": f"Integration Ticket {uuid4().hex[:8]}",
                 "date": date_value,
@@ -46,7 +46,7 @@ def create_event(events_service):
             }
         )
         result = events_service.create_event(dto, admin_uid="admin-test")
-        event_id = result.get("eventId")
+        event_id = result.event_id
         created.append(event_id)
         return event_id
 

@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from dto import EventDTO
+from dto.event_api import CreateEventRequestDTO
 from models import EventPurchaseAccessType, Membership
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
@@ -60,9 +60,9 @@ def create_event(events_service):
 
     def _create(**overrides):
         payload = _event_payload(**overrides)
-        dto = EventDTO.from_payload(payload)
+        dto = CreateEventRequestDTO.model_validate(payload)
         result = events_service.create_event(dto, admin_uid="admin-test")
-        event_id = result.get("eventId")
+        event_id = result.event_id
         created.append(event_id)
         return event_id
 

@@ -1,68 +1,43 @@
-from firebase_functions import https_fn
 from flask import jsonify
+from pydantic import ValidationError as PydanticValidationError
 
-from api.decorators import require_active_event
-from config.firebase_config import cors, region
-from dto import PreOrderDTO, OrderCaptureDTO, EventDTO
-from services.payments.event_payment_service import create_order_event_service, capture_order_event_service
-from errors.service_errors import (
-    ExternalServiceError,
-    NotFoundError,
-    ServiceError,
-    ValidationError,
-)
+from api.decorators import public_endpoint, require_active_event
+from dto.preorder import OrderCaptureDTO, PreOrderDTO
+from models import Event
+from services.payments.event_payment_service import EventPaymentService
+from utils.http_responses import handle_pydantic_error, handle_service_error
 
 
-@https_fn.on_request(cors=cors, region=region)
+event_payment_service = EventPaymentService()
+
+
+@public_endpoint(methods=("POST",))
 @require_active_event
 def create_order_event(req):
-    if req.method != "POST":
-        return "Invalid request method", 405
-
-    req_json = getattr(req, "event_payload", None)
-    if not req_json:
-        req_json = req.get_json()
-    if not req_json:
-        return jsonify({"error": "Missing request body"}), 400
-
-    event_data = getattr(req, "event_data", None)
-    event_id = getattr(req, "event_id", None)
-    event_dto = EventDTO.from_payload({**event_data, "id": event_id}) if event_data else None
-    order_dto = PreOrderDTO.from_payload(req_json)
     try:
-        payload = create_order_event_service(order_dto, event_dto)
-        return jsonify(payload), 201
+        req_json = getattr(req, "event_payload", None) or req.get_json(silent=True) or {}
+        event_data = getattr(req, "event_data", None) or {}
+        event_id = getattr(req, "event_id", None)
+
+        order_dto = PreOrderDTO.model_validate(req_json)
+        event_model = Event.from_firestore(event_data, event_id) if event_data and event_id else None
+
+        payload = event_payment_service.create_order_event(order_dto, event_model)
+        return jsonify(payload.to_payload()), 201
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
     except Exception as err:
-        return _handle_service_error(err)
+        return handle_service_error(err)
 
 
-@https_fn.on_request(cors=cors, region=region)
+@public_endpoint(methods=("POST",))
 def capture_order_event(req):
-    if req.method != "POST":
-        return "Invalid request method", 405
-
-    req_json = req.get_json()
-    if not req_json:
-        return jsonify({"error": "Missing request body"}), 400
-
-    capture_dto = OrderCaptureDTO.from_payload(req_json)
     try:
-        payload = capture_order_event_service(capture_dto)
-        return jsonify(payload), 200
+        req_json = req.get_json(silent=True) or {}
+        capture_dto = OrderCaptureDTO.model_validate(req_json)
+        payload = event_payment_service.capture_order_event(capture_dto)
+        return jsonify(payload.to_payload()), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
     except Exception as err:
-        return _handle_service_error(err)
-
-
-def _handle_service_error(err: Exception):
-    if isinstance(err, ValidationError):
-        details = getattr(err, "details", None)
-        if details:
-            return jsonify({"error": "validation_error", "messages": details}), 400
-        return jsonify({"error": str(err)}), 400
-    if isinstance(err, NotFoundError):
-        return jsonify({"error": str(err)}), 404
-    if isinstance(err, ExternalServiceError):
-        return jsonify({"error": str(err)}), 502
-    if isinstance(err, ServiceError):
-        return jsonify({"error": str(err)}), 500
-    return jsonify({"error": "Internal server error"}), 500
+        return handle_service_error(err)

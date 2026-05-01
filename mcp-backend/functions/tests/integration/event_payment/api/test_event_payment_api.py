@@ -23,9 +23,9 @@ def test_event_payment_api_create_order_public(
     order_id = resp.get("id")
     assert order_id
 
-    stored = order_repository.get(order_id)
+    stored = order_repository.get_model(order_id)
     assert stored is not None
-    assert stored.get("eventId") == event_id
+    assert stored.event_id == event_id
 
     order_repository.delete(order_id)
 

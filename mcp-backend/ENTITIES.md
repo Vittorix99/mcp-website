@@ -3,7 +3,7 @@
 This document lists backend entities, fields, types, origins, and validations.
 Sources: models (`mcp-backend/functions/models`), DTOs (`mcp-backend/functions/dto`), validators (`mcp-backend/functions/api/validators`), and service logic.
 
-Last reviewed: 2026-03-15.
+Last reviewed: 2026-04-27.
 
 ## Latest Updates (News)
 
@@ -33,11 +33,12 @@ Location: `mcp-backend/functions/models/enums.py`
 - `private_paypal`
 - `iban`
 - `cash`
+- `omaggio`
 
 ### PurchaseTypes
 Location: `mcp-backend/functions/models/enums.py`
-- `EVENT`
-- `MEMBERSHIP`
+- `event`
+- `membership`
 
 ## Firestore Models (Collections)
 
@@ -90,24 +91,32 @@ Model: `mcp-backend/functions/models/event_participant.py`
 | phone | string | Participant phone. | Firestore `phone`. | Optional. |
 | birthdate | string | Birthdate (DD-MM-YYYY). | Firestore `birthdate`. | Required on create; must be adult (`is_minor` false). |
 | membership_id | string | Linked membership id. | Firestore `membershipId`. | Optional. |
-| membership_included | boolean | Whether membership is included. | Firestore `membership_included`. | Optional. |
+| membership_included | boolean | Membership flag/association flag. | Firestore `membership_included`. | Optional; see notes below. |
+| entered | boolean | Entrance state for QR/manual check-in. | Firestore `entered`. | Optional; toggled by entrance flows. |
+| entered_at | timestamp | Last entrance timestamp. | Firestore `entered_at`. | Optional. |
 | ticket_pdf_url | string | Ticket PDF URL. | Firestore `ticket_pdf_url`. | Optional. |
 | ticket_sent | boolean | Ticket sent flag. | Firestore `ticket_sent`. | Optional. |
 | send_ticket_on_create | boolean | Send ticket on create. | Firestore `send_ticket_on_create`. | Optional. |
 | location_sent | boolean | Location sent flag. | Firestore `location_sent`. | Optional. |
 | location_sent_at | timestamp | Location sent timestamp. | Firestore `location_sent_at`. | Optional. |
 | location_job_id | string | Location job id. | Firestore `location_job_id`. | Optional. |
+| omaggio_email_sent | boolean | Dedicated omaggio email sent flag. | Firestore `omaggio_email_sent`. | Optional. |
+| omaggio_email_sent_at | timestamp | Timestamp invio email omaggio. | Firestore `omaggio_email_sent_at`. | Optional. |
 | gender | string | Gender label. | Firestore `gender`. | Optional. |
 | gender_probability | number | Gender confidence. | Firestore `gender_probability`. | Optional. |
 | newsletter_consent | boolean | Newsletter consent. | Firestore `newsletterConsent`. | Optional. |
 | price | number | Participant price. | Firestore `price`. | Optional; cannot change if `purchase_id` exists. |
-| payment_method | enum | Payment method used for the participant. | Firestore `payment_method`. | Values: `website`, `private_paypal`, `iban`, `cash`. |
+| payment_method | enum | Payment method used for the participant. | Firestore `payment_method`. | Values: `website`, `private_paypal`, `iban`, `cash`, `omaggio`. |
 | purchase_id | string | Purchase id. | Firestore `purchase_id`. | Optional. |
+| riduzione | boolean | Reduced-price marker. | Firestore `riduzione`. | Optional. |
 | created_at | timestamp | Created timestamp. | Firestore `createdAt`. | Set by server. |
 
 Additional rules (service):
-- If `membership_included` is true, a membership may be created.
-- For community-type events, membership is required (legacy check in service).
+- If `membership_id` is passed explicitly to `ParticipantsService.create`, the participant is linked to that membership and no renewal/creation is attempted.
+- If `membership_id` is absent, the service still tries to resolve a membership by email/phone.
+- If `membership_included` is true, a membership may be created or renewed.
+- If `membership_included` is false but a membership is found by email/phone, the participant can still end up associated to that membership.
+- `ParticipantRepository.set_membership()` also sets `membership_included=true`, so the field is effectively used as "membership linked" and not only as "membership purchased now".
 - If `purchase_id` exists, price cannot be updated.
 
 ### Purchase (`purchases`)

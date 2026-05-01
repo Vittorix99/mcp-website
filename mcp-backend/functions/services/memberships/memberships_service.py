@@ -4,7 +4,22 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-from dto import EventDTO, MembershipDTO, PurchaseDTO
+from dto.membership_api import (
+    CreateMembershipRequestDTO,
+    MembershipActionResponseDTO,
+    MembershipPriceResponseDTO,
+    MembershipResponseDTO,
+    MembershipWalletPassResponseDTO,
+    RenewMembershipRequestDTO,
+    UpdateMembershipRequestDTO,
+    WalletModelResponseDTO,
+)
+from mappers.purchase_mappers import purchase_to_response
+from mappers.membership_mappers import (
+    apply_membership_update_dto_to_model,
+    create_membership_dto_to_model,
+    membership_to_response,
+)
 from models import Membership
 from domain.membership_rules import (
     build_renewal_record,
@@ -34,16 +49,12 @@ from services.communications.mail_service import EmailMessage, MailService, mail
 from errors.service_errors import (
     ConflictError,
     ExternalServiceError,
-    ForbiddenError,
     NotFoundError,
     ValidationError,
 )
 from utils.templates_mail import get_membership_email_template, get_membership_email_text
 from utils.events_utils import (
     calculate_end_of_year_membership,
-    normalize_email,
-    normalize_phone,
-    validate_email_format,
 )
 
 
@@ -73,12 +84,8 @@ class MembershipsService:
     def storage(self):
         return self.documents_service.storage
 
-    def _membership_payload(self, membership: Membership) -> Dict:
-        dto = MembershipDTO.from_model(membership)
-        return dto.to_payload()
-
     def _membership_template_payload(self, membership: Membership, membership_id: str) -> Dict:
-        payload = MembershipDTO.from_model(membership).to_payload()
+        payload = membership_to_response(membership).to_payload()
         payload["membership_id"] = membership_id
         return payload
 
@@ -91,6 +98,7 @@ class MembershipsService:
         purchase_id: Optional[str],
         fee: Optional[float],
     ) -> tuple[list[dict], list[int]]:
+        # Il service compone la storia dei rinnovi; il repository si limita a persistere il model finale.
         renewals = list(existing.renewals or [])
         renewals.append(
             build_renewal_record(
@@ -117,14 +125,14 @@ class MembershipsService:
         }
         return err
 
-    def get_all(self, year: int = None):
+    def get_all(self, year: int = None) -> list[MembershipResponseDTO]:
         if year:
             memberships = self.membership_repository.find_by_year(year)
         else:
             memberships = self.membership_repository.list()
-        return [MembershipDTO.from_model(m).to_payload() for m in memberships]
+        return [membership_to_response(membership) for membership in memberships]
 
-    def get_by_id(self, membership_id, slug: str = None):
+    def get_by_id(self, membership_id, slug: str = None) -> MembershipResponseDTO:
         membership = None
         if slug:
             membership = self.membership_repository.get_model_by_slug(slug)
@@ -132,28 +140,24 @@ class MembershipsService:
             membership = self.membership_repository.get(membership_id)
         if not membership:
             raise NotFoundError("Membership not found")
-        return self._membership_payload(membership)
+        return membership_to_response(membership)
 
-    def create(self, dto: MembershipDTO):
-        protected_error = dto.validate_protected_fields()
-        if protected_error:
-            raise ForbiddenError(protected_error)
-
+    def create(self, dto: CreateMembershipRequestDTO) -> MembershipActionResponseDTO:
         birthdate = dto.birthdate
         minor_error = get_minor_validation_error(birthdate)
         if minor_error:
             raise ValidationError(minor_error)
 
-        email = normalize_email(dto.email) or None
-        phone = normalize_phone(dto.phone) or None
-        if email and not validate_email_format(email):
-            raise ValidationError("Formato email non valido")
+        email = dto.email
+        phone = dto.phone
         contact_error = get_missing_contact_validation_error(email, phone)
         if contact_error:
             raise ValidationError(contact_error)
 
         email_conflict = self.membership_repository.find_by_email(email) if email else None
         phone_conflict = self.membership_repository.find_by_phone(phone) if phone else None
+        # Se il contatto appartiene a una membership scaduta, la create diventa un rinnovo.
+        # Se invece la membership copre già l'anno corrente, è un vero conflitto.
         if email:
             if email_conflict:
                 if is_membership_renewable(email_conflict):
@@ -169,6 +173,7 @@ class MembershipsService:
         start_date = now.isoformat()
         end_date = calculate_end_of_year_membership(now)
         start_year = parse_membership_year(start_date, end_date)
+        # Anche la prima iscrizione ha un renewal record: la cronologia parte dall'anno di creazione.
         renewal_record = build_renewal_record(
             start_date=start_date,
             end_date=end_date,
@@ -177,78 +182,75 @@ class MembershipsService:
             year=start_year,
         )
 
-        send_card_on_create = bool(dto.send_card_on_create) if dto.send_card_on_create is not None else False
-
-        membership = Membership(
-            name=dto.name or "",
-            surname=dto.surname or "",
-            email=email,
-            phone=phone,
-            birthdate=birthdate,
+        membership = create_membership_dto_to_model(
+            dto,
             start_date=start_date,
             end_date=end_date,
-            subscription_valid=True,
-            membership_sent=False,
-            membership_type=dto.membership_type or "manual",
-            purchase_id=None,
-            send_card_on_create=send_card_on_create,
-            membership_fee=dto.membership_fee,
-            renewals=[renewal_record],
-            membership_years=[start_year] if start_year else [],
+            start_year=start_year,
         )
+        membership.renewals = [renewal_record]
 
         membership_id = self.membership_repository.create_from_model(membership)
         self.logger.info(f"[create] Membership created with ID: {membership_id}")
-        return {'message': 'Membership created', 'id': membership_id}
+        return MembershipActionResponseDTO(message="Membership created", id=membership_id)
 
-    def _renew(self, membership_id: str, existing: Membership, dto: MembershipDTO) -> Dict:
-        """Renews an expired membership: updates dates, invalidates old pass, creates new one."""
+    def _renew(
+        self,
+        membership_id: str,
+        existing: Membership,
+        dto: CreateMembershipRequestDTO | RenewMembershipRequestDTO,
+    ) -> MembershipActionResponseDTO:
+        """Rinnova una membership scaduta aggiornando il model e rigenerando la tessera."""
         self.logger.info(f"[renew] Renewing membership {membership_id} (start_date: {existing.start_date})")
 
-        # 1. Invalidate old pass
+        # 1. Invalidiamo il vecchio wallet pass: il rinnovo deve produrre una tessera nuova.
         if existing.wallet_pass_id:
             try:
                 self.pass2u_service.invalidate_membership_pass(existing.wallet_pass_id)
             except Exception as e:
                 self.logger.warning(f"[renew] Old pass invalidation failed (non-blocking): {e}")
 
-        # 2. Update membership with new dates and clear old wallet data
+        # 2. Aggiorniamo il model in memoria: date, stato, storico rinnovi e riferimenti wallet.
         now = datetime.now(timezone.utc)
         new_start = now.isoformat()
         new_end = calculate_end_of_year_membership(now)
+        renewal_purchase_id = dto.purchase_id or None
         renewals, membership_years = self._compose_renewals_and_years(
             existing,
             new_start_date=new_start,
             new_end_date=new_end,
-            purchase_id=None,
+            purchase_id=renewal_purchase_id,
             fee=dto.membership_fee if dto.membership_fee is not None else existing.membership_fee,
         )
 
-        updates = {
-            "start_date": new_start,
-            "end_date": new_end,
-            "subscription_valid": True,
-            "membership_sent": False,
-            "renewals": renewals,
-            "membership_years": membership_years,
-        }
+        existing.start_date = new_start
+        existing.end_date = new_end
+        existing.subscription_valid = True
+        existing.membership_sent = False
+        existing.renewals = renewals
+        existing.membership_years = membership_years
+        existing.wallet_pass_id = None
+        existing.wallet_url = None
         if dto.membership_fee is not None:
-            updates["membership_fee"] = dto.membership_fee
+            existing.membership_fee = dto.membership_fee
         if dto.membership_type:
-            updates["membership_type"] = dto.membership_type
-        self.membership_repository.update_fields(membership_id, updates)
-        self.membership_repository.clear_wallet(membership_id)
+            existing.membership_type = dto.membership_type
+        if renewal_purchase_id:
+            existing.purchases = sorted({*(existing.purchases or []), renewal_purchase_id})
+        # Persistiamo il model completo; il repository non decide nulla sul rinnovo.
+        self.membership_repository.update_from_model(membership_id, existing)
 
-        # 3. Create new pass
-        updated = self.membership_repository.get(membership_id)
+        # 3. Creiamo il nuovo wallet pass e salviamo solo i riferimenti generati dal provider.
         try:
-            wallet = self.pass2u_service.create_membership_pass(membership_id, updated)
+            wallet = self.pass2u_service.create_membership_pass(membership_id, existing)
             if wallet:
-                self.membership_repository.set_wallet(membership_id, wallet.pass_id, wallet.wallet_url)
+                existing.wallet_pass_id = wallet.pass_id
+                existing.wallet_url = wallet.wallet_url
+                self.membership_repository.update_from_model(membership_id, existing)
         except Exception as e:
             self.logger.warning(f"[renew] Pass creation failed (non-blocking): {e}")
 
-        # 4. Send card if requested
+        # 4. L'invio email resta opzionale: il rinnovo può completarsi anche senza invio immediato.
         send_card = bool(dto.send_card_on_create) if dto.send_card_on_create is not None else False
         if send_card and existing.email:
             try:
@@ -257,13 +259,16 @@ class MembershipsService:
                 self.logger.warning(f"[renew] Card send failed (non-blocking): {e}")
 
         self.logger.info(f"[renew] Membership {membership_id} renewed successfully")
-        return {"message": "Membership rinnovata", "id": membership_id, "renewed": True}
+        return MembershipActionResponseDTO(message="Membership rinnovata", id=membership_id, renewed=True)
 
-    def update(self, membership_id, dto: MembershipDTO):
-        protected_error = dto.validate_protected_fields()
-        if protected_error:
-            raise ForbiddenError(protected_error)
+    def renew(self, membership_id: str, dto: RenewMembershipRequestDTO) -> MembershipActionResponseDTO:
+        """Public endpoint: manually renew a membership for the current year."""
+        existing = self.membership_repository.get(membership_id)
+        if not existing:
+            raise NotFoundError("Membership non trovata")
+        return self._renew(membership_id, existing, dto)
 
+    def update(self, membership_id, dto: UpdateMembershipRequestDTO) -> MembershipActionResponseDTO:
         membership = self.membership_repository.get(membership_id)
         if not membership:
             raise NotFoundError("Membership non trovata")
@@ -272,13 +277,6 @@ class MembershipsService:
         minor_error = get_minor_validation_error(birthdate)
         if minor_error:
             raise ValidationError(minor_error)
-
-        if dto.email is not None:
-            dto.email = normalize_email(dto.email) or None
-            if dto.email and not validate_email_format(dto.email):
-                raise ValidationError("Formato email non valido")
-        if dto.phone is not None:
-            dto.phone = normalize_phone(dto.phone) or None
 
         effective_email = dto.email if dto.email is not None else membership.email
         effective_phone = dto.phone if dto.phone is not None else membership.phone
@@ -305,33 +303,17 @@ class MembershipsService:
                 raise self._build_mergeable_conflict(conflicting_membership)
             raise ConflictError("Telefono già registrato per un altro membro")
 
-        dto.apply_updates(membership)
-        if dto.birthdate is not None:
-            membership.birthdate = birthdate
+        updated_membership = apply_membership_update_dto_to_model(membership, dto)
+        updated_membership.birthdate = birthdate
 
         # [WALLET MIGRATION] Rigenerazione PDF tessera su cambio email commentata
-        # if dto.email is not None and membership.email and membership.email != previous_email:
-        #     try:
-        #         document = self.documents_service.create_membership_card(
-        #             membership_id,
-        #             MembershipDTO.from_model(membership),
-        #         )
-        #     except Exception as exc:
-        #         raise ExternalServiceError(
-        #             f"Errore durante la rigenerazione della tessera: {exc}"
-        #         ) from exc
-        #     membership.card_url = document.public_url
-        #     membership.card_storage_path = document.storage_path
-        #     membership.membership_sent = False
-        #     dto.card_url = membership.card_url
-        #     dto.card_storage_path = membership.card_storage_path
         #     dto.membership_sent = False
 
-        self.membership_repository.update_from_model(membership_id, dto)
-        return {'message': 'Membership aggiornata'}
+        self.membership_repository.update_from_model(membership_id, updated_membership)
+        return MembershipActionResponseDTO(message="Membership aggiornata", id=membership_id)
 
 
-    def create_wallet_pass(self, membership_id: str):
+    def create_wallet_pass(self, membership_id: str) -> MembershipWalletPassResponseDTO:
         membership = self.membership_repository.get(membership_id)
         if not membership:
             raise NotFoundError("Membership non trovata")
@@ -340,27 +322,31 @@ class MembershipsService:
         if not wallet:
             raise ExternalServiceError("Impossibile creare il wallet pass (Pass2U ha restituito None)")
 
-        self.membership_repository.update_from_model(
-            membership_id,
-            MembershipDTO(wallet_pass_id=wallet.pass_id, wallet_url=wallet.wallet_url),
-        )
-        return {"wallet_pass_id": wallet.pass_id, "wallet_url": wallet.wallet_url}
+        membership.wallet_pass_id = wallet.pass_id
+        membership.wallet_url = wallet.wallet_url
+        self.membership_repository.update_from_model(membership_id, membership)
+        return MembershipWalletPassResponseDTO(wallet_pass_id=wallet.pass_id, wallet_url=wallet.wallet_url)
 
-    def invalidate_wallet_pass(self, membership_id: str):
+    def invalidate_wallet_pass(self, membership_id: str) -> MembershipActionResponseDTO:
         membership = self.membership_repository.get(membership_id)
         if not membership:
             raise NotFoundError("Membership non trovata")
 
         pass_id = membership.wallet_pass_id
         if not pass_id:
-            return {"message": "Nessun wallet pass da invalidare"}
+            return MembershipActionResponseDTO(message="Nessun wallet pass da invalidare", id=membership_id)
 
         ok = self.pass2u_service.invalidate_membership_pass(pass_id)
         if ok:
-            self.membership_repository.clear_wallet(membership_id)
-        return {"message": "Wallet pass invalidato" if ok else "Invalidazione fallita (pass rimosso localmente)"}
+            membership.wallet_pass_id = None
+            membership.wallet_url = None
+            self.membership_repository.update_from_model(membership_id, membership)
+        return MembershipActionResponseDTO(
+            message="Wallet pass invalidato" if ok else "Invalidazione fallita (pass rimosso localmente)",
+            id=membership_id,
+        )
 
-    def delete(self, membership_id):
+    def delete(self, membership_id) -> MembershipActionResponseDTO:
         membership = self.membership_repository.get(membership_id)
         if not membership:
             raise NotFoundError("Membership non trovata")
@@ -385,9 +371,9 @@ class MembershipsService:
             print(f"Rimosso membershipId da {removed} partecipanti")
 
         self.membership_repository.delete(membership_id)
-        return {'message': 'Membership eliminata e tessera rimossa'}
+        return MembershipActionResponseDTO(message="Membership eliminata e tessera rimossa", id=membership_id)
 
-    def send_card(self, membership_id):
+    def send_card(self, membership_id) -> MembershipActionResponseDTO:
         membership = self.membership_repository.get(membership_id)
         if not membership:
             raise NotFoundError("Membership not found")
@@ -395,37 +381,6 @@ class MembershipsService:
         membership_payload = self._membership_template_payload(membership, membership_id)
         email = membership.email
 
-        # [WALLET MIGRATION] Generazione/recupero PDF tessera commentata
-        # card_url = membership.card_url
-        # storage_path = membership.card_storage_path
-        # document_buffer = None
-        # if not card_url:
-        #     try:
-        #         document = self.documents_service.create_membership_card(
-        #             membership_id,
-        #             MembershipDTO.from_model(membership),
-        #         )
-        #     except Exception as exc:
-        #         raise ExternalServiceError(f"Card generation failed: {exc}") from exc
-        #     card_url = document.public_url
-        #     storage_path = document.storage_path
-        #     document_buffer = document.buffer
-        #     self.membership_repository.update_from_model(
-        #         membership_id,
-        #         MembershipDTO(card_url=card_url, card_storage_path=storage_path, membership_sent=False),
-        #     )
-        #
-        # if "memberships/cards/" not in card_url:
-        #     raise ValidationError("Invalid card_url format")
-        #
-        # if not storage_path:
-        #     path_start = card_url.find("memberships/cards/")
-        #     storage_path = card_url[path_start:]
-        #
-        # if document_buffer is None:
-        #     blob = self.storage.blob(storage_path)
-        #     pdf_data = blob.download_as_bytes()
-        #     document_buffer = BytesIO(pdf_data)
 
         # Recupera o genera wallet_url on-demand
         wallet_url = membership.wallet_url
@@ -433,11 +388,10 @@ class MembershipsService:
             try:
                 wallet = self.pass2u_service.create_membership_pass(membership_id, membership)
                 if wallet:
+                    membership.wallet_pass_id = wallet.pass_id
+                    membership.wallet_url = wallet.wallet_url
                     wallet_url = wallet.wallet_url
-                    self.membership_repository.update_from_model(
-                        membership_id,
-                        MembershipDTO(wallet_pass_id=wallet.pass_id, wallet_url=wallet_url),
-                    )
+                    self.membership_repository.update_from_model(membership_id, membership)
             except Exception as exc:
                 self.logger.warning(f"[Pass2U] wallet generation failed for {membership_id}: {exc}")
 
@@ -466,11 +420,9 @@ class MembershipsService:
         if not sent:
             raise ExternalServiceError("Failed to send email")
 
-        self.membership_repository.update_from_model(
-            membership_id,
-            MembershipDTO(membership_sent=True),
-        )
-        return {'message': 'Card sent successfully'}
+        membership.membership_sent = True
+        self.membership_repository.update_from_model(membership_id, membership)
+        return MembershipActionResponseDTO(message="Card sent successfully", id=membership_id)
     def get_purchases(self, membership_id):
         membership = self.membership_repository.get(membership_id)
         if not membership:
@@ -484,9 +436,7 @@ class MembershipsService:
         for pid in purchase_ids:
             purchase_model = self.purchase_repository.get_model(pid)
             if purchase_model:
-                payload = PurchaseDTO.from_model(purchase_model).to_payload()
-                payload["id"] = purchase_model.id
-                purchases.append(payload)
+                purchases.append(purchase_to_response(purchase_model).to_payload())
 
         return purchases
     def get_events(self, membership_id):
@@ -502,17 +452,35 @@ class MembershipsService:
         for eid in event_ids:
             event = self.event_repository.get_model(eid)
             if event:
-                events.append(EventDTO.from_model(event).membership_event_payload())
+                events.append({"id": event.id, "title": event.title, "date": event.date, "image": event.image}) # To modify approach 
 
         return events
-    def set_membership_price(self, price, year=None):
+    def set_membership_price(self, price, year=None) -> MembershipPriceResponseDTO:
         year = str(year or datetime.now().year)
-        self.settings_repository.set_price_by_year(year, price)
-        return {"message": f"Prezzo membership per {year} aggiornato a {price}"}
+        numeric_price = float(price)
+        self.settings_repository.set_price_by_year(year, numeric_price)
+        return MembershipPriceResponseDTO(
+            year=year,
+            price=numeric_price,
+            message=f"Prezzo membership per {year} aggiornato a {numeric_price}",
+        )
     
-    def get_membership_price(self, year=None):
+    def get_membership_price(self, year=None) -> MembershipPriceResponseDTO:
         year = str(year or datetime.now().year)
         price = self.settings_repository.get_price_by_year(year)
         if price is None:
             raise NotFoundError(f"Nessun prezzo configurato per l'anno {year}")
-        return {"year": year, "price": price}
+        return MembershipPriceResponseDTO(year=year, price=float(price))
+
+    def get_wallet_model(self) -> WalletModelResponseDTO:
+        model_id = self.settings_repository.get_wallet_model()
+        if not model_id:
+            raise NotFoundError("Wallet model non configurato")
+        return WalletModelResponseDTO(model_id=model_id)
+
+    def set_wallet_model(self, model_id: str) -> WalletModelResponseDTO:
+        self.settings_repository.set_wallet_model(model_id)
+        return WalletModelResponseDTO(
+            model_id=model_id,
+            message="Wallet model aggiornato",
+        )

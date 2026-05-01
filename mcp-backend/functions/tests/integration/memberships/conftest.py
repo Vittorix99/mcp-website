@@ -3,7 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from dto import EventDTO, MembershipDTO
+from dto.event_api import CreateEventRequestDTO
+from dto.membership_api import CreateMembershipRequestDTO
 from models import Purchase, PurchaseTypes
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
@@ -71,9 +72,9 @@ def create_membership(memberships_service):
     created = []
 
     def _create(payload):
-        dto = MembershipDTO.from_payload(payload)
+        dto = CreateMembershipRequestDTO.model_validate(payload)
         result = memberships_service.create(dto)
-        membership_id = result.get("id")
+        membership_id = result.id
         created.append(membership_id)
         return membership_id
 
@@ -126,21 +127,19 @@ def create_event(events_service):
 
     def _create():
         date_value = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%d-%m-%Y")
-        dto = EventDTO.from_payload(
-            {
-                "title": f"Integration Event {uuid4().hex[:8]}",
-                "date": date_value,
-                "startTime": "21:00",
-                "endTime": "23:00",
-                "location": "Integration Hall",
-                "locationHint": "Ingresso principale",
-                "price": 10.0,
-                "fee": 1.0,
-                "status": "active",
-            }
-        )
+        dto = CreateEventRequestDTO.model_validate({
+            "title": f"Integration Event {uuid4().hex[:8]}",
+            "date": date_value,
+            "startTime": "21:00",
+            "endTime": "23:00",
+            "location": "Integration Hall",
+            "locationHint": "Ingresso principale",
+            "price": 10.0,
+            "fee": 1.0,
+            "status": "active",
+        })
         result = events_service.create_event(dto, admin_uid="admin-test")
-        event_id = result.get("eventId")
+        event_id = result.event_id
         created.append(event_id)
         return event_id
 

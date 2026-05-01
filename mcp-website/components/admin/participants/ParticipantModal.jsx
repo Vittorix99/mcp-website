@@ -296,7 +296,7 @@ export function ParticipantModal({
             checked={defaultMembershipIncluded}
             onCheckedChange={(val) => onCheckbox("membership_included", val)}
           />
-          <Label htmlFor="membership_included">Tessera da includere</Label>
+          <Label htmlFor="membership_included">Includi tesseramento</Label>
         </div>
       )}
       <div className="flex items-center gap-2">

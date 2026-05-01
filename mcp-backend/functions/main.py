@@ -78,6 +78,7 @@ from api.admin.members_api import (
     merge_memberships,
     update_membership,
     delete_membership,
+    renew_membership,
     send_membership_card,
     get_membership_events,
     get_membership_purchases,
@@ -105,21 +106,18 @@ from triggers.registration_trigger import (
 )
 
 from api.admin.stats_api import admin_get_general_stats
-from api.admin.error_logs_api import admin_error_logs
-
 from api.admin.setting_api import get_settings, set_settings
 from triggers.jobs_trigger import process_send_location_job
 from triggers.new_year_trigger import invalidate_memberships_new_year
 from triggers.cleanup_trigger import cleanup_stale_data
 
 # === API Entrance Scanner ===
-from api.entrance import (
+from api.entrance.entrance_api import (
     entrance_generate_scan_token,
     entrance_verify_scan_token,
     entrance_deactivate_scan_token,
     entrance_manual_entry,
     entrance_validate,
-    entrance_deactivate_scan_token,
 )
 
 # === API Admin: Sender ===

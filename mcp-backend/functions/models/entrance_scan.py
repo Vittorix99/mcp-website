@@ -9,4 +9,6 @@ class EntranceScan(FirestoreModel):
     """Represents a recorded entrance scan stored in ``entrance_scans/{event_id}/scans``."""
 
     scanned_at: Optional[Any] = field(default=None, metadata={"firestore_name": "scanned_at"})
-    scan_token: str = field(default="", metadata={"firestore_name": "scan_token"})
+    scan_token: Optional[str] = field(default=None, metadata={"firestore_name": "scan_token"})
+    manual: bool = field(default=False, metadata={"firestore_name": "manual"})
+    operator: Optional[str] = field(default=None, metadata={"firestore_name": "operator"})

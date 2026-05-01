@@ -38,9 +38,10 @@ def _mock_admin_auth(monkeypatch):
 @pytest.fixture(autouse=True)
 def _patch_flask_request_proxies(monkeypatch):
     """Avoid LocalProxy teardown issues when tests monkeypatch request.get_json."""
-    monkeypatch.setattr(members_api, "request", type("ReqStub", (), {"get_json": lambda *args, **kwargs: None})())
-    monkeypatch.setattr(messages_api, "request", type("ReqStub", (), {"get_json": lambda *args, **kwargs: None})())
-    monkeypatch.setattr(purchases_api, "request", type("ReqStub", (), {"get_json": lambda *args, **kwargs: None})())
+    request_stub = type("ReqStub", (), {"get_json": lambda *args, **kwargs: None})()
+    monkeypatch.setattr(members_api, "request", request_stub, raising=False)
+    monkeypatch.setattr(messages_api, "request", request_stub, raising=False)
+    monkeypatch.setattr(purchases_api, "request", request_stub, raising=False)
 
 
 @pytest.fixture(scope="session")
@@ -63,12 +64,13 @@ def mailersend_api_key():
 def _ensure_storage_assets():
     if os.environ.get("SKIP_STORAGE_ASSET_BOOTSTRAP", "").lower() in {"1", "true", "yes"}:
         return
-    # When running against Firestore emulator, avoid implicit outbound calls to
-    # real Cloud Storage unless explicitly requested.
+    # Non facciamo chiamate implicite a Cloud Storage nei test: vanno abilitate esplicitamente.
+    if os.environ.get("FORCE_STORAGE_ASSET_BOOTSTRAP", "").lower() not in {"1", "true", "yes"}:
+        return
+    # Quando si usa solo l'emulatore Firestore, evitare comunque Storage reale.
     if (
         os.environ.get("FIRESTORE_EMULATOR_HOST")
         and not os.environ.get("STORAGE_EMULATOR_HOST")
-        and os.environ.get("FORCE_STORAGE_ASSET_BOOTSTRAP", "").lower() not in {"1", "true", "yes"}
     ):
         return
     if storage_bucket is None:

@@ -24,3 +24,14 @@ class MembershipSettingsRepository:
             {"price_by_year": {year: price}},
             merge=True,
         )
+
+    def get_wallet_model(self) -> Optional[str]:
+        doc = self.collection.document("current_model").get()
+        if not doc.exists:
+            return None
+        payload = doc.to_dict() or {}
+        model_id = payload.get("model_id")
+        return str(model_id).strip() if model_id else None
+
+    def set_wallet_model(self, model_id: str) -> None:
+        self.collection.document("current_model").set({"model_id": model_id}, merge=True)

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional
 
 from .enums import EventPurchaseAccessType, PurchaseTypes
 from .purchase import Purchase
@@ -22,3 +22,5 @@ class EventPurchase(Purchase):
         default=EventPurchaseAccessType.PUBLIC,
         metadata={"firestore_name": "eventPurchaseType", "enum": EventPurchaseAccessType},
     )
+    participants_count: int = field(default=0, metadata={"firestore_name": "participants_count"})
+    membership_ids: List[str] = field(default_factory=list, metadata={"firestore_name": "membership_ids"})

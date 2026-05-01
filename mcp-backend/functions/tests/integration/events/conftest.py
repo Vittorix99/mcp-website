@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from dto import EventDTO
+from dto.event_api import CreateEventRequestDTO
 from repositories.event_repository import EventRepository
 from services.events.events_service import EventsService
 
@@ -37,4 +37,4 @@ def base_event_payload():
 
 @pytest.fixture
 def event_dto(base_event_payload):
-    return EventDTO.from_payload(base_event_payload)
+    return CreateEventRequestDTO.model_validate(base_event_payload)

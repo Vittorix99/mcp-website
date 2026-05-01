@@ -1,11 +1,17 @@
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Optional, Protocol, Tuple
 
-from dto import EventDTO
 from .assets import resolve_instagram_url, resolve_logo_url
 
 _FOOTER_LOGO = "https://musiconnectingpeople.com/secondaryLogoWhite.png"
 _PROD_URL = "https://musiconnectingpeople.com"
+
+
+class EventLocationPayload(Protocol):
+    title: str
+    date: str
+    start_time: Optional[str]
+    end_time: Optional[str]
 
 
 def append_organizer_message(html_content: str, message: Optional[str]) -> str:
@@ -30,7 +36,7 @@ def append_organizer_message(html_content: str, message: Optional[str]) -> str:
 
 def get_location_email_template(
     participant_name: str,
-    event_data: EventDTO,
+    event_data: EventLocationPayload,
     address: Optional[str] = None,
     link: Optional[str] = None,
 ) -> str:
@@ -205,7 +211,7 @@ def get_location_email_template(
 
 def build_location_email_payload(
     name: str,
-    event_dict: EventDTO,
+    event_dict: EventLocationPayload,
     address: Optional[str] = None,
     link: Optional[str] = None,
     message: Optional[str] = None,

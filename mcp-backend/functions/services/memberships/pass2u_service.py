@@ -4,7 +4,7 @@ from typing import Optional
 from config.external_services import PASS2U_API_KEY
 from config.firebase_config import db
 from models import Membership, MembershipPass, MembershipPassResult
-from routes.pass2u_routes import Pass2URoutes
+from clients.pass2u_client import Pass2URoutes
 from services.core.error_logs_service import log_external_error
 from utils.events_utils import to_iso8601_datetime
 

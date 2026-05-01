@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 import services.sender.sender_service as sender_service_module
-from routes.sender_routes import SenderApiResult
+from clients.sender_client import SenderApiResult
 from services.sender.sender_service import SenderService, _format_sender_error
 
 

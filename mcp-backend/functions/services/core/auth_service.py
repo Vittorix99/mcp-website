@@ -50,11 +50,11 @@ def verify_admin_service(
 
     try:
         repository = user_repository or UserRepository()
-        user_data = repository.get_by_id(req.auth.uid) or {}
+        user_profile = repository.get_by_id(req.auth.uid)
 
         return {
-            "isAdmin": user_data.get("isAdmin", False),
-            "role": user_data.get("role", "user"),
+            "isAdmin": bool(user_profile.is_admin) if user_profile else False,
+            "role": user_profile.role if user_profile else "user",
         }
 
     except Exception as e:

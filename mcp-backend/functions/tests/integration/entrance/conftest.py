@@ -1,9 +1,9 @@
 """
 Conftest per i test di integrazione dell'Entrance Scanner.
 
-IMPORTANTE — questi test girano SOLO contro il Firestore emulator.
-Se l'emulatore non è attivo (FIRESTORE_EMULATOR_HOST non impostato o
-porta 8080 irraggiungibile), l'intera suite viene saltata automaticamente.
+IMPORTANTE — questi test girano contro il Firestore emulator oppure contro
+un progetto cloud di test/dev esplicito. Se il target non è sicuro, l'intera
+suite viene saltata automaticamente.
 
 Tutto il dato di test (evento, membership, partecipanti, scan token) viene
 creato UNA SOLA VOLTA in `entrance_seed` (scope="session") prima che parta
@@ -19,7 +19,8 @@ from uuid import uuid4
 import pytest
 
 from config.firebase_config import db
-from dto import EventDTO
+from dto.entrance_api import GenerateScanTokenRequestDTO
+from dto.event_api import CreateEventRequestDTO
 from models import EventParticipant, Membership, PaymentMethod
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
@@ -29,7 +30,7 @@ from services.events.events_service import EventsService
 
 
 # ---------------------------------------------------------------------------
-# Guard: salta tutto se il Firestore emulator non è raggiungibile
+# Guard: salta tutto se il target Firestore non è sicuro
 # ---------------------------------------------------------------------------
 
 def _is_port_open(host: str, port: int) -> bool:
@@ -40,31 +41,39 @@ def _is_port_open(host: str, port: int) -> bool:
         return False
 
 
-def _require_emulator() -> None:
+def _require_safe_firestore_target() -> None:
     """
-    Verifica che FIRESTORE_EMULATOR_HOST sia impostato e raggiungibile.
-    Chiama pytest.skip() se l'emulatore non è disponibile, così nessun test
-    in questa suite tocca accidentalmente il database di produzione.
+    Verifica che Firestore punti all'emulatore oppure a un progetto cloud
+    chiaramente di test/dev. In caso contrario salta la suite per evitare
+    scritture accidentali su ambienti non destinati ai test.
     """
     host = os.environ.get("FIRESTORE_EMULATOR_HOST", "")
     if not host:
         # Prova auto-detect sulla porta di default
         if _is_port_open("127.0.0.1", 8080):
             os.environ["FIRESTORE_EMULATOR_HOST"] = "127.0.0.1:8080"
+            return
         elif _is_port_open("localhost", 8080):
             os.environ["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
-        else:
-            pytest.skip(
-                "Firestore emulator non attivo — avvialo con "
-                "`firebase emulators:start --only firestore` prima di eseguire "
-                "questi test. (FIRESTORE_EMULATOR_HOST non impostato)"
-            )
+            return
+
+    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+        return
+
+    project_id = (getattr(db, "project", "") or "").lower()
+    if "test" in project_id or "dev" in project_id:
+        return
+
+    pytest.skip(
+        "Target Firestore non sicuro per entrance integration: usa emulator "
+        "oppure un progetto cloud con id contenente 'test' o 'dev'."
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _emulator_guard():
-    """Fixture autouse: blocca l'intera suite se l'emulatore non è attivo."""
-    _require_emulator()
+    """Fixture autouse: blocca la suite se il target Firestore non è sicuro."""
+    _require_safe_firestore_target()
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +145,7 @@ def entrance_seed():
         # ── 1. Crea evento ──────────────────────────────────────────────────
         from datetime import datetime, timedelta, timezone
         date_value = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%d-%m-%Y")
-        dto = EventDTO.from_payload({
+        dto = CreateEventRequestDTO.model_validate({
             "title": f"Entrance Integration Test {uuid4().hex[:8]}",
             "date": date_value,
             "startTime": "21:00",
@@ -147,12 +156,15 @@ def entrance_seed():
             "status": "active",
         })
         result = events_service.create_event(dto, admin_uid="admin-test")
-        event_id = result["eventId"]
+        event_id = result.event_id
 
         # ── 2. Crea scan token ──────────────────────────────────────────────
-        token_result = entrance_service.generate_scan_token(event_id, admin_uid="admin-test")
-        token = token_result["token"]
-        scan_url = token_result["scan_url"]
+        token_result = entrance_service.generate_scan_token(
+            GenerateScanTokenRequestDTO(event_id=event_id),
+            admin_uid="admin-test",
+        )
+        token = token_result.token
+        scan_url = token_result.scan_url
 
         # ── 3. Crea membership ──────────────────────────────────────────────
 

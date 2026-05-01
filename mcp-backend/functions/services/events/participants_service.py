@@ -4,19 +4,33 @@ from typing import Any, Optional, List
 
 from google.cloud import firestore
 
-from dto import EventDTO, EventParticipantDTO, MembershipDTO
-from dto.preorder import CheckoutParticipantDTO
+from dto.participant_api import (
+    CheckParticipantsResponseDTO,
+    CheckoutParticipantRequestDTO,
+    ParticipantActionResponseDTO,
+    ParticipantCreateRequestDTO,
+    ParticipantResponseDTO,
+    ParticipantUpdateRequestDTO,
+    SendOmaggioEmailsRequestDTO,
+    SendOmaggioEmailsResponseDTO,
+)
 from domain.membership_rules import (
     build_renewal_record,
     membership_years_from_renewals,
 )
+from domain.participant_rules import run_basic_checks
 from interfaces.repositories import (
     EventRepositoryProtocol,
     MembershipRepositoryProtocol,
     ParticipantRepositoryProtocol,
 )
 from interfaces.services import TicketServiceProtocol
-from models import EventParticipant, EventPurchaseAccessType, Membership, PaymentMethod
+from mappers.participant_mappers import (
+    apply_participant_update_dto_to_model,
+    create_participant_dto_to_model,
+    participant_to_response,
+)
+from models import Event, EventParticipant, EventPurchaseAccessType, Membership, PaymentMethod
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
@@ -29,9 +43,7 @@ from utils.events_utils import (
     is_minor,
     normalize_email,
     normalize_phone,
-    validate_email_format,
 )
-from domain.participant_rules import run_basic_checks
 
 
 class ParticipantsService:
@@ -82,30 +94,31 @@ class ParticipantsService:
             membership = self.membership_repository.find_by_phone(phone)
         return membership
 
-    def get_all(self, event_id):
+    def get_all(self, event_id: str) -> list[ParticipantResponseDTO]:
         participants = self.participant_repository.list(event_id)
-        return [participant.to_payload() for participant in participants]
+        return [participant_to_response(participant) for participant in participants]
 
-    def get_by_id(self, event_id, participant_id):
+    def get_by_id(self, event_id: str, participant_id: str) -> ParticipantResponseDTO:
         participant = self.participant_repository.get(event_id, participant_id)
         if not participant:
             raise NotFoundError("Participant not found")
-        return participant.to_payload()
+        return participant_to_response(participant)
 
-    def create(self, participant_data):
-        dto = participant_data if isinstance(participant_data, EventParticipantDTO) else EventParticipantDTO.from_payload(participant_data)
+    def create(self, dto: ParticipantCreateRequestDTO) -> ParticipantActionResponseDTO:
         event_id = dto.event_id
         if not event_id:
             raise ValidationError("event_id is required")
+
+        event_model = self.event_repository.get_model(event_id)
+        if not event_model:
+            raise NotFoundError("Evento non trovato")
 
         birthdate = dto.birthdate
         if not birthdate or is_minor(birthdate):
             raise ForbiddenError("Partecipante minorenne non consentito")
 
-        email = normalize_email(dto.email)
-        phone = normalize_phone(dto.phone)
-        if email and not validate_email_format(email):
-            raise ValidationError("Formato email non valido")
+        email = dto.email or ""
+        phone = dto.phone or ""
         membership_included = bool(dto.membership_included)
         purchase_id = dto.purchase_id
         price_value = self._normalize_price(dto.price)
@@ -113,10 +126,25 @@ class ParticipantsService:
 
         membership_id = None
         is_member = False
-        membership = self._find_membership(email, phone)
-        if membership:
-            membership_id = membership.id
+        membership = None
+        explicit_membership_id = (
+            dto.membership_id.strip()
+            if isinstance(dto.membership_id, str)
+            else dto.membership_id
+        )
+
+        if explicit_membership_id:
+            membership = self.membership_repository.get(explicit_membership_id)
+            if not membership:
+                raise NotFoundError("Membership not found")
+            membership_id = explicit_membership_id
             is_member = bool(membership.subscription_valid)
+            membership_included = False
+        else:
+            membership = self._find_membership(email, phone)
+            if membership:
+                membership_id = membership.id
+                is_member = bool(membership.subscription_valid)
 
         if membership_included and is_member:
             raise ConflictError("Questo utente è già un membro attivo")
@@ -134,20 +162,18 @@ class ParticipantsService:
                     fee=getattr(membership, "membership_fee", None),
                 )
             )
-            update_dto = MembershipDTO(
-                subscription_valid=True,
-                start_date=start_date,
-                end_date=end_date,
-                membership_sent=False,
-                membership_type="manual",
-                renewals=renewals,
-                membership_years=membership_years_from_renewals(
-                    renewals,
-                    fallback_start_date=start_date,
-                    fallback_end_date=end_date,
-                ),
+            membership.subscription_valid = True
+            membership.start_date = start_date
+            membership.end_date = end_date
+            membership.membership_sent = False
+            membership.membership_type = "manual"
+            membership.renewals = renewals
+            membership.membership_years = membership_years_from_renewals(
+                renewals,
+                fallback_start_date=start_date,
+                fallback_end_date=end_date,
             )
-            self.membership_repository.update_from_model(membership_id, update_dto)
+            self.membership_repository.update_from_model(membership_id, membership)
             is_member = True
 
         if membership_included and not is_member and not membership_id:
@@ -186,32 +212,19 @@ class ParticipantsService:
             membership_id = self.membership_repository.create_from_model(membership_model)
             self.logger.info("Nuova membership creata: %s", membership_id)
 
-        event_model = self.event_repository.get_model(event_id)
-        if not event_model:
-            raise NotFoundError("Evento non trovato")
-
         try:
             payment_enum = PaymentMethod(payment_method)
         except ValueError as exc:
             raise ValidationError("Invalid payment_method") from exc
 
-        participant = EventParticipant(
-            event_id=event_id,
-            name=dto.name or "",
-            surname=dto.surname or "",
+        participant = create_participant_dto_to_model(
+            dto,
             email=email,
             phone=phone,
-            birthdate=birthdate,
-            membership_included=bool(membership_id or membership_included),
             membership_id=membership_id,
+            membership_included=bool(membership_id or membership_included),
             payment_method=payment_enum,
-            ticket_sent=bool(dto.ticket_sent) if dto.ticket_sent is not None else False,
-            location_sent=bool(dto.location_sent) if dto.location_sent is not None else False,
-            newsletter_consent=bool(dto.newsletter_consent) if dto.newsletter_consent is not None else False,
-            send_ticket_on_create=bool(dto.send_ticket_on_create) if dto.send_ticket_on_create is not None else False,
             price=price_value,
-            purchase_id=purchase_id,
-            riduzione=bool(dto.riduzione) if dto.riduzione is not None else False,
             created_at=firestore.SERVER_TIMESTAMP,
         )
 
@@ -221,63 +234,39 @@ class ParticipantsService:
         if membership_id:
             self.membership_repository.add_attended_event(membership_id, event_id)
 
-        return {"message": "Participant created", "id": participant_id}
+        return ParticipantActionResponseDTO(message="Participant created", id=participant_id)
 
-    def update(self, event_id, participant_id, data):
+    def update(
+        self,
+        event_id: str,
+        participant_id: str,
+        dto: ParticipantUpdateRequestDTO,
+    ) -> ParticipantActionResponseDTO:
         participant = self.participant_repository.get(event_id, participant_id)
         if not participant:
             raise NotFoundError("Participant not found")
 
-        manual_membership_override = False
+        manual_membership_override = "membership_id" in dto.model_fields_set
         manual_membership_id = None
-        update_data = data
+        if manual_membership_override:
+            if dto.membership_id:
+                membership = self.membership_repository.get(dto.membership_id)
+                if not membership:
+                    raise NotFoundError("Membership not found")
+                manual_membership_id = dto.membership_id
 
-        if isinstance(data, dict):
-            manual_membership_override = "membership_id" in data or "membershipId" in data
-            if manual_membership_override:
-                raw_membership_id = data.get("membership_id") if "membership_id" in data else data.get("membershipId")
-                normalized_membership_id = (
-                    raw_membership_id.strip()
-                    if isinstance(raw_membership_id, str)
-                    else raw_membership_id
-                )
-                if normalized_membership_id in (None, ""):
-                    manual_membership_id = None
-                else:
-                    membership = self.membership_repository.get(normalized_membership_id)
-                    if not membership:
-                        raise NotFoundError("Membership not found")
-                    manual_membership_id = normalized_membership_id
-
-                update_data = dict(data)
-                update_data.pop("membership_id", None)
-                update_data.pop("membershipId", None)
-                update_data["membership_included"] = bool(manual_membership_id)
-
-        update_dto = (
-            update_data
-            if isinstance(update_data, EventParticipantDTO)
-            else EventParticipantDTO.from_payload(update_data)
-        )
-
-        if update_dto.email:
-            normalized_update_email = normalize_email(update_dto.email)
-            if not validate_email_format(normalized_update_email):
-                raise ValidationError("Formato email non valido")
-            update_dto.email = normalized_update_email
-
-        if participant.purchase_id and update_dto.payment_method is not None:
+        if participant.purchase_id and dto.payment_method is not None:
             raise ValidationError("Cannot change payment_method for website purchase")
 
-        if participant.purchase_id and update_dto.price is not None:
+        if participant.purchase_id and dto.price is not None:
             raise ValidationError("Modifica del prezzo non permessa: purchase già registrato")
 
         # Re-check membership when email changes
         should_update_membership = False
         new_membership_id = participant.membership_id  # default: keep existing
         clear_membership = False
-        if not manual_membership_override and update_dto.email:
-            new_email = normalize_email(update_dto.email)
+        if not manual_membership_override and dto.email is not None:
+            new_email = dto.email
             old_email = normalize_email(participant.email or "")
             if new_email != old_email:
                 membership = self._find_membership(new_email, None)
@@ -288,7 +277,8 @@ class ParticipantsService:
                     new_membership_id = None
                     clear_membership = True
 
-        self.participant_repository.update(event_id, participant_id, update_dto)
+        updated_participant = apply_participant_update_dto_to_model(participant, dto)
+        self.participant_repository.update_from_model(event_id, participant_id, updated_participant)
 
         if manual_membership_override:
             self.participant_repository.set_membership(event_id, participant_id, manual_membership_id)
@@ -298,35 +288,44 @@ class ParticipantsService:
             else:
                 self.participant_repository.set_membership(event_id, participant_id, new_membership_id)
 
-        return {"message": "Participant updated"}
+        return ParticipantActionResponseDTO(message="Participant updated", id=participant_id)
 
-    def delete(self, event_id, participant_id):
+    def delete(self, event_id: str, participant_id: str) -> ParticipantActionResponseDTO:
+        participant = self.participant_repository.get(event_id, participant_id)
+        if not participant:
+            raise NotFoundError("Participant not found")
         self.participant_repository.delete(event_id, participant_id)
-        return {"message": "Participant deleted"}
+        return ParticipantActionResponseDTO(message="Participant deleted", id=participant_id)
 
-    def send_ticket(self, event_id, participant_id):
+    def send_ticket(self, event_id: str, participant_id: str) -> ParticipantActionResponseDTO:
         participant = self.participant_repository.get(event_id, participant_id)
         if not participant:
             raise NotFoundError("Participant not found")
 
         result = self.ticket_service.process_new_ticket(participant_id, participant)
         if result.get("success"):
-            return {"message": "Ticket inviato con successo"}
+            return ParticipantActionResponseDTO(message="Ticket inviato con successo", id=participant_id)
         raise ExternalServiceError(result.get("error", "Errore durante l'invio"))
 
     def send_omaggio_emails(
         self,
-        event_id: str,
-        entry_time: Optional[str] = None,
-        participant_id: Optional[str] = None,
-        skip_already_sent: bool = True,
-    ) -> dict:
+        dto: SendOmaggioEmailsRequestDTO,
+    ) -> SendOmaggioEmailsResponseDTO:
+        event_id = dto.event_id
+        entry_time = dto.entry_time
+        participant_id = dto.participant_id
+        skip_already_sent = dto.skip_already_sent
+
         event_model = self.event_repository.get_model(event_id)
         if not event_model:
             raise NotFoundError("Evento non trovato")
 
         all_participants = self.participant_repository.list(event_id)
-        omaggi = [p for p in all_participants if (p.payment_method or "").lower() == "omaggio"]
+        omaggi = [
+            participant
+            for participant in all_participants
+            if (participant.payment_method.value if participant.payment_method else "").lower() == "omaggio"
+        ]
 
         if participant_id:
             omaggi = [p for p in omaggi if p.id == participant_id]
@@ -347,26 +346,25 @@ class ParticipantsService:
             sent = self._send_omaggio_email(event_model, p, entry_time)
             if sent:
                 sent_count += 1
-                self.participant_repository.update(
-                    event_id,
-                    p.id,
-                    {
-                        "omaggio_email_sent": True,
-                        "omaggio_email_sent_at": firestore.SERVER_TIMESTAMP,
-                    },
-                )
+                p.omaggio_email_sent = True
+                p.omaggio_email_sent_at = firestore.SERVER_TIMESTAMP
+                self.participant_repository.update_from_model(event_id, p.id, p)
             else:
                 failed_count += 1
 
-        return {
-            "sent": sent_count,
-            "failed": failed_count,
-            "skipped": skipped_count,
-            "total": len(omaggi),
-            "mode": "single" if participant_id else "bulk",
-        }
+        return SendOmaggioEmailsResponseDTO(
+            sent=sent_count,
+            failed=failed_count,
+            skipped=skipped_count,
+            total=len(omaggi),
+            mode="single" if participant_id else "bulk",
+        )
 
-    def check_participants(self, event_id: str, participants: list):
+    def check_participants(
+        self,
+        event_id: str,
+        participants: list[CheckoutParticipantRequestDTO],
+    ) -> CheckParticipantsResponseDTO:
         if not event_id or not isinstance(participants, list) or not participants:
             raise ValidationError("eventId o participants mancanti")
 
@@ -376,21 +374,20 @@ class ParticipantsService:
 
         purchase_mode = event_model.purchase_mode or EventPurchaseAccessType.PUBLIC
 
-        normalized_participants: List[CheckoutParticipantDTO] = []
-        for entry in participants:
-            if isinstance(entry, CheckoutParticipantDTO):
-                normalized_participants.append(entry)
-            elif isinstance(entry, dict):
-                normalized_participants.append(CheckoutParticipantDTO.from_payload(entry))
-
-        result = run_basic_checks(event_id, normalized_participants, event_model)
+        result = run_basic_checks(
+            event_id,
+            participants,
+            event_model,
+            participant_repository=self.participant_repository,
+            membership_repository=self.membership_repository,
+        )
         if result.errors:
             err = ValidationError("validation_error")
             err.details = result.errors
             raise err
 
         if purchase_mode == EventPurchaseAccessType.ON_REQUEST:
-            return {"valid": True, "members": result.members, "nonMembers": result.non_members}
+            return CheckParticipantsResponseDTO(valid=True, members=result.members, non_members=result.non_members)
 
         if purchase_mode == EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS and result.non_members:
             msg = (
@@ -401,8 +398,9 @@ class ParticipantsService:
             err.details = [msg]
             raise err
 
-        return {"valid": True}
-    def _send_omaggio_email(self, event_model: EventDTO, participant: EventParticipantDTO, entry_time: Optional[str]) -> bool:
+        return CheckParticipantsResponseDTO(valid=True)
+
+    def _send_omaggio_email(self, event_model: Event, participant: EventParticipant, entry_time: Optional[str]) -> bool:
         if not participant.email:
             return False
 

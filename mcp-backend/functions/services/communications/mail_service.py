@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from routes.mailersend_routes import (
+from clients.mailersend_client import (
     MailerSendClient,
     MailerSendEmailBuilder,
     MailerSendRequest,

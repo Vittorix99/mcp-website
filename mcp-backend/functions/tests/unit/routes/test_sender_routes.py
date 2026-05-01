@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from routes.sender_routes import SenderApiResult, SenderRoutes
+from clients.sender_client import SenderApiResult, SenderRoutes
 
 
 def _response(status_code, payload):

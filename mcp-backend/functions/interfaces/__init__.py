@@ -1,5 +1,6 @@
 from .repositories import (
-    ErrorLogRepositoryProtocol,
+    AdminAuthRepositoryProtocol,
+    AdminRepositoryProtocol,
     EventRepositoryProtocol,
     JobRepositoryProtocol,
     MembershipRepositoryProtocol,
@@ -12,14 +13,20 @@ from .repositories import (
     UserRepositoryProtocol,
 )
 from .services import (
+    AdminServiceProtocol,
     DocumentsServiceProtocol,
+    EventPaymentServiceProtocol,
+    EventsServiceProtocol,
+    LocationServiceProtocol,
     MembershipsServiceProtocol,
     Pass2UServiceProtocol,
+    PurchasesServiceProtocol,
     TicketServiceProtocol,
 )
 
 __all__ = [
-    "ErrorLogRepositoryProtocol",
+    "AdminAuthRepositoryProtocol",
+    "AdminRepositoryProtocol",
     "EventRepositoryProtocol",
     "JobRepositoryProtocol",
     "MembershipRepositoryProtocol",
@@ -30,8 +37,13 @@ __all__ = [
     "PurchaseRepositoryProtocol",
     "SettingsRepositoryProtocol",
     "UserRepositoryProtocol",
+    "AdminServiceProtocol",
     "DocumentsServiceProtocol",
+    "EventPaymentServiceProtocol",
+    "EventsServiceProtocol",
+    "LocationServiceProtocol",
     "MembershipsServiceProtocol",
     "Pass2UServiceProtocol",
+    "PurchasesServiceProtocol",
     "TicketServiceProtocol",
 ]

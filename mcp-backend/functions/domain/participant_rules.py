@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Protocol, Set, Tuple, Union
 import requests
 
 from config.external_services import GENDER_API_URL
-from dto import EventDTO, MembershipDTO
+from interfaces.repositories import MembershipRepositoryProtocol, ParticipantRepositoryProtocol
 from models import Event, Membership
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
@@ -31,7 +31,7 @@ class ParticipantCheckResult:
     errors: List[str] = field(default_factory=list)
     members: List[str] = field(default_factory=list)
     non_members: List[str] = field(default_factory=list)
-    membership_docs: Dict[str, MembershipDTO] = field(default_factory=dict)
+    membership_docs: Dict[str, Membership] = field(default_factory=dict)
 
     @property
     def valid(self) -> bool:
@@ -99,25 +99,21 @@ def _is_valid_member(member: Membership, today: Optional[datetime] = None) -> bo
     return False
 
 
-def _resolve_event_flags(event: Union[Event, EventDTO]) -> Tuple[bool, bool, bool]:
-    if isinstance(event, Event):
-        dto = EventDTO.from_model(event)
-    else:
-        dto = event
+def _resolve_event_flags(event: object) -> Tuple[bool, bool, bool]:
     return (
-        bool(dto.allow_duplicates),
-        bool(dto.over21_only),
-        bool(dto.only_females),
+        bool(getattr(event, "allow_duplicates", False)),
+        bool(getattr(event, "over21_only", False)),
+        bool(getattr(event, "only_females", False)),
     )
 
 
 def run_basic_checks(
     event_id: str,
     participants: List[ParticipantLike],
-    event_data: Union[Event, EventDTO],
+    event_data: Event,
     *,
-    participant_repository: Optional[ParticipantRepository] = None,
-    membership_repository: Optional[MembershipRepository] = None,
+    participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+    membership_repository: Optional[MembershipRepositoryProtocol] = None,
 ) -> ParticipantCheckResult:
     result = ParticipantCheckResult()
     today = datetime.now(timezone.utc)
@@ -217,7 +213,7 @@ def run_basic_checks(
         if is_member and member_model:
             result.members.append(label)
             if email:
-                result.membership_docs[email] = MembershipDTO.from_model(member_model)
+                result.membership_docs[email] = member_model
         else:
             result.non_members.append(label)
 

@@ -1,29 +1,18 @@
-from typing import Dict, Iterable, List, Optional, Union
+from typing import List, Optional
 
 from google.cloud import firestore
 
-from config.firebase_config import db
-from dto import ContactMessageDTO
 from models import ContactMessage
+from repositories.base import BaseRepository
 
 
-class MessageRepository:
+class MessageRepository(BaseRepository[ContactMessage]):
     def __init__(self):
-        self.collection = db.collection("contact_message")
+        super().__init__("contact_message", ContactMessage)
 
-    def _model_from_snapshot(self, snapshot: firestore.DocumentSnapshot) -> ContactMessage:
-        return ContactMessage.from_firestore(snapshot.to_dict() or {}, snapshot.id)
-
-    def _dto_from_snapshot(self, snapshot: firestore.DocumentSnapshot) -> ContactMessageDTO:
-        model = self._model_from_snapshot(snapshot)
-        return ContactMessageDTO.from_model(model)
-
-    def list(self) -> List[ContactMessageDTO]:
-        return [self._dto_from_snapshot(doc) for doc in self.collection.stream()]
-
-    def list_ordered_by_name(self) -> List[ContactMessageDTO]:
+    def list_models_ordered_by_name(self) -> List[ContactMessage]:
         docs = self.collection.order_by("name").stream()
-        return [self._dto_from_snapshot(doc) for doc in docs]
+        return [self._model_from_snapshot(doc) for doc in docs]
 
     def count_unanswered_since(self, time_limit) -> int:
         query = (
@@ -34,7 +23,7 @@ class MessageRepository:
         )
         return sum(1 for _ in query)
 
-    def get_last_dto(self) -> Optional[ContactMessageDTO]:
+    def get_last_model(self) -> Optional[ContactMessage]:
         docs = (
             self.collection
             .order_by("timestamp", direction=firestore.Query.DESCENDING)
@@ -43,24 +32,10 @@ class MessageRepository:
         )
         if not docs:
             return None
-        return self._dto_from_snapshot(docs[0])
+        return self._model_from_snapshot(docs[0])
 
-    def stream(self) -> Iterable[ContactMessageDTO]:
-        for doc in self.collection.stream():
-            yield self._dto_from_snapshot(doc)
-
-    def get(self, message_id: str) -> Optional[ContactMessageDTO]:
-        doc = self.collection.document(message_id).get()
-        if not doc.exists:
-            return None
-        return self._dto_from_snapshot(doc)
-
-    def create(self, payload: Union[Dict[str, Optional[str]], ContactMessageDTO]) -> str:
-        if hasattr(payload, "to_payload"):
-            data = payload.to_payload()
-        else:
-            data = payload
-        return self.collection.add(data)[1].id
+    def get_model(self, message_id: str) -> Optional[ContactMessage]:
+        return self.get_by_id(message_id)
 
     def create_from_model(self, payload: ContactMessage) -> str:
         return self.collection.add(payload.to_firestore(include_none=True))[1].id
@@ -68,11 +43,5 @@ class MessageRepository:
     def delete(self, message_id: str) -> None:
         self.collection.document(message_id).delete()
 
-    def update(self, message_id: str, payload: Union[Dict[str, Optional[str]], ContactMessageDTO, ContactMessage]) -> None:
-        if hasattr(payload, "to_payload"):
-            data = payload.to_payload()
-        elif hasattr(payload, "to_firestore"):
-            data = payload.to_firestore(include_none=True)
-        else:
-            data = payload
-        self.collection.document(message_id).set(data, merge=True)
+    def update_from_model(self, message_id: str, payload: ContactMessage) -> None:
+        self.collection.document(message_id).set(payload.to_firestore(include_none=True), merge=True)

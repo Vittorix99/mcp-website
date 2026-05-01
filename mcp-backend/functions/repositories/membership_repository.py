@@ -1,17 +1,16 @@
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Iterable, List, Optional
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
 
-from dto import MembershipDTO
 from models import Membership
 from repositories.base import BaseRepository
 from utils.slug_utils import build_slug
 
 
-class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
+class MembershipRepository(BaseRepository[Membership]):
     def __init__(self):
-        super().__init__("memberships", Membership, MembershipDTO)
+        super().__init__("memberships", Membership)
 
     def get(self, membership_id: str) -> Optional[Membership]:
         if not membership_id:
@@ -21,14 +20,10 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
             return None
         return self._model_from_snapshot(doc)
 
-    # Backward compatibility for existing callers.
-    def get_model(self, membership_id: str) -> Optional[Membership]:
-        return self.get(membership_id)
-
     def list(self) -> List[Membership]:
         return [self._model_from_snapshot(doc) for doc in self.collection.stream()]
 
-    def get_last_by_start_date(self) -> Optional[MembershipDTO]:
+    def get_last_by_start_date(self) -> Optional[Membership]:
         docs = (
             self.collection
             .order_by("start_date", direction=firestore.Query.DESCENDING)
@@ -37,8 +32,7 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
         )
         if not docs:
             return None
-        model = self._model_from_snapshot(docs[0])
-        return MembershipDTO.from_model(model)
+        return self._model_from_snapshot(docs[0])
 
     def get_model_by_slug(self, slug: str) -> Optional[Membership]:
         if not slug:
@@ -47,13 +41,6 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
         if not matches:
             return None
         return self._model_from_snapshot(matches[0])
-
-    def update_with_protected_check(self, membership_id: str, payload: Dict[str, Optional[str]], protected_fields=None) -> bool:
-        protected_fields = protected_fields or []
-        if any(field in payload for field in protected_fields):
-            raise ValueError("Protected fields cannot be updated")
-        self.update(membership_id, payload)
-        return True
 
     def find_by_email(self, email: str) -> Optional[Membership]:
         if not email:
@@ -71,20 +58,14 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
             return None
         return self._model_from_snapshot(docs[0])
 
-    def create(self, payload: Union[Dict[str, Any], MembershipDTO, Membership]) -> str:
-        if isinstance(payload, Membership):
-            return self.create_from_model(payload)
-        return super().create(payload)
+    def create(self, membership: Membership) -> str:
+        return self.create_from_model(membership)
 
     def create_from_model(self, membership: Membership) -> str:
         ref = self.collection.document()
         membership.slug = build_slug(membership.name, membership.surname, suffix=ref.id[-6:])
         ref.set(membership.to_firestore(include_none=True))
         return ref.id
-
-    def update_fields(self, membership_id: str, payload: Dict[str, Any]) -> bool:
-        self.collection.document(membership_id).update(payload)
-        return True
 
     def append_purchase(self, membership_id: str, purchase_id: str) -> bool:
         if not membership_id or not purchase_id:
@@ -115,43 +96,12 @@ class MembershipRepository(BaseRepository[Membership, MembershipDTO]):
         )
         return True
 
-    def add_renewal(self, membership_id: str, renewal_dict: Dict[str, Any]) -> bool:
-        if not membership_id or not isinstance(renewal_dict, dict):
-            return False
-
-        year = renewal_dict.get("year")
-        try:
-            year = int(year) if year is not None else None
-        except (TypeError, ValueError):
-            year = None
-
-        membership = self.get(membership_id)
-        if not membership:
-            return False
-
-        existing_years = set(membership.membership_years or [])
-        if year is not None and year in existing_years:
-            return True
-
-        updates: Dict[str, Any] = {
-            "renewals": firestore.ArrayUnion([renewal_dict]),
-        }
-        if year is not None:
-            updates["membership_years"] = firestore.ArrayUnion([year])
-        self.collection.document(membership_id).update(updates)
-        return True
-
     def find_by_year(self, year: int) -> List[Membership]:
         docs = self.collection.where("membership_years", "array_contains", int(year)).stream()
         return [self._model_from_snapshot(doc) for doc in docs]
 
-    def update_from_model(self, membership_id: str, payload: Union[Membership, MembershipDTO]) -> bool:
-        if isinstance(payload, MembershipDTO):
-            update_payload = payload.to_update_payload()
-            if not update_payload:
-                return True
-            self.collection.document(membership_id).update(update_payload)
-            return True
+    def update_from_model(self, membership_id: str, payload: Membership) -> bool:
+        # Il repository non contiene regole di rinnovo: persiste il model già deciso dal service.
         self.collection.document(membership_id).set(payload.to_firestore(include_none=True), merge=True)
         return True
 

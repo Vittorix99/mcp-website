@@ -46,6 +46,8 @@ class FirestoreModel:
         for f in fields(cls):
             if f.name == "id":
                 continue
+            if not f.init:
+                continue
             key = f.metadata.get("firestore_name", f.name)
             if key not in data:
                 continue

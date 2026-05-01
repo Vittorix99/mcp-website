@@ -10,7 +10,7 @@ def test_public_events_api_endpoints(events_service, event_dto):
     event_id = None
     try:
         created = events_service.create_event(event_dto, admin_uid="admin-test")
-        event_id = created.get("eventId")
+        event_id = created.event_id
         assert event_id
 
         list_req = DummyRequest(method="GET")
@@ -42,4 +42,3 @@ def test_public_events_get_missing_id():
     resp, status = unwrap_response(public_events_api.get_event_by_id(req))
     assert status == 400
     assert resp.get("error")
-

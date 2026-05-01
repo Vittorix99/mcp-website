@@ -6,11 +6,11 @@ from typing import Any, Dict, Optional
 
 from google.cloud import firestore
 
-from config.firebase_config import db
-from dto import EventDTO, EventParticipantDTO
-from interfaces.repositories import EventRepositoryProtocol, ParticipantRepositoryProtocol
+from interfaces.repositories import EventRepositoryProtocol, MessageRepositoryProtocol, ParticipantRepositoryProtocol
 from interfaces.services import DocumentsServiceProtocol
+from models import ContactMessage, Event, EventParticipant
 from repositories.event_repository import EventRepository
+from repositories.message_repository import MessageRepository
 from repositories.participant_repository import ParticipantRepository
 from services.events.documents_service import DocumentsService
 from services.communications.mail_service import EmailAttachment, EmailMessage, MailService, mail_service
@@ -23,9 +23,6 @@ class TicketDocument:
     public_url: str
     buffer: Optional[BytesIO] = None
 
-    def to_update_payload(self, sent: bool = False) -> Dict[str, Any]:
-        return {"ticket_pdf_url": self.public_url, "ticket_sent": sent}
-
 
 class TicketService:
     def __init__(
@@ -33,31 +30,59 @@ class TicketService:
         documents_service: Optional[DocumentsServiceProtocol] = None,
         event_repository: Optional[EventRepositoryProtocol] = None,
         participant_repository: Optional[ParticipantRepositoryProtocol] = None,
+        message_repository: Optional[MessageRepositoryProtocol] = None,
         mail_service_instance: Optional[MailService] = None,
     ):
         self.logger = logging.getLogger("TicketService")
         self.documents_service = documents_service or DocumentsService()
         self.event_repository = event_repository or EventRepository()
         self.participant_repository = participant_repository or ParticipantRepository()
+        self.message_repository = message_repository or MessageRepository()
         self.mail_service = mail_service_instance or mail_service
 
-    def _normalize_participant(self, payload: Any) -> EventParticipantDTO:
-        if isinstance(payload, EventParticipantDTO):
+    def _normalize_participant(self, payload: Any) -> EventParticipant:
+        if isinstance(payload, EventParticipant):
             return payload
-        if hasattr(payload, "to_payload"):
-            return EventParticipantDTO.from_payload(payload.to_payload())
         if isinstance(payload, dict):
-            return EventParticipantDTO.from_payload(payload)
-        raise ValueError("participant_data must be a dict or EventParticipantDTO")
+            return EventParticipant.from_firestore(payload, doc_id=None)
+        raise ValueError("participant_data must be an EventParticipant or dict")
+
+    @staticmethod
+    def _participant_payload(participant: EventParticipant) -> Dict[str, Any]:
+        return {
+            "id": participant.id,
+            "name": participant.name,
+            "surname": participant.surname,
+            "email": participant.email,
+            "phone": participant.phone,
+            "membershipId": participant.membership_id,
+            "entered": participant.entered,
+            "ticket_pdf_url": participant.ticket_pdf_url,
+            "ticket_sent": participant.ticket_sent,
+            "price": participant.price,
+            "riduzione": participant.riduzione,
+        }
+
+    @staticmethod
+    def _event_payload(event: Event) -> Dict[str, Any]:
+        return {
+            "id": event.id,
+            "title": event.title,
+            "date": event.date,
+            "startTime": event.start_time,
+            "endTime": event.end_time,
+            "location": event.location,
+            "locationHint": event.location_hint,
+            "image": event.image,
+            "type": event.purchase_mode.value if event.purchase_mode else None,
+        }
 
     def _normalize_event_payload(self, payload: Any) -> Dict[str, Any]:
-        if isinstance(payload, EventDTO):
-            return payload.to_payload()
-        if hasattr(payload, "to_payload"):
-            return payload.to_payload()
+        if isinstance(payload, Event):
+            return self._event_payload(payload)
         if isinstance(payload, dict):
             return dict(payload)
-        raise ValueError("event_data must be a dict or EventDTO")
+        raise ValueError("event_data must be an Event or dict")
 
     def _build_storage_path(
         self,
@@ -84,7 +109,8 @@ class TicketService:
         event_data: Any,
         storage_path: Optional[str] = None,
     ) -> TicketDocument:
-        participant_payload = self._normalize_participant(participant_data).to_payload()
+        participant = self._normalize_participant(participant_data)
+        participant_payload = self._participant_payload(participant)
         event_payload = self._normalize_event_payload(event_data)
 
         if storage_path is None:
@@ -107,8 +133,8 @@ class TicketService:
 
     def process_new_ticket(self, participant_id: str, participant_data: Any, send: bool = True) -> Dict[str, Any]:
         try:
-            participant_dto = self._normalize_participant(participant_data)
-            event_id = participant_dto.event_id
+            participant = self._normalize_participant(participant_data)
+            event_id = participant.event_id
             if not event_id:
                 self.logger.warning("Missing event_id")
                 return {"success": False, "error": "Missing event_id"}
@@ -116,15 +142,16 @@ class TicketService:
             event_model = self.event_repository.get_model(event_id)
             if not event_model:
                 return {"success": False, "error": f"Event {event_id} not found"}
-            event_payload = EventDTO.from_model(event_model).to_payload()
+            event_payload = self._event_payload(event_model)
 
-            document = self.create_ticket_document(participant_dto, event_payload)
-            update_payload = document.to_update_payload(sent=False)
+            document = self.create_ticket_document(participant, event_payload)
+            participant.ticket_pdf_url = document.public_url
+            participant.ticket_sent = False
 
             if send:
-                if not participant_dto.email:
+                if not participant.email:
                     return {"success": False, "error": "Missing participant email"}
-                ticket_payload = participant_dto.to_payload()
+                ticket_payload = self._participant_payload(participant)
                 subject = f"La tua partecipazione per {event_payload.get('title')}"
                 attachment = None
                 if document.buffer:
@@ -141,7 +168,7 @@ class TicketService:
                 text_content = get_ticket_email_text(ticket_payload, event_payload)
                 sent = self.mail_service.send(
                     EmailMessage(
-                        to_email=participant_dto.email,
+                        to_email=participant.email,
                         subject=subject,
                         text_content=text_content,
                         html_content=html_content,
@@ -151,9 +178,9 @@ class TicketService:
                 )
                 if not sent:
                     return {"success": False, "error": "Failed to send email"}
-                update_payload["ticket_sent"] = True
+                participant.ticket_sent = True
 
-            self.participant_repository.update(event_id, participant_id, update_payload)
+            self.participant_repository.update_from_model(event_id, participant_id, participant)
             return {"success": True}
 
         except Exception as exc:
@@ -163,19 +190,17 @@ class TicketService:
 
     def log_failed_ticket_email(self, participant_id: str, participant_data: Any, error_message: str) -> None:
         try:
-            participant_dto = self._normalize_participant(participant_data)
-            db.collection("contact_message").add(
-                {
-                    "subject": "Ticket email failed",
-                    "participant_id": participant_id,
-                    "event_id": participant_dto.event_id,
-                    "email": participant_dto.email,
-                    "name": participant_dto.name,
-                    "surname": participant_dto.surname,
-                    "error_message": error_message,
-                    "timestamp": firestore.SERVER_TIMESTAMP,
-                }
+            participant = self._normalize_participant(participant_data)
+            message = ContactMessage(
+                subject="Ticket email failed",
+                participant_id=participant_id,
+                event_id=participant.event_id,
+                email=participant.email,
+                name=participant.name,
+                error_message=error_message,
+                timestamp=firestore.SERVER_TIMESTAMP,
             )
+            self.message_repository.create_from_model(message)
             self.logger.info("Ticket email failure logged for %s", participant_id)
         except Exception:
             self.logger.exception("Failed to log ticket email failure")

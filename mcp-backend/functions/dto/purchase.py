@@ -1,109 +1,134 @@
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Set
+from __future__ import annotations
 
-from models import Purchase
+from typing import Any, Dict, List, Optional
+
+from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+
+from models import EventPurchaseAccessType, PurchaseTypes
+from utils.events_utils import normalize_email
 
 
-@dataclass
-class PurchaseDTO:
-    payer_name: Optional[str] = None
-    payer_surname: Optional[str] = None
+def _blank_to_none(value: Any):
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
+class PurchaseApiBaseDTO(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        str_strip_whitespace=True,
+        use_enum_values=True,
+    )
+
+
+class PurchaseLookupQueryDTO(PurchaseApiBaseDTO):
+    id: Optional[str] = Field(default=None, validation_alias=AliasChoices("id", "purchase_id"))
     slug: Optional[str] = None
-    payer_email: Optional[str] = None
-    amount_total: Optional[str] = None
-    currency: Optional[str] = None
+
+    @field_validator("id", "slug", mode="before")
+    @classmethod
+    def normalize_lookup_fields(cls, value):
+        return _blank_to_none(value)
+
+    @model_validator(mode="after")
+    def validate_lookup(self) -> "PurchaseLookupQueryDTO":
+        if not self.id and not self.slug:
+            raise ValueError("Either id or slug must be provided")
+        return self
+
+
+class PurchaseIdRequestDTO(PurchaseApiBaseDTO):
+    purchase_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("purchase_id", "purchaseId", "id"),
+        serialization_alias="purchase_id",
+    )
+
+
+class CreatePurchaseRequestDTO(PurchaseApiBaseDTO):
+    payer_name: str = Field(min_length=1)
+    payer_surname: str = Field(min_length=1)
+    payer_email: EmailStr = Field(validation_alias=AliasChoices("payer_email", "payerEmail"))
+    amount_total: str = Field(min_length=1, validation_alias=AliasChoices("amount_total", "amountTotal"))
+    currency: str = Field(min_length=1)
+    transaction_id: str = Field(min_length=1, validation_alias=AliasChoices("transaction_id", "transactionId"))
+    order_id: str = Field(min_length=1, validation_alias=AliasChoices("order_id", "orderId"))
+    timestamp: Any
+    purchase_type: PurchaseTypes = Field(
+        default=PurchaseTypes.EVENT,
+        validation_alias=AliasChoices("type", "purchase_type", "purchaseType"),
+        serialization_alias="type",
+    )
+    status: str = "COMPLETED"
+    slug: Optional[str] = None
+    paypal_fee: Optional[str] = Field(default=None, validation_alias=AliasChoices("paypal_fee", "paypalFee"))
+    net_amount: Optional[str] = Field(default=None, validation_alias=AliasChoices("net_amount", "netAmount"))
+    ref_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("ref_id", "refId"))
+    payment_method: Optional[str] = Field(default=None, validation_alias=AliasChoices("payment_method", "paymentMethod"))
+    capture_status: Optional[str] = Field(default=None, validation_alias=AliasChoices("capture_status", "captureStatus"))
+    event_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("event_id", "eventId"))
+    event_purchase_type: Optional[EventPurchaseAccessType] = Field(
+        default=None,
+        validation_alias=AliasChoices("event_purchase_type", "eventPurchaseType"),
+    )
+    participants_count: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("participants_count", "participantsCount"),
+    )
+    membership_ids: List[str] = Field(default_factory=list)
+
+    @field_validator(
+        "slug",
+        "paypal_fee",
+        "net_amount",
+        "ref_id",
+        "payment_method",
+        "capture_status",
+        "event_id",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_strings(cls, value):
+        return _blank_to_none(value)
+
+    @field_validator("payer_email", mode="after")
+    @classmethod
+    def normalize_email_field(cls, value: EmailStr) -> str:
+        return normalize_email(str(value))
+
+
+class PurchaseDTO(PurchaseApiBaseDTO):
+    id: Optional[str] = None
+    payer_name: str
+    payer_surname: str
+    slug: Optional[str] = None
+    payer_email: str
+    amount_total: str
+    currency: str
     paypal_fee: Optional[str] = None
     net_amount: Optional[str] = None
-    transaction_id: Optional[str] = None
-    order_id: Optional[str] = None
-    status: Optional[str] = None
+    transaction_id: str
+    order_id: str
+    status: str
     timestamp: Optional[Any] = None
-    type: Optional[str] = None
+    purchase_type: PurchaseTypes = Field(serialization_alias="type")
     ref_id: Optional[str] = None
     payment_method: Optional[str] = None
     capture_status: Optional[str] = None
-    fields_present: Optional[Set[str]] = field(default=None, repr=False)
-
-    @classmethod
-    def from_model(cls, purchase: Purchase) -> "PurchaseDTO":
-        return cls(
-            payer_name=purchase.payer_name,
-            payer_surname=purchase.payer_surname,
-            slug=purchase.slug,
-            payer_email=purchase.payer_email,
-            amount_total=purchase.amount_total,
-            currency=purchase.currency,
-            paypal_fee=purchase.paypal_fee,
-            net_amount=purchase.net_amount,
-            transaction_id=purchase.transaction_id,
-            order_id=purchase.order_id,
-            status=purchase.status,
-            timestamp=purchase.timestamp,
-            type=purchase.purchase_type.value if purchase.purchase_type else None,
-            ref_id=purchase.ref_id,
-            payment_method=purchase.payment_method,
-            capture_status=purchase.capture_status,
-        )
-
-    @classmethod
-    def from_payload(cls, payload: Dict[str, Any]) -> "PurchaseDTO":
-        dto = cls(
-            payer_name=payload.get("payer_name"),
-            payer_surname=payload.get("payer_surname"),
-            slug=payload.get("slug"),
-            payer_email=payload.get("payer_email"),
-            amount_total=payload.get("amount_total"),
-            currency=payload.get("currency"),
-            paypal_fee=payload.get("paypal_fee"),
-            net_amount=payload.get("net_amount"),
-            transaction_id=payload.get("transaction_id"),
-            order_id=payload.get("order_id"),
-            status=payload.get("status"),
-            timestamp=payload.get("timestamp"),
-            type=payload.get("type"),
-            ref_id=payload.get("ref_id"),
-            payment_method=payload.get("payment_method"),
-            capture_status=payload.get("capture_status"),
-        )
-        dto.fields_present = set(payload.keys())
-        return dto
+    event_id: Optional[str] = Field(default=None, serialization_alias="event_id")
+    event_purchase_type: Optional[EventPurchaseAccessType] = Field(default=None, serialization_alias="eventPurchaseType")
+    participants_count: Optional[int] = Field(default=None, serialization_alias="participants_count")
+    membership_ids: List[str] = Field(default_factory=list, serialization_alias="membership_ids")
 
     def to_payload(self) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
-            "payer_name": self.payer_name,
-            "payer_surname": self.payer_surname,
-            "slug": self.slug,
-            "payer_email": self.payer_email,
-            "amount_total": self.amount_total,
-            "currency": self.currency,
-            "paypal_fee": self.paypal_fee,
-            "net_amount": self.net_amount,
-            "transaction_id": self.transaction_id,
-            "order_id": self.order_id,
-            "status": self.status,
-            "timestamp": self.timestamp,
-            "type": self.type,
-            "ref_id": self.ref_id,
-            "payment_method": self.payment_method,
-            "capture_status": self.capture_status,
-        }
-        return {k: v for k, v in payload.items() if v is not None}
+        return self.model_dump(by_alias=True, exclude_none=True)
 
-    def validate(self, *, is_update: bool = False) -> Optional[str]:
-        if is_update:
-            return None
-        required_fields = [
-            "payer_name",
-            "payer_surname",
-            "payer_email",
-            "amount_total",
-            "currency",
-            "transaction_id",
-            "order_id",
-            "timestamp",
-            "type",
-        ]
-        missing = [field for field in required_fields if not getattr(self, field, None)]
-        if missing:
-            return f"Missing fields: {', '.join(missing)}"
-        return None
+
+class PurchaseActionResponseDTO(PurchaseApiBaseDTO):
+    message: str
+    id: Optional[str] = None
+
+    def to_payload(self) -> Dict[str, Any]:
+        return self.model_dump(exclude_none=True)

@@ -3,8 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from dto import EventDTO, EventParticipantDTO
-from models import Event
+from models import Event, EventParticipant
 from services.events.ticket_service import TicketService, TicketDocument
 
 
@@ -34,25 +33,17 @@ class _DummyParticipantRepo:
     def __init__(self):
         self.updated = []
 
-    def update(self, event_id, participant_id, payload):
-        self.updated.append((event_id, participant_id, payload))
+    def update_from_model(self, event_id, participant_id, participant):
+        self.updated.append((event_id, participant_id, participant))
 
 
-class _DummyCollection:
+class _DummyMessageRepo:
     def __init__(self):
-        self.added = []
+        self.created = []
 
-    def add(self, data):
-        self.added.append(data)
-        return (None, SimpleNamespace(id="doc-1"))
-
-
-class _DummyDB:
-    def __init__(self):
-        self.collection_ref = _DummyCollection()
-
-    def collection(self, name):
-        return self.collection_ref
+    def create_from_model(self, message):
+        self.created.append(message)
+        return "message-1"
 
 
 def _make_service():
@@ -60,12 +51,13 @@ def _make_service():
         documents_service=_DummyDocsService(),
         event_repository=_DummyEventRepo(),
         participant_repository=_DummyParticipantRepo(),
+        message_repository=_DummyMessageRepo(),
     )
     return service
 
 
 def _participant(event_id="evt-1", email="mario@example.com"):
-    return EventParticipantDTO(
+    return EventParticipant(
         event_id=event_id,
         name="Mario",
         surname="Rossi",
@@ -79,7 +71,7 @@ def test_create_ticket_document_builds_storage_path():
     """Builds a storage path when none is provided."""
     service = _make_service()
     participant = _participant()
-    event = EventDTO(title="Event Title")
+    event = Event(title="Event Title")
     doc = service.create_ticket_document(participant, event)
     assert isinstance(doc, TicketDocument)
     assert doc.storage_path.startswith("tickets/")
@@ -160,10 +152,8 @@ def test_process_new_ticket_no_send(monkeypatch):
     assert service.participant_repository.updated
 
 
-def test_log_failed_ticket_email(monkeypatch):
+def test_log_failed_ticket_email():
     """Logs failed ticket email to contact_message."""
     service = _make_service()
-    dummy_db = _DummyDB()
-    monkeypatch.setattr("services.events.ticket_service.db", dummy_db)
     service.log_failed_ticket_email("part-1", _participant(), "boom")
-    assert len(dummy_db.collection_ref.added) == 1
+    assert len(service.message_repository.created) == 1

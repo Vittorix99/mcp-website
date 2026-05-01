@@ -64,7 +64,7 @@ graph TB
             EventSvc["events/<br/>Events, Participants, Ticket, Location"]
             MembSvc["memberships/<br/>Memberships, Merge, Pass2U"]
             PaySvc["payments/<br/>EventPayment, Purchases"]
-            SyncSvc["sender/ + mailer_lite/<br/>Sync subscribers"]
+            SyncSvc["sender/<br/>Sync subscribers"]
         end
 
         subgraph DomainLayer["Domain Layer"]
@@ -89,7 +89,6 @@ graph TB
     subgraph External["🔌 SERVIZI ESTERNI"]
         PayPal["PayPal API"]
         MailerSend["MailerSend"]
-        MailerLite["MailerLite"]
         Sender["Sender.net"]
         Pass2U["Pass2U (Wallet)"]
         Genderize["Genderize.io"]
@@ -128,7 +127,6 @@ graph TB
 
     PaySvc <--> PayPal
     CommSvc --> MailerSend
-    SyncSvc --> MailerLite
     SyncSvc --> Sender
     Sender -.webhook.-> PubAPI
     MembSvc --> Pass2U
@@ -508,7 +506,7 @@ sequenceDiagram
 3. Participant created → trigger UC-16 (ticket + newsletter + sync)
 
 **Collections**: `orders` (read+delete), `events` (read), `memberships` (create/update), `participants_event` (create), `purchases` (create).  
-**External**: PayPal, (indiretto via trigger: MailerSend, Pass2U, MailerLite, Sender, Genderize).
+**External**: PayPal, (indiretto via trigger: MailerSend, Pass2U, Sender, Genderize).
 
 ---
 
@@ -659,23 +657,30 @@ flowchart TD
     Action -->|Send ticket| Ticket[POST /send_ticket]
     Action -->|Omaggio| Omaggio[POST /send_omaggio_emails]
 
-    Create --> Validate[validate age, email]
-    Validate --> HasMembership{membership_included?}
-    HasMembership -->|Sì| LookupMembership[lookup by email/phone]
-    LookupMembership --> ExistsActive{Esiste attiva?}
+    Create --> Validate[validate age, email, payment_method]
+    Validate --> ExplicitMembership{membership_id presente?}
+    ExplicitMembership -->|Sì| LinkExplicit[usa membership_id esplicito]
+    ExplicitMembership -->|No| AutoLookup[lookup membership via email/phone]
+    AutoLookup --> IncludeMembership{membership_included?}
+    IncludeMembership -->|No| CreateParticipant[create participants_event]
+    IncludeMembership -->|Sì| ExistsActive{membership attiva?}
     ExistsActive -->|Sì| Conflict[❌ ConflictError]
     ExistsActive -->|No, esiste inattiva| Renew[append renewal]
-    ExistsActive -->|No, nuova| NewMemb[create Membership]
-    NewMemb -.trigger.-> OnMembCreated[on_membership_created]
+    ExistsActive -->|No, assente| NewMemb[create Membership]
+    LinkExplicit --> CreateParticipant
     Renew --> CreateParticipant
-    HasMembership -->|No| CreateParticipant[create participants_event]
+    NewMemb -.trigger.-> OnMembCreated[on_membership_created]
+    NewMemb --> CreateParticipant
     CreateParticipant -.trigger.-> OnPartCreated[on_participant_created]
     OnPartCreated --> End([201])
 
-    Update --> UpdateDoc[update participant]
+    Update --> OverrideCheck{membership_id nel payload?}
+    OverrideCheck -->|Sì| ManualOverride[set/clear membership reference]
+    OverrideCheck -->|No| UpdateDoc[update participant]
+    ManualOverride --> DoneUpdate[200]
     UpdateDoc --> EmailChanged{email cambiata?}
-    EmailChanged -->|Sì| Relink[re-link membership]
-    EmailChanged -->|No| DoneUpdate[200]
+    EmailChanged -->|Sì| Relink[re-link membership via email]
+    EmailChanged -->|No| DoneUpdate
     Relink --> DoneUpdate
 
     Ticket --> GenPDF[TicketService<br/>generate PDF + Storage]
@@ -683,10 +688,17 @@ flowchart TD
     SendMail --> MarkSent[ticket_sent=true]
     MarkSent --> End
 
-    Omaggio --> FilterOmaggio[where payment_method=omaggio<br/>AND ticket_sent=false]
-    FilterOmaggio --> LoopOmaggio[per ciascuno: Ticket flow]
+    Omaggio --> FilterOmaggio[where payment_method=omaggio]
+    FilterOmaggio --> LoopOmaggio[per ciascuno: email omaggio dedicata]
     LoopOmaggio --> End
 ```
+
+Note importanti:
+
+- `membership_included=true` significa "in questo flusso devo includere o attivare il tesseramento".
+- Se `membership_id` non viene passato, il backend prova comunque un lookup implicito per email o telefono.
+- Se il lookup trova una membership e `membership_included=false`, il partecipante viene comunque associato al socio esistente.
+- Di conseguenza `membership_included` nel documento partecipante descrive di fatto anche la presenza di un collegamento membership, non solo una vendita membership nello stesso endpoint.
 
 ---
 
@@ -758,7 +770,7 @@ stateDiagram-v2
     note right of Active
         Partecipa a eventi
         Valid per QR entrance
-        Sync su MailerLite/Sender
+        Sync su Sender
     end note
 
     note right of Invalidated
@@ -772,8 +784,7 @@ flowchart LR
     Create[create_membership] -.trigger.-> MC[on_membership_created]
     MC --> P2U[Pass2U create_pass]
     P2U --> Card[send card email]
-    Card --> MLSync[MailerLite upsert]
-    MLSync --> SnSync[Sender.net upsert + group]
+    Card --> SnSync[Sender.net upsert + group Memberships]
 
     Update[update_membership] --> Fields[update fields]
 
@@ -948,15 +959,13 @@ flowchart TD
     J --> K[participant.ticket_sent=true]
     G -->|false| K
     K --> L{newsletter_consent?}
-    L -->|true| M[MailerLite: sync_newsletter_consent]
-    M --> N["Sender.net: sync_participant<br/>+ group Participant-(event)"]
+    L -->|true| M["Sender.net: sync_participant<br/>+ Newsletter + Participant-(event)"]
     L -->|false| End
-    N --> End([Done])
+    M --> End([Done])
 
     style B fill:#ffe4b5
     style H fill:#e4f0ff
     style M fill:#fff4e4
-    style N fill:#fff4e4
 ```
 
 **Errori non bloccanti**: tutte le API esterne sono incapsulate in try/except, failure → `error_logs` + continue.
@@ -977,13 +986,12 @@ flowchart TD
     F -->|true| G[Build card email with wallet_url]
     G --> H[MailerSend send]
     H --> I[membership.membership_sent=true]
-    F -->|false| J
-    I --> J[MailerLite: sync_membership]
-    J --> K[Sender.net: sync_membership<br/>+ group Memberships]
+    F -->|false| J[skip email]
+    I --> K[Sender.net: sync_membership<br/>+ group Memberships]
+    J --> K
     K --> End([Done])
 
     style B fill:#e4f0ff
-    style J fill:#fff4e4
     style K fill:#fff4e4
 ```
 
@@ -1132,7 +1140,7 @@ sequenceDiagram
 
 ---
 
-### MailerLite & Sender.net — CRM/Email Marketing
+### Sender.net — CRM/Email Marketing
 
 ```mermaid
 flowchart LR
@@ -1144,21 +1152,11 @@ flowchart LR
     subgraph Webhooks
         D[sender_webhook]
     end
-    subgraph MailerLite
-        ML_API[MailerLite API]
-        ML_Subs[Subscribers]
-        ML_Fields[Custom Fields]
-    end
     subgraph Sender
         SN_API[Sender.net API]
         SN_Subs[Subscribers]
         SN_Groups["Dynamic Groups<br/>Participant-(event)"]
     end
-
-    A -->|sync_newsletter_consent| ML_API
-    B -->|sync_membership| ML_API
-    ML_API --> ML_Subs
-    ML_API --> ML_Fields
 
     A -->|sync_participant_to_sender| SN_API
     B -->|sync_membership_to_sender| SN_API

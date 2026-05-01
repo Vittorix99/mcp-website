@@ -7,16 +7,15 @@ from config.firebase_config import db
 
 logger = logging.getLogger("new_year_trigger")
 
-# Firestore batch limit
+# Limite operativo di Firestore: massimo 500 write per batch.
 _BATCH_SIZE = 500
 
 
 @scheduler_fn.on_schedule(schedule="0 0 1 1 *", timezone="Europe/Rome")
 def invalidate_memberships_new_year(event: scheduler_fn.ScheduledEvent) -> None:
     """
-    Runs at 00:00 on January 1st (Europe/Rome).
-    Imposta subscription_valid=False su tutte le tessere attive,
-    così i QR dell'anno precedente non sono più accettati allo scanner.
+    Gira ogni 1 gennaio a mezzanotte.
+    Invalida le tessere attive: da quel momento lo scanner rifiuta i QR dell'anno precedente.
     """
     logger.info("invalidate_memberships_new_year: avvio invalidazione tessere")
 
@@ -31,6 +30,7 @@ def invalidate_memberships_new_year(event: scheduler_fn.ScheduledEvent) -> None:
     total = 0
 
     for doc in docs:
+        # Non cancelliamo la membership: la rendiamo non valida finche' non viene rinnovata.
         batch.update(doc.reference, {"subscription_valid": False})
         count += 1
         total += 1

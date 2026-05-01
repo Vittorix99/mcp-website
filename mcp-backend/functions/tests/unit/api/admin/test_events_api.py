@@ -1,6 +1,7 @@
 import types
 
 from api.admin import events_api
+from dto.event_api import EventActionResponseDTO
 from errors.service_errors import ConflictError, NotFoundError, ServiceError, ValidationError
 from tests.utils import DummyRequest, unwrap_response
 
@@ -9,7 +10,7 @@ def test_admin_create_event_happy_path(monkeypatch):
     monkeypatch.setattr(
         events_api,
         "events_service",
-        types.SimpleNamespace(create_event=lambda dto, admin_uid: {"eventId": "evt-1"}),
+        types.SimpleNamespace(create_event=lambda dto, admin_uid: EventActionResponseDTO(message="ok", event_id="evt-1")),
     )
     req = DummyRequest(
         method="POST",
@@ -30,7 +31,7 @@ def test_admin_create_event_missing_body():
     req = DummyRequest(method="POST", json=None)
     resp, status = unwrap_response(events_api.admin_create_event(req))
     assert status == 400
-    assert resp["error"] == "Missing request body"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_admin_create_event_validation_error():
@@ -40,7 +41,7 @@ def test_admin_create_event_validation_error():
     )
     resp, status = unwrap_response(events_api.admin_create_event(req))
     assert status == 400
-    assert resp["error"] == "validation_error"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_admin_create_event_service_error(monkeypatch):
@@ -83,7 +84,7 @@ def test_admin_update_event_missing_id():
     )
     resp, status = unwrap_response(events_api.admin_update_event(req))
     assert status == 400
-    assert resp["error"] == "validation_error"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_admin_update_event_not_found(monkeypatch):
@@ -114,14 +115,14 @@ def test_admin_get_event_by_id_missing():
     req = DummyRequest(method="GET", args={})
     resp, status = unwrap_response(events_api.admin_get_event_by_id(req))
     assert status == 400
-    assert resp["error"] == "Missing event ID or slug"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_admin_get_all_events_happy_path(monkeypatch):
     monkeypatch.setattr(
         events_api,
         "events_service",
-        types.SimpleNamespace(get_all_events=lambda: [{"id": "evt-1"}]),
+        types.SimpleNamespace(get_all_events=lambda: [types.SimpleNamespace(to_payload=lambda: {"id": "evt-1"})]),
     )
     req = DummyRequest(method="GET")
     resp, status = unwrap_response(events_api.admin_get_all_events(req))

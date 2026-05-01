@@ -17,9 +17,9 @@ def test_event_payment_service_create_order_public(paypal_env, create_event, par
     order_id = result.get("id")
     assert order_id
 
-    stored = order_repository.get(order_id)
+    stored = order_repository.get_model(order_id)
     assert stored is not None
-    assert stored.get("eventId") == event_id
+    assert stored.event_id == event_id
 
     order_repository.delete(order_id)
 
@@ -41,10 +41,10 @@ def test_event_payment_service_only_members_creates_targets(
     order_id = result.get("id")
     assert order_id
 
-    stored = order_repository.get(order_id)
+    stored = order_repository.get_model(order_id)
     assert stored is not None
-    assert stored.get("membershipFee") == ensure_membership_fee
-    targets = stored.get("membershipTargets") or []
+    assert stored.membership_fee == ensure_membership_fee
+    targets = stored.membership_targets or []
     assert len(targets) == 1
 
     order_repository.delete(order_id)
@@ -78,9 +78,9 @@ def test_event_payment_service_only_registered_members_accepts_member(
     order_id = result.get("id")
     assert order_id
 
-    stored = order_repository.get(order_id)
+    stored = order_repository.get_model(order_id)
     assert stored is not None
-    lookup = stored.get("membershipLookup") or {}
+    lookup = stored.membership_lookup or {}
     assert participant.email in lookup
 
     order_repository.delete(order_id)

@@ -1383,7 +1383,7 @@ export default function EventContent({ id: eventId }) {
               birthdate: member.birthdate || f.birthdate,
               membership_id: member.id,
               membershipId: member.id,
-              membership_included: true,
+              membership_included: false,
             }))
           }}
         />

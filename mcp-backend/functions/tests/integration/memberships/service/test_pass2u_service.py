@@ -10,7 +10,7 @@ import pytest
 
 from config.firebase_config import db
 from models import Membership, MembershipPassResult
-from routes.pass2u_routes import Pass2UApiResult
+from clients.pass2u_client import Pass2UApiResult
 from services.memberships.pass2u_service import Pass2UService
 
 
@@ -88,7 +88,7 @@ def test_create_membership_pass_success(service, membership):
     """Returns a MembershipPassResult with correct pass_id and wallet_url."""
     pass_id = f"pass_{uuid4().hex[:8]}"
 
-    with patch("routes.pass2u_routes.Pass2URoutes.create_pass", return_value=_ok_result(pass_id)):
+    with patch("clients.pass2u_client.Pass2URoutes.create_pass", return_value=_ok_result(pass_id)):
         result = service.create_membership_pass("mem_001", membership)
 
     assert result is not None
@@ -107,7 +107,7 @@ def test_create_membership_pass_passes_correct_model_id(service, membership):
         captured["model_id"] = model_id
         return _ok_result(pass_id)
 
-    with patch("routes.pass2u_routes.Pass2URoutes.create_pass", side_effect=_mock_create):
+    with patch("clients.pass2u_client.Pass2URoutes.create_pass", side_effect=_mock_create):
         service.create_membership_pass("mem_model", membership)
 
     assert captured["model_id"] == _MODEL_ID
@@ -123,7 +123,7 @@ def test_create_membership_pass_payload_structure(service, membership):
         captured_body.update(body)
         return _ok_result(pass_id)
 
-    with patch("routes.pass2u_routes.Pass2URoutes.create_pass", side_effect=_mock_create):
+    with patch("clients.pass2u_client.Pass2URoutes.create_pass", side_effect=_mock_create):
         service.create_membership_pass("mem_payload", membership)
 
     assert captured_body["barcode"]["message"] == "mem_payload"
@@ -140,7 +140,7 @@ def test_create_membership_pass_payload_structure(service, membership):
 @pytest.mark.integration
 def test_create_membership_pass_409_returns_none(service, membership):
     """Returns None (non-blocking) when Pass2U responds 409 (pass already exists)."""
-    with patch("routes.pass2u_routes.Pass2URoutes.create_pass", return_value=_err_result(409)):
+    with patch("clients.pass2u_client.Pass2URoutes.create_pass", return_value=_err_result(409)):
         result = service.create_membership_pass("mem_409", membership)
 
     assert result is None
@@ -150,7 +150,7 @@ def test_create_membership_pass_409_returns_none(service, membership):
 def test_create_membership_pass_http_error_returns_none(service, membership):
     """Returns None (non-blocking) on 4xx/5xx HTTP errors."""
     for status in (400, 422, 500, 503):
-        with patch("routes.pass2u_routes.Pass2URoutes.create_pass", return_value=_err_result(status)):
+        with patch("clients.pass2u_client.Pass2URoutes.create_pass", return_value=_err_result(status)):
             result = service.create_membership_pass(f"mem_{status}", membership)
         assert result is None, f"Expected None for status {status}"
 
@@ -160,7 +160,7 @@ def test_create_membership_pass_missing_pass_id_returns_none(service, membership
     """Returns None when Pass2U 200 response does not include passId."""
     ok_no_id = Pass2UApiResult(status_code=200, payload={"unexpected": "data"})
 
-    with patch("routes.pass2u_routes.Pass2URoutes.create_pass", return_value=ok_no_id):
+    with patch("clients.pass2u_client.Pass2URoutes.create_pass", return_value=ok_no_id):
         result = service.create_membership_pass("mem_noid", membership)
 
     assert result is None
@@ -169,7 +169,7 @@ def test_create_membership_pass_missing_pass_id_returns_none(service, membership
 @pytest.mark.integration
 def test_create_membership_pass_exception_returns_none(service, membership):
     """Returns None when Pass2URoutes raises an unexpected exception."""
-    with patch("routes.pass2u_routes.Pass2URoutes.create_pass", side_effect=RuntimeError("boom")):
+    with patch("clients.pass2u_client.Pass2URoutes.create_pass", side_effect=RuntimeError("boom")):
         result = service.create_membership_pass("mem_exc", membership)
 
     assert result is None
@@ -180,7 +180,7 @@ def test_create_membership_pass_exception_returns_none(service, membership):
 @pytest.mark.integration
 def test_invalidate_membership_pass_success(service):
     """Returns True on successful invalidation."""
-    with patch("routes.pass2u_routes.Pass2URoutes.invalidate_pass",
+    with patch("clients.pass2u_client.Pass2URoutes.invalidate_pass",
                return_value=Pass2UApiResult(status_code=200, payload={})):
         result = service.invalidate_membership_pass("pass_abc")
 
@@ -190,7 +190,7 @@ def test_invalidate_membership_pass_success(service):
 @pytest.mark.integration
 def test_invalidate_membership_pass_204_success(service):
     """Returns True for 204 No Content (also a success status)."""
-    with patch("routes.pass2u_routes.Pass2URoutes.invalidate_pass",
+    with patch("clients.pass2u_client.Pass2URoutes.invalidate_pass",
                return_value=Pass2UApiResult(status_code=204, payload=None)):
         result = service.invalidate_membership_pass("pass_204")
 
@@ -200,7 +200,7 @@ def test_invalidate_membership_pass_204_success(service):
 @pytest.mark.integration
 def test_invalidate_membership_pass_404_returns_true(service):
     """Returns True when pass not found on Pass2U (already deleted — idempotent)."""
-    with patch("routes.pass2u_routes.Pass2URoutes.invalidate_pass",
+    with patch("clients.pass2u_client.Pass2URoutes.invalidate_pass",
                return_value=_err_result(404, "Not Found")):
         result = service.invalidate_membership_pass("pass_gone")
 
@@ -210,7 +210,7 @@ def test_invalidate_membership_pass_404_returns_true(service):
 @pytest.mark.integration
 def test_invalidate_membership_pass_server_error_returns_false(service):
     """Returns False on HTTP 5xx error."""
-    with patch("routes.pass2u_routes.Pass2URoutes.invalidate_pass",
+    with patch("clients.pass2u_client.Pass2URoutes.invalidate_pass",
                return_value=_err_result(500, "Internal Server Error")):
         result = service.invalidate_membership_pass("pass_err")
 
@@ -220,7 +220,7 @@ def test_invalidate_membership_pass_server_error_returns_false(service):
 @pytest.mark.integration
 def test_invalidate_membership_pass_exception_returns_false(service):
     """Returns False (non-blocking) when Pass2URoutes raises an exception."""
-    with patch("routes.pass2u_routes.Pass2URoutes.invalidate_pass",
+    with patch("clients.pass2u_client.Pass2URoutes.invalidate_pass",
                side_effect=ConnectionError("timeout")):
         result = service.invalidate_membership_pass("pass_timeout")
 
@@ -236,7 +236,7 @@ def test_invalidate_membership_pass_passes_correct_pass_id(service):
         captured["pass_id"] = pass_id
         return Pass2UApiResult(status_code=200, payload={})
 
-    with patch("routes.pass2u_routes.Pass2URoutes.invalidate_pass", side_effect=_mock_invalidate):
+    with patch("clients.pass2u_client.Pass2URoutes.invalidate_pass", side_effect=_mock_invalidate):
         service.invalidate_membership_pass("pass_specific_123")
 
     assert captured["pass_id"] == "pass_specific_123"

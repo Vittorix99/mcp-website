@@ -231,7 +231,7 @@ def test_renewal_flow_end_to_end_with_email(
     # ------------------------------------------------------------------
     # Step 1: verifica stato iniziale — la membership è dell'anno scorso
     # ------------------------------------------------------------------
-    initial = membership_repository.get_model(membership_id)
+    initial = membership_repository.get(membership_id)
     assert initial is not None
     initial_start = datetime.fromisoformat(initial.start_date.replace("Z", "+00:00"))
     assert initial_start.year < curr_year, "Prerequisito: la membership deve essere dell'anno precedente"
@@ -293,7 +293,7 @@ def test_renewal_flow_end_to_end_with_email(
     # Step 4: verifica rinnovo + invio tessera su Firestore
     #   membership_sent deve essere già True: send_card è chiamata dentro capture
     # ------------------------------------------------------------------
-    final = membership_repository.get_model(membership_id)
+    final = membership_repository.get(membership_id)
     assert final is not None
 
     final_start = datetime.fromisoformat(final.start_date.replace("Z", "+00:00"))
