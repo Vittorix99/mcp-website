@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from domain.event_rules import parse_event_date
+from domain.event_rules import EVENT_TIMEZONE, get_event_start_datetime, is_event_finished
 from dto.event_api import (
     AdminEventEnvelopeResponseDTO,
     AdminEventResponseDTO,
@@ -14,6 +14,7 @@ from dto.event_api import (
 )
 from errors.service_errors import NotFoundError
 from interfaces.repositories import EventRepositoryProtocol, ParticipantRepositoryProtocol
+from models import EventStatus
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
 from mappers.event_mappers import (
@@ -91,13 +92,15 @@ class EventsService:
         return [event_to_public_response(model) for model in self.event_repository.stream_models()]
 
     def list_upcoming_events(self, limit: int = 5) -> List[PublicEventResponseDTO]:
-        today = datetime.now().date()
+        now = datetime.now(EVENT_TIMEZONE)
         upcoming = []
         for model in self.event_repository.stream_models():
-            event_date = parse_event_date(model.date)
-            if not event_date or event_date < today:
+            if model.status == EventStatus.ENDED:
                 continue
-            upcoming.append((event_date, model))
+            start_dt = get_event_start_datetime(model, tzinfo=now.tzinfo)
+            if not start_dt or is_event_finished(model, now=now):
+                continue
+            upcoming.append((start_dt, model))
 
         upcoming.sort(key=lambda item: item[0])
         if limit:

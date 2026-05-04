@@ -58,7 +58,7 @@ from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
 from services.core.error_logs_service import log_external_error
 from services.memberships.renewal_command import RenewMembershipCommand
-from utils.events_utils import calculate_end_of_year, normalize_email, normalize_phone
+from utils.events_utils import calculate_end_of_year, ensure_event_is_active, normalize_email, normalize_phone
 
 
 logger = logging.getLogger("EventPaymentService")
@@ -323,6 +323,8 @@ class EventPaymentService:
         event_id = stored_order.event_id
         if not event_id:
             raise ValidationError("Missing event_id in stored order")
+        # Anche se l'ordine PayPal era stato creato prima, non catturiamo pagamenti dopo fine evento.
+        ensure_event_is_active(self._resolve_event_model(event_id, None))
 
         participants = self._participants_from_payload(stored_order.participants or [])
         membership_targets = self._participants_from_payload(stored_order.membership_targets or [])

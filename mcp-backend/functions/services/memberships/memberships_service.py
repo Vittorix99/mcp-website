@@ -101,6 +101,23 @@ class MembershipsService:
     ) -> tuple[list[dict], list[int]]:
         # Il service compone la storia dei rinnovi; il repository si limita a persistere il model finale.
         renewals = list(existing.renewals or [])
+        if not renewals:
+            # Documenti legacy: prima del refactor renewal alcuni membri avevano
+            # solo start_date/end_date e nessuna voce nello storico. Prima di
+            # sovrascrivere start_date con il rinnovo nuovo, fissiamo il primo
+            # anno di iscrizione nello storico per non far sparire il socio dal
+            # filtro dell'anno originale.
+            existing_year = parse_membership_year(existing.start_date, existing.end_date)
+            if existing_year:
+                renewals.append(
+                    build_renewal_record(
+                        start_date=existing.start_date,
+                        end_date=existing.end_date,
+                        purchase_id=existing.purchase_id,
+                        fee=existing.membership_fee,
+                        year=existing_year,
+                    )
+                )
         renewals.append(
             build_renewal_record(
                 start_date=new_start_date,
@@ -114,7 +131,12 @@ class MembershipsService:
             fallback_start_date=new_start_date,
             fallback_end_date=new_end_date,
         )
-        return renewals, years
+        for value in existing.membership_years or []:
+            try:
+                years.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        return renewals, sorted(set(years))
 
     def renew_existing(
         self,
@@ -205,7 +227,8 @@ class MembershipsService:
 
     def get_all(self, year: int = None) -> list[MembershipResponseDTO]:
         if year:
-            memberships = self.membership_repository.find_by_year(year)
+            # membership_years è l'indice canonico degli anni associativi.
+            memberships = self.membership_repository.find_by_year(int(year))
         else:
             memberships = self.membership_repository.list()
         return [membership_to_response(membership) for membership in memberships]
@@ -392,20 +415,20 @@ class MembershipsService:
         if membership.wallet_pass_id:
             try:
                 self.pass2u_service.invalidate_membership_pass(membership.wallet_pass_id)
-                print(f"[Pass2U] Wallet pass {membership.wallet_pass_id} invalidato")
+                self.logger.info("[delete] Wallet pass %s invalidato", membership.wallet_pass_id)
             except Exception as e:
-                print(f"[Pass2U] Invalidazione wallet pass fallita (non bloccante): {e}")
+                self.logger.warning("[delete] Invalidazione wallet pass fallita (non bloccante): %s", e)
 
         storage_path = membership.card_storage_path
         if storage_path and self.storage is not None:
             blob = self.storage.blob(storage_path)
             if blob.exists():
                 blob.delete()
-                print(f"Tessera rimossa dallo storage: {storage_path}")
+                self.logger.info("[delete] Tessera rimossa dallo storage: %s", storage_path)
 
         removed = self.participant_repository.clear_membership_reference(membership_id)
         if removed:
-            print(f"Rimosso membershipId da {removed} partecipanti")
+            self.logger.info("[delete] Rimosso membershipId da %d partecipanti", removed)
 
         self.membership_repository.delete(membership_id)
         return MembershipActionResponseDTO(message="Membership eliminata e tessera rimossa", id=membership_id)

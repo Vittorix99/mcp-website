@@ -9,6 +9,7 @@ from errors.service_errors import ConflictError, ExternalServiceError, NotFoundE
 from models import Event, Membership, MembershipPassResult, Purchase, PurchaseTypes
 from services.memberships.memberships_service import MembershipsService
 from services.memberships.renewal_command import RenewMembershipCommand
+from domain.membership_rules import membership_matches_year
 
 
 class _DummyMembershipRepo:
@@ -256,6 +257,29 @@ def test_get_by_id_not_found():
         service.get_by_id("missing")
 
 
+def test_get_all_year_uses_membership_years_as_canonical_index():
+    service = _make_service()
+    both_years = Membership(
+        id="mem-both",
+        name="Mario",
+        start_date="2026-02-01T10:00:00+00:00",
+        end_date="31-12-2026",
+        membership_years=[2025, 2026],
+    )
+    only_current = Membership(
+        id="mem-current",
+        name="Luigi",
+        start_date="2025-02-01T10:00:00+00:00",
+        end_date="31-12-2025",
+        membership_years=[2026],
+    )
+    service.membership_repository._all = [both_years, only_current]
+
+    response = service.get_all(year=2025)
+
+    assert [item.id for item in response] == ["mem-both"]
+
+
 def test_create_rejects_minor():
     service = _make_service()
     dto = _create_dto(birthdate="01-01-2015")
@@ -386,6 +410,33 @@ def test_renew_existing_updates_history_years_purchase_and_current_state():
         "fee": 20.0,
     }
     assert service.membership_repository.models[member.id] is renewed
+
+
+def test_renew_existing_preserves_legacy_first_year_without_renewals():
+    service = _make_service()
+    prev_year = datetime.now(timezone.utc).year - 1
+    curr_year = datetime.now(timezone.utc).year
+    member = _previous_year_member(
+        renewals=[],
+        membership_years=[prev_year],
+        purchase_id="pur-old",
+        purchases=["pur-old"],
+        membership_fee=10.0,
+    )
+
+    renewed = service.renew_existing(member, _renew_command())
+
+    assert renewed.membership_years == [prev_year, curr_year]
+    assert membership_matches_year(renewed, prev_year) is True
+    assert membership_matches_year(renewed, curr_year) is True
+    assert renewed.renewals[0] == {
+        "year": prev_year,
+        "start_date": f"{prev_year}-06-01T10:00:00+00:00",
+        "end_date": f"31-12-{prev_year}",
+        "purchase_id": "pur-old",
+        "fee": 10.0,
+    }
+    assert renewed.renewals[-1]["year"] == curr_year
 
 
 def test_renew_existing_invalidates_old_wallet_without_creating_new_one():

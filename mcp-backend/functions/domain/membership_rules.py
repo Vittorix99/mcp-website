@@ -32,21 +32,42 @@ def resolve_membership_contact_conflict(
     return None
 
 
+def parse_year_from_value(value: Any) -> Optional[int]:
+    """Estrae un anno da ISO string, date `gg-mm-aaaa` o timestamp Firestore."""
+    if value is None:
+        return None
+
+    if hasattr(value, "to_datetime"):
+        try:
+            return value.to_datetime().year
+        except Exception:
+            return None
+
+    if hasattr(value, "year") and not isinstance(value, str):
+        try:
+            return int(value.year)
+        except Exception:
+            return None
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    for parser in (
+        lambda item: datetime.fromisoformat(item.replace("Z", "+00:00")),
+        lambda item: datetime.strptime(item, "%d-%m-%Y"),
+        lambda item: datetime.strptime(item, "%Y-%m-%d"),
+    ):
+        try:
+            return parser(raw).year
+        except Exception:
+            continue
+    return None
+
+
 def parse_membership_year(start_date: Optional[str], end_date: Optional[str] = None) -> Optional[int]:
     """Ricava l'anno associativo dalle date salvate sul model membership."""
-    if start_date:
-        try:
-            return datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).year
-        except Exception:
-            pass
-
-    if end_date:
-        try:
-            parsed = datetime.strptime(str(end_date), "%d-%m-%Y")
-            return parsed.year
-        except Exception:
-            pass
-    return None
+    return parse_year_from_value(start_date) or parse_year_from_value(end_date)
 
 
 def build_renewal_record(
@@ -120,6 +141,22 @@ def membership_years_from_renewals(
         if fallback_year:
             years.add(fallback_year)
     return sorted(years)
+
+
+def membership_matches_year(membership: Membership, year: int) -> bool:
+    """Verifica l'appartenenza annuale usando solo l'indice canonico membership_years."""
+    try:
+        target_year = int(year)
+    except (TypeError, ValueError):
+        return False
+
+    for value in membership.membership_years or []:
+        try:
+            if int(value) == target_year:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
 
 
 def is_membership_renewable(membership: Membership, now: Optional[datetime] = None) -> bool:

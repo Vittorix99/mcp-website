@@ -1,4 +1,5 @@
 import json
+import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -418,7 +419,9 @@ def test_capture_order_event_order_not_found(monkeypatch):
 def test_capture_order_event_happy_path(monkeypatch):
     """Captures order, creates purchase, handles memberships, and clears staging."""
     service = _make_service()
-    event = Event(title="Test", date="13-02-2026")
+    future_date = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%d-%m-%Y")
+    event = Event(title="Test", date=future_date, start_time="23:00", end_time="05:00")
+    service.event_repository = _DummyEventRepo(model=event)
     participants = [_participant().to_payload()]
     membership_targets = [_participant(name="Luigi").to_payload()]
     event_order = EventOrder(

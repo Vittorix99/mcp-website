@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Protocol, Set, Tuple, Union
 import requests
 
 from config.external_services import GENDER_API_URL
+from domain.membership_rules import membership_matches_year
 from interfaces.repositories import MembershipRepositoryProtocol, ParticipantRepositoryProtocol
 from models import Event, Membership
 from repositories.membership_repository import MembershipRepository
@@ -70,33 +71,8 @@ def _get_gender_cached(name: str):
 def _is_valid_member(member: Membership, today: Optional[datetime] = None) -> bool:
     if today is None:
         today = datetime.now(timezone.utc)
-    current_year = today.year
-
-    # Primary check: membership_years is the authoritative list of valid years.
-    # A member is valid only if the current year is explicitly in that list.
-    if member.membership_years:
-        return current_year in [int(y) for y in member.membership_years]
-
-    # Legacy fallback for members without membership_years yet.
-    start_date_s = member.start_date
-    if start_date_s:
-        try:
-            start_dt = datetime.fromisoformat(str(start_date_s).replace("Z", "+00:00"))
-            if start_dt.year < current_year:
-                return False
-        except Exception:
-            pass
-    if member.subscription_valid:
-        return True
-    end_date_s = member.end_date
-    if end_date_s:
-        try:
-            end_dt = datetime.strptime(end_date_s, "%d-%m-%Y").replace(tzinfo=timezone.utc)
-            if end_dt >= today:
-                return True
-        except Exception:
-            return False
-    return False
+    # membership_years è l'unica fonte canonica: le date descrivono solo la tessera corrente.
+    return membership_matches_year(member, today.year)
 
 
 def _resolve_event_flags(event: object) -> Tuple[bool, bool, bool]:

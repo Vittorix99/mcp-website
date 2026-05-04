@@ -78,9 +78,6 @@ class EventRepositoryProtocol(Protocol):
 
 
 class MembershipRepositoryProtocol(Protocol):
-    def get_all(self) -> List[Membership]:
-        ...
-
     def get(self, membership_id: str) -> Optional[Membership]:
         ...
 

@@ -4,8 +4,9 @@ import pytest
 from firebase_admin import firestore
 from pydantic import ValidationError as PydanticValidationError
 
+from domain.event_rules import EVENT_TIMEZONE
 from dto.event_api import CreateEventRequestDTO, UpdateEventRequestDTO
-from models import Event
+from models import Event, EventStatus
 from services.events.events_service import EventsService
 from errors.service_errors import NotFoundError
 
@@ -172,15 +173,16 @@ def test_list_public_events_respects_view():
 
 def test_list_upcoming_events_filters_and_sorts():
     service = _make_service()
-    today = datetime.datetime.now().date()
+    now = datetime.datetime.now(EVENT_TIMEZONE)
+    today = now.date()
     yesterday = today - datetime.timedelta(days=1)
     tomorrow = today + datetime.timedelta(days=1)
 
-    event_today = Event(title="Today", date=today.strftime("%d-%m-%Y"))
+    event_today = Event(title="Today", date=today.strftime("%d-%m-%Y"), start_time="00:00", end_time="23:59")
     event_today.id = "evt-today"
-    event_tomorrow = Event(title="Tomorrow", date=tomorrow.strftime("%d-%m-%Y"))
+    event_tomorrow = Event(title="Tomorrow", date=tomorrow.strftime("%d-%m-%Y"), start_time="20:00", end_time="23:00")
     event_tomorrow.id = "evt-tomorrow"
-    event_yesterday = Event(title="Yesterday", date=yesterday.strftime("%d-%m-%Y"))
+    event_yesterday = Event(title="Yesterday", date=yesterday.strftime("%d-%m-%Y"), start_time="20:00", end_time="23:00")
     event_yesterday.id = "evt-yesterday"
 
     service.event_repository._stream = [event_tomorrow, event_yesterday, event_today]
@@ -193,14 +195,58 @@ def test_list_upcoming_events_filters_and_sorts():
 
 def test_get_next_public_event_returns_future_events():
     service = _make_service()
-    today = datetime.datetime.now().date()
+    now = datetime.datetime.now(EVENT_TIMEZONE)
+    today = now.date()
     tomorrow = today + datetime.timedelta(days=1)
 
-    event_today = Event(title="Today", date=today.strftime("%d-%m-%Y"))
-    event_tomorrow = Event(title="Tomorrow", date=tomorrow.strftime("%d-%m-%Y"))
+    event_today = Event(
+        title="Today",
+        date=today.strftime("%d-%m-%Y"),
+        start_time="00:00",
+        end_time="23:59",
+    )
+    event_tomorrow = Event(title="Tomorrow", date=tomorrow.strftime("%d-%m-%Y"), start_time="20:00", end_time="23:00")
 
     service.event_repository._stream = [event_tomorrow, event_today]
 
     payload = service.get_next_public_event()
 
     assert [event.title for event in payload] == ["Today", "Tomorrow"]
+
+
+def test_list_upcoming_events_excludes_manually_ended_events():
+    service = _make_service()
+    tomorrow = datetime.datetime.now(EVENT_TIMEZONE).date() + datetime.timedelta(days=1)
+    ended = Event(
+        title="Ended",
+        date=tomorrow.strftime("%d-%m-%Y"),
+        start_time="20:00",
+        end_time="23:00",
+        status=EventStatus.ENDED,
+    )
+    active = Event(
+        title="Active",
+        date=tomorrow.strftime("%d-%m-%Y"),
+        start_time="21:00",
+        end_time="23:00",
+    )
+    service.event_repository._stream = [ended, active]
+
+    payload = service.list_upcoming_events(limit=0)
+
+    assert [event.title for event in payload] == ["Active"]
+
+
+def test_public_event_response_marks_temporally_finished_event_as_ended():
+    service = _make_service()
+    event = Event(
+        title="Past",
+        date="21-02-2026",
+        start_time="23:00",
+        end_time="05:00",
+    )
+    service.event_repository.models["evt-past"] = event
+
+    payload = service.get_public_event_by_id(event_id="evt-past")
+
+    assert payload.status == EventStatus.ENDED

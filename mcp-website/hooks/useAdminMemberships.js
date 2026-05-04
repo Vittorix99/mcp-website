@@ -326,7 +326,6 @@ export function useAdminMemberships(options = {}) {
       if (res?.error) {
         setError(res.error);
       } else {
-        //await loadAll();
         await getMembershipPriceForYear(year); // 🔁 Ricarica anche il prezzo
       }
     } catch (e) {
@@ -335,7 +334,7 @@ export function useAdminMemberships(options = {}) {
     } finally {
       setLoading(false);
     }
-  }, [loadAll, setError, getMembershipPriceForYear, hasEnvMembershipPrice]);
+  }, [setError, getMembershipPriceForYear, hasEnvMembershipPrice]);
 
 
 

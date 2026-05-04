@@ -244,21 +244,6 @@ export default function MembershipsPage() {
     XLSX.writeFile(wb, "membri_onorari.xlsx")
   }
 
-  const parseMembershipDate = (value) => {
-    if (!value) return null
-    const raw = String(value).trim()
-    if (!raw) return null
-
-    if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
-      const [day, month, year] = raw.split("-").map(Number)
-      const parsed = new Date(year, month - 1, day)
-      return Number.isNaN(parsed.getTime()) ? null : parsed
-    }
-
-    const parsed = new Date(raw)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
-  }
-
   const yearOptions = useMemo(() => {
     const currentYearNum = new Date().getFullYear()
     const years = []
@@ -306,7 +291,7 @@ export default function MembershipsPage() {
 
       return true
     })
-  }, [memberships, search, showOnlyNotSent, statusFilter, selectedYear])
+  }, [memberships, search, showOnlyNotSent, statusFilter])
 
   const sortedMembers = useMemo(() => {
     const list = [...filtered]
@@ -357,8 +342,8 @@ export default function MembershipsPage() {
 
   const totalTesseramenti = useMemo(() => {
     if (!membershipPrice || membershipPrice.year !== selectedYear) return 0
-    return memberships.length * membershipPrice.price
-  }, [memberships, membershipPrice, selectedYear])
+    return filtered.length * membershipPrice.price
+  }, [filtered.length, membershipPrice, selectedYear])
 
   const onSavePrice = async () => {
     if (isMembershipPriceReadOnly) return

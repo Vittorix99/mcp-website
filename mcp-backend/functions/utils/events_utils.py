@@ -4,6 +4,7 @@ import re
 from datetime import datetime as dt
 from typing import Any, Dict, Optional, Union
 
+from domain.event_rules import is_event_finished
 from models import Event, EventPurchaseAccessType
 
 # RFC-5322 semplificata (pragmatica): valida local-part comune e dominio con almeno un dot.
@@ -133,17 +134,21 @@ def validate_email_format(email: str) -> bool:
 
 def ensure_event_is_active(event_data: Union[Event, Dict[str, Any]]):
     """
-    Block purchases only when the event is explicitly marked as 'ended'.
-    All other statuses (active, sold_out, coming_soon) allow purchases.
+    Blocca gli acquisti se l'evento è terminato manualmente o temporalmente.
+    La chiusura temporale avviene all'end_time; se non è parsabile, 12h dopo lo start_time.
     """
     if isinstance(event_data, Event):
         status = event_data.status.value if event_data.status else "active"
+        event_model = event_data
     else:
         if not event_data:
             raise ValueError("Invalid or inactive event")
         status = str(event_data.get("status") or "active")
+        event_model = build_event_from_data(event_data)
 
     if status == "ended":
+        raise ValueError("Evento terminato: acquisti non consentiti")
+    if is_event_finished(event_model):
         raise ValueError("Evento terminato: acquisti non consentiti")
 
 

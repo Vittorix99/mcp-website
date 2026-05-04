@@ -8,7 +8,8 @@ from dto.event_api import (
     PublicEventResponseDTO,
     UpdateEventRequestDTO,
 )
-from models import Event
+from domain.event_rules import is_event_finished
+from models import Event, EventStatus
 
 
 def create_event_dto_to_model(dto: CreateEventRequestDTO, admin_uid: str) -> Event:
@@ -47,6 +48,7 @@ def apply_event_update_dto_to_model(event: Event, dto: UpdateEventRequestDTO, ad
 
 
 def event_to_admin_response(event: Event) -> AdminEventResponseDTO:
+    status = EventStatus.ENDED if is_event_finished(event) else event.status
     return AdminEventResponseDTO(
         id=event.id,
         title=event.title,
@@ -59,7 +61,7 @@ def event_to_admin_response(event: Event) -> AdminEventResponseDTO:
         price=event.price,
         fee=event.fee,
         max_participants=event.max_participants,
-        status=event.status,
+        status=status,
         image=event.image,
         lineup=event.lineup or [],
         note=event.note,
@@ -78,6 +80,7 @@ def event_to_admin_response(event: Event) -> AdminEventResponseDTO:
 
 
 def event_to_public_response(event: Event) -> PublicEventResponseDTO:
+    status = EventStatus.ENDED if is_event_finished(event) else event.status
     return PublicEventResponseDTO(
         id=event.id,
         slug=event.slug,
@@ -88,7 +91,7 @@ def event_to_public_response(event: Event) -> PublicEventResponseDTO:
         location_hint=event.location_hint,
         price=event.price,
         fee=event.fee,
-        status=event.status,
+        status=status,
         image=event.image,
         lineup=event.lineup or [],
         note=event.note,
@@ -101,4 +104,3 @@ def event_to_public_response(event: Event) -> PublicEventResponseDTO:
         created_at=event.created_at,
         updated_at=event.updated_at,
     )
-

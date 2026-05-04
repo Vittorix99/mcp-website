@@ -10,6 +10,30 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 
+const settingsListToMap = (items) => {
+  return items.reduce((acc, item) => {
+    if (!item?.key) return acc
+    acc[item.key] = item.value
+    return acc
+  }, {})
+}
+
+const normalizeSettingsPayload = (payload) => {
+  if (Array.isArray(payload?.settings)) {
+    return settingsListToMap(payload.settings)
+  }
+  if (payload?.settings && typeof payload.settings === "object") {
+    return payload.settings
+  }
+  return null
+}
+
+const settingValueToInput = (value) => {
+  if (value === null || value === undefined) return ""
+  if (typeof value === "object") return JSON.stringify(value)
+  return String(value)
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const [settings, setSettings] = useState(null)
@@ -20,10 +44,13 @@ export default function SettingsPage() {
       .then((res) => {
         if (res.error) {
           toast.error(`Errore: ${res.error}`)
-        } else if (res.settings && typeof res.settings === "object") {
-          setSettings(res.settings)
         } else {
-          toast.error("Formato risposta non valido")
+          const normalized = normalizeSettingsPayload(res)
+          if (normalized) {
+            setSettings(normalized)
+          } else {
+            toast.error("Formato risposta non valido")
+          }
         }
       })
       .catch(() => toast.error("Errore di rete"))
@@ -82,7 +109,7 @@ export default function SettingsPage() {
             ) : (
               <Input
                 className="flex-1"
-                value={String(value)}
+                value={settingValueToInput(value)}
                 onChange={(e) => handleValueChange(key, e.target.value)}
               />
             )}
