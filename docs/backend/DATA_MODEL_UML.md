@@ -1,0 +1,238 @@
+# Data Model UML
+
+Questo documento fotografa i model e le relazioni dati principali del backend.
+Le relazioni sono riferimenti applicativi tramite ID o subcollection Firestore,
+non foreign key enforceate dal database.
+
+```mermaid
+classDiagram
+  class Event {
+    id: str
+    title: str
+    slug: str
+    date: str
+    start_time: str
+    end_time: str
+    location: str
+    price: float
+    fee: float
+    max_participants: int
+    status: EventStatus
+    purchase_mode: EventPurchaseAccessType
+    participants_count: int
+    created_by: str
+    updated_by: str
+  }
+
+  class Membership {
+    id: str
+    name: str
+    surname: str
+    email: str
+    phone: str
+    birthdate: str
+    start_date: str
+    end_date: str
+    subscription_valid: bool
+    membership_type: str
+    purchase_id: str
+    purchases: str[]
+    attended_events: str[]
+    renewals: dict[]
+    membership_years: int[]
+    wallet_pass_id: str
+    wallet_url: str
+  }
+
+  class EventParticipant {
+    id: str
+    event_id: str
+    name: str
+    surname: str
+    email: str
+    phone: str
+    birthdate: str
+    membership_id: str
+    membership_included: bool
+    entered: bool
+    entered_at: datetime
+    ticket_pdf_url: str
+    payment_method: PaymentMethod
+    purchase_id: str
+    newsletter_consent: bool
+    created_at: datetime
+  }
+
+  class Purchase {
+    id: str
+    payer_name: str
+    payer_surname: str
+    payer_email: str
+    amount_total: str
+    currency: str
+    transaction_id: str
+    order_id: str
+    status: str
+    purchase_type: PurchaseTypes
+    ref_id: str
+    payment_method: str
+    capture_status: str
+  }
+
+  class EventPurchase {
+    id: str
+    event_id: str
+    event_purchase_type: EventPurchaseAccessType
+    participants_count: int
+    membership_ids: str[]
+  }
+
+  class EventOrder {
+    id: str
+    order_id: str
+    order_status: str
+    event_id: str
+    participants: dict[]
+    membership_targets: dict[]
+    membership_lookup: dict
+    purchase_id: str
+    captured: bool
+  }
+
+  class EntranceScan {
+    id: str
+    scanned_at: datetime
+    scan_token: str
+    manual: bool
+    operator: str
+  }
+
+  class ScanToken {
+    id: str
+    event_id: str
+    created_by: str
+    created_at: datetime
+    expires_at: datetime
+    is_active: bool
+  }
+
+  class Job {
+    id: str
+    type: str
+    event_id: str
+    status: str
+    address: str
+    link: str
+    total: int
+    sent: int
+    failed: int
+  }
+
+  class ContactMessage {
+    id: str
+    name: str
+    email: str
+    message: str
+    subject: str
+    answered: bool
+    participant_id: str
+    event_id: str
+  }
+
+  class Setting {
+    id: str
+    key: str
+    value: Any
+  }
+
+  class AdminUser {
+    id: str
+    email: str
+    display_name: str
+    created_at: datetime
+    created_by: str
+  }
+
+  class UserProfile {
+    id: str
+    is_admin: bool
+    role: str
+  }
+
+  class NewsletterSignup {
+    id: str
+    email: str
+    timestamp: datetime
+    active: bool
+    source: str
+  }
+
+  class NewsletterConsent {
+    id: str
+    email: str
+    event_id: str
+    participant_id: str
+    timestamp: datetime
+    source: str
+    active: bool
+  }
+
+  class NewsletterParticipant {
+    id: str
+    email: str
+    extra: dict
+    timestamp: datetime
+  }
+
+  Purchase <|-- EventPurchase
+
+  Event "1" --> "0..*" EventParticipant : participants/{eventId}/participants_event
+  Event "1" --> "0..*" EventPurchase : purchases.event_id / ref_id
+  Event "1" --> "0..*" EntranceScan : entrance_scans/{eventId}/scans
+  Event "1" --> "0..*" ScanToken : scan_tokens.event_id
+  Event "1" --> "0..*" Job : jobs.event_id
+  Event "1" --> "0..*" ContactMessage : contact_message.event_id
+
+  Membership "1" --> "0..*" EventParticipant : membership_id
+  Membership "1" --> "0..*" EntranceScan : scan doc id = membership_id
+  Membership "0..*" --> "0..*" EventPurchase : membership_ids[]
+  Membership "0..*" --> "0..*" Purchase : purchases[]
+  Membership "0..*" --> "0..*" Event : attended_events[]
+
+  EventOrder "1" --> "0..1" EventPurchase : purchase_id
+  EventOrder "1" --> "1" Event : event_id
+  EventParticipant "0..*" --> "0..1" Purchase : purchase_id
+  NewsletterConsent "0..*" --> "0..1" Event : event_id
+  NewsletterConsent "0..*" --> "0..1" EventParticipant : participant_id
+```
+
+## Firestore Paths
+
+```text
+events/{eventId}
+memberships/{membershipId}
+purchases/{purchaseId}
+orders/{orderId}
+participants/{eventId}/participants_event/{participantId}
+entrance_scans/{eventId}/scans/{membershipId}
+scan_tokens/{token}
+jobs/{jobId}
+contact_message/{messageId}
+settings/{key}
+membership_settings/price
+membership_settings/current_model
+admin_users/{adminId}
+users/{userId}
+newsletter_signups/{signupId}
+newsletter_consents/{consentId}
+newsletter_participants/{participantId}
+```
+
+## Bounded Context Candidati
+
+- `Events`: eventi, partecipanti, biglietti e logica di disponibilita.
+- `Memberships`: soci, rinnovi, anni membership e wallet pass.
+- `Payments`: ordini temporanei, acquisti completati e capture PayPal.
+- `Entrance`: token scanner e scansioni ingresso.
+- `Notifications`: job asincroni, invio location, ticket e messaggi operativi.
+- `Settings`: configurazioni amministrative e impostazioni membership.

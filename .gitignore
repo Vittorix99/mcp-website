@@ -62,7 +62,7 @@ node_modules/
 
 # Firebase project settings (optional: comment if shared across team)
 # .firebaserc
-
+CLAUDE.md
 # MCP-specific project folders
 mcp-website/node_modules/
 mcp-website/.next/

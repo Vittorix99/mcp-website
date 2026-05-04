@@ -1,8 +1,8 @@
 # MCP Backend — Documentazione Tecnica
 
-> **Stack**: Python · Firebase Cloud Functions · Firestore · Firebase Admin SDK  
+> **Stack**: Python · Pydantic · Firebase Cloud Functions · Firestore · Firebase Admin SDK  
 > **Regione**: `us-central1`  
-> **Aggiornata**: Aprile 2026
+> **Aggiornata**: Maggio 2026
 
 ---
 
@@ -37,11 +37,40 @@
 Questa codebase è leggibile se la si affronta nel verso giusto. Il backend non è organizzato per framework "magico", ma per layer abbastanza netti:
 
 1. `main.py` espone le Cloud Functions importando i moduli endpoint e trigger.
-2. `api/*` valida l'HTTP, legge il payload e delega.
-3. `services/*` contiene quasi tutta la business logic.
-4. `repositories/*` parla con Firestore.
-5. `domain/*` contiene regole pure riusabili nei flussi più complessi.
-6. `triggers/*` aggiunge side effect asincroni dopo la scrittura su Firestore.
+2. `api/*` espone HTTP, applica auth/decorator e valida input con DTO Pydantic.
+3. `dto/*` definisce contratti di request/response, tipizzati e validati.
+4. `services/*` contiene business logic e orchestrazione.
+5. `models/*` rappresenta i documenti di dominio persistiti.
+6. `repositories/*` parla con Firestore.
+7. `domain/*` contiene regole pure riusabili nei flussi più complessi.
+8. `mappers/*` converte DTO <-> Domain Model <-> Response DTO.
+9. `triggers/*` aggiunge side effect asincroni dopo la scrittura su Firestore.
+
+### Regola architetturale corrente
+
+Ogni nuovo flusso backend deve rispettare questo schema:
+
+```text
+Request JSON
+  -> Pydantic Request DTO
+  -> Service
+  -> Domain Model
+  -> Repository
+  -> DB
+
+DB
+  -> Domain Model
+  -> Pydantic Response DTO
+  -> JSON Response
+```
+
+Questa regola serve a mantenere indipendenti i tre layer principali:
+
+- **Presentation layer**: file in `api/`. Gestisce HTTP, auth, status code e validazione Pydantic.
+- **Business layer**: file in `services/` e `domain/`. Contiene regole, conflitti, orchestrazione e side effect applicativi.
+- **Data layer**: file in `repositories/`. Nasconde Firestore al resto del codice.
+
+I DTO non devono contenere logica di business e non devono sapere come si scrive su Firestore. I model non devono validare request HTTP. I repository non devono conoscere Flask, request o response JSON.
 
 ### Percorso di lettura consigliato
 
@@ -61,11 +90,13 @@ Se prendi il progetto oggi, questo è l'ordine più utile:
 ```text
 HTTP request
   -> api/* handler
-  -> eventuali decorator auth / validation
-  -> DTO.from_payload(...)
+  -> decorator @public_endpoint / @admin_endpoint
+  -> PydanticDTO.model_validate(...)
   -> service method
-  -> repository read/write
-  -> payload dict di risposta
+  -> mapper DTO -> Domain Model, quando serve creare/aggiornare dati
+  -> repository read/write di Domain Model
+  -> mapper Domain Model -> Response DTO
+  -> response_dto.model_dump(...) / to_payload()
   -> eventuale trigger Firestore post-write
 ```
 
@@ -75,8 +106,11 @@ HTTP request
   - Nei payload HTTP in ingresso vengono accettate spesso entrambe.
   - Nei model Python i campi sono normalmente `snake_case`.
   - In Firestore alcuni campi storici restano `camelCase` (`membershipId`, `createdAt`, `newsletterConsent`).
-- I repository non restituiscono sempre model puri.
-  - In molti casi tornano già DTO (`ParticipantRepository.get/list`, per esempio).
+- I repository devono tendere a restituire model di dominio, non DTO.
+  - Se trovi repository che restituiscono dict/DTO, è codice da rifattorizzare progressivamente.
+- Le conversioni tra DTO e model stanno in `mappers/`.
+  - Evitare metodi come `dto.to_model()` o `ResponseDTO.from_model()` dentro i DTO.
+  - La regola è: DTO = contratto dati, mapper = conversione, service = business logic.
 - `main.py` non contiene logica applicativa.
   - Serve soprattutto a registrare funzioni Cloud importando i moduli giusti.
   - Se aggiungi un endpoint e non lo importi in `main.py`, Firebase non lo espone.
@@ -91,7 +125,14 @@ HTTP request
 - Acquisto evento: `event_payment_api.py` -> `EventPaymentService` -> `ParticipantRules` -> `registration_trigger.py`
 - Admin partecipanti: `participants_api.py` -> `ParticipantsService` -> `ParticipantRepository`
 - Admin membership: `members_api.py` -> `MembershipsService` -> `registration_trigger.py`
-- Entrance QR: `api/entrance.py` -> `EntranceService` / `ParticipantRepository`
+- Entrance QR: `api/entrance/` -> `EntranceService` / `ParticipantRepository`
+
+### Diagramma dati
+
+La mappa UML aggiornata dei model e delle relazioni Firestore è in:
+
+- [`docs/backend/DATA_MODEL_UML.md`](./DATA_MODEL_UML.md)
+- [`docs/backend/DATA_MODEL_UML.png`](./DATA_MODEL_UML.png)
 
 ---
 
@@ -103,15 +144,15 @@ mcp-backend/functions/
 │   ├── public/                   # Endpoint senza autenticazione
 │   ├── admin/                    # Endpoint riservati ad admin
 │   │   └── sender/               # Proxy API Sender.net
-│   ├── entrance.py               # Sistema scansione QR entrata eventi
-│   ├── decorators/               # Decoratori HTTP (@require_admin, ecc.)
-│   └── validators/               # Validatori e iniettori di payload
+│   ├── entrance/                 # Sistema scansione QR entrata eventi
+│   └── decorators/               # Decoratori HTTP (@public_endpoint, @admin_endpoint)
 ├── config/
 │   ├── firebase_config.py        # Inizializzazione Firebase
 │   ├── environment.py            # Caricamento variabili d'ambiente
 │   ├── external_services.py      # Chiavi e URL servizi esterni
 │   └── location_config.py        # Parametri retry invio posizione
 ├── domain/
+│   ├── event_rules.py            # Regole date/stato eventi
 │   ├── membership_rules.py       # Regole di business iscrizioni
 │   └── participant_rules.py      # Validazione partecipanti
 ├── dto/                          # Data Transfer Objects
@@ -120,15 +161,17 @@ mcp-backend/functions/
 ├── interfaces/
 │   ├── repositories.py           # Protocol per repositories
 │   └── services.py               # Protocol per services
+├── mappers/                      # Conversioni DTO <-> Domain Model <-> Response
 ├── models/                       # Documenti Firestore
 ├── repositories/                 # Accesso dati Firestore
 ├── services/
-│   ├── core/                     # Auth, Stats, Settings, ErrorLogs
+│   ├── core/                     # Auth, Stats, Settings, logging errori esterni
 │   ├── communications/           # Mail, Newsletter, Messaggi
 │   ├── events/                   # Gestione eventi e partecipanti
 │   ├── memberships/              # Iscrizioni, merge, wallet pass
 │   ├── payments/                 # PayPal, acquisti
-│   └── sender/                   # Sync con Sender.net
+│   ├── sender/                   # Sync con Sender.net
+│   └── templates/                # Rendering template email/PDF
 ├── triggers/                     # Cloud Function triggers Firestore
 ├── tests/unit/                   # Suite test pytest
 ├── utils/                        # Funzioni di utilità
@@ -186,6 +229,34 @@ mcp-backend/functions/
 ## 3. Layer API
 
 Tutti gli endpoint sono Firebase Cloud Functions (`@https_fn.on_request`).
+
+Gli endpoint non devono contenere business logic. Il loro compito è:
+
+1. esporre la funzione HTTP tramite `@public_endpoint(...)` o `@admin_endpoint(...)`;
+2. leggere `req.get_json()` o `req.args`;
+3. validare con `PydanticDTO.model_validate(...)`;
+4. chiamare un service;
+5. serializzare un Response DTO con `model_dump(...)` o `to_payload()`;
+6. tradurre eccezioni applicative in status code HTTP.
+
+Esempio standard:
+
+```python
+@admin_endpoint(methods=("POST",))
+def create_membership(req):
+    try:
+        dto = CreateMembershipRequestDTO.model_validate(req.get_json(silent=True) or {})
+    except ValidationError as exc:
+        return jsonify({"error": "Invalid request data", "details": exc.errors()}), 400
+
+    try:
+        response = memberships_service.create(dto, admin_uid=req.admin_token.get("uid"))
+        return jsonify(response.to_payload()), 201
+    except Exception as err:
+        return _handle_service_error(err)
+```
+
+Nota: `@admin_endpoint` registra la Cloud Function, valida il metodo HTTP e applica `require_admin`. `@public_endpoint` registra la Cloud Function e valida solo il metodo HTTP.
 
 ### 3.1 Endpoint Pubblici
 
@@ -266,12 +337,13 @@ Tutti gli endpoint sono Firebase Cloud Functions (`@https_fn.on_request`).
 
 | Metodo | Path | Descrizione |
 |---|---|---|
-| `GET` | `/get_memberships` | Lista tutte le iscrizioni |
+| `GET` | `/get_memberships` | Lista iscrizioni. Query opzionale: `year`; filtro basato su `membership_years[]` |
 | `GET` | `/get_membership` | Dettaglio iscrizione. Query: `id` o `slug` |
 | `POST` | `/create_membership` | Crea nuova iscrizione |
 | `PUT` | `/update_membership` | Aggiorna iscrizione |
 | `POST` | `/merge_memberships` | Unisce due profili duplicati. Body: `{source_id, target_id}` |
 | `DELETE` | `/delete_membership` | Elimina iscrizione |
+| `POST` | `/renew_membership` | Rinnova la membership per l'anno corrente |
 | `POST` | `/send_membership_card` | Invia tessera associativa via email |
 | `GET` | `/get_membership_purchases` | Lista acquisti del socio |
 | `GET` | `/get_membership_events` | Lista eventi frequentati |
@@ -322,14 +394,6 @@ Tutti gli endpoint sono Firebase Cloud Functions (`@https_fn.on_request`).
 | `GET` | `/get_settings` | Lista impostazioni (opz. `key` specifico) |
 | `POST` | `/set_settings` | Crea o aggiorna impostazione. Body: `{key, value}` |
 
-#### Error Logs — `api/admin/error_logs_api.py`
-
-| Metodo | Path | Descrizione |
-|---|---|---|
-| `GET` | `/admin_error_logs` | Lista errori. Query: `limit?`, `service?`, `resolved?` |
-
----
-
 ### 3.3 API Admin Sender.net
 
 > `api/admin/sender/` — proxy verso le API Sender.net usato dall'admin per subscriber, gruppi, campagne e invii transazionali.
@@ -362,7 +426,7 @@ Tutte queste integrazioni sono best-effort: loggano e non bloccano il flusso pri
 
 ### 3.5 Sistema Entrata (Entrance)
 
-> `api/entrance.py` — Gestione accessi agli eventi via QR code.
+> `api/entrance/` — Gestione accessi agli eventi via QR code.
 
 | Metodo | Path | Descrizione |
 |---|---|---|
@@ -390,7 +454,8 @@ Tutte queste integrazioni sono best-effort: loggano e non bloccano il flusso pri
 - `get_setting(key)` / `get_all_settings()` / `set_setting(key, value)`
 
 #### `ErrorLogsService` — `services/core/error_logs_service.py`
-- `log_external_error(service, error, details)` — Salva log errori su Firestore
+- `log_external_error(service, error, details)` — Helper interno per loggare errori di servizi esterni.
+- Non esiste piu una API admin dedicata alla lettura degli error log: per ora e un supporto operativo interno.
 
 ---
 
@@ -528,7 +593,11 @@ Restituisce `ParticipantCheckResult` con:
 
 ## 6. Models
 
-Schemi documenti Firestore, implementati come dataclass Python.
+Schemi documenti Firestore, implementati come dataclass Python in `models/`.
+
+I model rappresentano il dominio persistibile. Non validano request HTTP e non dipendono da Flask/Pydantic. La conversione da/verso Firestore resta tecnica (`to_firestore`, `from_firestore`), mentre la conversione da/verso DTO deve stare nei mapper.
+
+La mappa visuale aggiornata è in [`DATA_MODEL_UML.md`](./DATA_MODEL_UML.md).
 
 ### `Event` — `models/event.py`
 
@@ -536,43 +605,80 @@ Schemi documenti Firestore, implementati come dataclass Python.
 title, slug, date, startTime, endTime
 location, locationHint, price, fee
 maxParticipants, status, image, lineup, note
-photoPath, purchaseMode, allowDuplicates
-over21Only, onlyFemales, externalLink
+photoPath, type/purchaseMode, allowDuplicates
+over21Only, onlyFemales, participantsCount, externalLink
 createdAt, createdBy, updatedAt, updatedBy
 ```
 
 ### `EventParticipant` — `models/event_participant.py`
 
 ```
-name, surname, email, phone, birthdate, gender
-gender_probability, arrived_at, ticket_sent_at
-location_sent_at, membership_id
+event_id, name, surname, email, phone, birthdate
+membershipId, membership_included
+entered, entered_at
+ticket_pdf_url, ticket_sent, send_ticket_on_create
+location_sent, location_sent_at, location_job_id
+payment_method, purchase_id, riduzione
+newsletterConsent, gender, gender_probability
+createdAt
 ```
 
 ### `Membership` — `models/membership.py`
 
 ```
-name, surname, email, phone, birthdate, gender
-subscription_valid, start_date, end_date
-renewals[], attended_events[], purchases[]
-created_at, updated_at
+name, surname, slug, email, phone, birthdate
+start_date, end_date, subscription_valid
+membership_type, purchase_id, purchases[]
+attended_events[], renewals[], membership_years[]
+membership_sent, card_url, card_storage_path
+send_card_on_create, membership_fee
+wallet_pass_id, wallet_url
 ```
 
 ### `Purchase` — `models/purchase.py`
 
 ```
-type (event|membership), purchase_date, amount
-currency, payment_method, participants_count
-membership_ids[], ref_id
+payer_name, payer_surname, payer_email
+amount_total, currency, paypal_fee, net_amount
+transaction_id, order_id, status, timestamp
+type, ref_id, payment_method, capture_status
+```
+
+### `EventPurchase` — `models/event_purchase.py`
+
+```
+Estende Purchase.
+event_id, eventPurchaseType, participants_count, membership_ids[]
 ```
 
 ### `EventOrder` — `models/order.py`
 
-Rappresentazione ordine PayPal con `status`, `payer info`, `purchase_units`.
+```
+orderId, orderStatus, purchase_type, cart, total
+reference_id, eventId, participants[]
+eventPrice, eventFee, membershipTargets[]
+membershipFee, purchaseMode, membershipLookup
+eventMeta, captured, payment_method, purchase_id
+```
+
+### `EntranceScan` — `models/entrance_scan.py`
+
+```
+scanned_at, scan_token, manual, operator
+```
 
 ### `Job` — `models/job.py`
 
-Task in background: `status`, `progress`, `result`.
+```
+type, event_id, status, address, link, message
+total, sent, failed, percent, created_at, error
+```
+
+### `Setting` — `models/settings.py`
+
+```
+key, value
+```
 
 ### `Enums` — `models/enums.py`
 
@@ -591,7 +697,9 @@ Accesso dati Firestore tramite classe base generica.
 
 ### `BaseRepository` — `repositories/base.py`
 
-CRUD generico: `get`, `create`, `update`, `delete`, `stream`. Conversione automatica model ↔ DTO.
+CRUD generico: `get`, `create`, `update`, `delete`, `stream`. Il repository converte solo tra `Domain Model` e payload Firestore.
+
+Il repository non deve restituire response DTO e non deve conoscere request HTTP.
 
 ### `EventRepository` — `repositories/event_repository.py`
 
@@ -648,32 +756,90 @@ CRUD generico: `get`, `create`, `update`, `delete`, `stream`. Conversione automa
 
 ## 8. DTO (Data Transfer Objects)
 
-Strutture dati per request/response con validazione integrata.
+Strutture dati per request/response con validazione Pydantic.
 
-Tutti i DTO implementano il pattern:
-- `from_model(Model)` — Converte modello Firestore in DTO
-- `from_payload(dict)` — Parsa richiesta HTTP in arrivo
-- `to_payload()` — Serializza per risposta HTTP
+Regola corrente:
 
-### `EventDTO` — `dto/event.py`
+```text
+Request JSON -> Pydantic Request DTO -> Service
+Service -> Domain Model -> Mapper -> Pydantic Response DTO -> JSON
+```
 
-Vista pubblica multipla via `public_payload(view)`:
-- `card` — Dati minimali per lista
-- `gallery` — Dati galleria con immagini
-- `ids` — Solo ID
-- `full` — Tutti i campi
+I DTO devono:
 
-### `MembershipDTO` — `dto/membership.py`
+- validare tipi, campi obbligatori, alias `camelCase`/`snake_case` e normalizzazioni semplici;
+- rifiutare campi inattesi con `extra="forbid"` quando possibile;
+- usare `model_validate(...)` per input e `model_dump(...)` per output;
+- restare privi di logica di business;
+- non accedere a repository, Firestore, Flask o servizi esterni.
 
-Metodo `validate_protected_fields()` per proteggere campi riservati agli admin.
+I DTO non devono:
 
-### `PreOrderDTO` / `OrderCaptureDTO` — `dto/preorder.py`
+- decidere se una membership è rinnovabile;
+- sapere come si crea un model Firestore;
+- chiamare repository;
+- contenere metodi `to_model()` o `from_model()` per logica di mapping strutturale.
 
-Usati esclusivamente nel flusso di acquisto PayPal.
+Le conversioni stanno in `mappers/`.
 
-### `ErrorLogDTO` — `dto/error_log.py`
+### Request DTO principali
 
-Campi: `service`, `error_message`, `stack_trace`, `timestamp`, `resolved`.
+| File | Scopo |
+|---|---|
+| `dto/event_api.py` | Request/response per eventi admin e pubblici |
+| `dto/membership_api.py` | CRUD membership, renewal, wallet, prezzo annuale |
+| `dto/participant_api.py` | Partecipanti admin, update, location, omaggi |
+| `dto/preorder.py` | Preordine evento e capture PayPal |
+| `dto/purchase.py` | Acquisti admin/manuali |
+| `dto/message_api.py` | Messaggi contatto e risposte |
+| `dto/newsletter_api.py` | Newsletter pubblica/admin |
+| `dto/setting_api.py` | Settings key/value |
+| `dto/entrance_api.py` | Token scan, manual entry, validate entrance |
+
+### Mapper principali
+
+| File | Scopo |
+|---|---|
+| `mappers/event_mappers.py` | Event DTO -> `Event`, `Event` -> response admin/pubblica |
+| `mappers/membership_mappers.py` | Membership DTO -> `Membership`, renewal response |
+| `mappers/participant_mappers.py` | Participant DTO -> `EventParticipant` |
+| `mappers/payment_mappers.py` | Preorder/capture DTO -> `EventOrder` / payment payload |
+| `mappers/purchase_mappers.py` | Purchase DTO -> `Purchase` / `EventPurchase` |
+| `mappers/message_mappers.py` | Contact/reply DTO -> `ContactMessage` |
+| `mappers/newsletter_mappers.py` | Newsletter DTO -> newsletter model |
+
+### Esempio
+
+```python
+dto = CreateEventRequestDTO.model_validate(req.get_json(silent=True) or {})
+event = create_event_dto_to_model(dto, admin_uid)
+created = events_service.create_event(event)
+response = event_to_admin_response(created)
+return jsonify(response.model_dump(by_alias=True)), 201
+```
+
+### Alias e compatibilità payload
+
+Quando serve accettare sia `camelCase` sia `snake_case`, usare Pydantic:
+
+```python
+membership_id: str = Field(
+    validation_alias=AliasChoices("membership_id", "membershipId", "id")
+)
+```
+
+La compatibilità di naming è accettabile ai bordi HTTP. Non deve propagarsi nel service layer: dopo la validazione il service riceve attributi Python puliti e tipizzati.
+
+### Response DTO
+
+Le response DTO sono Pydantic e possono avere `to_payload()` solo come wrapper di serializzazione, non come punto di business logic.
+
+Esempio accettabile:
+
+```python
+def to_payload(self) -> dict:
+    return self.model_dump(by_alias=True, exclude_none=True)
+```
 
 ---
 
@@ -820,11 +986,13 @@ return jsonify({"error": "Internal server error"}), 500
 
 ### Error Logging
 
-Gli errori dei servizi esterni vengono persistiti su Firestore:
+Gli errori dei servizi esterni possono essere loggati internamente:
+
 ```python
-ErrorLogsService.log_external_error(service="PayPal", error=e, details={...})
+log_external_error(service="PayPal", error=e, details={...})
 ```
-Consultabili via `GET /admin_error_logs` con filtri `service`, `resolved`, `limit`.
+
+Non esiste al momento una API admin pubblicata per consultarli. La scelta attuale è mantenere il logging come supporto operativo interno e introdurre strumenti migliori in futuro.
 
 ---
 
@@ -837,6 +1005,7 @@ Consultabili via `GET /admin_error_logs` con filtri `service`, `resolved`, `limi
 | `firebase-admin` | 6.2.0 | Firebase SDK |
 | `firebase-functions` | 0.4.3 | Cloud Functions |
 | `google-auth` | 2.22.0 | Auth Google |
+| `pydantic[email]` | >=2.0,<3.0 | DTO request/response e validazione payload |
 | `mailersend` | latest | Invio email transazionale |
 | `requests` | 2.32.3 | Client HTTP generico |
 | `paypal-server-sdk` | 0.6.1 | Pagamenti PayPal |
@@ -866,22 +1035,27 @@ Consultabili via `GET /admin_error_logs` con filtri `service`, `resolved`, `limi
 POST /create_order_event
   │
   ├─ @require_active_event → verifica evento attivo
+  ├─ PreOrderDTO.model_validate()
   ├─ ParticipantRules.run_basic_checks()
   │    ├─ Età (18+, 21+ se richiesto)
   │    ├─ Genere → genderize.io
   │    ├─ Duplicati (email/tel nel form e nel DB)
   │    └─ Stato membership
   ├─ EventPaymentService.create_order_event_service()
+  │    ├─ mapper PreOrderDTO -> EventOrder
   │    ├─ PayPal OrdersController.create()
-  │    └─ Salva EventOrder su Firestore
+  │    └─ OrderRepository salva EventOrder su Firestore
   └─ → { orderId }
 
 POST /capture_order_event
   │
+  ├─ OrderCaptureDTO.model_validate()
   ├─ EventPaymentService.capture_order_event_service()
+  │    ├─ ensure_event_is_active() anche al momento capture
   │    ├─ PayPal OrdersController.capture()
-  │    ├─ Crea EventParticipant docs
-  │    ├─ Crea Purchase record
+  │    ├─ mapper capture/order -> EventPurchase
+  │    ├─ PurchaseRepository crea acquisto
+  │    ├─ ParticipantsService crea EventParticipant
   │    ├─ Aggiorna Membership (rinnovi, acquisti)
   │    └─ Invia email biglietto via MailService
   ├─ Trigger: on_participant_created
@@ -894,12 +1068,11 @@ POST /capture_order_event
 ```
 POST /create_membership
   │
-  ├─ @require_admin
-  ├─ MembershipDTO.validate()
-  │    ├─ Età 18+
-  │    ├─ Email o telefono obbligatorio
-  │    └─ Nessun duplicato email
+  ├─ @admin_endpoint(methods=("POST",))
+  ├─ CreateMembershipRequestDTO.model_validate()
   ├─ MembershipsService.create()
+  │    ├─ membership_mappers.create_membership_dto_to_model()
+  │    ├─ MembershipRules: età 18+, contatto obbligatorio, conflitti
   │    └─ MembershipRepository.create_from_model() → Firestore
   ├─ Trigger: on_membership_created
   │    ├─ Email benvenuto + tessera
@@ -908,12 +1081,40 @@ POST /create_membership
   └─ → { message, membershipId }
 ```
 
+### Rinnovo Membership
+
+```text
+POST /renew_membership
+  │
+  ├─ @admin_endpoint(methods=("POST",))
+  ├─ RenewMembershipRequestDTO.model_validate()
+  ├─ MembershipsService.renew()
+  │    ├─ MembershipRepository.get_model()
+  │    ├─ MembershipRules verifica anno corrente e rinnovabilità
+  │    ├─ crea renewal record per l'anno corrente
+  │    ├─ aggiorna membership_years aggiungendo l'anno corrente
+  │    ├─ aggiorna start_date/end_date della validità corrente
+  │    ├─ collega eventuale purchase_id
+  │    └─ aggiorna/revoca wallet pass se richiesto dal flusso
+  └─ → MembershipActionResponseDTO
+```
+
+Regola dati del rinnovo:
+
+- `membership_years[]` è la fonte canonica degli anni in cui una persona è stata socia.
+- `start_date` e `end_date` descrivono solo la validità corrente della tessera.
+- `renewals[]` conserva lo storico leggibile dei rinnovi.
+- Un socio che ha `membership_years = [2025, 2026]` deve comparire sia nella tabella 2025 sia nella tabella 2026.
+
 ### Creazione Partecipante Admin
 
 ```text
 POST /create_participant
   │
+  ├─ @admin_endpoint(methods=("POST",))
+  ├─ CreateParticipantRequestDTO.model_validate()
   ├─ ParticipantsService.create()
+  │    ├─ participant_mappers.create_participant_dto_to_model()
   │    ├─ valida età, email, payment_method
   │    ├─ se membership_id presente:
   │    │    └─ collega il partecipante alla membership esplicita
@@ -969,7 +1170,7 @@ Trigger: invalidate_memberships_new_year   (1° Gennaio)
   │
   ├─ MembershipRepository.find_by_year(anno_precedente)
   ├─ Per ogni membership:
-  │    ├─ Se non rinnovata → subscription_valid = False
+  │    ├─ Se membership_years non contiene anno corrente → subscription_valid = False
   │    ├─ Invia email notifica rinnovo
   │    └─ Archivia Wallet pass
   └─ Salva aggiornamenti su Firestore
@@ -983,13 +1184,26 @@ Trigger: invalidate_memberships_new_year   (1° Gennaio)
 |---|---|
 | **Repository Pattern** | `BaseRepository` + protocol interfaces in `interfaces/repositories.py` |
 | **Service Layer** | Business logic in `*Service`, mai negli API handler |
-| **DTO Pattern** | Validazione input/output con `from_payload()` e `to_payload()` |
+| **Pydantic DTO Pattern** | Validazione input/output con `BaseModel.model_validate()` e `model_dump()` |
+| **Mapper Pattern** | Conversioni DTO <-> Domain Model <-> Response DTO in `mappers/` |
 | **Dependency Injection** | Services accettano repository/service opzionali (testabilità) |
 | **Protocol Interfaces** | `@Protocol` per contratti mockabili in test |
-| **Decorator Pattern** | `@require_admin`, `@require_json_body`, `@validate_body_fields` |
+| **Decorator Pattern** | `@public_endpoint`, `@admin_endpoint`, `@require_active_event` |
 | **Domain-Driven Design** | Regole business pure in `domain/`, senza I/O |
 | **Event-Driven** | Firestore triggers per flussi asincroni |
-| **Layered Architecture** | API → Service → Repository → Firestore |
+| **Layered Architecture** | Request → Pydantic DTO → Service → Domain Model → Repository → DB |
+
+### Regole di programmazione da rispettare
+
+- Gli API handler non fanno business logic: validano DTO, chiamano service, gestiscono status code.
+- I service non fanno parsing HTTP: ricevono DTO o valori già validati.
+- I service sono unici: non creare service separati per admin/pubblico se cambia solo l'autorizzazione.
+- I model rappresentano dati di dominio persistibili, non request payload.
+- I repository parlano con Firestore e restituiscono model, non response JSON.
+- I mapper sono l'unico posto in cui convertire DTO <-> model.
+- Le funzioni utility vanno in `utils/` separate per concern.
+- Le regole pure senza I/O vanno in `domain/`.
+- I contratti sostituibili vanno mantenuti in `interfaces/` con `Protocol`.
 
 ---
 
