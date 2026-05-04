@@ -26,6 +26,15 @@ def _should_override_env(override: bool) -> bool:
 
 def load_environment(override: bool = False) -> Path:
     env_path = _resolve_env_path()
+    # Quando il processo parte con Doppler, le variabili sono gia iniettate
+    # nell'ambiente. In quel caso non carichiamo i file .env locali per evitare
+    # che configurazioni obsolete sovrascrivano la source of truth.
+    if (
+        os.environ.get("MCP_USE_DOPPLER") == "1"
+        or os.environ.get("DOPPLER_PROJECT")
+        or os.environ.get("DOPPLER_CONFIG")
+    ):
+        return env_path
     if env_path.exists():
         load_dotenv(dotenv_path=env_path, override=_should_override_env(override))
     return env_path

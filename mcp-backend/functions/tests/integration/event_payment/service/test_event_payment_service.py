@@ -14,7 +14,7 @@ def test_event_payment_service_create_order_public(paypal_env, create_event, par
 
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId=event_id, participants=[participant])])
     result = service.create_order_event(payload)
-    order_id = result.get("id")
+    order_id = result.id
     assert order_id
 
     stored = order_repository.get_model(order_id)
@@ -38,7 +38,7 @@ def test_event_payment_service_only_members_creates_targets(
 
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId=event_id, participants=[participant])])
     result = service.create_order_event(payload)
-    order_id = result.get("id")
+    order_id = result.id
     assert order_id
 
     stored = order_repository.get_model(order_id)
@@ -75,7 +75,7 @@ def test_event_payment_service_only_registered_members_accepts_member(
 
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId=event_id, participants=[participant])])
     result = service.create_order_event(payload)
-    order_id = result.get("id")
+    order_id = result.id
     assert order_id
 
     stored = order_repository.get_model(order_id)

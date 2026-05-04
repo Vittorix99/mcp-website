@@ -1,0 +1,25 @@
+{% extends "emails/base_dark.html" %}
+{% import "emails/_partials.html" as ui %}
+
+{% block title %}{{ eyebrow }} – Music Connecting People{% endblock %}
+{% block eyebrow %}{{ eyebrow }}{% endblock %}
+{% block headline %}{{ headline }}{% endblock %}
+
+{% block body %}
+{% if variant == "signup_request" %}
+<p style="margin:0 0 20px;color:#9a9a9a;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;">
+  Grazie per il tuo interesse nella community di Music Connecting People.
+</p>
+<p style="margin:0;color:#9a9a9a;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;">
+  Abbiamo ricevuto la tua richiesta — il nostro team la sta valutando. Riceverai una risposta via email non appena la tua candidatura sarà processata.
+</p>
+{% else %}
+<p style="margin:0 0 20px;color:#9a9a9a;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;">
+  Sei ufficialmente parte della community MCP. Da adesso hai accesso agli eventi esclusivi, alle opportunità di networking e a tutto ciò che ruota intorno alla nostra associazione.
+</p>
+<p style="margin:0;color:#9a9a9a;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;">
+  Tieni d'occhio la tua inbox — gli aggiornamenti sugli eventi arrivano presto.
+</p>
+{% endif %}
+{{ ui.instagram_footer(instagram_url) }}
+{% endblock %}

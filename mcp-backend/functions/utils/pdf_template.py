@@ -14,6 +14,8 @@ from io import BytesIO
 from weasyprint import HTML
 from models import EventPurchaseAccessType
 from utils.events_utils import map_purchase_mode
+from dto.templates import MembershipCardPdfPayload, TicketPdfPayload
+from services.templates import render_template
 
 _ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 
@@ -77,114 +79,21 @@ def generate_member_ticket_pdf_html(ticket_data, event_data, logo_url):
     first_name = ticket_data.get("name", "")
     last_name = ticket_data.get("surname", "")
     full_name = f"{first_name} {last_name}".strip()
-    ticket_id = ticket_data.get("purchase_id", "N/A")
     membership_id = ticket_data.get("membershipId") or None
-    price = f"{ticket_data.get('price')} EUR"
     date = event_data.get("date")
     time = f"{event_data.get('startTime')} - {event_data.get('endTime')}"
     location = event_data.get("location")
     title = event_data.get("title", "Event Title")
-
-    return f"""
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        @page {{
-            size: A4 portrait;
-            margin: 0;
-        }}
-        body {{
-            background: #000;
-            color: #fff;
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 2cm;
-        }}
-        .ticket {{
-            border: 3px solid #ff0000;
-            border-radius: 12px;
-            padding: 2cm;
-            height: 100%;
-        }}
-        .logo {{
-            display: block;
-            margin: 0 auto 30px auto;
-            
-            width: 160px;
-        }}
-        .event-title {{
-            font-size: 36px;
-            color: #ff0000;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 10px;
-        }}
-        .event-subtitle {{
-            font-size: 18px;
-            color: #ccc;
-            text-align: center;
-            margin-bottom: 30px;
-        }}
-        .notice {{
-            font-size: 14px;
-            background-color: #111;
-            border: 1px dashed #ff0000;
-            padding: 10px 20px;
-            margin-bottom: 30px;
-            text-align: center;
-        }}
-        .info-block {{
-            margin-top: 20px;
-            font-size: 16px;
-            line-height: 1.6;
-        }}
-        .label {{
-            font-weight: bold;
-            color: #999;
-        }}
-        .value {{
-            color: #fff;
-        }}
-        .membership {{
-            margin-top: 30px;
-            font-style: italic;
-            font-size: 13px;
-            color: #ccc;
-            text-align: center;
-        }}
-    </style>
-</head>
-<body>
-    <div class="ticket">
-        <img src="{logo_url}" class="logo" alt="MCP Logo">
-
-        <h1 class="event-title">{title}</h1>
-
-        <div class="notice">
-            Questo è un <strong>invito nominale</strong> valido solo per la persona registrata.<br>
-            L'ingresso sarà consentito solo al nominativo indicato qui sotto.
-        </div>
-
-        <div class="info-block">
-            <p><span class="label">Nominativo:</span> <span class="value">{full_name}</span></p>
-            {f'<p><span class="label">Membership ID:</span> <span class="value">{membership_id}</span></p>' if membership_id else ""}
-        </div>
-
-        <div class="info-block">
-            <p><span class="label">Data:</span> <span class="value">{date}</span></p>
-            <p><span class="label">Orario:</span> <span class="value">{time}</span></p>
-            <p><span class="label">Location:</span> <span class="value">{location}</span></p>
-        </div>
-
-        <div class="membership">
-            Evento riservato ai soci dell’Associazione Music Connecting People ETS.
-        </div>
-    </div>
-</body>
-</html>
-"""
+    payload = TicketPdfPayload(
+        logo_url=logo_url,
+        title=title,
+        full_name=full_name,
+        membership_id=membership_id,
+        date=date or "",
+        time=time,
+        location=location or "",
+    )
+    return render_template("pdf/member_ticket.html", payload)
 
 def generate_membership_card_html(member_data, logo_url):
     full_name = f"{member_data.get('name', '')} {member_data.get('surname', '')}".strip()
@@ -195,91 +104,14 @@ def generate_membership_card_html(member_data, logo_url):
     if isinstance(raw_expiry_date, str) and "-" in raw_expiry_date:
         expiry_year = raw_expiry_date.split("-")[-1]
 
-    return f"""
-<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="UTF-8" />
-  <style>
-    @page {{
-      size: 200mm 100mm;
-      margin: 10mm;
-    }}
-    body {{
-      margin: 0;
-      background-color: white;
-      font-family: Helvetica, Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }}
-    .card {{
-       width: 375px;
-      height: 240px;
-      padding: 30px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(150deg, #ff6600, #b0002a, #1a0010, #000);
-      border: 0.2px solid #ff6600;
-      border-radius: 12px;
-      text-align: center;
-    }}
-    .logo {{
-      width: 120px;
-      margin-bottom: 18px;
-      
-     
-      background-clip: text;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: #ffffff;
-      animation: shine 5s linear infinite;
-      text-shadow: 0 0 0.8px rgba(255,255,255,0.4)
-    }}
-    .metallic {{
-      font-weight: bold;
-      color: #ddd;
-      background-size: 200% auto;
-      background-clip: text;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: #ffffff;
-      animation: shine 5s linear infinite;
-      text-shadow: 0 0 0.8px rgba(255,255,255,0.4);
-    }}
-    .name {{
-      font-size: 23px;
-      margin-bottom: 25px;
-      margin-top: 28px;
-    }}
-    .info {{
-      font-size: 12px;
-      margin-bottom: 8px;
-    }}
-    .footer {{
-      font-size: 11px;
-      margin-top: 18px;
-      font-style: italic;
-      margin-bottom: -10px;
-    }}
-    @keyframes shine {{
-      0% {{ background-position: 200% center; }}
-      100% {{ background-position: 0% center; }}
-    }}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <img class="logo metallic" src="{logo_url}" alt="Logo MCP" />
-    <div class="name metallic">{full_name}</div>
-    <div class="info metallic">Membership ID: {membership_id}</div>
-    <div class="info metallic">Valida fino al: {expiry_date}</div>
-    <div class="footer metallic">* Music Connecting People ETS – Anno {expiry_year} *</div>
-  </div>
-</body>
-</html>
-"""
+    payload = MembershipCardPdfPayload(
+        logo_url=logo_url,
+        full_name=full_name,
+        membership_id=membership_id,
+        expiry_date=expiry_date,
+        expiry_year=expiry_year,
+    )
+    return render_template("pdf/membership_card.html", payload)
 def download_image_from_firebase(image_path):
     local_asset = _resolve_local_asset(image_path)
     if local_asset:

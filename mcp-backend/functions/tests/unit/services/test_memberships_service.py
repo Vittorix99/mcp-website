@@ -8,6 +8,7 @@ from dto.membership_api import CreateMembershipRequestDTO, RenewMembershipReques
 from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError
 from models import Event, Membership, MembershipPassResult, Purchase, PurchaseTypes
 from services.memberships.memberships_service import MembershipsService
+from services.memberships.renewal_command import RenewMembershipCommand
 
 
 class _DummyMembershipRepo:
@@ -220,6 +221,23 @@ def _previous_year_member(**overrides):
     return member
 
 
+def _renew_command(**overrides):
+    curr_year = datetime.now(timezone.utc).year
+    defaults = {
+        "membership_id": "mem-prev",
+        "start_date": f"{curr_year}-03-19T10:00:00+00:00",
+        "end_date": f"31-12-{curr_year}",
+        "purchase_id": "pur-renew",
+        "fee": 20.0,
+        "membership_type": "event",
+        "send_card": False,
+        "invalidate_wallet": True,
+        "create_wallet": False,
+    }
+    defaults.update(overrides)
+    return RenewMembershipCommand(**defaults)
+
+
 def test_get_by_id_slug_success():
     service = _make_service()
     membership = Membership(name="Mario")
@@ -329,6 +347,111 @@ def test_renew_creates_new_wallet_when_provider_returns_one():
     assert pass2u.invalidated == ["old-pass-id"]
     assert renewed.wallet_pass_id == "new-pass"
     assert renewed.wallet_url == "https://wallet.example/new"
+
+
+def test_renew_existing_updates_history_years_purchase_and_current_state():
+    service = _make_service()
+    prev_year = datetime.now(timezone.utc).year - 1
+    curr_year = datetime.now(timezone.utc).year
+    member = _previous_year_member(
+        renewals=[
+            {
+                "year": prev_year,
+                "start_date": f"{prev_year}-06-01T10:00:00+00:00",
+                "end_date": f"31-12-{prev_year}",
+                "purchase_id": "pur-old",
+                "fee": 10.0,
+            }
+        ],
+        purchases=["pur-old"],
+    )
+
+    renewed = service.renew_existing(member, _renew_command())
+
+    assert renewed.start_date == f"{curr_year}-03-19T10:00:00+00:00"
+    assert renewed.end_date == f"31-12-{curr_year}"
+    assert renewed.subscription_valid is True
+    assert renewed.membership_sent is False
+    assert renewed.membership_type == "event"
+    assert renewed.membership_fee == 20.0
+    assert renewed.wallet_pass_id is None
+    assert renewed.wallet_url is None
+    assert renewed.purchases == ["pur-old", "pur-renew"]
+    assert renewed.membership_years == [prev_year, curr_year]
+    assert renewed.renewals[-1] == {
+        "year": curr_year,
+        "start_date": f"{curr_year}-03-19T10:00:00+00:00",
+        "end_date": f"31-12-{curr_year}",
+        "purchase_id": "pur-renew",
+        "fee": 20.0,
+    }
+    assert service.membership_repository.models[member.id] is renewed
+
+
+def test_renew_existing_invalidates_old_wallet_without_creating_new_one():
+    pass2u = _DummyPass2UService()
+    service = _make_service(pass2u=pass2u)
+    member = _previous_year_member(wallet_pass_id="old-pass", wallet_url="https://wallet.example/old")
+
+    renewed = service.renew_existing(member, _renew_command(create_wallet=False))
+
+    assert pass2u.invalidated == ["old-pass"]
+    assert pass2u.created_for == []
+    assert renewed.wallet_pass_id is None
+    assert renewed.wallet_url is None
+
+
+def test_renew_existing_can_keep_existing_wallet_when_invalidation_disabled():
+    pass2u = _DummyPass2UService()
+    service = _make_service(pass2u=pass2u)
+    member = _previous_year_member(wallet_pass_id="old-pass", wallet_url="https://wallet.example/old")
+
+    renewed = service.renew_existing(
+        member,
+        _renew_command(invalidate_wallet=False, create_wallet=False),
+    )
+
+    assert pass2u.invalidated == []
+    assert pass2u.created_for == []
+    assert renewed.wallet_pass_id == "old-pass"
+    assert renewed.wallet_url == "https://wallet.example/old"
+
+
+def test_renew_existing_creates_new_wallet_when_requested():
+    wallet = MembershipPassResult(
+        pass_id="new-pass",
+        wallet_url="https://wallet.example/new",
+        apple_wallet_url="https://wallet.example/new",
+        google_wallet_url="https://wallet.example/new",
+    )
+    pass2u = _DummyPass2UService(wallet=wallet)
+    service = _make_service(pass2u=pass2u)
+    member = _previous_year_member(wallet_pass_id="old-pass", wallet_url="https://wallet.example/old")
+
+    renewed = service.renew_existing(member, _renew_command(create_wallet=True))
+
+    assert pass2u.invalidated == ["old-pass"]
+    assert pass2u.created_for
+    assert renewed.wallet_pass_id == "new-pass"
+    assert renewed.wallet_url == "https://wallet.example/new"
+
+
+def test_renew_existing_send_card_is_non_blocking(monkeypatch):
+    service = _make_service()
+    member = _previous_year_member()
+    calls = []
+
+    def failing_send_card(membership_id):
+        calls.append(membership_id)
+        raise ExternalServiceError("mail down")
+
+    monkeypatch.setattr(service, "send_card", failing_send_card)
+
+    renewed = service.renew_existing(member, _renew_command(send_card=True))
+
+    assert calls == [member.id]
+    assert renewed.subscription_valid is True
+    assert renewed.membership_sent is False
 
 
 def test_update_conflict_email_marks_mergeable():

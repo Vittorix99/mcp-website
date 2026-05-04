@@ -3,7 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from dto import EventDTO, MembershipDTO
+from dto.event_api import PublicEventResponseDTO
+from dto.membership_api import MembershipResponseDTO
 from services.events.documents_service import DocumentsService
 
 
@@ -39,28 +40,23 @@ def documents_service():
 
 @pytest.fixture
 def membership_dto(unique_email):
-    return MembershipDTO.from_payload(
-        {
-            "name": "Mario",
-            "surname": "Rossi",
-            "email": unique_email,
-            "phone": "+390000000000",
-            "birthdate": "01-01-1990",
-            "subscription_valid": True,
-        }
+    return MembershipResponseDTO(
+        name="Mario",
+        surname="Rossi",
+        email=unique_email,
+        phone="+390000000000",
+        birthdate="01-01-1990",
+        subscription_valid=True,
     )
 
 
 @pytest.fixture
 def event_dto():
     date_value = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%d-%m-%Y")
-    return EventDTO.from_payload(
-        {
-            "title": f"Integration Document {uuid4().hex[:8]}",
-            "date": date_value,
-            "startTime": "21:00",
-            "endTime": "23:00",
-            "location": "Integration Hall",
-            "locationHint": "Ingresso principale",
-        }
+    return PublicEventResponseDTO(
+        title=f"Integration Document {uuid4().hex[:8]}",
+        date=date_value,
+        start_time="21:00",
+        end_time="23:00",
+        location_hint="Ingresso principale",
     )

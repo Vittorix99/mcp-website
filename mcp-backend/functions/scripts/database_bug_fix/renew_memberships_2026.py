@@ -28,7 +28,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from config.firebase_config import db
-from google.cloud.firestore_v1 import DELETE_FIELD
+from google.cloud.firestore_v1 import DELETE_FIELD, FieldFilter
 from utils.events_utils import calculate_end_of_year_membership
 from services.memberships.pass2u_service import Pass2UService
 from services.communications.mail_service import EmailMessage, mail_service
@@ -44,7 +44,7 @@ EMAILS_TO_RENEW = [
 
 
 def find_membership_by_email(email: str):
-    docs = db.collection("memberships").where("email", "==", email).limit(1).get()
+    docs = db.collection("memberships").where(filter=FieldFilter("email", "==", email)).limit(1).get()
     if not docs:
         return None, None
     doc = docs[0]

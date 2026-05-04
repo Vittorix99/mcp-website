@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    body { background:#000; color:#fff; font-family:Arial, sans-serif; margin:0; padding:2cm; }
+    .ticket { border:3px solid #ff0000; border-radius:12px; padding:2cm; height:100%; }
+    .logo { display:block; margin:0 auto 30px auto; width:160px; }
+    .event-title { font-size:36px; color:#ff0000; font-weight:bold; text-align:center; margin-bottom:10px; }
+    .notice { font-size:14px; background-color:#111; border:1px dashed #ff0000; padding:10px 20px; margin-bottom:30px; text-align:center; }
+    .info-block { margin-top:20px; font-size:16px; line-height:1.6; }
+    .label { font-weight:bold; color:#999; }
+    .value { color:#fff; }
+    .membership { margin-top:30px; font-style:italic; font-size:13px; color:#ccc; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="ticket">
+    <img src="{{ logo_url }}" class="logo" alt="MCP Logo">
+    <h1 class="event-title">{{ title }}</h1>
+    <div class="notice">
+      Questo è un <strong>invito nominale</strong> valido solo per la persona registrata.<br>
+      L'ingresso sarà consentito solo al nominativo indicato qui sotto.
+    </div>
+    <div class="info-block">
+      <p><span class="label">Nominativo:</span> <span class="value">{{ full_name }}</span></p>
+      {% if membership_id %}<p><span class="label">Membership ID:</span> <span class="value">{{ membership_id }}</span></p>{% endif %}
+    </div>
+    <div class="info-block">
+      <p><span class="label">Data:</span> <span class="value">{{ date }}</span></p>
+      <p><span class="label">Orario:</span> <span class="value">{{ time }}</span></p>
+      <p><span class="label">Location:</span> <span class="value">{{ location }}</span></p>
+    </div>
+    <div class="membership">Evento riservato ai soci dell’Associazione Music Connecting People ETS.</div>
+  </div>
+</body>
+</html>

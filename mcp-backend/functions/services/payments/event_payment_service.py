@@ -57,6 +57,7 @@ from repositories.order_repository import OrderRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
 from services.core.error_logs_service import log_external_error
+from services.memberships.renewal_command import RenewMembershipCommand
 from utils.events_utils import calculate_end_of_year, normalize_email, normalize_phone
 
 
@@ -111,7 +112,13 @@ class EventPaymentService:
         if memberships_service is None:
             from services.memberships.memberships_service import MembershipsService
 
-            memberships_service = MembershipsService()
+            memberships_service = MembershipsService(
+                membership_repository=self.membership_repository,
+                settings_repository=self.membership_settings_repository,
+                purchase_repository=self.purchase_repository,
+                participant_repository=self.participant_repository,
+                event_repository=self.event_repository,
+            )
         self.memberships_service = memberships_service
 
     def _get_membership_fee(self, year: Optional[int] = None) -> Optional[float]:
@@ -152,6 +159,21 @@ class EventPaymentService:
                 payload["id"] = membership.id
             payloads[normalize_email(email)] = payload
         return payloads
+
+    def _get_memberships_service(self) -> MembershipsServiceProtocol:
+        memberships_service = getattr(self, "memberships_service", None)
+        if memberships_service is None:
+            from services.memberships.memberships_service import MembershipsService
+
+            memberships_service = MembershipsService(
+                membership_repository=self.membership_repository,
+                settings_repository=self.membership_settings_repository,
+                purchase_repository=self.purchase_repository,
+                participant_repository=self.participant_repository,
+                event_repository=self.event_repository,
+            )
+            self.memberships_service = memberships_service
+        return memberships_service
 
     def create_order_event(
         self,
@@ -565,57 +587,29 @@ class EventPaymentService:
                 end_date = f"31-12-{fallback_year}"
 
             if existing:
-                # Membership già presente: il capture dell'ordine la rinnova e collega l'acquisto.
-                renewals = list(existing.renewals or [])
-                renewals.append(
-                    build_renewal_record(
+                # Il payment decide che serve un rinnovo, ma la regola resta nel MembershipsService.
+                renewed = self._get_memberships_service().renew_existing(
+                    existing,
+                    RenewMembershipCommand(
+                        membership_id=existing.id,
                         start_date=capture_time,
                         end_date=end_date,
                         purchase_id=purchase_id,
                         fee=fee_value,
-                    )
+                        membership_type=PurchaseTypes.EVENT.value,
+                        send_card=True,
+                        invalidate_wallet=True,
+                        create_wallet=False,
+                        name=person.name,
+                        surname=person.surname,
+                        phone=person.phone,
+                        birthdate=person.birthdate,
+                    ),
                 )
-                existing.subscription_valid = True
-                existing.start_date = capture_time
-                existing.end_date = end_date
-                existing.membership_sent = False
-                existing.send_card_on_create = True
-                existing.membership_type = PurchaseTypes.EVENT.value
-                existing.membership_fee = fee_value
-                existing.renewals = renewals
-                existing.membership_years = membership_years_from_renewals(
-                    renewals,
-                    fallback_start_date=capture_time,
-                    fallback_end_date=end_date,
-                )
-                if not existing.purchase_id:
-                    existing.purchase_id = purchase_id
-                if person.name and not existing.name:
-                    existing.name = person.name
-                if person.surname and not existing.surname:
-                    existing.surname = person.surname
-                if person.phone and not existing.phone:
-                    existing.phone = person.phone
-                if person.birthdate and not existing.birthdate:
-                    existing.birthdate = person.birthdate
-
-                # Salviamo prima il model rinnovato, poi azzeriamo il wallet vecchio e agganciamo la purchase.
-                self.membership_repository.update_from_model(existing.id, existing)
-                if existing.wallet_url or existing.wallet_pass_id:
-                    self.membership_repository.clear_wallet(existing.id)
-                self.membership_repository.append_purchase(existing.id, purchase_id)
-                try:
-                    self.memberships_service.send_card(existing.id)
-                except Exception as exc:
-                    logger.warning(
-                        "[renewal] send_card fallita per membro rinnovato %s (non-bloccante): %s",
-                        existing.id,
-                        exc,
-                    )
                 membership_refs.append(
                     MembershipRef(
                         email=normalized_email,
-                        membership_id=existing.id,
+                        membership_id=renewed.id or existing.id,
                     )
                 )
                 continue

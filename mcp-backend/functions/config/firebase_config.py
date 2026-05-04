@@ -41,6 +41,11 @@ _cred_path = _resolve_cred_path(_raw_cred)
 
 def _load_credentials():
     """Return a firebase_admin credential, supporting both service accounts and ADC files."""
+    service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+    if service_account_json:
+        payload = json.loads(service_account_json)
+        return credentials.Certificate(payload)
+
     # Prefer explicit service-account JSON path/file
     if _cred_path:
         if not os.path.exists(_cred_path):

@@ -1,0 +1,29 @@
+{% macro details_row(label, value, accent=false) -%}
+<tr>
+  <td style="padding:6px 0;border-top:1px solid #1e1e1e;">
+    <span style="color:#555555;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">{{ label }}&nbsp;&nbsp;</span>
+    <span style="color:{% if accent %}#f97316{% else %}#e8e8e8{% endif %};font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;">{{ value }}</span>
+  </td>
+</tr>
+{%- endmacro %}
+
+{% macro cta_button(url, label) -%}
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0 0;">
+  <tr>
+    <td align="center">
+      <a href="{{ url }}" style="display:block;width:100%;background:#f97316;color:#ffffff;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;letter-spacing:0.02em;text-decoration:none;text-align:center;padding:17px 32px;border-radius:8px;">{{ label }} &nbsp;&nbsp;→</a>
+    </td>
+  </tr>
+</table>
+{%- endmacro %}
+
+{% macro instagram_footer(instagram_url) -%}
+{% if instagram_url %}
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:32px 0 28px;">
+  <tr><td style="border-top:1px solid #1e1e1e;">&nbsp;</td></tr>
+</table>
+<p style="margin:0;color:#555555;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:13px;text-align:center;">
+  Seguici su <a href="{{ instagram_url }}" style="color:#f97316;font-weight:600;">Instagram</a> per aggiornamenti in tempo reale.
+</p>
+{% endif %}
+{%- endmacro %}

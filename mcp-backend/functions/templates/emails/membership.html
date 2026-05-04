@@ -1,0 +1,68 @@
+{% extends "emails/base_dark.html" %}
+{% import "emails/_partials.html" as ui %}
+
+{% block title %}Tessera Associativa {{ membership_year }} – Music Connecting People{% endblock %}
+{% block eyebrow %}Tessera Associativa {{ membership_year }}{% endblock %}
+{% block headline %}Benvenuto nell'Associazione.{% endblock %}
+{% block footer_note %}Membro dell'Associazione Music Connecting People ETS – Anno {{ membership_year }}{% endblock %}
+
+{% block body %}
+<p style="margin:0 0 28px;color:#9a9a9a;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;">
+  Ciao {{ full_name }}, grazie per esserti iscritto all'Associazione Music Connecting People. Di seguito i tuoi dati di iscrizione.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#1a1a1a;border:1px solid #2e2e2e;border-radius:10px;">
+  <tr>
+    <td style="padding:20px 24px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+          <td style="padding:6px 0;">
+            <span style="color:#555555;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Membership ID&nbsp;&nbsp;</span>
+            <span style="color:#f97316;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;letter-spacing:0.04em;">{{ membership_id }}</span>
+          </td>
+        </tr>
+        {{ ui.details_row("Validità", "fino al " ~ expiry_date) }}
+        {{ ui.details_row("Intestatario", full_name) }}
+      </table>
+    </td>
+  </tr>
+</table>
+
+{% if wallet_url %}
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:0 8px;">
+            <a href="{{ wallet_url }}" style="display:inline-block;">
+              {% if apple_wallet_img %}
+                <img src="{{ apple_wallet_img }}" alt="Aggiungi ad Apple Wallet" height="44" style="border:none;display:block;" />
+              {% else %}
+                <span style="display:inline-block;padding:12px 20px;background:#000;color:#fff;border-radius:8px;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;">Aggiungi ad Apple Wallet</span>
+              {% endif %}
+            </a>
+          </td>
+          <td style="padding:0 8px;">
+            <a href="{{ wallet_url }}" style="display:inline-block;">
+              {% if google_wallet_img %}
+                <img src="{{ google_wallet_img }}" alt="Aggiungi a Google Wallet" height="44" style="border:none;display:block;" />
+              {% else %}
+                <span style="display:inline-block;padding:12px 20px;background:#1a1a1a;color:#e8e8e8;border:1px solid #2e2e2e;border-radius:8px;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;">Salva su Google Wallet</span>
+              {% endif %}
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<p style="margin:12px 0 0;color:#555555;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:12px;text-align:center;line-height:1.5;">
+  Apri questa email dal tuo smartphone per aggiungere la tessera al wallet.
+</p>
+{% endif %}
+
+{% if pdf_url %}
+{{ ui.cta_button(pdf_url, "Scarica la tessera PDF") }}
+{% endif %}
+{% endblock %}

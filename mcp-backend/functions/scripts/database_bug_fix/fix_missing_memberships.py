@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from itertools import islice
 
 from google.cloud import firestore
+from google.cloud.firestore_v1 import FieldFilter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
@@ -60,9 +61,9 @@ def _parse_purchase_date(value):
 def _find_existing_membership(email, phone):
     candidates = []
     if email:
-        candidates = db.collection("memberships").where("email", "==", email).limit(2).get()
+        candidates = db.collection("memberships").where(filter=FieldFilter("email", "==", email)).limit(2).get()
     if phone and not candidates:
-        candidates = db.collection("memberships").where("phone", "==", phone).limit(2).get()
+        candidates = db.collection("memberships").where(filter=FieldFilter("phone", "==", phone)).limit(2).get()
     if not candidates:
         return None, None
     if len(candidates) > 1:

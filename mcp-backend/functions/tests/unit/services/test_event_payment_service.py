@@ -2,9 +2,10 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from dto import CheckoutParticipantDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
-from models import Event, EventOrder, EventPurchaseAccessType, MembershipRef, PurchaseTypes
+from models import Event, EventOrder, EventPurchaseAccessType, Membership, MembershipRef, PurchaseTypes
 from services.payments.event_payment_service import EventPaymentService
 from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
 from domain.participant_rules import ParticipantCheckResult
@@ -35,11 +36,24 @@ class _DummyOrderRepo:
     def get(self, order_id):
         return self.order_data
 
+    def get_model(self, order_id):
+        if isinstance(self.order_data, EventOrder):
+            return self.order_data
+        if isinstance(self.order_data, dict):
+            return EventOrder.from_firestore(self.order_data, order_id)
+        return self.order_data
+
     def delete(self, order_id):
         self.deleted.append(order_id)
 
     def update_status(self, order_id, status):
         self.status_updates.append((order_id, status))
+
+    def mark_captured(self, order_id, payment_method):
+        pass
+
+    def set_purchase_id(self, order_id, purchase_id):
+        pass
 
 
 class _DummyEventRepo:
@@ -66,6 +80,9 @@ class _DummyPurchaseRepo:
     def create(self, purchase):
         self.created.append(purchase)
         return "pur-1"
+
+    def create_from_model(self, purchase):
+        return self.create(purchase)
 
     def update_participants(self, purchase_id, participants_count, membership_ids):
         self.updated.append((purchase_id, participants_count, membership_ids))
@@ -103,6 +120,10 @@ class _DummyParticipantRepo:
 
     def create(self, event_id, payload):
         self.created.append((event_id, payload))
+        return "part-1"
+
+    def create_from_model(self, event_id, participant):
+        self.created.append((event_id, participant))
         return "part-1"
 
 
@@ -162,19 +183,22 @@ def _order_payload(order_id="order-1", status="COMPLETED"):
 
 
 def test_create_order_event_requires_single_cart_item():
-    """Rejects payloads with more than one cart item."""
-    service = _make_service()
-    payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1"), PreOrderCartItemDTO(eventId="evt-2")])
-    with pytest.raises(ValidationError):
-        service.create_order_event(payload)
+    """Il DTO blocca ordini con più cart item prima del service."""
+    with pytest.raises(PydanticValidationError):
+        PreOrderDTO.model_validate(
+            {
+                "cart": [
+                    {"eventId": "evt-1", "participants": [_participant().to_payload()]},
+                    {"eventId": "evt-2", "participants": [_participant().to_payload()]},
+                ]
+            }
+        )
 
 
 def test_create_order_event_missing_event_or_participants():
-    """Rejects missing eventId or empty participants list."""
-    service = _make_service()
-    payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="", participants=[])])
-    with pytest.raises(ValidationError):
-        service.create_order_event(payload)
+    """Il DTO blocca eventId mancante e lista partecipanti vuota."""
+    with pytest.raises(PydanticValidationError):
+        PreOrderDTO.model_validate({"cart": [{"eventId": "", "participants": []}]})
 
 
 def test_create_order_event_run_basic_checks_error(monkeypatch):
@@ -285,7 +309,7 @@ def test_create_order_event_happy_path(monkeypatch):
     )
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
     result = service.create_order_event(payload)
-    assert result["id"] == "order-1"
+    assert result.id == "order-1"
     assert service.order_repository.saved
 
 
@@ -307,9 +331,8 @@ def test_create_order_event_only_members_adds_targets(monkeypatch):
 
     monkeypatch.setattr("services.payments.event_payment_service.ApiHelper.json_serialize", lambda body: json.dumps(body))
 
-    result = ParticipantCheckResult(
-        membership_docs={"mario@example.com": {"id": "mem-1", "email": "mario@example.com"}}
-    )
+    member = Membership(id="mem-1", email="mario@example.com")
+    result = ParticipantCheckResult(membership_docs={"mario@example.com": member})
     monkeypatch.setattr("services.payments.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
 
     p1 = _participant(name="Mario")
@@ -323,7 +346,7 @@ def test_create_order_event_only_members_adds_targets(monkeypatch):
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[p1, p2])])
 
     response = service.create_order_event(payload)
-    assert response["id"] == "order-2"
+    assert response.id == "order-2"
     saved_order = service.order_repository.saved[0][1]
     assert len(saved_order.membership_targets) == 1
     assert saved_order.membership_fee == 20.0
@@ -347,28 +370,34 @@ def test_create_order_event_only_registered_members_success(monkeypatch):
     result = ParticipantCheckResult(
         members=["Mario"],
         non_members=[],
-        membership_docs={"mario@example.com": {"id": "mem-1", "email": "mario@example.com"}},
+        membership_docs={"mario@example.com": Membership(id="mem-1", email="mario@example.com")},
     )
     monkeypatch.setattr("services.payments.event_payment_service.run_basic_checks", lambda *args, **kwargs: result)
 
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant()])])
     response = service.create_order_event(payload)
-    assert response["id"] == "order-3"
+    assert response.id == "order-3"
     saved_order = service.order_repository.saved[0][1]
     assert saved_order.membership_lookup.get("mario@example.com")
 
 
 def test_capture_order_event_missing_order_id():
-    """Rejects capture requests without order_id."""
-    service = _make_service()
-    with pytest.raises(ValidationError):
-        service.capture_order_event(OrderCaptureDTO(order_id=""))
+    """Il DTO blocca capture senza order_id prima del service."""
+    with pytest.raises(PydanticValidationError):
+        OrderCaptureDTO.model_validate({"order_id": ""})
 
 
 def test_capture_order_event_updates_status_on_validation_error(monkeypatch):
     """Updates order status if capture validation fails."""
     service = _make_service()
-    service.order_repository = _DummyOrderRepo()
+    service.order_repository = _DummyOrderRepo(
+        order_data=EventOrder(
+            order_id="order-1",
+            event_id="evt-1",
+            total=10.0,
+            participants=[_participant().to_payload()],
+        ).to_firestore(include_none=True)
+    )
     monkeypatch.setattr(service, "capture_paypal_order", lambda order_id: _order_payload(status="FAILED"))
 
     with pytest.raises(ValidationError):
@@ -430,7 +459,7 @@ def test_capture_order_event_happy_path(monkeypatch):
 
     result = service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
 
-    assert result["purchase_id"] == "pur-1"
+    assert result.purchase_id == "pur-1"
     assert handled.get("called") is True
     assert service.purchase_repository.updated
     assert service.order_repository.deleted == ["order-1"]

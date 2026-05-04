@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size: 200mm 100mm; margin: 10mm; }
+    body {
+      margin:0;
+      background-color:white;
+      font-family:Helvetica, Arial, sans-serif;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+    }
+    .card {
+      width:375px;
+      height:240px;
+      padding:30px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(150deg, #ff6600, #b0002a, #1a0010, #000);
+      border:0.2px solid #ff6600;
+      border-radius:12px;
+      text-align:center;
+    }
+    .logo { width:120px; margin-bottom:18px; }
+    .metallic {
+      font-weight:bold;
+      color:#ddd;
+      -webkit-text-fill-color:#ffffff;
+      text-shadow:0 0 0.8px rgba(255,255,255,0.4);
+    }
+    .name { font-size:23px; margin-bottom:25px; margin-top:28px; }
+    .info { font-size:12px; margin-bottom:8px; }
+    .footer { font-size:11px; margin-top:18px; font-style:italic; margin-bottom:-10px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo metallic" src="{{ logo_url }}" alt="Logo MCP" />
+    <div class="name metallic">{{ full_name }}</div>
+    <div class="info metallic">Membership ID: {{ membership_id }}</div>
+    <div class="info metallic">Valida fino al: {{ expiry_date }}</div>
+    <div class="footer metallic">* Music Connecting People ETS – Anno {{ expiry_year }} *</div>
+  </div>
+</body>
+</html>

@@ -24,7 +24,7 @@ from interfaces.repositories import (
     MembershipRepositoryProtocol,
     ParticipantRepositoryProtocol,
 )
-from interfaces.services import TicketServiceProtocol
+from interfaces.services import MembershipsServiceProtocol, TicketServiceProtocol
 from mappers.participant_mappers import (
     apply_participant_update_dto_to_model,
     create_participant_dto_to_model,
@@ -36,6 +36,7 @@ from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError, ForbiddenError
 from services.events.ticket_service import TicketService
+from services.memberships.renewal_command import RenewMembershipCommand
 from services.communications.mail_service import EmailMessage, MailService, mail_service
 from utils.templates_mail import get_omaggio_email_template, get_omaggio_email_text
 from utils.events_utils import (
@@ -53,6 +54,7 @@ class ParticipantsService:
         membership_repository: Optional[MembershipRepositoryProtocol] = None,
         participant_repository: Optional[ParticipantRepositoryProtocol] = None,
         ticket_service: Optional[TicketServiceProtocol] = None,
+        memberships_service: Optional[MembershipsServiceProtocol] = None,
         mail_service_instance: Optional[MailService] = None,
     ):
         self.logger = logging.getLogger("ParticipantsService")
@@ -61,7 +63,29 @@ class ParticipantsService:
         self.participant_repository = participant_repository or ParticipantRepository()
         self.allowed_payment_methods = {method.value for method in PaymentMethod}
         self.ticket_service = ticket_service or TicketService()
+        if memberships_service is None:
+            from services.memberships.memberships_service import MembershipsService
+
+            memberships_service = MembershipsService(
+                membership_repository=self.membership_repository,
+                participant_repository=self.participant_repository,
+                event_repository=self.event_repository,
+            )
+        self.memberships_service = memberships_service
         self.mail_service = mail_service_instance or mail_service
+
+    def _get_memberships_service(self) -> MembershipsServiceProtocol:
+        memberships_service = getattr(self, "memberships_service", None)
+        if memberships_service is None:
+            from services.memberships.memberships_service import MembershipsService
+
+            memberships_service = MembershipsService(
+                membership_repository=self.membership_repository,
+                participant_repository=self.participant_repository,
+                event_repository=self.event_repository,
+            )
+            self.memberships_service = memberships_service
+        return memberships_service
 
     def _normalize_price(self, price: Optional[Any]) -> Optional[float]:
         if price in (None, ""):
@@ -153,27 +177,25 @@ class ParticipantsService:
             now = datetime.now(timezone.utc)
             start_date = now.isoformat()
             end_date = calculate_end_of_year_membership(now)
-            renewals = list(membership.renewals or []) if membership else []
-            renewals.append(
-                build_renewal_record(
+            # Il partecipante può includere una tessera: il rinnovo passa comunque dal service membership.
+            membership = self._get_memberships_service().renew_existing(
+                membership,
+                RenewMembershipCommand(
+                    membership_id=membership_id,
                     start_date=start_date,
                     end_date=end_date,
-                    purchase_id=getattr(membership, "purchase_id", None),
+                    purchase_id=purchase_id or getattr(membership, "purchase_id", None),
                     fee=getattr(membership, "membership_fee", None),
-                )
+                    membership_type="manual",
+                    send_card=False,
+                    invalidate_wallet=True,
+                    create_wallet=False,
+                    name=dto.name,
+                    surname=dto.surname,
+                    phone=phone,
+                    birthdate=birthdate,
+                ),
             )
-            membership.subscription_valid = True
-            membership.start_date = start_date
-            membership.end_date = end_date
-            membership.membership_sent = False
-            membership.membership_type = "manual"
-            membership.renewals = renewals
-            membership.membership_years = membership_years_from_renewals(
-                renewals,
-                fallback_start_date=start_date,
-                fallback_end_date=end_date,
-            )
-            self.membership_repository.update_from_model(membership_id, membership)
             is_member = True
 
         if membership_included and not is_member and not membership_id:

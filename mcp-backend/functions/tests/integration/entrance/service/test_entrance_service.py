@@ -2,8 +2,8 @@
 Integration tests — Entrance Scanner
 =====================================
 
-PRE-REQUISITO: Firestore emulator attivo su porta 8080.
-  firebase emulators:start --only firestore
+PRE-REQUISITO: Firestore emulator attivo e FIRESTORE_EMULATOR_HOST impostato.
+Se la variabile non e' impostata, il conftest prova auto-detect su 8085 e 8080.
 
 Se l'emulatore non è raggiungibile l'intera suite viene saltata
 automaticamente (nessun dato viene mai scritto in produzione).
@@ -20,7 +20,7 @@ Scenari coperti
   5. Scansione tessere valide                        → result "valid"
   6. Membro senza biglietto per l'evento             → result "invalid_no_purchase"
   7. Membro già entrato — seconda scansione          → result "already_scanned"
-  8. Membro con subscription_valid=False             → result "invalid_no_purchase"
+  8. Membro con subscription_valid=False             → result "invalid_membership"
   Extra. Token inesistente                           → result "invalid_token" / valid=False
 """
 
@@ -213,8 +213,7 @@ def test_already_scanned_member_blocked(entrance_seed, entrance_service):
 def test_member_with_invalid_subscription_rejected(entrance_seed, entrance_service):
     """
     Step 8: La membership esiste ma subscription_valid=False (scaduta / non attiva).
-    Non avendo acquistato un biglietto, non esiste alcun participant record collegato
-    → la scansione restituisce "invalid_no_purchase".
+    Il service blocca prima la tessera scaduta e restituisce "invalid_membership".
 
     Il sistema di ingresso si basa sull'acquisto del biglietto, non sullo stato
     della membership al momento della scansione: una tessera scaduta non avrebbe

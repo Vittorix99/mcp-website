@@ -2,8 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from dto import EventParticipantDTO
-from models import Event, Membership, Purchase
+from models import Event, EventParticipant, Membership, Purchase
 from services.memberships.membership_reports_service import MembershipReportsService
 from errors.service_errors import NotFoundError, ValidationError
 
@@ -112,7 +111,7 @@ def test_get_memberships_report_happy_path():
         by_ids={"mem-3": mem3},
     )
 
-    participant = EventParticipantDTO(event_id="evt-1", membership_id="mem-3", purchase_id="pur-1")
+    participant = EventParticipant(event_id="evt-1", membership_id="mem-3", purchase_id="pur-1")
     service.participant_repository = _DummyParticipantRepo(participants=[participant])
 
     payload = service.get_memberships_report("evt-1")

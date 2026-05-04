@@ -13,8 +13,8 @@ qui si verifica che:
   - la response shape sia consistente con il contratto API
   - i casi "safe" (idempotenti) producano i risultati attesi end-to-end
 
-PRE-REQUISITO: Firestore emulator attivo su porta 8080.
-  firebase emulators:start --only firestore
+PRE-REQUISITO: Firestore emulator attivo e FIRESTORE_EMULATOR_HOST impostato.
+Se la variabile non e' impostata, il conftest prova auto-detect su 8085 e 8080.
 """
 
 import pytest

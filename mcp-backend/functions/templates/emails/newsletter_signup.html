@@ -1,0 +1,19 @@
+{% extends "emails/base_dark.html" %}
+{% import "emails/_partials.html" as ui %}
+
+{% block title %}Benvenuto{% endblock %}
+{% block eyebrow %}Benvenuto{% endblock %}
+{% block headline %}Sei nella lista.{% endblock %}
+{% block footer_note %}Ricevi questa email perché ti sei iscritto alla newsletter di Music Connecting People.{% endblock %}
+
+{% block body %}
+<p style="margin:0 0 20px;color:#9a9a9a;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;">
+  Grazie per esserti iscritto. Riceverai aggiornamenti esclusivi sugli eventi MCP, annunci speciali e molto altro.
+</p>
+<p style="margin:0 0 32px;color:#9a9a9a;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.7;">
+  Segui il nostro profilo Instagram per non perderti nessun aggiornamento in tempo reale.
+</p>
+{% if instagram_url %}
+{{ ui.cta_button(instagram_url, "Seguici su Instagram") }}
+{% endif %}
+{% endblock %}

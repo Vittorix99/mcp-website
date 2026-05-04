@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config.firebase_config import db
+from google.cloud.firestore_v1 import FieldFilter
 
 
 def _normalize_email(email: Optional[str]) -> str:
@@ -45,7 +46,7 @@ def _to_int(value: Any) -> Optional[int]:
 # ---------------------------------------------------------------------------
 
 def _load_event_purchases(event_id: str) -> List[Dict]:
-    snaps = db.collection("purchases").where("ref_id", "==", event_id).stream()
+    snaps = db.collection("purchases").where(filter=FieldFilter("ref_id", "==", event_id)).stream()
     result = []
     for snap in snaps:
         data = snap.to_dict() or {}
@@ -57,7 +58,7 @@ def _load_event_purchases(event_id: str) -> List[Dict]:
 def _load_memberships_by_year(year: int) -> List[Dict]:
     snaps = (
         db.collection("memberships")
-        .where("membership_years", "array_contains", year)
+        .where(filter=FieldFilter("membership_years", "array_contains", year))
         .stream()
     )
     result = []

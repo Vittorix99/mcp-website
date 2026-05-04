@@ -10,7 +10,7 @@ from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
 from services.events.events_service import EventsService
-from dto import EventDTO
+from dto.event_api import CreateEventRequestDTO
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def create_stats_fixtures(stats_repos):
 
     def _create():
         date_value = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%d-%m-%Y")
-        event_dto = EventDTO.from_payload(
+        event_dto = CreateEventRequestDTO.model_validate(
             {
                 "title": f"Stats Event {uuid4().hex[:8]}",
                 "date": date_value,
@@ -44,7 +44,7 @@ def create_stats_fixtures(stats_repos):
                 "status": "active",
             }
         )
-        event_id = events_service.create_event(event_dto, admin_uid="admin-test").get("eventId")
+        event_id = events_service.create_event(event_dto, admin_uid="admin-test").event_id
         created["events"].append(event_id)
 
         membership = Membership(

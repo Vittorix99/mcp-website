@@ -15,6 +15,9 @@ pids
 *.pid
 *.seed
 *.pid.lock
+runtime-data/
+emulator-data/
+entrance-data/
 
 # Instrumented libs
 lib-cov

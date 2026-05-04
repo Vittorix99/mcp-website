@@ -36,8 +36,11 @@ class EventRepository(BaseRepository[Event]):
     def create_from_model(self, event: Event, slug_seed: str) -> str:
         ref = self.collection.document()
         event.slug = build_slug(slug_seed, suffix=ref.id[-6:])
-        ref.set(event.to_firestore(include_none=True))
+        ref.set(event.to_firestore(include_none=True)) ## This will create the document with the generated ID, which is needed to ensure slug uniqueness.
         return ref.id
+    
+    
+
 
     def update_from_model(self, event_id: str, event: Event) -> None:
         self.collection.document(event_id).set(event.to_firestore(include_none=True), merge=True)

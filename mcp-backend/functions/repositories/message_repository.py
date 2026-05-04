@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from google.cloud import firestore
+from google.cloud.firestore_v1 import FieldFilter
 
 from models import ContactMessage
 from repositories.base import BaseRepository
@@ -17,8 +18,8 @@ class MessageRepository(BaseRepository[ContactMessage]):
     def count_unanswered_since(self, time_limit) -> int:
         query = (
             self.collection
-            .where("answered", "==", False)
-            .where("timestamp", ">=", time_limit)
+            .where(filter=FieldFilter("answered", "==", False))
+            .where(filter=FieldFilter("timestamp", ">=", time_limit))
             .stream()
         )
         return sum(1 for _ in query)

@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         UpdateMembershipRequestDTO,
         WalletModelResponseDTO,
     )
+    from services.memberships.renewal_command import RenewMembershipCommand
     from dto.participant_api import (
         CheckParticipantsResponseDTO,
         CheckoutParticipantRequestDTO,
@@ -75,7 +76,7 @@ if TYPE_CHECKING:
         VerifyScanTokenQueryDTO,
         VerifyScanTokenResponseDTO,
     )
-    from models import Event
+    from models import Event, Membership
 
 
 class AdminServiceProtocol(Protocol):
@@ -169,6 +170,9 @@ class MembershipsServiceProtocol(Protocol):
         ...
 
     def renew(self, membership_id: str, dto: RenewMembershipRequestDTO) -> MembershipActionResponseDTO:
+        ...
+
+    def renew_existing(self, membership: Membership, command: RenewMembershipCommand) -> Membership:
         ...
 
     def delete(self, membership_id: str) -> MembershipActionResponseDTO:

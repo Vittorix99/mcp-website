@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 
-from dto import ContactMessageDTO, EventParticipantDTO, MembershipDTO
-from models import Event, Purchase
+from models import ContactMessage, Event, EventParticipant, Membership, PaymentMethod, Purchase
 from services.core.stats_service import StatsService
 
 
@@ -57,7 +56,7 @@ class _DummyMessageRepo:
     def count_unanswered_since(self, time_limit):
         return self._count
 
-    def get_last_dto(self):
+    def get_last_model(self):
         return self._last
 
 
@@ -76,11 +75,11 @@ def test_get_general_stats_happy_path():
     event2.id = "evt-2"
     service.event_repository = _DummyEventRepo(models=[event2, event1])
 
-    member1 = MembershipDTO(name="A", subscription_valid=True)
-    member2 = MembershipDTO(name="B", subscription_valid=False)
+    member1 = Membership(name="A", subscription_valid=True)
+    member2 = Membership(name="B", subscription_valid=False)
     service.membership_repository = _DummyMembershipRepo(
         stream_items=[member1, member2],
-        last=MembershipDTO(name="Last"),
+        last=Membership(name="Last"),
     )
 
     purchase1 = Purchase(amount_total="30.0", net_amount="20.0")
@@ -92,16 +91,16 @@ def test_get_general_stats_happy_path():
         last=purchase1,
     )
 
-    participant1 = EventParticipantDTO(event_id="evt-1", price=10)
-    participant2 = EventParticipantDTO(event_id="evt-1", price="5.5")
+    participant1 = EventParticipant(event_id="evt-1", price=10, payment_method=PaymentMethod.CASH)
+    participant2 = EventParticipant(event_id="evt-1", price="5.5", payment_method=PaymentMethod.CASH)
     service.participant_repository = _DummyParticipantRepo(
         participants=[participant1, participant2],
-        last=EventParticipantDTO(event_id="evt-x", name="Last"),
+        last=EventParticipant(event_id="evt-x", name="Last"),
     )
 
     service.message_repository = _DummyMessageRepo(
         count=3,
-        last=ContactMessageDTO(name="Hello", email="a@b.com", message="hi"),
+        last=ContactMessage(name="Hello", email="a@b.com", message="hi"),
     )
 
     payload = service.get_general_stats()

@@ -5,6 +5,7 @@ from urllib.parse import unquote, urlparse
 
 _ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
 _DEFAULT_WEBSITE_URL = "https://musiconnectingpeople.com"
+_DEFAULT_PRIMARY_LOGO_URL = f"{_DEFAULT_WEBSITE_URL}/logo_white.png"
 
 
 def _load_asset_as_data_uri(filename: str) -> str:
@@ -69,7 +70,7 @@ def resolve_logo_url() -> str:
     if bucket:
         return f"https://storage.googleapis.com/{bucket}/logos/logo_white.png"
 
-    return "#"
+    return _DEFAULT_PRIMARY_LOGO_URL
 
 
 def resolve_instagram_url() -> str:

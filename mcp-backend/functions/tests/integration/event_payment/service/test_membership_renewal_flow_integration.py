@@ -23,7 +23,8 @@ from uuid import uuid4
 
 import pytest
 
-from dto import CheckoutParticipantDTO, EventDTO, OrderCaptureDTO
+from dto.event_api import CreateEventRequestDTO
+from dto.preorder import CheckoutParticipantDTO, OrderCaptureDTO
 from models import (
     EventOrder,
     EventPurchaseAccessType,
@@ -137,7 +138,7 @@ def only_members_event(events_service):
     """Crea un evento ONLY_MEMBERS nel Firestore emulator."""
     created = []
     date_value = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%d-%m-%Y")
-    dto = EventDTO.from_payload({
+    dto = CreateEventRequestDTO.model_validate({
         "title": f"Rinnovo Test Event {uuid4().hex[:6]}",
         "date": date_value,
         "startTime": "21:00",
@@ -150,7 +151,7 @@ def only_members_event(events_service):
         "purchaseMode": EventPurchaseAccessType.ONLY_MEMBERS.value,
     })
     result = events_service.create_event(dto, admin_uid="admin-test")
-    event_id = result.get("eventId")
+    event_id = result.event_id
     created.append(event_id)
     yield event_id
     for eid in created:
@@ -280,14 +281,12 @@ def test_renewal_flow_end_to_end_with_email(
     with patch.object(service, "capture_paypal_order", return_value=capture_data), \
          patch("services.payments.event_payment_service.ApiHelper.json_serialize",
                side_effect=lambda body: json.dumps(body)), \
-         patch("services.memberships.pass2u_service.Pass2UService") as mock_p2u:
-
-        mock_p2u.return_value.create_membership_pass.return_value = mock_wallet
-        mock_p2u.return_value.invalidate_membership_pass.return_value = True
+         patch.object(service.memberships_service.pass2u_service, "create_membership_pass", return_value=mock_wallet), \
+         patch.object(service.memberships_service.pass2u_service, "invalidate_membership_pass", return_value=True):
         result = service.capture_order_event(OrderCaptureDTO(order_id=order_id))
 
-    print(f"[STEP 3] Capture completata: purchase_id={result.get('purchase_id')}")
-    assert result.get("purchase_id"), "Il capture deve restituire un purchase_id"
+    print(f"[STEP 3] Capture completata: purchase_id={result.purchase_id}")
+    assert result.purchase_id, "Il capture deve restituire un purchase_id"
 
     # ------------------------------------------------------------------
     # Step 4: verifica rinnovo + invio tessera su Firestore

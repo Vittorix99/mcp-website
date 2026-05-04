@@ -21,7 +21,8 @@ from types import SimpleNamespace
 import pytest
 
 from domain.participant_rules import _is_valid_member, run_basic_checks
-from dto import CheckoutParticipantDTO, MembershipDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
+from domain.membership_rules import build_renewal_record, membership_years_from_renewals
+from dto.preorder import CheckoutParticipantDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
 from models import (
     Event,
     EventOrder,
@@ -61,11 +62,23 @@ class _DummyOrderRepo:
     def get(self, order_id):
         return self._order_data
 
+    def get_model(self, order_id):
+        data = self._order_data
+        if isinstance(data, EventOrder):
+            return data
+        return EventOrder.from_firestore(data, order_id) if isinstance(data, dict) else data
+
     def delete(self, order_id):
         self.deleted.append(order_id)
 
     def update_status(self, order_id, status):
         self.status_updates.append((order_id, status))
+
+    def mark_captured(self, order_id, payment_method):
+        pass
+
+    def set_purchase_id(self, order_id, purchase_id):
+        pass
 
 
 class _DummyEventRepo:
@@ -90,6 +103,9 @@ class _DummyPurchaseRepo:
         self.created.append(purchase)
         return "pur-renewal-1"
 
+    def create_from_model(self, purchase):
+        return self.create(purchase)
+
     def update_participants(self, purchase_id, count, membership_ids):
         self.updated.append((purchase_id, count, membership_ids))
 
@@ -107,8 +123,15 @@ class _DummyMembershipRepo:
             return self.existing
         return None
 
+    def get(self, membership_id):
+        if self.existing and self.existing.id == membership_id:
+            return self.existing
+        return None
+
     def update_from_model(self, membership_id, dto):
         self.updated.append((membership_id, dto))
+        if self.existing and self.existing.id == membership_id:
+            self.existing = dto
 
     def append_purchase(self, membership_id, purchase_id):
         self.appended.append((membership_id, purchase_id))
@@ -130,8 +153,48 @@ class _DummyParticipantRepo:
         self.created.append((event_id, payload))
         return "part-1"
 
+    def create_from_model(self, event_id, participant):
+        self.created.append((event_id, participant))
+        return "part-1"
+
     def any_with_contacts(self, event_id, emails, phones):
         return False
+
+
+class _DummyMembershipsService:
+    def __init__(self, membership_repository):
+        self.membership_repository = membership_repository
+        self.commands = []
+
+    def renew_existing(self, existing, command):
+        self.commands.append(command)
+        renewals = list(existing.renewals or [])
+        renewals.append(
+            build_renewal_record(
+                start_date=command.start_date,
+                end_date=command.end_date,
+                purchase_id=command.purchase_id,
+                fee=command.fee,
+            )
+        )
+        # Il fake replica solo gli effetti osservabili dal payment service.
+        existing.start_date = command.start_date
+        existing.end_date = command.end_date
+        existing.subscription_valid = True
+        existing.membership_sent = False
+        existing.send_card_on_create = command.send_card
+        existing.membership_type = command.membership_type or existing.membership_type
+        existing.membership_fee = command.fee
+        existing.renewals = renewals
+        existing.membership_years = membership_years_from_renewals(
+            renewals,
+            fallback_start_date=command.start_date,
+            fallback_end_date=command.end_date,
+        )
+        if command.purchase_id:
+            existing.purchases = sorted({*(existing.purchases or []), command.purchase_id})
+        self.membership_repository.update_from_model(command.membership_id, existing)
+        return existing
 
 
 def _make_service(existing_membership: Membership = None):
@@ -144,6 +207,7 @@ def _make_service(existing_membership: Membership = None):
     service.order_repository = _DummyOrderRepo()
     service.purchase_repository = _DummyPurchaseRepo()
     service.participant_repository = _DummyParticipantRepo()
+    service.memberships_service = _DummyMembershipsService(service.membership_repository)
     return service
 
 
@@ -369,7 +433,7 @@ def test_create_order_event_previous_year_member_is_target(monkeypatch):
     payload = PreOrderDTO(cart=[PreOrderCartItemDTO(eventId="evt-1", participants=[_participant(email)])])
     result = service.create_order_event(payload)
 
-    assert result["id"] == "order-1"
+    assert result.id == "order-1"
     saved_order = service.order_repository.saved[0][1]
 
     # The previous-year member must be in targets, not in lookup
@@ -508,7 +572,7 @@ def test_capture_renews_previous_year_member_and_registers_participant(monkeypat
 
     result = service.capture_order_event(OrderCaptureDTO(order_id="order-renewal"))
 
-    assert result["purchase_id"] == "pur-renewal-1"
+    assert result.purchase_id == "pur-renewal-1"
 
     # Membership must have been updated (renewed), not created from scratch
     assert len(service.membership_repository.updated) == 1
@@ -524,7 +588,7 @@ def test_capture_renews_previous_year_member_and_registers_participant(monkeypat
     assert len(service.participant_repository.created) == 1
     event_id_saved, part_payload = service.participant_repository.created[0]
     assert event_id_saved == "evt-renewal"
-    assert part_payload.get("membership_included") is True
+    assert part_payload.membership_included is True
 
     # The staging order must have been deleted after capture
     assert "order-renewal" in service.order_repository.deleted

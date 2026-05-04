@@ -17,19 +17,6 @@
         "firebase-debug.*.log",
         "*.local"
       ]
-    },
-    {
-      "source": "mcp-backend/js_functions",
-      "codebase": "js_codebase",
-      "runtime": "nodejs20",
-      "region": "us-central1",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ]
     }
   ],
   "hosting": {
@@ -42,24 +29,7 @@
     "frameworksBackend": {
       "region": "us-central1"
     },
-     "rewrites": [
-    {
-      "source": "/events/**",
-      "function": "ssrmcpwebsite2a1ad"
-    },
-    {
-      "source": "/event-foto/**",
-      "function": "ssrmcpwebsite2a1ad"
-    },
-    {
-      "source": "/admin/events/**",
-      "function": "ssrmcpwebsite2a1ad"
-    },
-    {
-      "source": "/admin/membership/**",
-      "function": "ssrmcpwebsite2a1ad"
-    }
-  ],
+    "rewrites": [],
     
     "headers": [
       {

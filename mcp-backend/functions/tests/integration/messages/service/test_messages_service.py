@@ -3,7 +3,8 @@ from uuid import uuid4
 import pytest
 
 from config.firebase_config import db
-from dto import ContactMessageDTO
+from dto.message_api import ContactFormRequestDTO
+from google.cloud.firestore_v1 import FieldFilter
 from services.communications.messages_service import MessagesService
 
 
@@ -16,22 +17,23 @@ def test_messages_service_sends_email_and_persists(unique_email):
     suffix = uuid4().hex[:8]
     name = f"Integration User {suffix}"
     message_text = f"Integ message {suffix}"
-    dto = ContactMessageDTO(
+    dto = ContactFormRequestDTO(
         name=name,
         email=unique_email,
         message=message_text,
         subject="Integration contact",
+        send_copy=True,
     )
 
     doc_id = None
     try:
-        result = service.submit_contact_message(dto, send_copy=True)
-        assert result.get("message") == "Message sent successfully"
+        result = service.submit_contact_message(dto)
+        assert result.message == "Message sent successfully"
 
         docs = (
             db.collection("contact_message")
-            .where("email", "==", unique_email)
-            .where("message", "==", message_text)
+            .where(filter=FieldFilter("email", "==", unique_email))
+            .where(filter=FieldFilter("message", "==", message_text))
             .limit(1)
             .get()
         )

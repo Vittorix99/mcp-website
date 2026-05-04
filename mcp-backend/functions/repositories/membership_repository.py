@@ -37,7 +37,7 @@ class MembershipRepository(BaseRepository[Membership]):
     def get_model_by_slug(self, slug: str) -> Optional[Membership]:
         if not slug:
             return None
-        matches = self.collection.where("slug", "==", slug).limit(1).get()
+        matches = self.collection.where(filter=FieldFilter("slug", "==", slug)).limit(1).get()
         if not matches:
             return None
         return self._model_from_snapshot(matches[0])
@@ -45,7 +45,7 @@ class MembershipRepository(BaseRepository[Membership]):
     def find_by_email(self, email: str) -> Optional[Membership]:
         if not email:
             return None
-        docs = self.collection.where("email", "==", email).limit(1).get()
+        docs = self.collection.where(filter=FieldFilter("email", "==", email)).limit(1).get()
         if not docs:
             return None
         return self._model_from_snapshot(docs[0])
@@ -53,7 +53,7 @@ class MembershipRepository(BaseRepository[Membership]):
     def find_by_phone(self, phone: str) -> Optional[Membership]:
         if not phone:
             return None
-        docs = self.collection.where("phone", "==", phone).limit(1).get()
+        docs = self.collection.where(filter=FieldFilter("phone", "==", phone)).limit(1).get()
         if not docs:
             return None
         return self._model_from_snapshot(docs[0])
@@ -97,7 +97,9 @@ class MembershipRepository(BaseRepository[Membership]):
         return True
 
     def find_by_year(self, year: int) -> List[Membership]:
-        docs = self.collection.where("membership_years", "array_contains", int(year)).stream()
+        docs = self.collection.where(
+            filter=FieldFilter("membership_years", "array_contains", int(year))
+        ).stream()
         return [self._model_from_snapshot(doc) for doc in docs]
 
     def update_from_model(self, membership_id: str, payload: Membership) -> bool:

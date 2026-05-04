@@ -44,6 +44,7 @@ from repositories.membership_settings_repository import MembershipSettingsReposi
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
 from services.memberships.pass2u_service import Pass2UService
+from services.memberships.renewal_command import RenewMembershipCommand
 from services.events.documents_service import DocumentsService
 from services.communications.mail_service import EmailMessage, MailService, mail_service
 from errors.service_errors import (
@@ -114,6 +115,83 @@ class MembershipsService:
             fallback_end_date=new_end_date,
         )
         return renewals, years
+
+    def renew_existing(
+        self,
+        existing: Membership,
+        command: RenewMembershipCommand,
+    ) -> Membership:
+        """Entry point unico per rinnovare una membership già esistente."""
+        membership_id = command.membership_id or existing.id
+        if not membership_id:
+            raise ValidationError("Membership id mancante")
+
+        self.logger.info(f"[renew] Renewing membership {membership_id} (start_date: {existing.start_date})")
+
+        # Il vecchio wallet non deve rappresentare una tessera rinnovata.
+        if command.invalidate_wallet and existing.wallet_pass_id:
+            try:
+                self.pass2u_service.invalidate_membership_pass(existing.wallet_pass_id)
+            except Exception as e:
+                self.logger.warning(f"[renew] Old pass invalidation failed (non-blocking): {e}")
+
+        renewals, membership_years = self._compose_renewals_and_years(
+            existing,
+            new_start_date=command.start_date,
+            new_end_date=command.end_date,
+            purchase_id=command.purchase_id,
+            fee=command.fee if command.fee is not None else existing.membership_fee,
+        )
+
+        # Da qui in poi aggiorniamo solo il domain model; il repository persiste senza regole.
+        existing.start_date = command.start_date
+        existing.end_date = command.end_date
+        existing.subscription_valid = True
+        existing.membership_sent = False
+        existing.send_card_on_create = command.send_card
+        existing.renewals = renewals
+        existing.membership_years = membership_years
+        if command.invalidate_wallet or command.create_wallet:
+            existing.wallet_pass_id = None
+            existing.wallet_url = None
+        if command.fee is not None:
+            existing.membership_fee = command.fee
+        if command.membership_type:
+            existing.membership_type = command.membership_type
+        if command.purchase_id:
+            if not existing.purchase_id:
+                existing.purchase_id = command.purchase_id
+            existing.purchases = sorted({*(existing.purchases or []), command.purchase_id})
+        if command.name and not existing.name:
+            existing.name = command.name
+        if command.surname and not existing.surname:
+            existing.surname = command.surname
+        if command.phone and not existing.phone:
+            existing.phone = command.phone
+        if command.birthdate and not existing.birthdate:
+            existing.birthdate = command.birthdate
+
+        self.membership_repository.update_from_model(membership_id, existing)
+
+        if command.create_wallet:
+            try:
+                wallet = self.pass2u_service.create_membership_pass(membership_id, existing)
+                if wallet:
+                    existing.wallet_pass_id = wallet.pass_id
+                    existing.wallet_url = wallet.wallet_url
+                    self.membership_repository.update_from_model(membership_id, existing)
+            except Exception as e:
+                self.logger.warning(f"[renew] Pass creation failed (non-blocking): {e}")
+
+        if command.send_card and existing.email:
+            try:
+                self.send_card(membership_id)
+                existing.membership_sent = True
+            except Exception as e:
+                self.logger.warning(f"[renew] Card send failed (non-blocking): {e}")
+
+        self.logger.info(f"[renew] Membership {membership_id} renewed successfully")
+        return existing
 
     def _build_mergeable_conflict(self, conflicting: Membership) -> ConflictError:
         label = f"{(conflicting.name or '').strip()} {(conflicting.surname or '').strip()}".strip()
@@ -201,64 +279,23 @@ class MembershipsService:
         dto: CreateMembershipRequestDTO | RenewMembershipRequestDTO,
     ) -> MembershipActionResponseDTO:
         """Rinnova una membership scaduta aggiornando il model e rigenerando la tessera."""
-        self.logger.info(f"[renew] Renewing membership {membership_id} (start_date: {existing.start_date})")
-
-        # 1. Invalidiamo il vecchio wallet pass: il rinnovo deve produrre una tessera nuova.
-        if existing.wallet_pass_id:
-            try:
-                self.pass2u_service.invalidate_membership_pass(existing.wallet_pass_id)
-            except Exception as e:
-                self.logger.warning(f"[renew] Old pass invalidation failed (non-blocking): {e}")
-
-        # 2. Aggiorniamo il model in memoria: date, stato, storico rinnovi e riferimenti wallet.
         now = datetime.now(timezone.utc)
         new_start = now.isoformat()
         new_end = calculate_end_of_year_membership(now)
-        renewal_purchase_id = dto.purchase_id or None
-        renewals, membership_years = self._compose_renewals_and_years(
+        self.renew_existing(
             existing,
-            new_start_date=new_start,
-            new_end_date=new_end,
-            purchase_id=renewal_purchase_id,
-            fee=dto.membership_fee if dto.membership_fee is not None else existing.membership_fee,
+            RenewMembershipCommand(
+                membership_id=membership_id,
+                start_date=new_start,
+                end_date=new_end,
+                purchase_id=dto.purchase_id or None,
+                fee=dto.membership_fee if dto.membership_fee is not None else existing.membership_fee,
+                membership_type=dto.membership_type,
+                send_card=bool(dto.send_card_on_create) if dto.send_card_on_create is not None else False,
+                invalidate_wallet=True,
+                create_wallet=True,
+            ),
         )
-
-        existing.start_date = new_start
-        existing.end_date = new_end
-        existing.subscription_valid = True
-        existing.membership_sent = False
-        existing.renewals = renewals
-        existing.membership_years = membership_years
-        existing.wallet_pass_id = None
-        existing.wallet_url = None
-        if dto.membership_fee is not None:
-            existing.membership_fee = dto.membership_fee
-        if dto.membership_type:
-            existing.membership_type = dto.membership_type
-        if renewal_purchase_id:
-            existing.purchases = sorted({*(existing.purchases or []), renewal_purchase_id})
-        # Persistiamo il model completo; il repository non decide nulla sul rinnovo.
-        self.membership_repository.update_from_model(membership_id, existing)
-
-        # 3. Creiamo il nuovo wallet pass e salviamo solo i riferimenti generati dal provider.
-        try:
-            wallet = self.pass2u_service.create_membership_pass(membership_id, existing)
-            if wallet:
-                existing.wallet_pass_id = wallet.pass_id
-                existing.wallet_url = wallet.wallet_url
-                self.membership_repository.update_from_model(membership_id, existing)
-        except Exception as e:
-            self.logger.warning(f"[renew] Pass creation failed (non-blocking): {e}")
-
-        # 4. L'invio email resta opzionale: il rinnovo può completarsi anche senza invio immediato.
-        send_card = bool(dto.send_card_on_create) if dto.send_card_on_create is not None else False
-        if send_card and existing.email:
-            try:
-                self.send_card(membership_id)
-            except Exception as e:
-                self.logger.warning(f"[renew] Card send failed (non-blocking): {e}")
-
-        self.logger.info(f"[renew] Membership {membership_id} renewed successfully")
         return MembershipActionResponseDTO(message="Membership rinnovata", id=membership_id, renewed=True)
 
     def renew(self, membership_id: str, dto: RenewMembershipRequestDTO) -> MembershipActionResponseDTO:

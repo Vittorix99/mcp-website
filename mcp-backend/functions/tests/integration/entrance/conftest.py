@@ -1,9 +1,9 @@
 """
 Conftest per i test di integrazione dell'Entrance Scanner.
 
-IMPORTANTE — questi test girano contro il Firestore emulator oppure contro
-un progetto cloud di test/dev esplicito. Se il target non è sicuro, l'intera
-suite viene saltata automaticamente.
+IMPORTANTE — questi test girano SOLO contro il Firestore emulator.
+Se l'emulatore non è attivo o non è configurabile prima dell'inizializzazione
+Firebase, l'intera suite viene saltata automaticamente.
 
 Tutto il dato di test (evento, membership, partecipanti, scan token) viene
 creato UNA SOLA VOLTA in `entrance_seed` (scope="session") prima che parta
@@ -18,6 +18,39 @@ from uuid import uuid4
 
 import pytest
 
+
+def _is_port_open(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def _configure_firestore_emulator_before_firebase_import() -> None:
+    """
+    Imposta FIRESTORE_EMULATOR_HOST prima di importare firebase_config.
+    Se lo facciamo dopo, il client Firestore viene già creato contro cloud.
+    """
+    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+        return
+
+    configured_port = os.environ.get("FIRESTORE_EMULATOR_PORT")
+    candidate_ports = [configured_port] if configured_port else []
+    candidate_ports.extend(["8085", "8080"])
+
+    for raw_port in candidate_ports:
+        if not raw_port:
+            continue
+        port = int(raw_port)
+        for host in ("127.0.0.1", "localhost"):
+            if _is_port_open(host, port):
+                os.environ["FIRESTORE_EMULATOR_HOST"] = f"{host}:{port}"
+                return
+
+
+_configure_firestore_emulator_before_firebase_import()
+
 from config.firebase_config import db
 from dto.entrance_api import GenerateScanTokenRequestDTO
 from dto.event_api import CreateEventRequestDTO
@@ -30,50 +63,28 @@ from services.events.events_service import EventsService
 
 
 # ---------------------------------------------------------------------------
-# Guard: salta tutto se il target Firestore non è sicuro
+# Guard: salta tutto se il Firestore emulator non è raggiungibile
 # ---------------------------------------------------------------------------
 
-def _is_port_open(host: str, port: int) -> bool:
-    try:
-        with socket.create_connection((host, port), timeout=0.5):
-            return True
-    except OSError:
-        return False
-
-
-def _require_safe_firestore_target() -> None:
+def _require_emulator() -> None:
     """
-    Verifica che Firestore punti all'emulatore oppure a un progetto cloud
-    chiaramente di test/dev. In caso contrario salta la suite per evitare
-    scritture accidentali su ambienti non destinati ai test.
+    Verifica che FIRESTORE_EMULATOR_HOST sia impostato e raggiungibile.
+    Chiama pytest.skip() se l'emulatore non è disponibile, così nessun test
+    in questa suite tocca accidentalmente il database cloud.
     """
     host = os.environ.get("FIRESTORE_EMULATOR_HOST", "")
     if not host:
-        # Prova auto-detect sulla porta di default
-        if _is_port_open("127.0.0.1", 8080):
-            os.environ["FIRESTORE_EMULATOR_HOST"] = "127.0.0.1:8080"
-            return
-        elif _is_port_open("localhost", 8080):
-            os.environ["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
-            return
+        pytest.skip("Firestore emulator non attivo — FIRESTORE_EMULATOR_HOST non impostato")
 
-    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
-        return
-
-    project_id = (getattr(db, "project", "") or "").lower()
-    if "test" in project_id or "dev" in project_id:
-        return
-
-    pytest.skip(
-        "Target Firestore non sicuro per entrance integration: usa emulator "
-        "oppure un progetto cloud con id contenente 'test' o 'dev'."
-    )
+    host_name, raw_port = host.rsplit(":", 1)
+    if not _is_port_open(host_name, int(raw_port)):
+        pytest.skip(f"Firestore emulator non raggiungibile su {host}")
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _emulator_guard():
-    """Fixture autouse: blocca la suite se il target Firestore non è sicuro."""
-    _require_safe_firestore_target()
+    """Fixture autouse: blocca l'intera suite se l'emulatore non è attivo."""
+    _require_emulator()
 
 
 # ---------------------------------------------------------------------------
