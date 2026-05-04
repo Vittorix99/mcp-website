@@ -18,6 +18,7 @@ from models import (
     Setting,
     UserProfile,
 )
+from models.radio import RadioEpisode, RadioSeason
 from models.scan_token import ScanToken
 
 
@@ -356,4 +357,44 @@ class EntranceScanRepositoryProtocol(Protocol):
         ...
 
     def count(self, event_id: str) -> int:
+        ...
+
+
+class RadioSeasonRepositoryProtocol(Protocol):
+    def create_from_model(self, season: RadioSeason) -> RadioSeason:
+        ...
+
+    def get_all(self) -> List[RadioSeason]:
+        ...
+
+    def get_by_id_or_raise(self, season_id: str) -> RadioSeason:
+        ...
+
+    def update_from_model(self, season_id: str, season: RadioSeason) -> RadioSeason:
+        ...
+
+    def delete(self, season_id: str) -> None:
+        ...
+
+
+class RadioEpisodeRepositoryProtocol(Protocol):
+    def create_from_model(self, episode: RadioEpisode) -> RadioEpisode:
+        ...
+
+    def get_all(self, published_only: bool = False) -> List[RadioEpisode]:
+        ...
+
+    def get_by_id_or_raise(self, episode_id: str) -> RadioEpisode:
+        ...
+
+    def get_latest_published(self) -> Optional[RadioEpisode]:
+        ...
+
+    def get_by_season(self, season_id: str, published_only: bool = False) -> List[RadioEpisode]:
+        ...
+
+    def update_from_model(self, episode_id: str, episode: RadioEpisode) -> RadioEpisode:
+        ...
+
+    def delete(self, episode_id: str) -> None:
         ...

@@ -2,6 +2,9 @@ import os
 
 # External API endpoints used across services
 GMAIL_TOKEN_URL = os.environ.get("GMAIL_TOKEN_URL", "https://oauth2.googleapis.com/token")
+
+SOUNDCLOUD_CLIENT_ID = os.environ.get("SOUNDCLOUD_CLIENT_ID")
+SOUNDCLOUD_CLIENT_SECRET = os.environ.get("SOUNDCLOUD_CLIENT_SECRET")
 GENDER_API_URL = os.environ.get("GENDER_API_URL", "https://api.genderize.io")
 
 
@@ -19,6 +22,8 @@ SCAN_BASE_URL = os.environ.get("SCAN_BASE_URL", "https://musiconnectingpeople.co
 
 __all__ = [
     "GMAIL_TOKEN_URL",
+    "SOUNDCLOUD_CLIENT_ID",
+    "SOUNDCLOUD_CLIENT_SECRET",
     "GENDER_API_URL",
     "PASS2U_API_KEY",
     "PASS2U_BASE_URL",

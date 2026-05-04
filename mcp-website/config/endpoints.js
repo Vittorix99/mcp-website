@@ -93,6 +93,21 @@ export const endpoints = {
     getSetting: make("get_settings"),
     setSetting: make("set_settings"),
 
+    radio: {
+      getSeasons:       make("admin_get_radio_seasons"),
+      createSeason:     make("admin_create_radio_season"),
+      getSeason:        make("admin_get_radio_season"),
+      updateSeason:     make("admin_update_radio_season"),
+      deleteSeason:     make("admin_delete_radio_season"),
+      getEpisodes:      make("admin_get_radio_episodes"),
+      createEpisode:    make("admin_create_radio_episode"),
+      getEpisode:       make("admin_get_radio_episode"),
+      updateEpisode:    make("admin_update_radio_episode"),
+      deleteEpisode:    make("admin_delete_radio_episode"),
+      publishEpisode:   make("admin_publish_radio_episode"),
+      unpublishEpisode: make("admin_unpublish_radio_episode"),
+    },
+
     newsletter: {
       getSignups: make("admin_get_newsletter_signups"),
       getConsents: make("admin_get_newsletter_consents"),
