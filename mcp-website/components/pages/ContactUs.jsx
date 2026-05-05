@@ -1,128 +1,167 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { useState } from "react"
+import Image from "next/image"
+import { SectionLabel } from "@/components/SectionLabel"
 import { sendContactRequest } from "@/services/contactService"
-import { CustomToast } from "@/components/CustomToast"
-import { SectionTitle } from "@/components/ui/section-title"
+import { useReveal } from "@/hooks/useReveal"
+
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
+
+const CONTACT_DETAILS = [
+  { label: "Email", val: "info@musicconnectingpeople.it" },
+  { label: "Instagram", val: "@musicconnectingpeople_" },
+  { label: "Location", val: "Palermo, Sicily" },
+]
 
 export function ContactUs() {
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [message, setMessage] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [toast, setToast] = useState(null)
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => {
-        setToast(null)
-      }, 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [toast])
+  useReveal()
+  const [form, setForm] = useState({ name: "", email: "", message: "" })
+  const [sent, setSent] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setIsSubmitting(true)
-
+    setLoading(true)
+    setError(null)
     try {
-      const result = await sendContactRequest({ name, email, message })
-      if (!result?.success) {
-        throw new Error(result?.message || result?.error || "Failed to send message. Please try again.")
-      }
-      setToast({ message: "Your message has been sent successfully!", type: "success" })
-      setName("")
-      setEmail("")
-      setMessage("")
-    } catch (error) {
-      console.error("Error:", error.message)
-      setToast({ message: error.message || "Failed to send message. Please try again.", type: "error" })
+      const result = await sendContactRequest(form)
+      if (!result?.success) throw new Error(result?.message || "Failed to send message.")
+      setSent(true)
+      setForm({ name: "", email: "", message: "" })
+    } catch (err) {
+      setError(err.message || "Failed to send message. Please try again.")
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 },
+  const inputStyle = {
+    width: "100%", padding: "14px 16px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(245,243,239,0.1)",
+    borderRadius: "2px", color: "#F5F3EF",
+    fontFamily: HN, fontSize: "14px", outline: "none",
+    transition: "border-color 0.2s", boxSizing: "border-box",
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 sm:px-0">
-      <div className="contact-card bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl px-4 sm:px-6 py-6">
-        <SectionTitle as="h1" className="mt-2 py-2 md:mt-4 text-3xl md:text-5xl text-center">
-          Contact Us
-        </SectionTitle>
+    <section id="contact-section" style={{
+      background: "#080808", paddingTop: "120px", paddingBottom: "80px",
+      borderTop: "1px solid rgba(245,243,239,0.04)",
+    }}>
+      <div style={{ maxWidth: "1360px", margin: "0 auto", padding: "0 40px" }}>
+        <div className="contact-grid-new">
+          {/* Left info */}
+          <div className="reveal">
+            <SectionLabel text="Get in Touch" />
+            <h2 style={{
+              fontFamily: HN, fontWeight: 900,
+              fontSize: "clamp(36px,4.5vw,64px)", letterSpacing: "-0.03em",
+              textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.88,
+              marginBottom: "36px",
+            }}>Join the<br />community</h2>
+            <p style={{ fontFamily: CH, fontSize: "17px", lineHeight: 1.82, color: "rgba(245,243,239,0.55)", marginBottom: "48px" }}>
+              Want to collaborate, play at an MCP event, or just say hello?
+              Drop us a message — we read everything.
+            </p>
 
-        <motion.form
-          onSubmit={handleSubmit}
-          className="space-y-4 md:space-y-6"
-          initial="initial"
-          animate="animate"
-          variants={fadeInUp}
-        >
-          <div>
-            <Label htmlFor="contact-name" className="text-gray-300 mb-1 md:mb-2 block text-sm md:text-base">
-              Name
-            </Label>
-            <Input
-              id="contact-name"
-              type="text"
-              required
-              className="bg-black/30 border border-white/15 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300 h-9 md:h-10 text-sm md:text-base"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-            />
-          </div>
-          <div>
-            <Label htmlFor="contact-email" className="text-gray-300 mb-1 md:mb-2 block text-sm md:text-base">
-              Email
-            </Label>
-            <Input
-              id="contact-email"
-              type="email"
-              required
-              className="bg-black/30 border border-white/15 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300 h-9 md:h-10 text-sm md:text-base"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
-            />
-          </div>
-          <div>
-            <Label htmlFor="contact-message" className="text-gray-300 mb-1 md:mb-2 block text-sm md:text-base">
-              Message
-            </Label>
-            <Textarea
-              id="contact-message"
-              required
-              className="bg-black/30 border border-white/15 text-white placeholder-gray-500 focus:border-mcp-orange transition-colors duration-300 text-sm md:text-base min-h-[100px] md:min-h-[120px]"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Your message here..."
-            />
-          </div>
-          <Button
-            type="submit"
-            className="w-full bg-mcp-gradient hover:opacity-90 text-white py-2 md:py-3 rounded-full transition-all duration-300 transform hover:scale-[1.02] text-sm md:text-base h-9 md:h-10 mt-2"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Sending..." : "Send Message"}
-          </Button>
-        </motion.form>
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {CONTACT_DETAILS.map(({ label, val }) => (
+                <div key={label} style={{
+                  display: "flex", gap: "28px", alignItems: "baseline",
+                  borderBottom: "1px solid rgba(245,243,239,0.05)",
+                  paddingBottom: "18px",
+                }}>
+                  <p style={{ fontFamily: HN, fontSize: "8px", fontWeight: 700, letterSpacing: "0.35em", textTransform: "uppercase", color: ACC, minWidth: "80px", margin: 0 }}>{label}</p>
+                  <p style={{ fontFamily: HN, fontSize: "14px", color: "rgba(245,243,239,0.6)", letterSpacing: "0.02em", margin: 0 }}>{val}</p>
+                </div>
+              ))}
+            </div>
 
-        <div className="h-4 md:h-6"></div>
+            <div style={{ marginTop: "40px" }}>
+              <Image
+                src="/patterns/pattern-orange.png"
+                alt=""
+                width={200}
+                height={22}
+                style={{ height: "22px", width: "auto", opacity: 0.5 }}
+              />
+            </div>
+          </div>
 
-        <AnimatePresence>
-          {toast && <CustomToast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-        </AnimatePresence>
+          {/* Right form */}
+          <div className="reveal reveal-delay-2">
+            {sent ? (
+              <div style={{
+                padding: "48px 40px",
+                border: `1px solid ${ACC}44`,
+                background: `${ACC}06`,
+                textAlign: "center",
+              }}>
+                <Image
+                  src="/patterns/pattern-orange.png"
+                  alt=""
+                  width={160}
+                  height={20}
+                  style={{ height: "20px", width: "auto", opacity: 0.7, marginBottom: "24px" }}
+                />
+                <h3 style={{ fontFamily: HN, fontWeight: 900, fontSize: "28px", letterSpacing: "-0.02em", textTransform: "uppercase", color: "#F5F3EF", marginBottom: "12px" }}>
+                  Message sent.
+                </h3>
+                <p style={{ fontFamily: CH, fontSize: "16px", fontStyle: "italic", color: "rgba(245,243,239,0.5)", margin: 0 }}>
+                  We&apos;ll get back to you soon.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {[
+                  { id: "name", label: "Name", type: "text", placeholder: "Your name" },
+                  { id: "email", label: "Email", type: "email", placeholder: "your@email.com" },
+                ].map(f => (
+                  <div key={f.id}>
+                    <p style={{ fontFamily: HN, fontSize: "8px", fontWeight: 700, letterSpacing: "0.32em", textTransform: "uppercase", color: ACC, marginBottom: "8px" }}>{f.label}</p>
+                    <input
+                      type={f.type} required value={form[f.id]}
+                      onChange={e => setForm(prev => ({ ...prev, [f.id]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = `${ACC}88`}
+                      onBlur={e => e.target.style.borderColor = "rgba(245,243,239,0.1)"}
+                    />
+                  </div>
+                ))}
+                <div>
+                  <p style={{ fontFamily: HN, fontSize: "8px", fontWeight: 700, letterSpacing: "0.32em", textTransform: "uppercase", color: ACC, marginBottom: "8px" }}>Message</p>
+                  <textarea
+                    required rows={5} value={form.message}
+                    onChange={e => setForm(prev => ({ ...prev, message: e.target.value }))}
+                    placeholder="Tell us what&apos;s on your mind..."
+                    style={{ ...inputStyle, fontFamily: CH, fontSize: "15px", lineHeight: 1.65, resize: "vertical" }}
+                    onFocus={e => e.target.style.borderColor = `${ACC}88`}
+                    onBlur={e => e.target.style.borderColor = "rgba(245,243,239,0.1)"}
+                  />
+                </div>
+                {error && (
+                  <p style={{ fontFamily: CH, fontSize: "13px", color: "#D10000", margin: 0 }}>{error}</p>
+                )}
+                <button type="submit" disabled={loading} style={{
+                  padding: "15px 0", background: loading ? "rgba(224,120,0,0.6)" : ACC,
+                  border: "none", cursor: loading ? "default" : "pointer",
+                  fontFamily: HN, fontWeight: 700,
+                  fontSize: "10px", letterSpacing: "0.3em", textTransform: "uppercase",
+                  color: "#fff", borderRadius: "2px", transition: "opacity 0.2s",
+                }}>
+                  {loading ? "Sending..." : "Send Message →"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   )
 }

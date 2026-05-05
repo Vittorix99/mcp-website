@@ -3,7 +3,6 @@
 import { initialOptions } from "@/config/paypal"
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js"
 import { useMemo, useState } from "react"
-import { motion } from "framer-motion"
 import { createOrder, onApprove } from "@/services/paypal"
 import { toast } from "sonner"
 import { PaymentSuccessDialog } from "@/components/pages/modals/PayPalModal"
@@ -11,6 +10,10 @@ import { Loader2, AlertCircle } from "lucide-react"
 import { analytics } from "@/config/firebase"
 import { logEvent } from "firebase/analytics"
 import { resolvePurchaseMode } from "@/config/events-utils"
+
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
 
 export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
   const [showSuccess, setShowSuccess] = useState(false)
@@ -128,28 +131,59 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
     }
   }
 
+  const totalLabel = typeof cart?.total === "number" && !isNaN(cart.total) ? `${cart.total.toFixed(2)}€` : "0.00€"
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }} className="space-y-6">
-      <div className="bg-black/30 p-3 rounded-md">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-300">Totale:</span>
-          <span className="text-mcp-orange font-bold text-xl">
-            {typeof cart?.total === "number" && !isNaN(cart.total) ? `${cart.total.toFixed(2)}€` : "0.00€"}
-          </span>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+      <div
+        style={{
+          borderTop: "1px solid rgba(245,243,239,0.08)",
+          borderBottom: "1px solid rgba(245,243,239,0.08)",
+          padding: "16px 0",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          gap: "20px",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: HN,
+            fontSize: "8px",
+            fontWeight: 700,
+            letterSpacing: "0.35em",
+            textTransform: "uppercase",
+            color: ACC,
+          }}
+        >
+          Totale
+        </span>
+        <span
+          style={{
+            fontFamily: HN,
+            fontSize: "26px",
+            fontWeight: 900,
+            letterSpacing: "-0.02em",
+            color: "#F5F3EF",
+          }}
+        >
+          {totalLabel}
+        </span>
       </div>
 
       <PayPalScriptProvider options={initialOptions}>
         {isProcessing && (
-          <div className="flex justify-center items-center py-4">
-            <Loader2 className="w-6 h-6 text-mcp-orange animate-spin" />
-            <span className="ml-2 text-gray-300">Elaborazione...</span>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "16px 0", color: "rgba(245,243,239,0.55)" }}>
+            <Loader2 style={{ width: 20, height: 20, color: ACC }} className="animate-spin" />
+            <span style={{ marginLeft: 10, fontFamily: HN, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              Elaborazione...
+            </span>
           </div>
         )}
 
         {orderError && (
-          <div className="flex items-center justify-center p-4 bg-red-900/50 text-red-300 rounded-md">
-            <AlertCircle className="w-5 h-5 mr-2" />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 14, border: "1px solid rgba(209,0,0,0.35)", color: "#ffb6b6" }}>
+            <AlertCircle style={{ width: 18, height: 18, marginRight: 8 }} />
             <span>{orderError}</span>
           </div>
         )}
@@ -174,14 +208,17 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
         />
       </PayPalScriptProvider>
 
-      <p className="text-sm text-gray-400 text-center">
+      <p style={{ fontFamily: CH, fontSize: "13px", lineHeight: 1.6, color: "rgba(245,243,239,0.38)", textAlign: "center", margin: 0 }}>
         Procedendo con il pagamento, accetti i nostri&nbsp;
-        <a href="https://www.iubenda.com/termini-e-condizioni/78147975" className="text-mcp-orange hover:underline">
+        <a
+          href="https://www.iubenda.com/termini-e-condizioni/78147975"
+          style={{ color: ACC, textDecoration: "none", borderBottom: `1px solid ${ACC}` }}
+        >
           Termini e Condizioni
         </a>
       </p>
 
       <PaymentSuccessDialog open={showSuccess} onOpenChange={setShowSuccess} purchaseMode={effectiveMode} />
-    </motion.div>
+    </div>
   )
 }

@@ -16,12 +16,14 @@ class RadioSeasonBaseDTO(BaseModel):
 class CreateRadioSeasonRequestDTO(RadioSeasonBaseDTO):
     name: str = Field(min_length=1)
     year: int
+    description: Optional[str] = None
 
 
 class UpdateRadioSeasonRequestDTO(RadioSeasonBaseDTO):
     id: str = Field(min_length=1)
     name: Optional[str] = None
     year: Optional[int] = None
+    description: Optional[str] = None
 
     def changes(self) -> Dict[str, Any]:
         allowed: Set[str] = set(self.model_fields_set) - {"id"}
@@ -37,6 +39,7 @@ class RadioSeasonResponseDTO(RadioSeasonBaseDTO):
     id: Optional[str] = None
     name: str
     year: int
+    description: Optional[str] = None
     created_at: Optional[Any] = Field(default=None, serialization_alias="createdAt")
     updated_at: Optional[Any] = Field(default=None, serialization_alias="updatedAt")
 

@@ -2,11 +2,46 @@
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
-import { MasonryGallery } from "@/components/pages/pictures/MasonGallery"
-import { PageHeader } from "@/components/PageHeader"
-import { Button } from "@/components/ui/button"
 import NextImage from "next/image"
+import { MasonryGallery } from "@/components/pages/pictures/MasonGallery"
 import ImageModal from "@/components/pages/modals/ImageModal"
+
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
+
+function formatDate(dateString) {
+  try {
+    const [day, month, year] = (dateString || "").split("-").map(Number)
+    return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}`
+  } catch {
+    return dateString || ""
+  }
+}
+
+function NavButton({ href, label, disabled }) {
+  if (disabled) {
+    return (
+      <span style={{
+        padding: "8px 16px",
+        border: "1px solid rgba(245,243,239,0.08)",
+        fontFamily: HN, fontSize: "9px",
+        letterSpacing: "0.22em", textTransform: "uppercase",
+        color: "rgba(245,243,239,0.2)", cursor: "default",
+      }}>{label}</span>
+    )
+  }
+  return (
+    <Link href={href} prefetch={false} style={{
+      padding: "8px 16px",
+      border: "1px solid rgba(245,243,239,0.18)",
+      fontFamily: HN, fontSize: "9px",
+      letterSpacing: "0.22em", textTransform: "uppercase",
+      color: "rgba(245,243,239,0.55)", textDecoration: "none",
+      transition: "border-color 0.2s, color 0.2s",
+    }}>{label}</Link>
+  )
+}
 
 export function EventContent({
   initialEvent = null,
@@ -19,21 +54,23 @@ export function EventContent({
 }) {
   const [event] = useState(initialEvent)
   const [selectedImage, setSelectedImage] = useState(null)
+  const [isHydrated, setIsHydrated] = useState(false)
   const images = useMemo(() => pageImages || [], [pageImages])
   const prefetchedRef = useRef(new Set())
   const loadedUrlsRef = useRef(new Set())
 
   useEffect(() => {
-    // Reset mobile cache only when page changes
+    setIsHydrated(true)
+  }, [])
+
+  useEffect(() => {
     loadedUrlsRef.current = new Set()
   }, [images.length, currentPage])
-
 
   useEffect(() => {
     if (!Array.isArray(prefetchUrls) || prefetchUrls.length === 0) return
     prefetchUrls.forEach((url) => {
-      if (!url) return
-      if (prefetchedRef.current.has(url)) return
+      if (!url || prefetchedRef.current.has(url)) return
       prefetchedRef.current.add(url)
       if (typeof window === "undefined") return
       const img = new window.Image()
@@ -53,17 +90,10 @@ export function EventContent({
     document.body.removeChild(link)
   }
 
-  // Wrapper a prova di overflow su mobile (navbar/pagine che strabordano)
-  const MobileSafe = ({ children }) => (
-    <div className="w-full overflow-x-hidden sm:overflow-x-visible">{children}</div>
-  )
-
   if (!event) {
     return (
-      <div className="min-h-screen bg-black py-24">
-        <div className="container mx-auto px-4">
-          <div className="text-center text-mcp-orange text-xl">Event not found</div>
-        </div>
+      <div style={{ minHeight: "100svh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ fontFamily: CH, fontSize: "16px", fontStyle: "italic", color: "rgba(245,243,239,0.35)" }}>Event not found.</p>
       </div>
     )
   }
@@ -71,141 +101,97 @@ export function EventContent({
   const totalPages = Math.max(1, Math.ceil((totalLength || 0) / pageSize))
   const canPrev = currentPage > 1
   const canNext = currentPage < totalPages
-  const canLast = currentPage < totalPages
   const basePath = slug ? `/events-foto/${slug}` : ""
   const pageHref = (page) => (page <= 1 ? basePath : `${basePath}?page=${page}`)
   const hasPhotos = totalLength > 0 || images.length > 0
-  const remaining = totalLength
-    ? Math.max(0, totalLength - (currentPage - 1) * pageSize)
-    : pageSize
-  const skeletonCount = Math.max(1, Math.min(pageSize, remaining || pageSize))
 
   return (
-    <div className="bg-black py-8">
-      <MobileSafe>
-        <div className="container mx-auto px-4">
-          <PageHeader title="Event Photos" />
+    <div style={{ minHeight: "100svh", background: "#080808", paddingTop: "100px" }}>
+      {/* Header */}
+      <div style={{ padding: "40px 40px 48px" }}>
+        <Link href="/events-foto" style={{
+          fontFamily: HN, fontSize: "9px", letterSpacing: "0.32em",
+          textTransform: "uppercase", color: "rgba(245,243,239,0.35)",
+          textDecoration: "none", display: "block", marginBottom: "28px",
+        }}>← All Events</Link>
+        {event.date && (
+          <p style={{
+            fontFamily: CH, fontSize: "13px", fontStyle: "italic",
+            color: "rgba(245,243,239,0.4)", marginBottom: "8px",
+          }}>{formatDate(event.date)}</p>
+        )}
+        <h1 style={{
+          fontFamily: HN, fontWeight: 900,
+          fontSize: "clamp(36px,7vw,90px)", letterSpacing: "-0.04em",
+          textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.84,
+          marginBottom: "8px",
+        }}>{event.title || "Event Photos"}</h1>
+        <p style={{
+          fontFamily: HN, fontSize: "9px",
+          letterSpacing: "0.3em", textTransform: "uppercase",
+          color: "rgba(245,243,239,0.28)",
+        }}>
+          {totalLength > 0 ? `${totalLength} photos` : images.length > 0 ? `${images.length} photos` : ""}
+          {totalPages > 1 ? ` · Page ${currentPage} / ${totalPages}` : ""}
+        </p>
+      </div>
 
-          {!hasPhotos ? (
-            <div className="mt-6 mx-2 text-center text-gray-400">No photos available.</div>
+      {!hasPhotos ? (
+        <div style={{ padding: "0 40px 80px" }}>
+          <p style={{ fontFamily: CH, fontSize: "16px", fontStyle: "italic", color: "rgba(245,243,239,0.35)" }}>
+            No photos available.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Pagination top */}
+          {totalPages > 1 && (
+            <div style={{ padding: "0 40px 32px", display: "flex", gap: "8px", alignItems: "center" }}>
+              {canPrev && <NavButton href={pageHref(1)} label="«" />}
+              {canPrev && <NavButton href={pageHref(currentPage - 1)} label="‹ Prev" />}
+              {canNext && <NavButton href={pageHref(currentPage + 1)} label="Next ›" />}
+              {canNext && <NavButton href={pageHref(totalPages)} label="»" />}
+            </div>
+          )}
+
+          {!isHydrated ? (
+            <PhotoGridSkeleton count={Math.min(pageSize, images.length || pageSize)} />
           ) : (
             <>
-              <div className="flex items-center justify-center gap-4 sm:gap-6 mt-4 mb-4 text-center">
-                <div className="hidden sm:block text-sm text-gray-400">
-                  Mostrando <span className="text-white">{images.length}</span> su {totalLength}
-                </div>
-                <div className="flex items-center gap-1 sm:gap-2 flex-nowrap text-xs sm:text-sm">
-                  {canPrev ? (
-                    <Button variant="outline" size="sm"  asChild>
-                      <Link href={pageHref(1)} prefetch={false}>
-                        <span className="sm:hidden">«</span>
-                        <span className="hidden sm:inline">« Inizio</span>
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" disabled>
-                      <span className="sm:hidden">«</span>
-                      <span className="hidden sm:inline">« Inizio</span>
-                    </Button>
-                  )}
-                  {canPrev ? (
-                    <Button variant="outline" size="sm" className="ml-2" asChild>
-                      <Link href={pageHref(currentPage - 1)} prefetch={false}>
-                        <span className="sm:hidden">‹</span>
-                        <span className="hidden sm:inline">‹ Precedente</span>
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" className="ml-2" disabled>
-                      <span className="sm:hidden">‹</span>
-                      <span className="hidden sm:inline">‹ Precedente</span>
-                    </Button>
-                  )}
-                  <span className="text-gray-300 whitespace-nowrap mx-6">
-                    <span className="hidden sm:inline">Pagina </span>
-                    <span className="text-white">{currentPage}</span>
-                    <span className="hidden sm:inline"> / </span>
-                    <span className="sm:hidden">/</span>
-                    {totalPages}
-                  </span>
-                  {canNext ? (
-                    <Button variant="outline" size="sm" className="mr-2" asChild>
-                      <Link href={pageHref(currentPage + 1)} prefetch={false}>
-                        <span className="sm:hidden">›</span>
-                        <span className="hidden sm:inline">Successiva ›</span>
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" className="" disabled>
-                      <span className="sm:hidden">›</span>
-                      <span className="hidden sm:inline">Successiva ›</span>
-                    </Button>
-                  )}
-                  {canLast ? (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={pageHref(totalPages)} prefetch={false}>
-                        <span className="sm:hidden">»</span>
-                        <span className="hidden sm:inline">Fine »</span>
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" className="gap-4" disabled>
-                      <span className="sm:hidden">»</span>
-                      <span className="hidden sm:inline">Fine »</span>
-                    </Button>
-                  )}
+              {/* Mobile grid */}
+              <div className="lg:hidden" style={{ padding: "0 40px 80px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px" }}>
+                  {images.map((image, index) => (
+                    <MobileImage
+                      key={image?.id || image?.src || `img-${index}`}
+                      image={image}
+                      loadedUrlsRef={loadedUrlsRef}
+                      onOpen={() => downloadImage(image)}
+                    />
+                  ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-1 lg:hidden" suppressHydrationWarning>
-                {images.map((image, index) => (
-                  <MobileImage
-                    key={image?.id || image?.src || `img-${index}`}
-                    image={image}
-                    loadedUrlsRef={loadedUrlsRef}
-                    onOpen={() => downloadImage(image)}
-                  />
-                ))}
-              </div>
-              <div className="hidden lg:block" suppressHydrationWarning>
+              {/* Desktop masonry */}
+              <div className="hidden lg:block" style={{ padding: "0 56px 80px" }}>
                 <MasonryGallery images={images} onImageClick={(src) => setSelectedImage({ src })} />
               </div>
-
-              {totalPages > 1 && (
-                <div className="mt-6 flex items-center justify-center gap-4 sm:gap-6 text-center">
-                  <div className="text-sm text-gray-400">
-                    Pagina <span className="text-white">{currentPage}</span> di {totalPages}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {canPrev ? (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={pageHref(currentPage - 1)} prefetch={false}>
-                          ‹ Precedente
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button variant="outline" size="sm" disabled>
-                        ‹ Precedente
-                      </Button>
-                    )}
-                    {canNext ? (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={pageHref(currentPage + 1)} prefetch={false}>
-                          Successiva ›
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button variant="outline" size="sm" disabled>
-                        Successiva ›
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
             </>
           )}
-        </div>
-      </MobileSafe>
+
+          {/* Pagination bottom */}
+          {totalPages > 1 && (
+            <div style={{ padding: "0 40px 80px", display: "flex", gap: "8px", alignItems: "center", justifyContent: "center" }}>
+              {canPrev && <NavButton href={pageHref(currentPage - 1)} label="‹ Previous" />}
+              <span style={{ fontFamily: HN, fontSize: "9px", letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(245,243,239,0.35)", padding: "0 16px" }}>
+                {currentPage} / {totalPages}
+              </span>
+              {canNext && <NavButton href={pageHref(currentPage + 1)} label="Next ›" />}
+            </div>
+          )}
+        </>
+      )}
+
       {selectedImage && (
         <ImageModal
           imageUrl={selectedImage?.src}
@@ -224,34 +210,51 @@ export function EventContent({
   )
 }
 
+function PhotoGridSkeleton({ count = 16 }) {
+  const items = Array.from({ length: Math.max(1, count) })
+  return (
+    <>
+      <div className="lg:hidden" style={{ padding: "0 40px 80px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px" }}>
+          {items.map((_, index) => (
+            <div key={index} style={{ aspectRatio: "1", background: "#111" }} />
+          ))}
+        </div>
+      </div>
+      <div className="hidden lg:block" style={{ padding: "0 56px 80px" }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2">
+          {items.map((_, index) => (
+            <div key={index} style={{ aspectRatio: "1", background: "#111" }} />
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
 function MobileImage({ image, loadedUrlsRef, onOpen }) {
   const src = image?.src || "/placeholder.svg"
   const [loaded, setLoaded] = useState(() => loadedUrlsRef?.current?.has(src))
   return (
-    <div className="relative overflow-hidden" style={{ aspectRatio: "1" }}>
-      {!loaded && <div className="absolute inset-0 bg-zinc-900" />}
+    <div style={{ position: "relative", overflow: "hidden", aspectRatio: "1" }}>
+      {!loaded && <div style={{ position: "absolute", inset: 0, background: "#111" }} />}
       <button
         type="button"
         onClick={onOpen}
-        className="absolute inset-0 z-10"
-        aria-label="Apri immagine"
+        style={{ position: "absolute", inset: 0, zIndex: 10 }}
+        aria-label="Open image"
       />
       <NextImage
         src={src}
         alt={image?.alt || ""}
         fill
         sizes="50vw"
-        className={loaded ? "object-cover opacity-100" : "object-cover opacity-0"}
+        suppressHydrationWarning
+        style={{ objectFit: "cover", opacity: loaded ? 1 : 0 }}
         loading="lazy"
         unoptimized
-        onLoad={() => {
-          loadedUrlsRef?.current?.add(src)
-          setLoaded(true)
-        }}
-        onError={() => {
-          loadedUrlsRef?.current?.add(src)
-          setLoaded(true)
-        }}
+        onLoad={() => { loadedUrlsRef?.current?.add(src); setLoaded(true) }}
+        onError={() => { loadedUrlsRef?.current?.add(src); setLoaded(true) }}
       />
     </div>
   )

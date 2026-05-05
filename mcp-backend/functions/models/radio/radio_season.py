@@ -10,5 +10,6 @@ class RadioSeason(FirestoreModel):
 
     name: str = ""
     year: int = 0
+    description: Optional[str] = None
     created_at: Optional[Any] = field(default=None, metadata={"firestore_name": "createdAt"})
     updated_at: Optional[Any] = field(default=None, metadata={"firestore_name": "updatedAt"})

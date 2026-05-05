@@ -16,6 +16,7 @@ export function SeasonForm({ mode, season }) {
   const router = useRouter()
   const [name, setName] = useState(season?.name ?? "")
   const [year, setYear] = useState(season?.year ? String(season.year) : "")
+  const [description, setDescription] = useState(season?.description ?? "")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -24,7 +25,11 @@ export function SeasonForm({ mode, season }) {
     setError(null)
     setLoading(true)
 
-    const data = { name: name.trim(), year: parseInt(year, 10) }
+    const data = {
+      name: name.trim(),
+      year: parseInt(year, 10),
+      ...(description.trim() ? { description: description.trim() } : {}),
+    }
 
     const res =
       mode === "edit"
@@ -82,7 +87,7 @@ export function SeasonForm({ mode, season }) {
       </div>
 
       {/* Year */}
-      <div style={{ marginBottom: 32 }}>
+      <div style={{ marginBottom: 24 }}>
         <label style={labelStyle}>Anno *</label>
         <input
           type="number"
@@ -93,6 +98,20 @@ export function SeasonForm({ mode, season }) {
           onChange={(e) => setYear(e.target.value)}
           placeholder="es. 2024"
           style={inputStyle}
+          onFocus={(e) => (e.target.style.borderColor = "#e8820c")}
+          onBlur={(e) => (e.target.style.borderColor = "#3a3a3a")}
+        />
+      </div>
+
+      {/* Description */}
+      <div style={{ marginBottom: 32 }}>
+        <label style={labelStyle}>Descrizione</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Breve descrizione della stagione (opzionale)"
+          rows={3}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
           onFocus={(e) => (e.target.style.borderColor = "#e8820c")}
           onBlur={(e) => (e.target.style.borderColor = "#3a3a3a")}
         />

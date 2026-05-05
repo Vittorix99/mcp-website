@@ -1,10 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-
 const MAX_TICKETS = parseInt(process.env.NEXT_PUBLIC_MAX_TICKETS || "5")
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
 
 export default function QuantitySelector({ quantity, setQuantity, disabled = false }) {
   const handleQuantityChange = (e) => {
@@ -15,41 +14,80 @@ export default function QuantitySelector({ quantity, setQuantity, disabled = fal
   }
 
   return (
-    <div className="space-y-2 mt-6">
-      <Label htmlFor="quantity" className="text-white text-sm">
-        Quantità
-      </Label>
-      <div className="flex items-center gap-2">
+    <div style={{ marginTop: "8px", marginBottom: "28px" }}>
+      <label
+        htmlFor="quantity"
+        style={{
+          display: "block",
+          fontFamily: HN,
+          fontSize: "8px",
+          fontWeight: 700,
+          letterSpacing: "0.35em",
+          textTransform: "uppercase",
+          color: ACC,
+          marginBottom: "12px",
+        }}
+      >
+        Partecipanti
+      </label>
+      <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 44px", gap: "8px", alignItems: "stretch" }}>
         <button
           type="button"
-          className="h-8 w-8 border border-gray-700 text-white flex items-center justify-center rounded-md"
           onClick={() => quantity > 1 && setQuantity(quantity - 1)}
           disabled={quantity <= 1 || disabled}
+          style={{
+            height: "44px",
+            border: "1px solid rgba(245,243,239,0.14)",
+            background: "transparent",
+            color: quantity <= 1 || disabled ? "rgba(245,243,239,0.22)" : "rgba(245,243,239,0.78)",
+            cursor: quantity <= 1 || disabled ? "not-allowed" : "pointer",
+            fontFamily: HN,
+            fontSize: "16px",
+          }}
         >
           -
         </button>
-        <Input
+        <input
           id="quantity"
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          min="1"
-          max={MAX_TICKETS}
           value={quantity}
           disabled={disabled}
           onChange={handleQuantityChange}
-          className="bg-black/50 border-gray-700 text-white text-center"
+          style={{
+            height: "44px",
+            width: "100%",
+            border: "1px solid rgba(245,243,239,0.14)",
+            background: "rgba(245,243,239,0.025)",
+            color: "#F5F3EF",
+            textAlign: "center",
+            fontFamily: HN,
+            fontWeight: 700,
+            fontSize: "15px",
+            outline: "none",
+          }}
         />
         <button
           type="button"
-          className="h-8 w-8 border border-gray-700 text-white flex items-center justify-center rounded-md"
           onClick={() => quantity < MAX_TICKETS && setQuantity(quantity + 1)}
           disabled={quantity >= MAX_TICKETS || disabled}
+          style={{
+            height: "44px",
+            border: "1px solid rgba(245,243,239,0.14)",
+            background: "transparent",
+            color: quantity >= MAX_TICKETS || disabled ? "rgba(245,243,239,0.22)" : "rgba(245,243,239,0.78)",
+            cursor: quantity >= MAX_TICKETS || disabled ? "not-allowed" : "pointer",
+            fontFamily: HN,
+            fontSize: "16px",
+          }}
         >
           +
         </button>
       </div>
-      <p className="text-xs text-gray-400">Massimo {MAX_TICKETS} biglietti per acquisto</p>
+      <p style={{ fontFamily: CH, fontSize: "12px", color: "rgba(245,243,239,0.35)", margin: "8px 0 0" }}>
+        Massimo {MAX_TICKETS} partecipanti per acquisto.
+      </p>
     </div>
   )
 }

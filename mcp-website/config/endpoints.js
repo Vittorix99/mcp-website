@@ -27,6 +27,14 @@ export const endpoints = {
   getAllEvents: make("get_all_events"),
   getEventById: make("get_event_by_id"),
 
+  // Public Radio
+  radio: {
+    getPublishedEpisodes: make("get_published_radio_episodes"),
+    getLatestEpisode:     make("get_latest_radio_episode"),
+    getEpisode:           make("get_radio_episode"),
+    getSeasons:           make("get_radio_seasons"),
+  },
+
   // Questions
   questions: {
     getAll: make("get_all_questions"),

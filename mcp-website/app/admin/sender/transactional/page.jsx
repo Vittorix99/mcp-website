@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Send, Trash2, Info, Loader2, ArrowLeft } from "lucide-react"
+import { Plus, Send, Trash2, Info, Loader2 } from "lucide-react"
 import { motion } from "framer-motion"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +17,7 @@ import {
   sendSenderTransactionalCampaign,
   deleteSenderTransactionalCampaign,
 } from "@/services/admin/sender"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 function TableSkeleton() {
   return Array.from({ length: 3 }).map((_, i) => (
@@ -228,7 +228,6 @@ function SendTestModal({ campaign, onClose }) {
 }
 
 export default function SenderTransactionalPage() {
-  const router = useRouter()
   const [campaigns, setCampaigns] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -267,18 +266,17 @@ export default function SenderTransactionalPage() {
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={load} />}
       {testTarget && <SendTestModal campaign={testTarget} onClose={() => setTestTarget(null)} />}
 
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <Button variant="ghost" onClick={() => router.push(routes.admin.sender.campaigns)} className="mb-1 -ml-2">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Campagne
+      <AdminPageHeader
+        title="Email Transazionali"
+        description="Template per email automatiche via API."
+        backHref={routes.admin.sender.campaigns}
+        backLabel="Torna alle campagne"
+        actions={(
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nuova campagna
           </Button>
-          <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Email Transazionali</h1>
-          <p className="text-gray-300">Template per email automatiche via API.</p>
-        </div>
-        <Button size="sm" onClick={() => setShowCreate(true)} className="mt-1 md:mt-10">
-          <Plus className="h-4 w-4 mr-1" /> Nuova campagna
-        </Button>
-      </div>
+        )}
+      />
 
       {/* Info banner */}
       <div className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3">

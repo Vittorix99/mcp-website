@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Calendar, Receipt, CreditCard,
   Inbox, Images, Zap, SlidersHorizontal,
-  Users, Megaphone, UserCheck,
+  Users, Megaphone, UserCheck, Radio,
   ChevronRight, LogOut,
 } from "lucide-react"
 import "@/app/style/admin.css"
@@ -39,6 +39,7 @@ const navigationSections = [
       { title: "Acquisti",    url: routes.admin.purchases,    icon: Receipt   },
       { title: "Tessere",     url: routes.admin.memberships,  icon: CreditCard },
       { title: "Foto Eventi", url: routes.admin.eventsPhotos, icon: Images    },
+      { title: "Radio",      url: routes.admin.radio.index,  icon: Radio     },
     ],
   },
   {

@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Loader2, Plus, X } from "lucide-react"
+import { Loader2, X, Upload } from "lucide-react"
 import { routes } from "@/config/routes"
 import { createEpisode, updateEpisode } from "@/services/admin/radio"
 import { formatDuration } from "@/lib/utils/radio"
+import { storageBucket } from "@/config/firebase"
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage"
 
 /**
  * @param {{
@@ -15,8 +17,52 @@ import { formatDuration } from "@/lib/utils/radio"
  *   episode?: import('@/types/radio').RadioEpisode
  * }} props
  */
+// Each video entry: { url: string | null, name: string, progress: number, error: string | null }
+function makeEntry(url, name = "") {
+  return { url, name: name || url?.split("%2F").pop()?.split("?")[0] || "video", progress: 100, error: null }
+}
+
+function toDateInputValue(value) {
+  if (!value) return ""
+
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10)
+
+    const match = value.match(/^(\d{2})-(\d{2})-(\d{4})$/)
+    if (match) return `${match[3]}-${match[2]}-${match[1]}`
+
+    const parsed = new Date(value)
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
+    return ""
+  }
+
+  if (typeof value === "number") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10)
+  }
+
+  if (typeof value === "object") {
+    if (typeof value.toDate === "function") {
+      const parsed = value.toDate()
+      return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10)
+    }
+
+    const seconds = value.seconds ?? value._seconds
+    if (typeof seconds === "number") {
+      return new Date(seconds * 1000).toISOString().slice(0, 10)
+    }
+  }
+
+  return ""
+}
+
 export function EpisodeForm({ mode, seasons, episode }) {
   const router = useRouter()
+  const fileInputRef = useRef(null)
+
+  // Use a stable ID for storage paths so videos uploaded in create mode
+  // are grouped under the same path even before the episode is saved.
+  const [tempId] = useState(() => typeof crypto !== "undefined" ? crypto.randomUUID() : String(Date.now()))
 
   const [soundcloudUrl, setSoundcloudUrl] = useState("")
   const [seasonId, setSeasonId] = useState(episode?.seasonId ?? seasons[0]?.id ?? "")
@@ -24,50 +70,84 @@ export function EpisodeForm({ mode, seasons, episode }) {
     episode?.episodeNumber ? String(episode.episodeNumber) : ""
   )
   const [description, setDescription] = useState(episode?.description ?? "")
-  const [videoUrls, setVideoUrls] = useState(episode?.videoUrls ?? [""])
-  const [recordedAt, setRecordedAt] = useState(
-    episode?.recordedAt ? episode.recordedAt.slice(0, 10) : ""
+  const [videos, setVideos] = useState(
+    () => (episode?.videoUrls ?? []).map(u => makeEntry(u))
   )
+  const [recordedAt, setRecordedAt] = useState(() => toDateInputValue(episode?.recordedAt))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  function addVideoUrl() {
-    if (videoUrls.length < 3) setVideoUrls([...videoUrls, ""])
+  const storageId = episode?.id || tempId
+
+  function handlePickVideos(e) {
+    const files = Array.from(e.target.files || [])
+    e.target.value = ""
+    const remaining = 3 - videos.filter(v => !v.error).length
+    files.slice(0, remaining).forEach(file => uploadVideo(file))
   }
 
-  function removeVideoUrl(idx) {
-    setVideoUrls(videoUrls.filter((_, i) => i !== idx))
+  function uploadVideo(file) {
+    const ext = file.name.split(".").pop() || "mp4"
+    const path = `radio/videos/${storageId}/video_${Date.now()}.${ext}`
+    const storageRef = ref(storageBucket, path)
+    const entry = { url: null, name: file.name, progress: 0, error: null, storagePath: path }
+
+    setVideos(prev => [...prev, entry])
+
+    const task = uploadBytesResumable(storageRef, file)
+    task.on(
+      "state_changed",
+      snap => {
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100)
+        setVideos(prev => prev.map(v => v.storagePath === path ? { ...v, progress: pct } : v))
+      },
+      err => {
+        setVideos(prev => prev.map(v => v.storagePath === path ? { ...v, error: "Upload fallito" } : v))
+      },
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref)
+        setVideos(prev => prev.map(v => v.storagePath === path ? { ...v, url, progress: 100 } : v))
+      }
+    )
   }
 
-  function updateVideoUrl(idx, val) {
-    setVideoUrls(videoUrls.map((u, i) => (i === idx ? val : u)))
+  async function removeVideo(idx) {
+    const v = videos[idx]
+    setVideos(prev => prev.filter((_, i) => i !== idx))
+    if (v.storagePath) {
+      try { await deleteObject(ref(storageBucket, v.storagePath)) } catch {}
+    }
   }
+
+  const uploading = videos.some(v => v.progress < 100 && !v.error)
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (uploading) return
     setError(null)
     setLoading(true)
 
-    const cleanVideos = videoUrls.map((u) => u.trim()).filter(Boolean)
+    const cleanVideos = videos.filter(v => v.url && !v.error).map(v => v.url)
+
+    const payload = {
+      seasonId,
+      episodeNumber: parseInt(episodeNumber, 10),
+      description: description.trim() || null,
+      videoUrls: cleanVideos,
+    }
+
+    if (recordedAt || mode === "create") {
+      payload.recordedAt = recordedAt || null
+    }
 
     let res
     if (mode === "create") {
       res = await createEpisode({
         soundcloudUrl: soundcloudUrl.trim(),
-        seasonId,
-        episodeNumber: parseInt(episodeNumber, 10),
-        description: description.trim() || null,
-        videoUrls: cleanVideos,
-        recordedAt: recordedAt || null,
+        ...payload,
       })
     } else {
-      res = await updateEpisode(episode.id, {
-        seasonId,
-        episodeNumber: parseInt(episodeNumber, 10),
-        description: description.trim() || null,
-        videoUrls: cleanVideos,
-        recordedAt: recordedAt || null,
-      })
+      res = await updateEpisode(episode.id, payload)
     }
 
     if (res?.error) {
@@ -253,70 +333,104 @@ export function EpisodeForm({ mode, seasons, episode }) {
         />
       </div>
 
-      {/* Video URLs */}
+      {/* Video upload */}
       <div style={fieldGap}>
-        <label style={labelStyle}>Video URL (max 3)</label>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {videoUrls.map((url, idx) => (
-            <div key={idx} style={{ display: "flex", gap: 8 }}>
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => updateVideoUrl(idx, e.target.value)}
-                placeholder="https://..."
-                style={{ ...inputStyle, flex: 1 }}
-                onFocus={(e) => (e.target.style.borderColor = "#e8820c")}
-                onBlur={(e) => (e.target.style.borderColor = "#3a3a3a")}
-              />
-              {videoUrls.length > 1 && (
+        <label style={labelStyle}>Video (max 3)</label>
+
+        {/* Uploaded / uploading list */}
+        {videos.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+            {videos.map((v, idx) => (
+              <div key={idx} style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px",
+                background: "#111111",
+                border: `1px solid ${v.error ? "#e8241a44" : v.progress < 100 ? "#3a3a3a" : "#2a2a2a"}`,
+                borderRadius: 4,
+              }}>
+                {/* Progress bar background */}
+                {v.progress < 100 && !v.error && (
+                  <div style={{
+                    position: "absolute", left: 0, top: 0, bottom: 0,
+                    width: `${v.progress}%`,
+                    background: "rgba(232,130,12,0.08)",
+                    borderRadius: 4,
+                    pointerEvents: "none",
+                  }} />
+                )}
+                <span style={{ fontSize: 16 }}>{v.error ? "⚠️" : v.progress < 100 ? "⏳" : "🎬"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{
+                    margin: 0, fontSize: 13, color: v.error ? "#e8241a" : "#ffffff",
+                    fontFamily: "Helvetica Neue, sans-serif",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>{v.name}</p>
+                  {v.error && (
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "#e8241a", fontFamily: "Helvetica Neue, sans-serif" }}>{v.error}</p>
+                  )}
+                  {!v.error && v.progress < 100 && (
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "#666666", fontFamily: "Helvetica Neue, sans-serif" }}>Caricamento {v.progress}%…</p>
+                  )}
+                  {!v.error && v.progress === 100 && v.url && (
+                    <a href={v.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#e8820c", fontFamily: "Helvetica Neue, sans-serif" }}>
+                      Anteprima ↗
+                    </a>
+                  )}
+                </div>
                 <button
                   type="button"
-                  onClick={() => removeVideoUrl(idx)}
+                  onClick={() => removeVideo(idx)}
                   style={{
-                    flexShrink: 0,
-                    width: 38,
-                    height: 38,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "transparent",
-                    border: "1px solid #3a3a3a",
-                    borderRadius: 4,
-                    color: "#e8241a",
-                    cursor: "pointer",
+                    flexShrink: 0, width: 30, height: 30,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "transparent", border: "1px solid #3a3a3a",
+                    borderRadius: 4, color: "#666666", cursor: "pointer",
                   }}
                 >
-                  <X style={{ width: 14, height: 14 }} />
+                  <X style={{ width: 12, height: 12 }} />
                 </button>
-              )}
-            </div>
-          ))}
-        </div>
-        {videoUrls.length < 3 && (
-          <button
-            type="button"
-            onClick={addVideoUrl}
-            style={{
-              marginTop: 8,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "none",
-              color: "#e8820c",
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              fontFamily: "Helvetica Neue, sans-serif",
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            <Plus style={{ width: 14, height: 14 }} />
-            Aggiungi video
-          </button>
+              </div>
+            ))}
+          </div>
         )}
+
+        {/* Upload button */}
+        {videos.filter(v => !v.error).length < 3 && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              multiple
+              style={{ display: "none" }}
+              onChange={handlePickVideos}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 16px",
+                background: "transparent",
+                border: "1px dashed #3a3a3a",
+                borderRadius: 4,
+                color: "#b0b0b0",
+                fontSize: 11, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.1em",
+                fontFamily: "Helvetica Neue, sans-serif",
+                cursor: "pointer", width: "100%", justifyContent: "center",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#e8820c"; e.currentTarget.style.color = "#e8820c" }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "#3a3a3a"; e.currentTarget.style.color = "#b0b0b0" }}
+            >
+              <Upload style={{ width: 14, height: 14 }} />
+              Carica video
+            </button>
+          </>
+        )}
+        <p style={{ marginTop: 6, fontSize: 11, color: "#666666", fontFamily: "Helvetica Neue, sans-serif" }}>
+          MP4, MOV, WebM — max 3 video. Il file viene caricato su Firebase Storage.
+        </p>
       </div>
 
       {/* Error */}
@@ -341,7 +455,7 @@ export function EpisodeForm({ mode, seasons, episode }) {
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || uploading}
           style={{
             display: "flex",
             alignItems: "center",
@@ -356,12 +470,12 @@ export function EpisodeForm({ mode, seasons, episode }) {
             textTransform: "uppercase",
             letterSpacing: "0.1em",
             fontFamily: "Helvetica Neue, sans-serif",
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.6 : 1,
+            cursor: loading || uploading ? "not-allowed" : "pointer",
+            opacity: loading || uploading ? 0.6 : 1,
           }}
         >
-          {loading && <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />}
-          {mode === "edit" ? "Aggiorna" : "Crea episodio"}
+          {(loading || uploading) && <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />}
+          {uploading ? "Caricamento video…" : mode === "edit" ? "Aggiorna" : "Crea episodio"}
         </button>
 
         <button

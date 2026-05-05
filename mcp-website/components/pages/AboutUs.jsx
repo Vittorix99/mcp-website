@@ -1,145 +1,141 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
-import { motion, AnimatePresence } from "framer-motion"
-import { getImageUrls } from "@/config/firebaseStorage"
+import { Ticker } from "@/components/Ticker"
+import { SectionLabel } from "@/components/SectionLabel"
+import { useReveal } from "@/hooks/useReveal"
+import { getImageUrls, getImageUrlsFromBucket } from "@/config/firebaseStorage"
+
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
+
+const PHOTOS = [
+  { bg: "#2a1808", label: "Club atmosphere" },
+  { bg: "#0c0c22", label: "DJ set · dancefloor" },
+  { bg: "#220a10", label: "Crowd · connection" },
+  { bg: "#181806", label: "Light show" },
+]
+const SHOWCASE_FOLDER = "foto/showcase"
+const SHOWCASE_PROD_BUCKET =
+  process.env.NEXT_PUBLIC_SHOWCASE_STORAGE_BUCKET || "mcp-website-2a1ad.firebasestorage.app"
 
 export function AboutUs() {
-  const [images, setImages] = useState([])
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [showcaseImages, setShowcaseImages] = useState([])
+  useReveal()
 
   useEffect(() => {
-    async function fetchImages() {
+    let alive = true
+
+    async function loadShowcaseImages() {
       try {
-        const allUrls = await getImageUrls("foto/showcase")
-        const shuffled = allUrls.sort(() => 0.5 - Math.random())
-        setImages(shuffled.slice(0, 20))
+        let urls = await getImageUrls(SHOWCASE_FOLDER)
+        if (urls.length === 0 && process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET !== SHOWCASE_PROD_BUCKET) {
+          urls = await getImageUrlsFromBucket(SHOWCASE_FOLDER, SHOWCASE_PROD_BUCKET)
+        }
+        if (!alive) return
+        setShowcaseImages(
+          urls
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b))
+            .slice(0, PHOTOS.length)
+        )
       } catch (error) {
-        console.error("Error fetching images:", error)
+        console.error("Error fetching showcase images:", error)
       }
     }
-    fetchImages()
+
+    loadShowcaseImages()
+    return () => {
+      alive = false
+    }
   }, [])
 
-  useEffect(() => {
-    if (images.length > 0) {
-      const interval = setInterval(() => {
-        setCurrentImageIndex((prev) => (prev + 1) % images.length)
-      }, 8000) // Change image every 8 seconds
-
-      return () => clearInterval(interval)
-    }
-  }, [images.length])
-
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 },
-  }
-
-  const imageVariants = {
-    enter: (direction) => ({
-      opacity: 0,
-      scale: direction > 0 ? 1.1 : 0.9,
-    }),
-    center: {
-      opacity: 1,
-      scale: 1,
-      transition: {
-        opacity: { duration: 1.5, ease: "easeInOut" },
-        scale: { duration: 1.5, ease: "easeInOut" },
-      },
-    },
-    exit: (direction) => ({
-      opacity: 0,
-      scale: direction < 0 ? 1.1 : 0.9,
-      transition: {
-        opacity: { duration: 1.5, ease: "easeInOut" },
-        scale: { duration: 1.5, ease: "easeInOut" },
-      },
-    }),
-  }
-
   return (
-    <section className="py-12 bg-black overflow-hidden relative">
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
-          {/* Image Gallery */}
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl shadow-2xl border border-white/10 about-card">
-            <AnimatePresence initial={false} custom={currentImageIndex}>
-              {images[currentImageIndex] && (
-                <motion.div
-                  key={currentImageIndex}
-                  custom={currentImageIndex}
-                  variants={imageVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  className="absolute inset-0"
-                >
-                  <Image
-                    src={images[currentImageIndex] || "/placeholder.svg"}
-                    alt="MCP Event"
-                    fill
-                    className="object-cover"
-                    priority
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <div className="about-card__overlay" />
+    <section id="about-anchor" style={{ background: "#080808", paddingTop: "120px" }}>
+      <Ticker
+        items={["Music Connecting People", "Palermo", "Electronic", "Underground", "Community", "Since 2022"]}
+        color="rgba(224,120,0,0.35)"
+        speed={36}
+      />
+
+      <div className="about-inner">
+        <div className="about-grid">
+          {/* Text */}
+          <div className="reveal">
+            <SectionLabel text="Our Philosophy" />
+            <h2 style={{
+              fontFamily: HN, fontWeight: 900,
+              fontSize: "clamp(36px,4vw,58px)", letterSpacing: "-0.03em",
+              textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.88,
+              marginBottom: "36px",
+            }}>
+              Where music<br />becomes<br />connection
+            </h2>
+            <p style={{ fontFamily: CH, fontSize: "17px", lineHeight: 1.82, color: "rgba(245,243,239,0.62)", marginBottom: "22px" }}>
+              Music Connecting People was born to find a safe, emotionally immersive, sonorously and visually stunning way of partying.
+            </p>
+            <p style={{ fontFamily: CH, fontSize: "16px", lineHeight: 1.82, color: "rgba(245,243,239,0.48)", marginBottom: "36px" }}>
+              We believe that through music, it is possible to reconnect with our inner essence and share it in real life. Electronic music offers not only the best journey when celebrating but also a way of self-reconciliation and embracing new horizons.
+            </p>
+            <blockquote style={{ borderLeft: `2px solid ${ACC}`, paddingLeft: "22px", marginBottom: "40px" }}>
+              <p style={{ fontFamily: CH, fontSize: "15px", fontStyle: "italic", lineHeight: 1.78, color: "rgba(245,243,239,0.4)", margin: 0 }}>
+                "We are drawn toward the future, while finding a guide in the past, lost in the present."
+              </p>
+            </blockquote>
+            <Image
+              src="/patterns/pattern-orange.png"
+              alt=""
+              width={200}
+              height={24}
+              style={{ height: "24px", width: "auto", opacity: 0.6 }}
+            />
           </div>
 
-          {/* Content */}
-          <div className="space-y-6">
-            <motion.h2
-              className="font-atlantico text-5xl md:text-6xl font-bold mb-6 text-center about-title"
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              variants={fadeInUp}
-            >
-              Our Philosophy
-            </motion.h2>
-
-            <motion.p
-              className="font-helvetica text-lg md:text-xl text-gray-200 text-center leading-relaxed"
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              variants={fadeInUp}
-            >
-              Music Connecting People was born to find a safe, emotionally immersive, sonorously & visually stunning way
-              of partying.
-            </motion.p>
-            <motion.p
-              className="font-helvetica text-lg md:text-xl text-gray-200 text-center leading-relaxed"
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              variants={fadeInUp}
-            >
-              We believe that through music, it is possible to reconnect with our inner essence and share it in real
-              life. Electronic music offers not only the best journey when celebrating but also a way of
-              self-reconciliation and embracing new horizons.
-            </motion.p>
-
-            <motion.p
-              className="font-charter italic text-lg md:text-xl text-orange-200/90 text-center leading-relaxed about-quote"
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              variants={fadeInUp}
-            >
-              "We are drawn toward the future, while finding a guide in the past, lost in the present. Our future
-              represents a fully committed goal of innovation and sustainability, the past the underground sounds that
-              represent electronic music, and the present the total devotion to feelings, emotions, and connections."
-            </motion.p>
+          {/* Photo grid */}
+          <div className="about-photos-grid reveal reveal-delay-2">
+            {PHOTOS.map((p, i) => {
+              const src = showcaseImages[i]
+              return (
+                <div key={p.label} style={{
+                  background: p.bg, position: "relative", overflow: "hidden",
+                  gridColumn: i === 0 ? "1/3" : "auto",
+                  borderTop: i === 0 ? `3px solid ${ACC}` : "none",
+                }}>
+                  {src && (
+                    <Image
+                      src={src}
+                      alt={p.label}
+                      fill
+                      sizes={i === 0 ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 50vw, 25vw"}
+                      style={{ objectFit: "cover" }}
+                      priority={i === 0}
+                      unoptimized
+                    />
+                  )}
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    background: "linear-gradient(to bottom, rgba(8,8,8,0.05), rgba(8,8,8,0.3))",
+                  }} />
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    backgroundImage: `repeating-linear-gradient(45deg,
+                      rgba(255,255,255,0.012) 0px,rgba(255,255,255,0.012) 1px,
+                      transparent 1px,transparent 18px)`,
+                  }} />
+                  <div style={{
+                    position: "absolute", bottom: "10px", left: "12px",
+                    fontFamily: HN, fontSize: "7px",
+                    letterSpacing: "0.22em", textTransform: "uppercase",
+                    color: "rgba(245,243,239,0.32)",
+                  }}>{p.label}</div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
-      <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-mcp-orange/5 to-black/0 pointer-events-none" />
     </section>
   )
 }

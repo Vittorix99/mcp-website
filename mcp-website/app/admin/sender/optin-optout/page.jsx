@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, Search, RefreshCw } from "lucide-react"
+import { Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { routes } from "@/config/routes"
 import { getNewsletterSignups, getNewsletterConsents } from "@/services/admin/newsletter"
 import { getAllEventsAdmin } from "@/services/admin/events"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 const safeStr = (v) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "")
 const resolveEventTitle = (row, eventTitleById = {}) => {
@@ -176,7 +176,6 @@ function SignupsTable({ rows, loading }) {
 // ── Main page ─────────────────────────────────────────────────────── //
 
 export default function OptInOptOutPage() {
-  const router = useRouter()
   const [signups, setSignups] = useState([])
   const [consents, setConsents] = useState([])
   const [eventTitleById, setEventTitleById] = useState({})
@@ -230,20 +229,17 @@ export default function OptInOptOutPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div>
-        <Button variant="ghost" onClick={() => router.push(routes.admin.sender.subscribers)} className="mb-1 -ml-2">
-          <ArrowLeft className="mr-2 h-4 w-4" /> CRM Sender
-        </Button>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Opt In / Opt Out</h1>
-            <p className="text-gray-300">Newsletter consents e signups dal database.</p>
-          </div>
+      <AdminPageHeader
+        title="Opt In / Opt Out"
+        description="Newsletter consents e signups dal database."
+        backHref={routes.admin.sender.subscribers}
+        backLabel="Torna al CRM Sender"
+        actions={(
           <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-        </div>
-      </div>
+        )}
+      />
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 

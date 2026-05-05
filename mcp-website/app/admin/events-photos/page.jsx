@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCw, PlusCircle, Trash2, AlertTriangle, ImageIcon, Loader2 } from "lucide-react";
+import { RefreshCw, PlusCircle, Trash2, AlertTriangle, ImageIcon } from "lucide-react";
 import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue
 } from "@/components/ui/select";
 import { AlbumCard } from "@/components/admin/events-foto/AlbumCard";
+import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome";
 
 export default function EventsAlbumsPage() {
   const {
@@ -61,28 +62,21 @@ export default function EventsAlbumsPage() {
   const unlinkedEvents = events?.filter((ev) => !ev.photoPath && ev.title) || [];
 
   if (loading && albums.length === 0)
-    return (
-      <div className="text-center py-6 flex flex-col items-center gap-2 text-white">
-        <Loader2 className="animate-spin h-6 w-6" />
-        <span>Caricamento...</span>
-      </div>
-    );
+    return <AdminLoading label="Caricamento album..." />;
 
   return (
     <div className="bg-black min-h-screen text-white">
       <main className="p-4 md:p-6 space-y-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h1 className="text-3xl md:text-4xl font-bold">Gestione Album Eventi</h1>
-          <Button
-            onClick={refresh}
-            disabled={loading}
-            variant="outline"
-            className="bg-transparent border-zinc-600 hover:bg-zinc-800"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Aggiorna
-          </Button>
-        </div>
+        <AdminPageHeader
+          title="Album Eventi"
+          description="Crea e gestisci gli album fotografici degli eventi."
+          actions={(
+            <Button onClick={refresh} disabled={loading} variant="outline" className="bg-transparent border-zinc-600 hover:bg-zinc-800">
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Aggiorna
+            </Button>
+          )}
+        />
 
         <Card className="bg-zinc-900 border-zinc-700">
           <CardHeader>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical, Wallet, SlidersHorizontal, AlertTriangle } from "lucide-react"
+import { Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical, Wallet, SlidersHorizontal, AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
 import * as XLSX from "xlsx"
 import {routes} from "@/config/routes"
@@ -24,6 +24,7 @@ import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { MembershipModal } from "@/components/admin/memberships/MembershipsModal"
 import { useError } from "@/contexts/errorContext"
 import { getMembershipsReport } from "@/services/admin/memberships"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 export default function MembershipsPage() {
   const router = useRouter()
@@ -445,29 +446,26 @@ export default function MembershipsPage() {
         transition={{ duration: 0.5 }}
         className="space-y-6 pb-8"
       >
-        <div>
-                <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Torna admin
-          </Button>
-          
-          <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Gestione Membri</h1>
-          <p className="text-gray-300">Crea, modifica e gestisci eventi MCP.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="min-w-[160px]">
-              <SelectValue placeholder="Anno" />
-            </SelectTrigger>
-            <SelectContent>
-              {yearOptions.map((y) => (
-                <SelectItem key={y} value={y}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-        </div>
+        <AdminPageHeader
+          title="Membri"
+          description="Crea, modifica e gestisci i tesseramenti MCP."
+          backHref={routes.admin.dashboard}
+          backLabel="Torna alla dashboard"
+          actions={(
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="min-w-[160px]">
+                <SelectValue placeholder="Anno" />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map((y) => (
+                  <SelectItem key={y} value={y}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
 
         <Tabs defaultValue="membri" className="space-y-4">
           <TabsList>

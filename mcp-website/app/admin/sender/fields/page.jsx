@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Trash2, AlertTriangle, Loader2, ArrowLeft } from "lucide-react"
+import { Plus, Trash2, AlertTriangle, Loader2 } from "lucide-react"
 import { motion } from "framer-motion"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { routes } from "@/config/routes"
 import { listSenderFields, createSenderField, deleteSenderField } from "@/services/admin/sender"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 const FIELD_TYPES = ["string", "number", "date", "boolean"]
 
@@ -94,7 +94,6 @@ function CreateFieldModal({ onClose, onCreated }) {
 }
 
 export default function SenderFieldsPage() {
-  const router = useRouter()
   const [fields, setFields] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -131,18 +130,17 @@ export default function SenderFieldsPage() {
     >
       {showCreate && <CreateFieldModal onClose={() => setShowCreate(false)} onCreated={load} />}
 
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <Button variant="ghost" onClick={() => router.push(routes.admin.sender.campaigns)} className="mb-1 -ml-2">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Campagne
+      <AdminPageHeader
+        title="Campi personalizzati"
+        description="Attributi extra per i subscriber."
+        backHref={routes.admin.sender.campaigns}
+        backLabel="Torna alle campagne"
+        actions={(
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nuovo campo
           </Button>
-          <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Campi personalizzati</h1>
-          <p className="text-gray-300">Attributi extra per i subscriber.</p>
-        </div>
-        <Button size="sm" onClick={() => setShowCreate(true)} className="mt-1 md:mt-10">
-          <Plus className="h-4 w-4 mr-1" /> Nuovo campo
-        </Button>
-      </div>
+        )}
+      />
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 

@@ -1,309 +1,220 @@
 "use client"
 
-import { useMemo, useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect } from "react"
+import Image from "next/image"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { LogoSection } from "@/components/pages/Logo"
 import { NextEventSection } from "@/components/pages/NextEventSection"
+import { HowItWorksSection } from "@/components/pages/HowItWorksSection"
 import { AboutUs } from "@/components/pages/AboutUs"
+import { RadioSection } from "@/components/pages/RadioSection"
 import { ContactUs } from "@/components/pages/ContactUs"
-import { AnimatedSectionDivider } from "@/components/AnimatedSectionDivider"
-import { SectionTitle } from "@/components/ui/section-title"
- 
-import { Volume, VolumeX } from "lucide-react"
-import { getNextEvent } from "@/services/events"
+import { WaveDivider } from "@/components/WavePattern"
 
-/* -------------------------------------------------------
-   MOBILE HERO → VIDEO (smooth + autoplay iOS)
-   - progress senza reflow (scrollY/offsetTop)
-   - layer GPU (translateZ(0))
-   - autoplay iOS: defaultMuted + playsInline + webkit-playsinline
-   - mute automatico quando la sezione non è visibile
---------------------------------------------------------*/
-function MobileHeroVideoSmooth() {
-  const wrapperRef = useRef(null)
-  const stickyRef = useRef(null)
-  const videoEl = useRef(null)
+const ACC = "#E07800"
+const RED = "#D10000"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
 
-  const [progress, setProgress] = useState(0)   // 0..1 durante sticky attivo
-  const [exitProgress, setExitProgress] = useState(0) // 0..1 durante exit sticky
-  const [reduceMotion, setReduceMotion] = useState(false)
-  const [isMuted, setIsMuted] = useState(true)
-
-  // ---- CONFIG: soglia oltre la quale è permesso togliere il mute ----
-  const AUDIO_UNLOCK_PROGRESS = 0.55 // ~seconda metà: video domina
-  const canToggleAudio = progress >= AUDIO_UNLOCK_PROGRESS
-
-  // cache viewport height e offsetTop (evita reflow continui)
-  const vhRef = useRef(1)
-  const topRef = useRef(0)
+function HeroSection() {
+  const [scrollY, setScrollY] = useState(0)
+  const [videoLoaded, setVideoLoaded] = useState(false)
+  const videoRef = useRef(null)
 
   useEffect(() => {
-    const updateMetrics = () => {
-      vhRef.current = Math.max(1, window.innerHeight || 1)
-      const el = wrapperRef.current
-      topRef.current = el ? el.offsetTop : 0
-    }
-    updateMetrics()
-    window.addEventListener("resize", updateMetrics)
-    window.addEventListener("orientationchange", updateMetrics)
-    return () => {
-      window.removeEventListener("resize", updateMetrics)
-      window.removeEventListener("orientationchange", updateMetrics)
-    }
+    const fn = () => setScrollY(window.scrollY)
+    window.addEventListener("scroll", fn, { passive: true })
+    return () => window.removeEventListener("scroll", fn)
   }, [])
 
-  // prefers-reduced-motion
   useEffect(() => {
-    const mql = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const update = () => setReduceMotion(!!mql.matches)
-    update()
-    mql.addEventListener?.("change", update)
-    return () => mql.removeEventListener?.("change", update)
-  }, [])
-
-  // progress con rAF (NO getBoundingClientRect)
-  useEffect(() => {
-    let ticking = false
-    const onScroll = () => {
-      if (ticking) return
-      ticking = true
-      requestAnimationFrame(() => {
-        const wrapper = wrapperRef.current
-        if (!wrapper) { ticking = false; return }
-        const scrolled = window.scrollY - topRef.current
-        const stickyRange = wrapper.offsetHeight - vhRef.current // scroll attivo sticky
-        const p = Math.min(1, Math.max(0, scrolled / stickyRange))
-        const ep = Math.min(1, Math.max(0, (scrolled - stickyRange) / vhRef.current))
-        setProgress(p)
-        setExitProgress(ep)
-        ticking = false
-      })
-    }
-    onScroll() // init
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
-
-  const clamp = (v, min = 0, max = 1) => Math.min(max, Math.max(min, v))
-
-  // mappa 2 fasi
-  const logoPhase = 1 - clamp(progress * 2.5)          // logo sparisce entro progress 0.4
-  const videoPhase = clamp((progress - 0.05) * 1.2)    // video al 100% entro progress ~0.88
-  const logoOpacity = reduceMotion ? 0 : logoPhase
-  const logoTranslateY = reduceMotion ? 0 : (1 - logoPhase) * -40
-  // durante l'exit lo sticky scorre via: fade-out rapido per non lasciare nero
-  const videoFadeOut = reduceMotion ? 1 : clamp(1 - exitProgress * 3)
-  const videoOpacity = reduceMotion ? 1 : Math.max(0.001, videoPhase) * videoFadeOut
-  const videoScale = reduceMotion ? 1 : 1 + (1 - videoPhase) * 0.03
-  const hintOpacity = clamp(1 - progress * 2)
-
-  // Autoplay iOS: set attr + tryPlay
-  useEffect(() => {
-    const v = videoEl.current
+    const v = videoRef.current
     if (!v) return
     v.setAttribute("playsinline", "true")
     v.setAttribute("webkit-playsinline", "true")
-    v.setAttribute("x-webkit-airplay", "deny")
     v.setAttribute("muted", "muted")
     v.defaultMuted = true
     v.muted = true
     v.autoplay = true
-    v.controls = false
-    v.disableRemotePlayback = true
+    const markReady = () => setVideoLoaded(true)
+    const tryPlay = () => {
+      if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) markReady()
+      v.play().catch(() => {})
+    }
 
-    const tryPlay = () => v.play().catch(() => {})
     tryPlay()
-    const onLoadedMeta = () => tryPlay()
-    const onCanPlay = () => tryPlay()
-    v.addEventListener("loadedmetadata", onLoadedMeta)
-    v.addEventListener("canplay", onCanPlay)
+    window.addEventListener("pageshow", tryPlay)
+    document.addEventListener("visibilitychange", tryPlay)
+    v.addEventListener("loadedmetadata", tryPlay)
+    v.addEventListener("loadeddata", markReady)
+    v.addEventListener("canplay", tryPlay)
+    v.addEventListener("canplaythrough", tryPlay)
+
     return () => {
-      v.removeEventListener("loadedmetadata", onLoadedMeta)
-      v.removeEventListener("canplay", onCanPlay)
+      window.removeEventListener("pageshow", tryPlay)
+      document.removeEventListener("visibilitychange", tryPlay)
+      v.removeEventListener("loadedmetadata", tryPlay)
+      v.removeEventListener("loadeddata", markReady)
+      v.removeEventListener("canplay", tryPlay)
+      v.removeEventListener("canplaythrough", tryPlay)
     }
   }, [])
 
-  // Allinea mute del DOM allo state
-  useEffect(() => {
-    const v = videoEl.current
-    if (!v) return
-    v.muted = isMuted
-    if (!isMuted) v.play().catch(() => {})
-  }, [isMuted])
+  const parallax = scrollY * 0.35
+  const fadeOut = Math.max(0, 1 - scrollY / 520)
+  const videoParallax = scrollY * 0.2
 
-  // Mute quando la sticky esce dal viewport
-  useEffect(() => {
-    const el = stickyRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) setIsMuted(true)
-      },
-      { threshold: 0.05 }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  //  Mute forzato quando il logo è ancora ben visibile
-  useEffect(() => {
-    if (progress < AUDIO_UNLOCK_PROGRESS && !isMuted) {
-      setIsMuted(true)
-    }
-  }, [progress, isMuted])
-
-  const toggleAudio = () => {
-    if (!canToggleAudio) return // blocca prima della soglia
-    setIsMuted((m) => !m)
+  const scrollToAbout = () => {
+    const el = document.getElementById("about-anchor")
+    if (el) el.scrollIntoView({ behavior: "smooth" })
   }
 
   return (
-    <section ref={wrapperRef} className="relative h-[160svh] w-full">
-      <div ref={stickyRef} className="sticky top-0 h-screen w-full z-[70]">
-        {/* LOGO layer */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{
-            opacity: logoOpacity,
-            transform: `translateY(${logoTranslateY}px) translateZ(0)`,
-            willChange: "transform, opacity",
+    <section style={{ height: "100svh", position: "relative", overflow: "hidden", background: "#080808" }}>
+      {/* Video background */}
+      <div style={{
+        position: "absolute", inset: 0, overflow: "hidden",
+        opacity: videoLoaded ? 1 : 0, transition: "opacity 1.5s ease",
+      }}>
+        <video
+          ref={videoRef}
+          muted playsInline loop autoPlay
+          preload="auto"
+          src="/videos/oneshot.mp4"
+          onLoadedMetadata={() => videoRef.current?.play().catch(() => {})}
+          onLoadedData={() => setVideoLoaded(true)}
+          onCanPlay={() => {
+            setVideoLoaded(true)
+            videoRef.current?.play().catch(() => {})
           }}
-        >
-          <LogoSection />
-        </div>
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "115%",
+            objectFit: "cover",
+            transform: `translateY(${videoParallax}px)`,
+            filter: "brightness(0.42) saturate(0.75)",
+          }}
+        />
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(to bottom, rgba(8,8,8,0.3) 0%, rgba(8,8,8,0.1) 40%, rgba(8,8,8,0.7) 85%, #080808 100%)",
+        }} />
+      </div>
 
-        {/* VIDEO layer */}
-        <div className="absolute inset-0 overflow-hidden">
-          <video
-            ref={videoEl}
-            className="absolute inset-0 w-full h-full object-cover"
-            src="/videos/oneshot.mp4"
-            autoPlay
-            muted
-            playsInline
-            loop
-            preload="auto"
-            controls={false}
-            controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
-            disablePictureInPicture
-            x-webkit-airplay="deny"
-            webkit-playsinline="true"
-            style={{
-              opacity: videoOpacity,
-              transform: `scale(${videoScale}) translateZ(0)`,
-              willChange: "transform, opacity",
-              WebkitTransform: `scale(${videoScale}) translateZ(0)`,
-            }}
-            onTouchStart={() => {
-              videoEl.current?.play().catch(() => {})
-            }}
-          />
+      {/* Glow orb fallback */}
+      {!videoLoaded && (
+        <div style={{
+          position: "absolute", borderRadius: "50%",
+          width: "65vw", height: "65vw", maxWidth: "750px", maxHeight: "750px",
+          background: `radial-gradient(circle, ${ACC}18 0%, transparent 68%)`,
+          top: "50%", left: "50%",
+          transform: `translate(-50%, calc(-50% + ${parallax * 0.25}px))`,
+          filter: "blur(70px)", pointerEvents: "none",
+        }} />
+      )}
 
-          {/* overlay leggero per contrasto */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: "linear-gradient(to bottom, rgba(0,0,0,0.15), rgba(0,0,0,0.25))",
-              opacity: videoOpacity,
-            }}
-          />
+      {/* Content */}
+      <div style={{
+        position: "absolute", inset: 0,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        transform: `translateY(${parallax * 0.45}px)`,
+        opacity: fadeOut, padding: "0 24px", textAlign: "center",
+        zIndex: 2,
+      }}>
+        <Image
+          src="/logo-full-white.png"
+          alt="MCP — Music Connecting People"
+          width={300}
+          height={90}
+          style={{ height: "clamp(48px,8vw,90px)", width: "auto", marginBottom: "44px", opacity: 0.95 }}
+          priority
+        />
 
-          {/* Toggle Audio — visibile/attivo solo dopo la soglia */}
-          <div
-            className="absolute right-3 bottom-16 z-10"
-            style={{
-              opacity: canToggleAudio ? videoOpacity : 0, // nascondi prima della soglia
-              transform: "translateZ(0)",
-              pointerEvents: canToggleAudio ? "auto" : "none",
-            }}
-          >
-            <Button
-              onClick={toggleAudio}
-              size="sm"
-              variant="secondary"
-              className={`rounded-full text-white border border-white/30 p-2 backdrop-blur-sm ${
-                isMuted ? "bg-black/50 hover:bg-black/70" : "bg-black/60 hover:bg-black/80"
-              }`}
-              aria-label={isMuted ? "Attiva audio" : "Disattiva audio"}
-              aria-pressed={!isMuted}
-              disabled={!canToggleAudio}
-            >
-              {isMuted ? <VolumeX size={20} /> : <Volume size={20} />}
-            </Button>
+        {/* Giant wordmark */}
+        <div style={{ lineHeight: 0.86, textAlign: "center" }}>
+          <div>
+            <span style={{
+              fontFamily: HN, fontWeight: 900,
+              fontSize: "clamp(52px,11vw,158px)", letterSpacing: "-0.035em",
+              textTransform: "uppercase", color: "#F5F3EF", display: "block",
+              textShadow: "0 2px 40px rgba(0,0,0,0.6)",
+            }}>music</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(10px,2vw,24px)" }}>
+            <div style={{ height: "4px", width: "clamp(28px,4vw,72px)", background: ACC, flexShrink: 0 }} />
+            <span style={{
+              fontFamily: HN, fontWeight: 900,
+              fontSize: "clamp(52px,11vw,158px)", letterSpacing: "-0.035em",
+              textTransform: "uppercase", color: "#F5F3EF",
+              textShadow: "0 2px 40px rgba(0,0,0,0.6)",
+            }}>connecting</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "clamp(10px,2vw,24px)" }}>
+            <span style={{
+              fontFamily: HN, fontWeight: 900,
+              fontSize: "clamp(52px,11vw,158px)", letterSpacing: "-0.035em",
+              textTransform: "uppercase", color: "#F5F3EF",
+              textShadow: "0 2px 40px rgba(0,0,0,0.6)",
+            }}>people</span>
+            <div style={{ height: "4px", width: "clamp(28px,4vw,72px)", background: RED, flexShrink: 0 }} />
           </div>
         </div>
 
-        {/* Hint scroll */}
-        <div
-          className="absolute bottom-5 left-1/2 -translate-x-1/2 text-[10px] tracking-widest text-white/70"
-          style={{ opacity: clamp(1 - progress * 2), transform: "translateZ(0)" }}
-        >
-          SCROLL
+        <p style={{
+          fontFamily: CH, fontSize: "clamp(14px,1.5vw,18px)",
+          fontStyle: "italic", color: "rgba(245,243,239,0.6)",
+          marginTop: "32px", letterSpacing: "0.02em",
+          textShadow: "0 1px 12px rgba(0,0,0,0.8)",
+        }}>Experience the rhythm. Connect with the community.</p>
+
+        <div className="hero-cta-row" style={{ display: "flex", gap: "14px", marginTop: "40px", flexWrap: "wrap", justifyContent: "center" }}>
+          <Link
+            href="/events"
+            style={{
+              padding: "13px 36px", background: ACC,
+              borderRadius: "2px", fontFamily: HN, fontWeight: 700,
+              fontSize: "10px", letterSpacing: "0.26em", textTransform: "uppercase",
+              color: "#fff", textDecoration: "none", display: "inline-block",
+            }}
+          >Next Events →</Link>
+          <button
+            onClick={scrollToAbout}
+            style={{
+              padding: "13px 36px", background: "rgba(0,0,0,0.35)",
+              border: "1px solid rgba(245,243,239,0.28)", cursor: "pointer",
+              fontFamily: HN, fontWeight: 400,
+              fontSize: "10px", letterSpacing: "0.26em", textTransform: "uppercase",
+              color: "rgba(245,243,239,0.75)", borderRadius: "2px",
+              backdropFilter: "blur(8px)",
+            }}
+          >Our Story</button>
+        </div>
+      </div>
+
+      {/* Scroll cue */}
+      <div style={{
+        position: "absolute", bottom: "28px", left: "50%", transform: "translateX(-50%)",
+        opacity: fadeOut * 0.55, display: "flex", flexDirection: "column",
+        alignItems: "center", gap: "8px", zIndex: 2,
+      }}>
+        <p style={{ fontFamily: HN, fontSize: "8px", letterSpacing: "0.45em", textTransform: "uppercase", color: "rgba(245,243,239,0.4)", margin: 0 }}>scroll</p>
+        <div style={{ width: "1px", height: "36px", background: "rgba(245,243,239,0.2)", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "40%", background: ACC, animation: "scrollLine 1.8s ease-in-out infinite" }} />
         </div>
       </div>
     </section>
   )
 }
 
-export default function HomeClient({ nextEvent = null, hasNextEvent = false } = {}) {
-  const [clientNextEvent, setClientNextEvent] = useState(nextEvent || null)
-  const [clientHasNextEvent, setClientHasNextEvent] = useState(!!hasNextEvent)
-  const fetchStartedRef = useRef(false)
-
-  const pageClass = useMemo(() => `min-h-screen font-helvetica`, [])
-
-  useEffect(() => {
-    if (clientHasNextEvent || clientNextEvent || fetchStartedRef.current) return
-    fetchStartedRef.current = true
-    let alive = true
-    ;(async () => {
-      try {
-        const { success, events } = await getNextEvent()
-        if (!alive) return
-        if (success && Array.isArray(events) && events.length > 0) {
-          setClientNextEvent(events[0])
-          setClientHasNextEvent(true)
-        }
-      } catch {
-        // No-op: landing can render without next event
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [clientHasNextEvent, clientNextEvent])
-
+export default function HomeClient({ nextEvent, radioEpisodes }) {
   return (
-    <div className={pageClass}>
-      <div className="block md:hidden">
-        <MobileHeroVideoSmooth />
-      </div>
-      <section className="relative h-screen items-center justify-center hidden md:flex">
-        <LogoSection />
-      </section>
-
-      <AnimatedSectionDivider color="ORANGE" />
-
-      {clientHasNextEvent && (
-        <>
-          <section className="py-12 md:py-24 relative">
-            <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-mcp-orange/5 to-black/0" />
-            <NextEventSection event={clientNextEvent} />
-          </section>
-          <AnimatedSectionDivider color="RED" />
-        </>
-      )}
-
-      <section id="about" className="relative py-12 md:py-24">
-        <AboutUs />
-      </section>
-
-      <AnimatedSectionDivider color="ORANGE" />
-
-      <section id="contact-section" className="relative py-12 md:py-24">
-        <ContactUs />
-      </section>
-    </div>
+    <>
+      <HeroSection />
+      <NextEventSection event={nextEvent} />
+      <HowItWorksSection />
+      <AboutUs />
+      <RadioSection episodes={radioEpisodes || []} />
+      <ContactUs />
+      <WaveDivider color="rgba(224,120,0,0.18)" scale={1} />
+    </>
   )
 }

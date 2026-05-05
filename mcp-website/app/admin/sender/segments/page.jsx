@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Info, Users, Trash2, Loader2, ArrowLeft } from "lucide-react"
+import { Info, Users, Trash2, Loader2 } from "lucide-react"
 import { motion } from "framer-motion"
-import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -15,6 +14,7 @@ import {
   deleteSenderSegment,
   listSenderSegmentSubscribers,
 } from "@/services/admin/sender"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 function TableSkeleton() {
   return Array.from({ length: 3 }).map((_, i) => (
@@ -75,7 +75,6 @@ function SegmentSubscribersDrawer({ segment, onClose }) {
 }
 
 export default function SenderSegmentsPage() {
-  const router = useRouter()
   const [segments, setSegments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -120,13 +119,12 @@ export default function SenderSegmentsPage() {
         <SegmentSubscribersDrawer segment={viewSegment} onClose={() => setViewSegment(null)} />
       )}
 
-      <div>
-        <Button variant="ghost" onClick={() => router.push(routes.admin.sender.campaigns)} className="mb-1 -ml-2">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Campagne
-        </Button>
-        <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Segmenti</h1>
-        <p className="text-gray-300">Segmenti gestiti da Sender.</p>
-      </div>
+      <AdminPageHeader
+        title="Segmenti"
+        description="Segmenti gestiti da Sender."
+        backHref={routes.admin.sender.campaigns}
+        backLabel="Torna alle campagne"
+      />
 
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <Card className="bg-zinc-900 border border-zinc-700">

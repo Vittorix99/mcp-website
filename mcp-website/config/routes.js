@@ -17,6 +17,10 @@ export const routes = {
   },
 
 
+  radio: '/radio',
+  about: '/about',
+  contact: '/contact',
+
   error: {
     notAdmin: '/error/not-admin',
     generic: '/error',

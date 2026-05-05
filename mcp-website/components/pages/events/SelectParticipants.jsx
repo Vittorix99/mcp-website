@@ -8,14 +8,30 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+
 export function SelectParticipants({ participants }) {
   return (
-    <div className="mt-6 text-center">
+    <div style={{ marginTop: "8px", marginBottom: "24px" }}>
+      <p
+        style={{
+          fontFamily: HN,
+          fontSize: "8px",
+          fontWeight: 700,
+          letterSpacing: "0.35em",
+          textTransform: "uppercase",
+          color: ACC,
+          margin: "0 0 12px",
+        }}
+      >
+        Partecipanti confermati
+      </p>
       <Select >
-        <SelectTrigger className="w-full max-w-xs mx-auto bg-black/40 border-gray-700 text-white">
+        <SelectTrigger className="w-full bg-transparent border-white/15 text-white rounded-none">
           <SelectValue placeholder="Partecipanti confermati" />
         </SelectTrigger>
-        <SelectContent className="bg-black text-white border border-mcp-orange/30">
+        <SelectContent className="bg-black text-white border border-white/15">
           {participants.map((p, i) => (
             <SelectItem key={i} value={p.email}>
               {p.name} {p.surname}

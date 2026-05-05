@@ -1,188 +1,277 @@
 "use client"
-import Image from "next/image"
 
 import { useState, useEffect } from "react"
-import { DialogTitle } from "@/components/ui/dialog"
-
-import { motion } from "framer-motion"
-import { Menu, LogOut, User } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger, SheetOverlay } from "@/components/ui/sheet"
+import Image from "next/image"
 import Link from "next/link"
-import LoginModal from "@/components/auth/LoginModal"
+import { usePathname } from "next/navigation"
 import { useUser } from "@/contexts/userContext"
 import { logout } from "@/config/firebase"
 import { routes } from "@/config/routes"
+import LoginModal from "@/components/auth/LoginModal"
+
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+
+const NAV_LINKS = [
+  { label: "Events", href: "/events" },
+  { label: "Radio", href: "/radio" },
+  { label: "Photos", href: "/events-foto" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
+]
 
 export const Navigation = () => {
-  const [isScrolled, setIsScrolled] = useState(false)
-  const { user, isAdmin } = useUser()
-  const [open, setOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
-
-  const handleNavClick = () => setOpen(false)
+  const pathname = usePathname()
+  const { user, isAdmin } = useUser()
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20)
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
+    const fn = () => setScrolled(window.scrollY > 40)
+    window.addEventListener("scroll", fn, { passive: true })
+    return () => window.removeEventListener("scroll", fn)
   }, [])
 
+  useEffect(() => {
+    if (menuOpen) document.body.style.overflow = "hidden"
+    else document.body.style.overflow = ""
+    return () => { document.body.style.overflow = "" }
+  }, [menuOpen])
+
   const handleLogout = async () => {
-    try {
-      await logout()
-    } catch (error) {
-      console.error("Logout error:", error)
-    }
+    try { await logout() } catch {}
+    setMenuOpen(false)
   }
 
-  const profileLink = user ? (isAdmin ? routes.admin.dashboard : routes.user.profile) : null
-
-  // Fondo gestito via CSS per avere un effetto "pill" più ricco
-  const navBg = isScrolled ? "nav-shell--scrolled" : ""
+  const isActive = (href) => {
+    if (href === "/events") return pathname?.startsWith("/events") && !pathname?.startsWith("/events-foto")
+    if (href === "/events-foto") return pathname?.startsWith("/events-foto")
+    return pathname === href
+  }
 
   return (
-    <motion.nav
-      className="relative w-full z-50 transition-all duration-300 bg-transparent"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <div className="container px-4 mx-auto py-2">
-        <Sheet open={open} onOpenChange={setOpen}>
-          <div className="nav-mobile-bar lg:hidden">
-            <Link href="/" className="nav-brand hover:opacity-80 transition-opacity">
-              <Image
-                src="/secondaryLogoWhite.png"
-                alt="MCP Logo"
-                width={72}
-                height={52}
-                className="h-auto"
-                priority
-              />
+    <>
+      <nav
+        style={{
+          position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
+          padding: "14px 32px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          transition: "all 0.35s ease",
+          background: scrolled ? "rgba(8,8,8,0.96)" : "transparent",
+          borderBottom: scrolled ? "1px solid rgba(224,120,0,0.12)" : "none",
+          backdropFilter: scrolled ? "blur(14px)" : "none",
+        }}
+      >
+        {/* Logo */}
+        <Link href="/" style={{ display: "inline-flex", padding: 0 }}>
+          <Image
+            src="/logo-white.png"
+            alt="MCP"
+            width={44}
+            height={44}
+            style={{ height: "40px", width: "auto" }}
+            priority
+          />
+        </Link>
+
+        {/* Desktop links */}
+        <div className="nav-desktop-new" style={{ alignItems: "center", gap: "4px" }}>
+          {NAV_LINKS.map(l => (
+            <Link
+              key={l.href}
+              href={l.href}
+              style={{
+                background: "none",
+                padding: "8px 18px",
+                fontFamily: HN, fontWeight: 400,
+                fontSize: "10px", letterSpacing: "0.26em", textTransform: "uppercase",
+                color: isActive(l.href) ? ACC : "#F5F3EF",
+                opacity: isActive(l.href) ? 1 : 0.7,
+                borderBottom: isActive(l.href) ? `1px solid ${ACC}` : "1px solid transparent",
+                transition: "all 0.2s",
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+              onMouseEnter={e => {
+                if (!isActive(l.href)) {
+                  e.currentTarget.style.opacity = "1"
+                  e.currentTarget.style.color = "#F5F3EF"
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isActive(l.href)) {
+                  e.currentTarget.style.opacity = "0.7"
+                  e.currentTarget.style.color = "#F5F3EF"
+                }
+              }}
+            >
+              {l.label}
             </Link>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="nav-burger mb-3">
-                <Menu className="h-6 w-6" />
-              </Button>
-            </SheetTrigger>
-          </div>
+          ))}
 
-          <div className={`nav-shell ${navBg} hidden lg:block`}>
-            <div className="nav-shell__inner">
-              {/* Logo */}
-              <Link href="/" className="nav-brand hover:opacity-80 transition-opacity">
-                <Image
-                  src="/secondaryLogoWhite.png"
-                  alt="MCP Logo"
-                  width={86}
-                  height={60}
-                  className="h-auto"
-                  priority
-                />
-              </Link>
+          <Link
+            href="/events"
+            style={{
+              marginLeft: "20px", padding: "10px 24px",
+              background: ACC, borderRadius: "2px",
+              fontFamily: HN, fontWeight: 700,
+              fontSize: "10px", letterSpacing: "0.26em", textTransform: "uppercase",
+              color: "#fff", textDecoration: "none",
+              display: "inline-block", transition: "opacity 0.2s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
+            onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+          >
+            Get Tickets
+          </Link>
 
-              {/* Navbar links (desktop) */}
-              <div className="nav-links hidden lg:flex">
-                <NavLink href={routes.events.foto.gallery}>Photos</NavLink>
-                <NavLink href={routes.events.allevents}>Events</NavLink>
-                <NavLink href="/#about">About</NavLink>
-                <NavLink href="/#contact-section">Contact</NavLink>
-              </div>
+          {!user && (
+            <button
+              type="button"
+              onClick={() => setLoginOpen(true)}
+              style={{
+                marginLeft: "8px", padding: "10px 16px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: "2px",
+                cursor: "pointer",
+                fontFamily: HN, fontSize: "9px", letterSpacing: "0.22em", textTransform: "uppercase",
+                color: "rgba(245,243,239,0.62)",
+                display: "inline-block",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = "#F5F3EF"
+                e.currentTarget.style.borderColor = "rgba(224,120,0,0.35)"
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = "rgba(245,243,239,0.62)"
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"
+              }}
+            >
+              Login
+            </button>
+          )}
 
-              <div className="nav-actions hidden lg:flex">
-                {user ? (
-                  <>
-                    {profileLink && (
-                      <NavLink href={profileLink} compact>
-                        <User className="h-4 w-4" />
-                        {isAdmin ? "Admin" : "Profile"}
-                      </NavLink>
-                    )}
-                    <Button variant="ghost" className="nav-action-btn" onClick={handleLogout}>
-                      <LogOut className="h-4 w-4" />
-                      Logout
-                    </Button>
-                  </>
-                ) : (
-                  <LoginModal />
-                )}
-              </div>
-            </div>
-          </div>
+          {/* Admin link — solo se loggato come admin */}
+          {user && isAdmin && (
+            <Link
+              href={routes.admin.dashboard}
+              style={{
+                marginLeft: "8px", padding: "8px 12px",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "2px",
+                fontFamily: HN, fontSize: "9px", letterSpacing: "0.22em", textTransform: "uppercase",
+                color: "rgba(245,243,239,0.6)", textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              Admin
+            </Link>
+          )}
+        </div>
 
-          <SheetOverlay className="fixed inset-0 bg-black/70 supports-[backdrop-filter]:backdrop-blur-md z-[190]" />
+        {/* Mobile burger */}
+        <button
+          className="nav-burger-new"
+          onClick={() => setMenuOpen(!menuOpen)}
+          style={{
+            background: "none",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: "2px", cursor: "pointer",
+            padding: "8px 10px",
+            flexDirection: "column", gap: "5px",
+          }}
+        >
+          {[0, 1, 2].map(i => (
+            <span key={i} style={{
+              display: "block", width: "20px", height: "2px", background: "#F5F3EF",
+              transition: "all 0.25s",
+              transform: menuOpen && i === 0 ? "rotate(45deg) translate(5px,5px)" :
+                         menuOpen && i === 1 ? "scaleX(0)" :
+                         menuOpen && i === 2 ? "rotate(-45deg) translate(5px,-5px)" : "none",
+              opacity: menuOpen && i === 1 ? 0 : 1,
+            }} />
+          ))}
+        </button>
+      </nav>
 
-              <SheetContent side="right" className="z-[200] w-full sm:w-[380px] nav-drawer">
-            <DialogTitle className="sr-only">Navigation Menu</DialogTitle>
+      {/* Mobile fullscreen overlay */}
+      {menuOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 199,
+          background: "#080808",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          gap: "8px",
+        }}>
+          {NAV_LINKS.map(l => (
+            <Link
+              key={l.href}
+              href={l.href}
+              onClick={() => setMenuOpen(false)}
+              style={{
+                background: "none", padding: "10px",
+                fontFamily: HN, fontWeight: 900,
+                fontSize: "36px", letterSpacing: "0.06em", textTransform: "uppercase",
+                color: isActive(l.href) ? ACC : "#F5F3EF",
+                textDecoration: "none", display: "block",
+              }}
+            >
+              {l.label}
+            </Link>
+          ))}
 
-                <div className="nav-drawer__header">
-                  <Image src="/secondaryLogoWhite.png" alt="MCP Logo" width={84} height={60} priority />
-                  <p className="nav-drawer__tagline">Culture • Events • Community</p>
-                </div>
+          <Link
+            href="/events"
+            onClick={() => setMenuOpen(false)}
+            style={{
+              marginTop: "28px", padding: "14px 48px",
+              background: ACC, borderRadius: "2px",
+              fontFamily: HN, fontWeight: 700,
+              fontSize: "12px", letterSpacing: "0.24em", textTransform: "uppercase",
+              color: "#fff", textDecoration: "none", display: "block",
+            }}
+          >
+            Get Tickets
+          </Link>
 
-                <nav className="nav-drawer__links">
-              <NavLink href={routes.events.foto.gallery} mobile onClick={handleNavClick}>
-                Photos
-              </NavLink>
-              <NavLink href="/events" mobile onClick={handleNavClick}>
-                Events
-              </NavLink>
-              <NavLink href="/#about" mobile onClick={handleNavClick}>
-                About
-              </NavLink>
-              <NavLink href="/#join" mobile onClick={handleNavClick}>
-                Join Us
-              </NavLink>
-              <NavLink href="/#contact-section" mobile onClick={handleNavClick}>
-                Contact
-              </NavLink>
-            </nav>
-
-            <div className="nav-drawer__footer">
-              {user ? (
-                <>
-                  {profileLink && (
-                    <NavLink href={profileLink} mobile>
-                      <User className="h-5 w-5" />
-                      {isAdmin ? "Admin" : "Profile"}
-                    </NavLink>
-                  )}
-                  <Button variant="ghost" className="nav-drawer__action" onClick={handleLogout}>
-                    <LogOut className="h-5 w-5" />
-                    Logout
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="ghost"
-                  className="nav-drawer__action"
-                  onClick={() => {
-                    setOpen(false)
-                    setLoginOpen(true)
+          {user ? (
+            <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+              {isAdmin && (
+                <Link
+                  href={routes.admin.dashboard}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    fontFamily: HN, fontSize: "11px", letterSpacing: "0.22em", textTransform: "uppercase",
+                    color: "rgba(245,243,239,0.45)", textDecoration: "none",
                   }}
-                >
-                  LOGIN
-                </Button>
+                >Admin Panel</Link>
               )}
+              <button
+                onClick={handleLogout}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontFamily: HN, fontSize: "11px", letterSpacing: "0.22em", textTransform: "uppercase",
+                  color: "rgba(245,243,239,0.3)",
+                }}
+              >Logout</button>
             </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-      {!user && <LoginModal open={loginOpen} onOpenChange={setLoginOpen} hideTrigger />}
-    </motion.nav>
+          ) : (
+            <button
+              onClick={() => { setMenuOpen(false); setLoginOpen(true) }}
+              style={{
+                marginTop: "16px", background: "none", border: "none", cursor: "pointer",
+                fontFamily: HN, fontSize: "10px", letterSpacing: "0.22em", textTransform: "uppercase",
+                color: "rgba(245,243,239,0.25)",
+              }}
+            >Login</button>
+          )}
+        </div>
+      )}
+
+      <LoginModal open={loginOpen} onOpenChange={setLoginOpen} hideTrigger />
+    </>
   )
 }
-
-const NavLink = ({ href, children, mobile, compact, onClick }) => (
-  <Link
-    href={href}
-    onClick={onClick}
-    className={`nav-link ${mobile ? "nav-link--mobile" : ""} ${compact ? "nav-link--compact" : ""}`}
-  >
-    <span className="relative z-10 flex items-center gap-2">{children}</span>
-    <span className="nav-link__underline" />
-  </Link>
-)
-
-export default Navigation

@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { Plus, Loader2, Radio } from "lucide-react"
+import { Plus } from "lucide-react"
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table"
 import { SeasonCard } from "@/components/admin/radio/SeasonCard"
 import { EpisodeRow } from "@/components/admin/radio/EpisodeRow"
 import { getSeasons, getEpisodes } from "@/services/admin/radio"
 import { routes } from "@/config/routes"
+import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 const headerStyle = {
   fontSize: 10,
@@ -47,11 +48,7 @@ export default function RadioPage() {
   }, [episodes, filterSeason])
 
   if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
-        <Loader2 style={{ width: 32, height: 32, color: "#e8820c" }} className="animate-spin" />
-      </div>
-    )
+    return <AdminLoading label="Caricamento radio..." />
   }
 
   if (error) {
@@ -74,28 +71,10 @@ export default function RadioPage() {
 
   return (
     <div style={{ paddingBottom: 64 }}>
-      {/* Page header */}
-      <div style={{ marginBottom: 40 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-          <Radio style={{ width: 20, height: 20, color: "#e8820c" }} />
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 22,
-              fontWeight: 900,
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              color: "#ffffff",
-              fontFamily: "Helvetica Neue, sans-serif",
-            }}
-          >
-            Radio
-          </h1>
-        </div>
-        <p style={{ margin: 0, fontSize: 13, color: "#666666", fontFamily: "Helvetica Neue, sans-serif" }}>
-          Gestisci stagioni ed episodi del podcast.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Radio"
+        description="Gestisci stagioni ed episodi del podcast."
+      />
 
       {/* ── Seasons ───────────────────────────────────────────────── */}
       <section style={{ marginBottom: 48 }}>

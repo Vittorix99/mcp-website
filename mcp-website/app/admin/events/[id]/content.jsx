@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation"
 import { routes } from "@/config/routes"
 
 import {
-  ArrowLeft,
   Plus,
   Send,
   Download,
@@ -32,6 +31,7 @@ import {
 import { motion } from "framer-motion"
 
 import { Button } from "@/components/ui/button"
+import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
 import {
   Card,
   CardHeader,
@@ -759,11 +759,7 @@ export default function EventContent({ id: eventId }) {
   }, [eventDateObj])
 
   if (evLoad || !event) {
-    return (
-      <div className="flex items-center justify-center h-screen text-white">
-        <Loader2 className="animate-spin h-8 w-8" />
-      </div>
-    )
+    return <AdminLoading label="Caricamento evento..." />
   }
 
   return (
@@ -775,16 +771,12 @@ export default function EventContent({ id: eventId }) {
           transition={{ duration: 0.5 }}
           className="max-w-7xl mx-auto space-y-6"
         >
-          <Button variant="ghost" onClick={() => router.push(routes.admin.events)}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Torna agli eventi
-          </Button>
-
-          <div>
-            <h1 className="text-4xl font-bold">{event.title}</h1>
-            <p className="text-gray-400">
-              {event.date} • {event.startTime}
-            </p>
-          </div>
+          <AdminPageHeader
+            title={event.title}
+            description={`${event.date} • ${event.startTime}`}
+            backHref={routes.admin.events}
+            backLabel="Torna agli eventi"
+          />
 
           {/* Event card */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

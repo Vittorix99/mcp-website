@@ -1,6 +1,6 @@
 
 import { getStorage, ref, getDownloadURL, listAll, list, uploadBytes, deleteObject } from "firebase/storage";
-import { storageBucket } from "@/config/firebase";
+import { app, storageBucket } from "@/config/firebase";
 
 const LIST_CACHE_TTL_MS = 5 * 60 * 1000
 const LIST_CACHE_MAX = 50
@@ -60,6 +60,23 @@ export const getImageUrls = async(folderPath)=>{
   }catch(error){
     console.error("Error getting image URLs:", error);
     return [];
+  }
+}
+
+export const getImageUrlsFromBucket = async (folderPath, bucketName) => {
+  try {
+    const bucket = bucketName ? getStorage(app, `gs://${bucketName}`) : storageBucket
+    const folderRef = ref(bucket, folderPath)
+    const files = await listAll(folderRef)
+    const urls = await Promise.all(
+      files.items.map(async (fileRef) => {
+        return await getDownloadURL(fileRef)
+      })
+    )
+    return urls
+  } catch (error) {
+    console.error("Error getting image URLs from bucket:", error)
+    return []
   }
 }
 export const getPageImageUrls = async (folderPath, limit = 24, pageIndex = 0) => {

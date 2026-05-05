@@ -1,14 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, Save, Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Save, Loader2 } from "lucide-react"
 import { getAllSettings, setSetting } from "@/services/admin/settings"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
+import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 const settingsListToMap = (items) => {
   return items.reduce((acc, item) => {
@@ -35,7 +35,6 @@ const settingValueToInput = (value) => {
 }
 
 export default function SettingsPage() {
-  const router = useRouter()
   const [settings, setSettings] = useState(null)
   const [loadingKey, setLoadingKey] = useState(null)
 
@@ -72,11 +71,7 @@ export default function SettingsPage() {
   }
 
   if (!settings) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-white">
-        <Loader2 className="animate-spin h-8 w-8" />
-      </div>
-    )
+    return <AdminLoading label="Caricamento impostazioni..." />
   }
 
   return (
@@ -86,12 +81,7 @@ export default function SettingsPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Button variant="ghost" onClick={() => router.back()}>
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Torna indietro
-      </Button>
-
-      <h1 className="text-3xl font-bold">⚙️ Impostazioni</h1>
+      <AdminPageHeader title="Impostazioni" />
 
       <div className="space-y-4">
         {Object.entries(settings).map(([key, value]) => (

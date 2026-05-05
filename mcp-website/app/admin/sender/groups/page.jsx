@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Pencil, Trash2, Users, X, Loader2, ArrowLeft } from "lucide-react"
+import { Plus, Pencil, Trash2, Users, X, Loader2 } from "lucide-react"
 import { motion } from "framer-motion"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,6 +18,7 @@ import {
   deleteSenderGroup,
   listSenderGroupSubscribers,
 } from "@/services/admin/sender"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 function TableSkeleton() {
   return Array.from({ length: 4 }).map((_, i) => (
@@ -125,7 +125,6 @@ function RenameModal({ group, onClose, onRenamed }) {
 }
 
 export default function SenderGroupsPage() {
-  const router = useRouter()
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -181,18 +180,17 @@ export default function SenderGroupsPage() {
       {viewGroup && <GroupSubscribersDrawer group={viewGroup} onClose={() => setViewGroup(null)} />}
       {renameGroup && <RenameModal group={renameGroup} onClose={() => setRenameGroup(null)} onRenamed={load} />}
 
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <Button variant="ghost" onClick={() => router.push(routes.admin.sender.campaigns)} className="mb-1 -ml-2">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Campagne
+      <AdminPageHeader
+        title="Gruppi"
+        description="Organizza i subscriber in gruppi."
+        backHref={routes.admin.sender.campaigns}
+        backLabel="Torna alle campagne"
+        actions={(
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nuovo gruppo
           </Button>
-          <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Gruppi</h1>
-          <p className="text-gray-300">Organizza i subscriber in gruppi.</p>
-        </div>
-        <Button size="sm" onClick={() => setCreating(true)} className="mt-1 md:mt-10">
-          <Plus className="h-4 w-4 mr-1" /> Nuovo gruppo
-        </Button>
-      </div>
+        )}
+      />
 
       {/* Stats row */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">

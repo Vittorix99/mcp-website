@@ -1,204 +1,147 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
-import { Calendar, Clock, MapPin, Music } from "lucide-react"
 import { getImageUrl } from "@/config/firebaseStorage"
 import { routes, getRoute } from "@/config/routes"
+import { SectionLabel } from "@/components/SectionLabel"
+import { useReveal } from "@/hooks/useReveal"
+
+const ACC = "#E07800"
+const RED = "#D10000"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
 
 export function NextEventSection({ event }) {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  useReveal()
   const [imageUrl, setImageUrl] = useState(null)
-  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
-    async function fetchNextEvent() {
-      try {
-        if (event) {
-          const url = await getImageUrl("events", `${event.image}.jpg`)
-          setImageUrl(url)
-        } else {
-          setError("Unable to fetch the next event.")
-        }
-      } catch (err) {
-        setError("Unexpected error occurred while fetching the next event.")
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchNextEvent()
+    if (!event?.image) return
+    getImageUrl("events", `${event.image}.jpg`).then(setImageUrl).catch(() => {})
   }, [event])
 
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 },
-  }
+  if (!event) return null
 
-  if (loading) {
-    return (
-      <section className="py-12 md:py-24 md:bg-black/50 md:backdrop-blur-md">
-        <div className="container mx-auto px-3 md:px-4">
-          <motion.h2
-            className="font-atlantico text-3xl md:text-5xl font-extrabold text-center gradient-text uppercase mb-4 md:mb-8"
-            initial="initial"
-            animate="animate"
-            variants={fadeInUp}
-          >
-            Next Event
-          </motion.h2>
-          <motion.div
-            className="font-helvetica text-center text-gray-300 text-sm md:text-base"
-            initial="initial"
-            animate="animate"
-            variants={fadeInUp}
-          >
-            Loading...
-          </motion.div>
-        </div>
-      </section>
-    )
-  }
-
-  if (!event) {
-    return (
-      <section className="py-12 md:py-24 md:bg-black/50 md:backdrop-blur-md">
-        <div className="container mx-auto px-3 md:px-4">
-          <motion.h2
-            className="font-atlantico text-3xl md:text-5xl font-extrabold text-center gradient-text uppercase mb-4 md:mb-8"
-            initial="initial"
-            animate="animate"
-            variants={fadeInUp}
-          >
-            Next Event
-          </motion.h2>
-          <motion.div
-            className="font-helvetica text-center text-gray-300 text-sm md:text-base"
-            initial="initial"
-            animate="animate"
-            variants={fadeInUp}
-          >
-            No upcoming events scheduled
-          </motion.div>
-        </div>
-      </section>
-    )
-  }
-
-  let formattedDate = ""
+  let formattedDate = event.date || ""
   try {
-    const [day, month, year] = event.date?.split("-").map(Number)
-    formattedDate = `${day.toString().padStart(2, "0")}-${month
-      .toString()
-      .padStart(2, "0")}-${year}`
-  } catch (e) {
-    formattedDate = event.date || "Date to be announced"
-  }
+    const [day, month, year] = (event.date || "").split("-").map(Number)
+    formattedDate = `${day.toString().padStart(2, "0")}.${month.toString().padStart(2, "0")}.${year}`
+  } catch {}
 
-  const filteredLineup = event.lineup.filter((artist) => artist.trim() !== "")
-  const publicLocation = event.locationHint || event.location
+  const filteredLineup = (event.lineup || []).filter(a => a.trim() !== "")
+  const publicLocation = event.locationHint || event.location || ""
+  const timeStr = event.startTime && event.endTime ? `${event.startTime} — ${event.endTime}` : ""
+  const eventHref = getRoute(routes.events.details, event.slug)
 
   return (
-    <section className="py-12 md:py-24 relative next-event">
-      <div className="container mx-auto px-3 md:px-4 relative z-10 pt-6 md:pt-16">
-        <motion.h2
-          className="font-atlantico text-3xl md:text-5xl text-center text-orange-500 uppercase mb-6 md:mb-12 next-event__title"
-          initial="initial"
-          animate="animate"
-          variants={fadeInUp}
-        >
-          Next Event
-        </motion.h2>
+    <section style={{ padding: "120px 0 100px", background: "#080808" }}>
+      <div style={{ maxWidth: "1360px", margin: "0 auto", padding: "0 40px" }}>
+        <SectionLabel text="Next Event" />
 
-        <motion.div initial="initial" animate="animate" variants={fadeInUp}>
-          <Card className="max-w-5xl mx-auto overflow-hidden next-event__card">
-            <CardContent className="p-4 md:p-8">
-              <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-center">
-                <div className="space-y-4 md:space-y-6 order-2 md:order-1">
-                  <h3 className="font-charter text-2xl md:text-3xl font-bold next-event__headline">
-                    {event.title}
-                  </h3>
-
-                  <div className="font-helvetica space-y-1.5 md:space-y-2 text-gray-200 text-sm md:text-base">
-                    <p className="flex items-center">
-                      <Calendar className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
-                      {formattedDate}
-                    </p>
-                    <p className="flex items-center">
-                      <Clock className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
-                      {event.startTime} - {event.endTime}
-                    </p>
-                    {publicLocation && (
-                      <p className="flex items-center">
-                        <MapPin className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 text-mcp-orange" />
-                        {publicLocation}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 md:space-y-2">
-                    <p className="font-helvetica text-gray-200 flex items-center text-sm md:text-base">
-                      Featuring:
-                    </p>
-                    {filteredLineup.length > 0 ? (
-                      <ul className="font-helvetica list-disc list-inside text-gray-300 pl-5 md:pl-7 text-xs md:text-base">
-                        {filteredLineup.map((artist, index) => (
-                          <li key={index}>{artist}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="font-helvetica text-gray-400 italic pl-5 md:pl-7 text-xs md:text-base">
-                        No lineup available
-                      </p>
-                    )}
-                  </div>
-
-                  {event.status === "active" ? (
-                    <Link
-                      href={getRoute(routes.events.details, event.slug)}
-                      className="block w-full"
-                    >
-                      <Button className="font-atlantico tracking-wider mt-3 md:mt-5 next-event__cta uppercase text-sm md:text-base h-12 md:h-14 w-full">
-                        Tickets & Info
-                      </Button>
-                    </Link>
-                  ) : (
-                    <Button
-                      className="font-helvetica bg-gray-700 cursor-not-allowed text-gray-300 font-bold py-2 md:py-3 px-6 md:px-8 rounded-md text-sm md:text-base h-12 md:h-14 w-full mt-3 md:mt-5"
-                      disabled
-                    >
-                      {event.status === "sold_out" ? "Sold out" : event.status === "ended" ? "Ended" : "Coming Soon"}
-                    </Button>
-                  )}
+        <div className="next-event-grid-new reveal">
+          {/* Flyer */}
+          <div style={{
+            position: "relative", aspectRatio: "3/4", maxHeight: "580px",
+            overflow: "hidden", background: "#0f0f0f",
+            border: "1px solid rgba(245,243,239,0.05)",
+          }}>
+            {imageUrl ? (
+              <Image
+                src={imageUrl}
+                alt={event.title}
+                fill
+                style={{ objectFit: "cover" }}
+              />
+            ) : (
+              <>
+                <div style={{
+                  position: "absolute", inset: 0,
+                  backgroundImage: `repeating-linear-gradient(-45deg,
+                    rgba(224,120,0,0.035) 0px, rgba(224,120,0,0.035) 1px,
+                    transparent 1px, transparent 14px)`,
+                }} />
+                <div style={{
+                  position: "absolute", inset: 0,
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: "6px",
+                }}>
+                  <p style={{ fontFamily: HN, fontSize: "8px", letterSpacing: "0.3em", textTransform: "uppercase", color: "rgba(245,243,239,0.18)", margin: 0 }}>Event flyer</p>
+                  <p style={{ fontFamily: CH, fontSize: "11px", fontStyle: "italic", color: "rgba(245,243,239,0.1)", margin: 0 }}>Loading…</p>
                 </div>
+              </>
+            )}
+            <div style={{ position: "absolute", top: 0, left: 0, width: "3px", height: "72px", background: ACC }} />
+            <div style={{ position: "absolute", bottom: 0, right: 0, width: "72px", height: "3px", background: RED }} />
+          </div>
 
-                <div className="w-full">
-                  {imageUrl && !imageError ? (
-                    <Image
-                      src={imageUrl}
-                      alt={event.title}
-                      width={800}
-                      height={500}
-                      className="rounded-2xl w-full h-auto next-event__image"
-                      onError={() => setImageError(true)}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-2xl">
-                      <p className="font-helvetica text-gray-400 text-xs md:text-sm italic">
-                        Image not available
-                      </p>
-                    </div>
-                  )}
+          {/* Info */}
+          <div className="next-event-info" style={{ padding: "0 0 0 72px" }}>
+            <p style={{ fontFamily: CH, fontSize: "13px", fontStyle: "italic", color: "rgba(245,243,239,0.35)", marginBottom: "20px", margin: "0 0 20px" }}>
+              {formattedDate}
+            </p>
+            <h2 style={{
+              fontFamily: HN, fontWeight: 900,
+              fontSize: "clamp(36px,4.5vw,68px)", letterSpacing: "-0.03em",
+              textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.88,
+              marginBottom: "36px",
+            }}>{event.title}</h2>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "40px" }}>
+              {[
+                ["Location", publicLocation],
+                ["Time", timeStr],
+              ].filter(([, v]) => v).map(([k, v]) => (
+                <div key={k} style={{ display: "flex", gap: "28px", alignItems: "baseline" }}>
+                  <p style={{ fontFamily: HN, fontSize: "8px", fontWeight: 700, letterSpacing: "0.35em", textTransform: "uppercase", color: ACC, minWidth: "72px", margin: 0 }}>{k}</p>
+                  <p style={{ fontFamily: HN, fontSize: "14px", color: "rgba(245,243,239,0.7)", letterSpacing: "0.04em", margin: 0 }}>{v}</p>
                 </div>
+              ))}
+            </div>
+
+            {filteredLineup.length > 0 && (
+              <div style={{ marginBottom: "44px" }}>
+                <p style={{ fontFamily: HN, fontSize: "8px", fontWeight: 700, letterSpacing: "0.35em", textTransform: "uppercase", color: ACC, marginBottom: "14px" }}>Lineup</p>
+                {filteredLineup.map((a, i) => (
+                  <p key={i} style={{
+                    fontFamily: HN,
+                    fontWeight: i === 0 ? 700 : 300,
+                    fontSize: i === 0 ? "22px" : "17px",
+                    letterSpacing: i === 0 ? "0.04em" : "0.08em",
+                    textTransform: "uppercase",
+                    color: i === 0 ? "#F5F3EF" : "rgba(245,243,239,0.5)",
+                    borderBottom: i < filteredLineup.length - 1 ? "1px solid rgba(245,243,239,0.05)" : "none",
+                    paddingBottom: "8px", margin: 0,
+                  }}>{a}</p>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+            )}
+
+            {event.status === "active" ? (
+              <Link
+                href={eventHref}
+                style={{
+                  display: "inline-block", padding: "14px 48px", background: ACC,
+                  borderRadius: "2px", fontFamily: HN, fontWeight: 700,
+                  fontSize: "10px", letterSpacing: "0.3em", textTransform: "uppercase",
+                  color: "#fff", textDecoration: "none",
+                }}
+              >Tickets &amp; Info →</Link>
+            ) : (
+              <Link
+                href={eventHref}
+                style={{
+                  display: "inline-block", padding: "14px 48px",
+                  border: "1px solid rgba(245,243,239,0.18)", borderRadius: "2px",
+                  fontFamily: HN, fontWeight: 400,
+                  fontSize: "10px", letterSpacing: "0.3em", textTransform: "uppercase",
+                  color: "rgba(245,243,239,0.45)", textDecoration: "none",
+                }}
+              >More Info →</Link>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   )

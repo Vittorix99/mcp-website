@@ -56,7 +56,7 @@ export default function RootLayout({ children }) {
         {/* Iubenda */}
         <Script
           id="iubenda-widget-script"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           src="//embeds.iubenda.com/widgets/40b8b87f-b6a1-4a55-af93-2465acfa04c7.js"
         />
 

@@ -3,6 +3,7 @@ import { endpoints } from "@/config/endpoints"
 import { getBaseUrlFromHeaders } from "@/lib/seo/base-url"
 import { buildEventJsonLd } from "@/lib/seo/jsonld"
 import { getApiErrorMessage } from "@/lib/api-errors"
+import { getFolderLength } from "@/config/firebaseStorage"
 
 export const dynamic = "force-dynamic"
 
@@ -81,14 +82,33 @@ async function fetchSettings() {
   }
 }
 
+async function fetchEventPhotoCount(event) {
+  if (!event?.photoPath) return 0
+
+  try {
+    const folder = event.photoPath.startsWith("foto/") ? event.photoPath : `foto/${event.photoPath}`
+    return await getFolderLength(folder)
+  } catch {
+    return 0
+  }
+}
+
 export default async function EventPage({ params }) {
   const { slug } = await params
 
   const [eventResult, settings] = await Promise.all([fetchEvent(slug), fetchSettings()])
+  const photoCount = eventResult?.event ? await fetchEventPhotoCount(eventResult.event) : 0
+  const event = eventResult?.event
+    ? {
+        ...eventResult.event,
+        photosCount: photoCount,
+        photosReady: Boolean(eventResult.event.photosReady || photoCount > 0),
+      }
+    : eventResult?.event
   const baseUrl = await getBaseUrlFromHeaders()
-  const jsonLd = eventResult?.event
+  const jsonLd = event
     ? buildEventJsonLd({
-        event: eventResult.event,
+        event,
         url: baseUrl ? `${baseUrl}/events/${slug}` : undefined,
         siteUrl: baseUrl,
       })
@@ -102,7 +122,7 @@ export default async function EventPage({ params }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      <EventContent id={slug} event={eventResult.event} settings={settings} error={eventResult.error} />
+      <EventContent id={slug} event={event} settings={settings} error={eventResult.error} />
     </>
   )
 }

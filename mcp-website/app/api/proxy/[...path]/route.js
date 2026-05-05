@@ -52,3 +52,7 @@ export function PUT(request, context) {
 export function DELETE(request, context) {
   return forward(request, context);
 }
+
+export function PATCH(request, context) {
+  return forward(request, context);
+}

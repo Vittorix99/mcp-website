@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Send, Clock, Loader2, Edit, Save, X, Eye, Code } from "lucide-react"
+import { useParams } from "next/navigation"
+import { Send, Clock, Loader2, Edit, Save, X, Eye, Code } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,7 @@ import {
   updateSenderCampaign,
   listSenderGroups,
 } from "@/services/admin/sender"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 // ------------------------------------------------------------------ //
 // Helpers
@@ -145,7 +146,6 @@ function extractHtml(campaign) {
 
 export default function CampaignDetailPage() {
   const { id } = useParams()
-  const router = useRouter()
 
   const [campaign, setCampaign] = useState(null)
   const [stats, setStats] = useState({})
@@ -303,31 +303,17 @@ export default function CampaignDetailPage() {
         <ScheduleModal campaign={campaign} onClose={() => setShowSchedule(false)} onSaved={load} />
       )}
 
-      {/* Header */}
-      <div>
-        <Button variant="ghost" onClick={() => router.push(routes.admin.sender.campaigns)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Campagne
-        </Button>
-        {loading ? (
-          <Skeleton className="h-9 w-64 bg-zinc-800 mt-2" />
-        ) : (
-          <>
-            <div className="flex items-center gap-3 mt-2 flex-wrap">
-              <h1 className="text-3xl md:text-4xl font-bold gradient-text">
-                {campaign?.title || campaign?.subject || "Campagna"}
-              </h1>
-              {campaign?.status && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[campaign.status] || "bg-zinc-700 text-zinc-300"}`}>
-                  {campaign.status}
-                </span>
-              )}
-            </div>
-            {campaign?.subject && campaign?.title && (
-              <p className="text-gray-300 mt-1">Oggetto: {campaign.subject}</p>
-            )}
-          </>
+      <AdminPageHeader
+        title={loading ? "Campagna" : (campaign?.title || campaign?.subject || "Campagna")}
+        description={!loading && campaign?.subject && campaign?.title ? `Oggetto: ${campaign.subject}` : undefined}
+        backHref={routes.admin.sender.campaigns}
+        backLabel="Torna alle campagne"
+        actions={campaign?.status && (
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[campaign.status] || "bg-zinc-700 text-zinc-300"}`}>
+            {campaign.status}
+          </span>
         )}
-      </div>
+      />
 
       {sendError && (
         <div className="rounded-md bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
