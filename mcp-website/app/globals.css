@@ -1142,10 +1142,16 @@
   }
 }
 
-/* Previeni overflow orizzontale */
+/* Root reset robusto: evita bordi bianchi dovuti al margin di default del body */
 html,
 body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  width: 100%;
   overflow-x: hidden;
+  background: #080808;
+  color: #f5f3ef;
 }
 
 /* Hide scrollbars while keeping scroll functionality */
