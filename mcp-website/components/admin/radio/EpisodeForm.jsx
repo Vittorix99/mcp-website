@@ -59,6 +59,7 @@ function toDateInputValue(value) {
 export function EpisodeForm({ mode, seasons, episode }) {
   const router = useRouter()
   const fileInputRef = useRef(null)
+  const artworkInputRef = useRef(null)
 
   // Use a stable ID for storage paths so videos uploaded in create mode
   // are grouped under the same path even before the episode is saved.
@@ -72,6 +73,11 @@ export function EpisodeForm({ mode, seasons, episode }) {
   const [description, setDescription] = useState(episode?.description ?? "")
   const [videos, setVideos] = useState(
     () => (episode?.videoUrls ?? []).map(u => makeEntry(u))
+  )
+  const [artwork, setArtwork] = useState(
+    () => episode?.customArtworkUrl
+      ? { url: episode.customArtworkUrl, name: "artwork", progress: 100, error: null, storagePath: null }
+      : null
   )
   const [recordedAt, setRecordedAt] = useState(() => toDateInputValue(episode?.recordedAt))
   const [loading, setLoading] = useState(false)
@@ -119,7 +125,44 @@ export function EpisodeForm({ mode, seasons, episode }) {
     }
   }
 
-  const uploading = videos.some(v => v.progress < 100 && !v.error)
+  function handlePickArtwork(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (file) uploadArtwork(file)
+  }
+
+  function uploadArtwork(file) {
+    const ext = file.name.split(".").pop() || "jpg"
+    const path = `radio/artwork/${storageId}/artwork_${Date.now()}.${ext}`
+    const storageRef = ref(storageBucket, path)
+
+    setArtwork({ url: null, name: file.name, progress: 0, error: null, storagePath: path })
+
+    const task = uploadBytesResumable(storageRef, file)
+    task.on(
+      "state_changed",
+      snap => {
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100)
+        setArtwork(prev => prev?.storagePath === path ? { ...prev, progress: pct } : prev)
+      },
+      () => {
+        setArtwork(prev => prev?.storagePath === path ? { ...prev, error: "Upload fallito" } : prev)
+      },
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref)
+        setArtwork(prev => prev?.storagePath === path ? { ...prev, url, progress: 100 } : prev)
+      }
+    )
+  }
+
+  async function removeArtwork() {
+    if (artwork?.storagePath) {
+      try { await deleteObject(ref(storageBucket, artwork.storagePath)) } catch {}
+    }
+    setArtwork(null)
+  }
+
+  const uploading = videos.some(v => v.progress < 100 && !v.error) || (artwork && artwork.progress < 100 && !artwork.error)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -128,12 +171,14 @@ export function EpisodeForm({ mode, seasons, episode }) {
     setLoading(true)
 
     const cleanVideos = videos.filter(v => v.url && !v.error).map(v => v.url)
+    const cleanArtwork = artwork?.url && !artwork.error ? artwork.url : null
 
     const payload = {
       seasonId,
       episodeNumber: parseInt(episodeNumber, 10),
       description: description.trim() || null,
       videoUrls: cleanVideos,
+      customArtworkUrl: cleanArtwork,
     }
 
     if (recordedAt || mode === "create") {
@@ -333,6 +378,115 @@ export function EpisodeForm({ mode, seasons, episode }) {
         />
       </div>
 
+      {/* Custom artwork upload */}
+      <div style={fieldGap}>
+        <label style={labelStyle}>Artwork personalizzato</label>
+        <p style={{ marginBottom: 10, fontSize: 11, color: "#666666", fontFamily: "Helvetica Neue, sans-serif" }}>
+          Se non caricato, verrà usato l'artwork di SoundCloud.
+        </p>
+
+        {artwork ? (
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 12,
+            padding: "12px 14px",
+            background: "#111111",
+            border: `1px solid ${artwork.error ? "#e8241a44" : artwork.progress < 100 ? "#3a3a3a" : "#2a2a2a"}`,
+            borderRadius: 4,
+          }}>
+            {/* Thumbnail preview */}
+            {artwork.url && !artwork.error && (
+              <img
+                src={artwork.url}
+                alt="Artwork"
+                style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 4, flexShrink: 0 }}
+              />
+            )}
+            {!artwork.url && !artwork.error && (
+              <div style={{ width: 56, height: 56, background: "#1e1e1e", borderRadius: 4, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 20 }}>🖼️</span>
+              </div>
+            )}
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                margin: 0, fontSize: 13, color: artwork.error ? "#e8241a" : "#ffffff",
+                fontFamily: "Helvetica Neue, sans-serif",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>{artwork.name}</p>
+              {artwork.error && (
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: "#e8241a", fontFamily: "Helvetica Neue, sans-serif" }}>{artwork.error}</p>
+              )}
+              {!artwork.error && artwork.progress < 100 && (
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: "#666666", fontFamily: "Helvetica Neue, sans-serif" }}>Caricamento {artwork.progress}%…</p>
+              )}
+              {!artwork.error && artwork.progress === 100 && artwork.url && (
+                <a href={artwork.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#e8820c", fontFamily: "Helvetica Neue, sans-serif" }}>
+                  Anteprima ↗
+                </a>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={removeArtwork}
+              style={{
+                flexShrink: 0, width: 30, height: 30,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "transparent", border: "1px solid #3a3a3a",
+                borderRadius: 4, color: "#666666", cursor: "pointer",
+              }}
+            >
+              <X style={{ width: 12, height: 12 }} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              ref={artworkInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handlePickArtwork}
+            />
+            <button
+              type="button"
+              onClick={() => artworkInputRef.current?.click()}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 16px",
+                background: "transparent",
+                border: "1px dashed #3a3a3a",
+                borderRadius: 4,
+                color: "#b0b0b0",
+                fontSize: 11, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.1em",
+                fontFamily: "Helvetica Neue, sans-serif",
+                cursor: "pointer", width: "100%", justifyContent: "center",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#e8820c"; e.currentTarget.style.color = "#e8820c" }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "#3a3a3a"; e.currentTarget.style.color = "#b0b0b0" }}
+            >
+              <Upload style={{ width: 14, height: 14 }} />
+              Carica artwork
+            </button>
+          </>
+        )}
+
+        {/* SoundCloud artwork fallback preview */}
+        {mode === "edit" && episode?.soundcloudArtworkUrl && !artwork && (
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <img
+              src={episode.soundcloudArtworkUrl}
+              alt="SoundCloud artwork"
+              style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 3, opacity: 0.5 }}
+            />
+            <p style={{ margin: 0, fontSize: 11, color: "#666666", fontFamily: "Helvetica Neue, sans-serif" }}>
+              Artwork attuale da SoundCloud (verrà usato come fallback)
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Video upload */}
       <div style={fieldGap}>
         <label style={labelStyle}>Video (max 3)</label>
@@ -475,7 +629,7 @@ export function EpisodeForm({ mode, seasons, episode }) {
           }}
         >
           {(loading || uploading) && <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />}
-          {uploading ? "Caricamento video…" : mode === "edit" ? "Aggiorna" : "Crea episodio"}
+          {uploading ? "Caricamento in corso…" : mode === "edit" ? "Aggiorna" : "Crea episodio"}
         </button>
 
         <button

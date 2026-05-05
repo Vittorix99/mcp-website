@@ -6,10 +6,13 @@ from firebase_admin import firestore
 
 from dto.radio.radio_episode_dto import CreateRadioEpisodeRequestDTO, RadioEpisodeResponseDTO
 from models.radio import RadioEpisode
+from utils.slug_utils import build_slug
 
 
 def create_episode_dto_to_model(dto: CreateRadioEpisodeRequestDTO, sc_data: Dict) -> RadioEpisode:
+    slug = build_slug(sc_data.get("title", ""), suffix=f"ep-{dto.episode_number}")
     return RadioEpisode(
+        slug=slug,
         soundcloud_track_id=sc_data["soundcloud_track_id"],
         title=sc_data["title"],
         soundcloud_url=sc_data["soundcloud_url"],
@@ -35,6 +38,7 @@ def create_episode_dto_to_model(dto: CreateRadioEpisodeRequestDTO, sc_data: Dict
 def episode_to_response_dto(episode: RadioEpisode) -> RadioEpisodeResponseDTO:
     return RadioEpisodeResponseDTO(
         id=episode.id,
+        slug=episode.slug or "",
         soundcloud_track_id=episode.soundcloud_track_id,
         title=episode.title,
         soundcloud_url=episode.soundcloud_url,
@@ -46,6 +50,7 @@ def episode_to_response_dto(episode: RadioEpisode) -> RadioEpisodeResponseDTO:
         season_id=episode.season_id,
         episode_number=episode.episode_number,
         description=episode.description,
+        custom_artwork_url=episode.custom_artwork_url,
         artist_ids=episode.artist_ids or [],
         video_urls=episode.video_urls or [],
         genres=episode.genres or [],

@@ -53,6 +53,7 @@ export const Navigation = () => {
   return (
     <>
       <nav
+        className="site-nav"
         style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
           padding: "14px 32px",
@@ -64,7 +65,7 @@ export const Navigation = () => {
         }}
       >
         {/* Logo */}
-        <Link href="/" style={{ display: "inline-flex", padding: 0 }}>
+        <Link href="/" className="site-nav-logo" style={{ display: "inline-flex", padding: 0 }}>
           <Image
             src="/logo-white.png"
             alt="MCP"
@@ -76,9 +77,10 @@ export const Navigation = () => {
         </Link>
 
         {/* Desktop links */}
-        <div className="nav-desktop-new" style={{ alignItems: "center", gap: "4px" }}>
+        <div className="nav-desktop-new site-nav-links" style={{ alignItems: "center", gap: "4px" }}>
           {NAV_LINKS.map(l => (
             <Link
+              className="site-nav-link"
               key={l.href}
               href={l.href}
               style={{
@@ -111,6 +113,7 @@ export const Navigation = () => {
           ))}
 
           <Link
+            className="site-nav-ticket"
             href="/events"
             style={{
               marginLeft: "20px", padding: "10px 24px",
@@ -128,6 +131,7 @@ export const Navigation = () => {
 
           {!user && (
             <button
+              className="site-nav-auth"
               type="button"
               onClick={() => setLoginOpen(true)}
               style={{
@@ -156,6 +160,7 @@ export const Navigation = () => {
           {/* Admin link — solo se loggato come admin */}
           {user && isAdmin && (
             <Link
+              className="site-nav-auth"
               href={routes.admin.dashboard}
               style={{
                 marginLeft: "8px", padding: "8px 12px",

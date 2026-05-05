@@ -25,11 +25,12 @@ export function WaveDivider({ color = "rgba(224,120,0,0.18)", scale = 1 }) {
         preserveAspectRatio="none"
         style={{ width: "100%", height: `${40 * scale}px`, display: "block" }}
         fill="none"
+        overflow="visible"
       >
         <path
           d="M0,30 C80,5 160,55 240,30 C320,5 400,55 480,30 C560,5 640,55 720,30 C800,5 880,55 960,30 C1040,5 1120,55 1200,30"
           stroke={color}
-          strokeWidth={`${7 * scale}`}
+          strokeWidth={1.5}
           strokeLinecap="round"
           fill="none"
         />
@@ -37,4 +38,3 @@ export function WaveDivider({ color = "rgba(224,120,0,0.18)", scale = 1 }) {
     </div>
   )
 }
-

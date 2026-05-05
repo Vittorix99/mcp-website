@@ -32,6 +32,15 @@ class RadioEpisodeRepository(BaseRepository[RadioEpisode]):
             raise RadioEpisodeNotFoundError(f"Radio episode '{episode_id}' not found")
         return episode
 
+    def get_by_slug(self, slug: str) -> Optional[RadioEpisode]:
+        snapshots = (
+            self.collection.where(filter=FieldFilter("slug", "==", slug))
+            .limit(1)
+            .stream()
+        )
+        results = list(snapshots)
+        return self._model_from_snapshot(results[0]) if results else None
+
     def get_latest_published(self) -> Optional[RadioEpisode]:
         snapshots = (
             self.collection.where(filter=FieldFilter("isPublished", "==", True))

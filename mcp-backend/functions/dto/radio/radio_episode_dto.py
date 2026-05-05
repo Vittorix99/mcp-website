@@ -36,6 +36,7 @@ class UpdateRadioEpisodeRequestDTO(RadioEpisodeBaseDTO):
     season_id: Optional[str] = Field(default=None, alias="seasonId")
     episode_number: Optional[int] = Field(default=None, alias="episodeNumber")
     description: Optional[str] = None
+    custom_artwork_url: Optional[str] = Field(default=None, alias="customArtworkUrl")
     artist_ids: Optional[List[str]] = Field(default=None, alias="artistIds")
     video_urls: Optional[List[str]] = Field(default=None, alias="videoUrls")
     recorded_at: Optional[datetime] = Field(default=None, alias="recordedAt")
@@ -63,6 +64,7 @@ class RadioEpisodeResponseDTO(RadioEpisodeBaseDTO):
     )
 
     id: Optional[str] = None
+    slug: str = ""
     soundcloud_track_id: str = Field(serialization_alias="soundcloudTrackId")
     title: str
     soundcloud_url: str = Field(serialization_alias="soundcloudUrl")
@@ -74,6 +76,7 @@ class RadioEpisodeResponseDTO(RadioEpisodeBaseDTO):
     season_id: str = Field(serialization_alias="seasonId")
     episode_number: int = Field(serialization_alias="episodeNumber")
     description: Optional[str] = None
+    custom_artwork_url: Optional[str] = Field(default=None, serialization_alias="customArtworkUrl")
     artist_ids: List[str] = Field(default_factory=list, serialization_alias="artistIds")
     video_urls: List[str] = Field(default_factory=list, serialization_alias="videoUrls")
     genres: List[str] = Field(default_factory=list)

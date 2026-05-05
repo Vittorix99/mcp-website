@@ -36,13 +36,13 @@ export function NextEventSection({ event }) {
   const eventHref = getRoute(routes.events.details, event.slug)
 
   return (
-    <section style={{ padding: "120px 0 100px", background: "#080808" }}>
-      <div style={{ maxWidth: "1360px", margin: "0 auto", padding: "0 40px" }}>
+    <section className="next-event-section" style={{ padding: "120px 0 100px", background: "#080808" }}>
+      <div className="next-event-shell" style={{ maxWidth: "1360px", margin: "0 auto", padding: "0 40px" }}>
         <SectionLabel text="Next Event" />
 
         <div className="next-event-grid-new reveal">
           {/* Flyer */}
-          <div style={{
+          <div className="next-event-flyer" style={{
             position: "relative", aspectRatio: "3/4", maxHeight: "580px",
             overflow: "hidden", background: "#0f0f0f",
             border: "1px solid rgba(245,243,239,0.05)",
@@ -120,6 +120,7 @@ export function NextEventSection({ event }) {
 
             {event.status === "active" ? (
               <Link
+                className="next-event-cta"
                 href={eventHref}
                 style={{
                   display: "inline-block", padding: "14px 48px", background: ACC,
@@ -130,6 +131,7 @@ export function NextEventSection({ event }) {
               >Tickets &amp; Info →</Link>
             ) : (
               <Link
+                className="next-event-cta"
                 href={eventHref}
                 style={{
                   display: "inline-block", padding: "14px 48px",

@@ -37,6 +37,12 @@ def backfill_collection(name, make_slug, dry_run=False, limit=None):
     print(f"[DONE] {name}: scanned={scanned} updated={updated}")
 
 
+def radio_episode_slug(doc_id, data):
+    title = data.get("title", "")
+    episode_number = data.get("episodeNumber", 0)
+    return build_slug(title, suffix=f"ep-{episode_number}")
+
+
 def event_slug(doc_id, data):
     title = data.get("title", "")
     date = data.get("date", "")
@@ -63,10 +69,11 @@ def main():
     parser.add_argument("--events", action="store_true", help="Backfill events.")
     parser.add_argument("--memberships", action="store_true", help="Backfill memberships.")
     parser.add_argument("--purchases", action="store_true", help="Backfill purchases.")
+    parser.add_argument("--radio-episodes", action="store_true", help="Backfill radio episode slugs.")
     args = parser.parse_args()
 
-    if not (args.events or args.memberships or args.purchases):
-        args.events = args.memberships = args.purchases = True
+    if not (args.events or args.memberships or args.purchases or args.radio_episodes):
+        args.events = args.memberships = args.purchases = args.radio_episodes = True
 
     if args.events:
         backfill_collection("events", event_slug, dry_run=args.dry_run, limit=args.limit)
@@ -74,6 +81,8 @@ def main():
         backfill_collection("memberships", membership_slug, dry_run=args.dry_run, limit=args.limit)
     if args.purchases:
         backfill_collection("purchases", purchase_slug, dry_run=args.dry_run, limit=args.limit)
+    if args.radio_episodes:
+        backfill_collection("radio_episodes", radio_episode_slug, dry_run=args.dry_run, limit=args.limit)
 
 
 if __name__ == "__main__":

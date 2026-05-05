@@ -16,8 +16,12 @@ export async function GET() {
   const baseUrl = await getBaseUrl()
   const body = [
     "User-agent: *",
+    "Allow: /",
     "Disallow: /admin",
     "Disallow: /api",
+    "Disallow: /scan",
+    "Disallow: /error",
+    "Disallow: /_next/server",
     `Sitemap: ${baseUrl}/sitemap.xml`,
     "",
   ].join("\n")

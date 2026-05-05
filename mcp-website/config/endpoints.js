@@ -1,12 +1,10 @@
-const ENV = process.env.NEXT_PUBLIC_ENV || "local";
-
-const SERVER_BASE_URL =
-  ENV === "production"
-    ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
-    : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1";
+export function getServerBaseUrl() {
+  return (process.env.NEXT_PUBLIC_BASE_URL || process.env.BACKEND_BASE_URL || "").replace(/\/$/, "");
+}
 
 // Use same-origin proxy for browser requests to avoid CORS preflight.
 const CLIENT_BASE_URL = "/api/proxy";
+const SERVER_BASE_URL = getServerBaseUrl();
 const BASE_URL = typeof window === "undefined" ? SERVER_BASE_URL : CLIENT_BASE_URL;
 
 // Utility per costruire endpoint completi

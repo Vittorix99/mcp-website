@@ -1,5 +1,7 @@
 import RadioClient from "./RadioClient"
 import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
+import { buildRadioEpisodesItemListJsonLd } from "@/lib/seo/jsonld"
+import { getPublishedEpisodes, getRadioSeasons } from "@/services/radio"
 
 const baseUrl = getBaseUrlFromEnv()
 
@@ -7,39 +9,36 @@ export const metadata = {
   title: "MCP Radio — Music Connecting People",
   description: "Listen to our radio episodes on SoundCloud. Electronic music mixes from MCP events and beyond.",
   alternates: baseUrl ? { canonical: `${baseUrl}/radio` } : undefined,
-}
-
-async function fetchEpisodes() {
-  try {
-    const SERVER_BASE =
-      process.env.NEXT_PUBLIC_ENV === "production"
-        ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
-        : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1"
-    const res = await fetch(`${SERVER_BASE}/get_published_radio_episodes`, { next: { revalidate: 300 } })
-    if (!res.ok) return []
-    const data = await res.json()
-    return Array.isArray(data) ? data : []
-  } catch {
-    return []
-  }
-}
-
-async function fetchSeasons() {
-  try {
-    const SERVER_BASE =
-      process.env.NEXT_PUBLIC_ENV === "production"
-        ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
-        : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1"
-    const res = await fetch(`${SERVER_BASE}/get_radio_seasons`, { next: { revalidate: 600 } })
-    if (!res.ok) return []
-    const data = await res.json()
-    return Array.isArray(data) ? data : []
-  } catch {
-    return []
-  }
+  openGraph: {
+    title: "MCP Radio — Music Connecting People",
+    description: "Listen to our radio episodes on SoundCloud. Electronic music mixes from MCP events and beyond.",
+    url: baseUrl ? `${baseUrl}/radio` : undefined,
+    type: "website",
+  },
 }
 
 export default async function RadioPage() {
-  const [initialEpisodes, initialSeasons] = await Promise.all([fetchEpisodes(), fetchSeasons()])
-  return <RadioClient initialEpisodes={initialEpisodes} initialSeasons={initialSeasons} />
+  const [episodesRes, seasonsRes] = await Promise.all([
+    getPublishedEpisodes({ revalidate: 300 }),
+    getRadioSeasons({ revalidate: 600 }),
+  ])
+  const initialEpisodes = episodesRes?.episodes || []
+  const initialSeasons = seasonsRes?.seasons || []
+  const jsonLd = buildRadioEpisodesItemListJsonLd({
+    items: initialEpisodes,
+    baseUrl,
+    listUrl: baseUrl ? `${baseUrl}/radio` : "",
+  })
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <RadioClient initialEpisodes={initialEpisodes} initialSeasons={initialSeasons} />
+    </>
+  )
 }

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 
 const EVENT_REVALIDATE_SECONDS = 60
 const SETTINGS_REVALIDATE_SECONDS = 120
-const SETTING_KEYS = ["payment_blocked", "company_iban", "company_intestatario"]
+const SETTING_KEYS = ["payment_blocked", "company_iban", "company_intestatario", "membership_price_per_year"]
 
 
 async function fetchEvent(eventSlug) {
@@ -72,13 +72,14 @@ async function fetchSettingValue(key) {
 }
 
 async function fetchSettings() {
-  const [paymentBlocked, iban, intestatario] = await Promise.all(
+  const [paymentBlocked, iban, intestatario, membershipPrice] = await Promise.all(
     SETTING_KEYS.map((key) => fetchSettingValue(key))
   )
   return {
     payment_blocked: Boolean(paymentBlocked),
     company_iban: iban ? String(iban) : "",
     company_intestatario: intestatario ? String(intestatario) : "",
+    membership_price_per_year: membershipPrice != null ? Number(membershipPrice) : null,
   }
 }
 

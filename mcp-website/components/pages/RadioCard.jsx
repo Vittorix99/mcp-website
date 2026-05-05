@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { getEpisodeSlug } from "@/lib/utils/radio"
 
 const ACC = "#E07800"
 const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
@@ -17,7 +18,7 @@ export function RadioCard({ episode, index = 0 }) {
 
   const bg = FALLBACK_BGS[index % FALLBACK_BGS.length]
   const scUrl = episode.soundcloudUrl
-  const artworkUrl = episode.soundcloudArtworkUrl
+  const artworkUrl = episode.customArtworkUrl || episode.soundcloudArtworkUrl
 
   return (
     <div
@@ -115,7 +116,7 @@ export function RadioCard({ episode, index = 0 }) {
         </button>
         {episode.id && (
           <Link
-            href={`/radio/${episode.id}`}
+            href={`/radio/${getEpisodeSlug(episode)}`}
             onClick={e => e.stopPropagation()}
             style={{
               fontFamily: HN, fontSize: "8px", letterSpacing: "0.2em",

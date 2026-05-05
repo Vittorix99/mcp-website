@@ -25,16 +25,16 @@ export function RadioSection({ episodes: initialEpisodes = [] }) {
     .slice(0, 6)
 
   return (
-    <section style={{
+    <section className="radio-section" style={{
       background: "#080808", paddingTop: "120px",
       borderTop: "1px solid rgba(245,243,239,0.04)",
     }}>
-      <div style={{
+      <div className="radio-section-header" style={{
         padding: "0 40px", marginBottom: "52px",
         display: "flex", alignItems: "center",
         justifyContent: "space-between", flexWrap: "wrap", gap: "16px",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+        <div className="radio-section-kicker" style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           <div style={{ width: "36px", height: "1px", background: ACC }} />
           <p style={{
             fontFamily: HN, fontSize: "9px", fontWeight: 700,
@@ -42,12 +42,13 @@ export function RadioSection({ episodes: initialEpisodes = [] }) {
             color: ACC, margin: 0,
           }}>MCP Radio</p>
         </div>
-        <h2 style={{
+        <h2 className="radio-section-title" style={{
           fontFamily: HN, fontWeight: 900,
           fontSize: "clamp(28px,5vw,72px)", letterSpacing: "-0.03em",
           textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.9, margin: 0,
         }}>Listen</h2>
         <a
+          className="radio-section-link"
           href="https://soundcloud.com/music_connectingpeople"
           target="_blank" rel="noreferrer"
           style={{
@@ -59,7 +60,7 @@ export function RadioSection({ episodes: initialEpisodes = [] }) {
         >All on SoundCloud ↗</a>
       </div>
 
-      <div className="radio-grid">
+      <div className={`radio-grid ${displayEpisodes.length === 1 ? "radio-grid--single" : ""}`}>
         {displayEpisodes.length > 0
           ? displayEpisodes.map((ep, i) => (
               <RadioCard key={ep.id || i} episode={ep} index={i} />

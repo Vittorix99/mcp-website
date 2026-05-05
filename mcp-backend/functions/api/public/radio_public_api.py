@@ -31,10 +31,20 @@ def get_latest_radio_episode(req):
 @public_endpoint(methods=("GET",))
 def get_radio_episode(req):
     try:
-        episode_id = (req.args or {}).get("id", "")
-        if not episode_id:
-            return jsonify({"error": "Missing required query param: id"}), 400
-        episode = episode_service.get_by_id(episode_id)
+        args = req.args or {}
+        slug = args.get("slug", "").strip()
+        episode_id = args.get("id", "").strip()
+
+        if not slug and not episode_id:
+            return jsonify({"error": "Missing required query param: slug or id"}), 400
+
+        if slug:
+            episode = episode_service.get_by_slug(slug)
+            if episode is None:
+                return jsonify({"error": "Episode not found"}), 404
+        else:
+            episode = episode_service.get_by_id(episode_id)
+
         if not episode.is_published:
             return jsonify({"error": "Episode not found"}), 404
         return jsonify(episode.to_payload()), 200

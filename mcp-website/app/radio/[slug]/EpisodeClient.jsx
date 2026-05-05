@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
+import { Maximize2, Pause, Play, Volume2, VolumeX } from "lucide-react"
 import { useReveal } from "@/hooks/useReveal"
+import { getEpisodeSlug } from "@/lib/utils/radio"
 
 const ACC = "#E07800"
 const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
@@ -18,10 +20,143 @@ function formatDuration(ms) {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
+function formatVideoTime(seconds) {
+  if (!Number.isFinite(seconds)) return "0:00"
+  const total = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+  return `${m}:${String(s).padStart(2, "0")}`
+}
+
 function getYouTubeId(url) {
   if (!url) return null
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/)
   return m ? m[1] : null
+}
+
+function PlayerIconButton({ label, onClick, children }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="radio-video-icon-button"
+    >
+      {children}
+    </button>
+  )
+}
+
+function ModernVideoPlayer({ src, poster, title }) {
+  const videoRef = useRef(null)
+  const [playing, setPlaying] = useState(false)
+  const [muted, setMuted] = useState(false)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [hovering, setHovering] = useState(false)
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+
+  const togglePlay = () => {
+    const video = videoRef.current
+    if (!video) return
+    if (video.paused) {
+      video.play().catch(() => {})
+    } else {
+      video.pause()
+    }
+  }
+
+  const toggleMute = () => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = !video.muted
+    setMuted(video.muted)
+  }
+
+  const seek = (e) => {
+    const video = videoRef.current
+    if (!video || !duration) return
+    const nextTime = (Number(e.target.value) / 100) * duration
+    video.currentTime = nextTime
+    setCurrentTime(nextTime)
+  }
+
+  const openFullscreen = () => {
+    const wrapper = videoRef.current?.parentElement
+    if (wrapper?.requestFullscreen) {
+      wrapper.requestFullscreen().catch(() => {})
+    }
+  }
+
+  return (
+    <div
+      className="radio-video-player"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      <video
+        ref={videoRef}
+        src={src}
+        preload="metadata"
+        poster={poster || undefined}
+        playsInline
+        className="radio-video-media"
+        onClick={togglePlay}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime || 0)}
+      >
+        <a href={src} target="_blank" rel="noreferrer">Watch Video</a>
+      </video>
+
+      <div className="radio-video-vignette" />
+
+      {!playing && (
+        <button type="button" className="radio-video-center-play" onClick={togglePlay} aria-label={`Play ${title}`}>
+          <Play size={34} fill="currentColor" />
+        </button>
+      )}
+
+      <div className={`radio-video-topline ${playing && !hovering ? "radio-video-topline-hidden" : ""}`}>
+        <span>Video</span>
+        <span>{title}</span>
+      </div>
+
+      <div className={`radio-video-controls ${playing && !hovering ? "radio-video-controls-quiet" : ""}`}>
+        <div className="radio-video-progress-row">
+          <span>{formatVideoTime(currentTime)}</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="0.1"
+            value={progress}
+            onChange={seek}
+            className="radio-video-progress"
+            style={{ "--progress": `${progress}%` }}
+            aria-label="Video progress"
+          />
+          <span>{formatVideoTime(duration)}</span>
+        </div>
+
+        <div className="radio-video-actions">
+          <PlayerIconButton label={playing ? "Pause video" : "Play video"} onClick={togglePlay}>
+            {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+          </PlayerIconButton>
+          <PlayerIconButton label={muted ? "Unmute video" : "Mute video"} onClick={toggleMute}>
+            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </PlayerIconButton>
+          <PlayerIconButton label="Fullscreen video" onClick={openFullscreen}>
+            <Maximize2 size={17} />
+          </PlayerIconButton>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function MetaRow({ label, value }) {
@@ -42,7 +177,7 @@ function EpisodeNav({ label, episode, align = "left" }) {
   if (!episode) return <div />
   return (
     <Link
-      href={`/radio/${episode.id}`}
+      href={`/radio/${getEpisodeSlug(episode)}`}
       style={{
         display: "flex", flexDirection: "column",
         gap: "6px", textDecoration: "none",
@@ -79,7 +214,7 @@ export default function EpisodeClient({ episode, prevEpisode, nextEpisode }) {
     )
   }
 
-  const artworkUrl = episode.soundcloudArtworkUrl
+  const artworkUrl = episode.customArtworkUrl || episode.soundcloudArtworkUrl
   const scUrl = episode.soundcloudUrl
   const videoUrls = episode.videoUrls || []
   const genres = episode.genres || []
@@ -253,30 +388,22 @@ export default function EpisodeClient({ episode, prevEpisode, nextEpisode }) {
                   {videoUrls.map((url, i) => {
                     const ytId = getYouTubeId(url)
                     return (
-                      <div key={i} style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", background: "#0a0a0a" }}>
+                      <div key={i} className="radio-video-frame">
                         {ytId ? (
-                          <iframe
-                            src={`https://www.youtube.com/embed/${ytId}?rel=0&color=white`}
-                            title={`Video ${i + 1}`}
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-                          />
+                          <div className="radio-video-youtube">
+                            <iframe
+                              src={`https://www.youtube.com/embed/${ytId}?rel=0&color=white`}
+                              title={`Video ${i + 1}`}
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
                         ) : (
-                          <video
+                          <ModernVideoPlayer
                             src={url}
-                            controls
-                            preload="metadata"
                             poster={artworkUrl || undefined}
-                            style={{
-                              position: "absolute", inset: 0,
-                              width: "100%", height: "100%",
-                              objectFit: "contain",
-                              background: "#050505",
-                            }}
-                          >
-                            <a href={url} target="_blank" rel="noreferrer">Watch Video</a>
-                          </video>
+                            title={`${episode.title} · video ${i + 1}`}
+                          />
                         )}
                       </div>
                     )

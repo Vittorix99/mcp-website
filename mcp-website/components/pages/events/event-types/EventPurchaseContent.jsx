@@ -31,7 +31,7 @@ const MODE_COPY = {
     "Questo evento richiede l'approvazione dello staff. Invia la tua richiesta per ricevere istruzioni.",
 }
 
-export default function EventPurchaseContent({ id, event, settings }) {
+export default function EventPurchaseContent({ id, event, settings, membershipPrice }) {
   const [quantity, setQuantity] = useState(1)
   const [participants, setParticipants] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
@@ -74,8 +74,8 @@ export default function EventPurchaseContent({ id, event, settings }) {
   }
 
   return (
-    <div style={{ background: "#080808", padding: "64px 0 100px" }}>
-      <div style={{ maxWidth: "680px", margin: "0 auto", padding: "0 48px" }}>
+    <div className="event-purchase-section" style={{ background: "#080808", padding: "64px 0 100px" }}>
+      <div className="event-purchase-shell" style={{ maxWidth: "680px", margin: "0 auto", padding: "0 48px" }}>
 
         {/* Section label */}
         <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "40px" }}>
@@ -96,31 +96,6 @@ export default function EventPurchaseContent({ id, event, settings }) {
           }}>{MODE_COPY[purchaseMode]}</p>
         )}
 
-        {membershipIncluded && (
-          <p style={{
-            fontFamily: HN, fontSize: "9px", fontWeight: 700,
-            letterSpacing: "0.22em", textTransform: "uppercase",
-            color: ACC, marginBottom: "28px",
-          }}>Tesseramento MCP incluso se non ancora membro</p>
-        )}
-
-        {/* Note */}
-        {!isEnded && event.note && (
-          <div style={{
-            padding: "16px 20px",
-            background: "rgba(224,120,0,0.06)",
-            borderLeft: `2px solid ${ACC}`,
-            marginBottom: "28px",
-          }}>
-            {splitLines(event.note).map((line, i) => (
-              <p key={i} style={{
-                fontFamily: CH, fontSize: "14px", lineHeight: 1.7,
-                color: "rgba(245,243,239,0.6)", margin: "0 0 8px",
-              }}>{line}</p>
-            ))}
-          </div>
-        )}
-
         {/* Statuto */}
         <a
           href="https://drive.google.com/file/d/1IABjzNtUon0Ti32iJMxQdSPkLa4GcdKN/view"
@@ -137,6 +112,11 @@ export default function EventPurchaseContent({ id, event, settings }) {
           onMouseEnter={e => e.currentTarget.style.color = "rgba(245,243,239,0.6)"}
           onMouseLeave={e => e.currentTarget.style.color = "rgba(245,243,239,0.3)"}
         >Statuto dell'associazione ↗</a>
+
+        {/* Price display */}
+        {!isEnded && !isOnRequest && (
+          <PriceBlock event={event} membershipPrice={membershipPrice} membershipIncluded={membershipIncluded} quantity={quantity} />
+        )}
 
         {/* Separator */}
         <div style={{ height: "1px", background: "rgba(245,243,239,0.06)", marginBottom: "40px" }} />
@@ -254,6 +234,84 @@ export default function EventPurchaseContent({ id, event, settings }) {
             setFormComplete(true)
           }}
         />
+      )}
+    </div>
+  )
+}
+
+function PriceBlock({ event, membershipPrice, membershipIncluded, quantity }) {
+  const price = typeof event?.price === "number" ? event.price : 0
+  const fee = typeof event?.fee === "number" ? event.fee : 0
+  const total = (price + fee) * quantity
+
+  if (price === 0 && fee === 0) return null
+
+  return (
+    <div style={{ marginBottom: "32px" }}>
+      {/* Membership badge */}
+      {membershipIncluded && (
+        <p style={{
+          fontFamily: HN, fontSize: "8px", fontWeight: 700,
+          letterSpacing: "0.3em", textTransform: "uppercase",
+          color: ACC, marginBottom: "12px",
+        }}>Tessera MCP inclusa per i nuovi soci</p>
+      )}
+
+      {/* Base price row */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: fee > 0 ? "8px" : "0" }}>
+        <span style={{
+          fontFamily: HN, fontSize: "9px", fontWeight: 700,
+          letterSpacing: "0.3em", textTransform: "uppercase",
+          color: "rgba(245,243,239,0.45)",
+        }}>Quota di partecipazione</span>
+        <span style={{
+          fontFamily: HN, fontWeight: 900, fontSize: "28px",
+          letterSpacing: "-0.02em", color: "#F5F3EF",
+        }}>€ {price.toFixed(2).replace(".", ",")}</span>
+      </div>
+
+      {/* Fee row */}
+      {fee > 0 && (
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "8px" }}>
+          <span style={{
+            fontFamily: HN, fontSize: "9px", fontWeight: 700,
+            letterSpacing: "0.3em", textTransform: "uppercase",
+            color: "rgba(245,243,239,0.45)",
+          }}>Commissione</span>
+          <span style={{
+            fontFamily: HN, fontWeight: 700, fontSize: "16px",
+            color: "rgba(245,243,239,0.65)",
+          }}>+ € {fee.toFixed(2).replace(".", ",")}</span>
+        </div>
+      )}
+
+      {/* Total when quantity > 1 */}
+      {quantity > 1 && (
+        <div style={{
+          display: "flex", alignItems: "baseline", justifyContent: "space-between",
+          marginTop: "12px", paddingTop: "12px",
+          borderTop: "1px solid rgba(245,243,239,0.08)",
+        }}>
+          <span style={{
+            fontFamily: HN, fontSize: "9px", fontWeight: 700,
+            letterSpacing: "0.3em", textTransform: "uppercase",
+            color: "rgba(245,243,239,0.45)",
+          }}>Totale ({quantity} persone)</span>
+          <span style={{
+            fontFamily: HN, fontWeight: 900, fontSize: "22px",
+            letterSpacing: "-0.02em", color: ACC,
+          }}>€ {total.toFixed(2).replace(".", ",")}</span>
+        </div>
+      )}
+
+      {/* Membership note */}
+      {membershipIncluded && membershipPrice != null && (
+        <p style={{
+          fontFamily: CH, fontSize: "12px", fontStyle: "italic",
+          color: "rgba(245,243,239,0.35)", margin: "10px 0 0",
+        }}>
+          Tessera associativa annuale (€ {membershipPrice}/anno) inclusa nel prezzo.
+        </p>
       )}
     </div>
   )

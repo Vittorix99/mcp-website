@@ -8,6 +8,7 @@ from models.base import FirestoreModel
 class RadioEpisode(FirestoreModel):
     """Represents a radio episode document in the ``radio_episodes`` collection."""
 
+    slug: str = ""
     soundcloud_track_id: str = field(default="", metadata={"firestore_name": "soundcloudTrackId"})
     title: str = ""
     soundcloud_url: str = field(default="", metadata={"firestore_name": "soundcloudUrl"})
@@ -20,6 +21,7 @@ class RadioEpisode(FirestoreModel):
     episode_number: int = field(default=0, metadata={"firestore_name": "episodeNumber"})
     description: Optional[str] = None
     artist_ids: List[str] = field(default_factory=list, metadata={"firestore_name": "artistIds"})
+    custom_artwork_url: Optional[str] = field(default=None, metadata={"firestore_name": "customArtworkUrl"})
     video_urls: List[str] = field(default_factory=list, metadata={"firestore_name": "videoUrls"})
     genres: List[str] = field(default_factory=list)
     recorded_at: Optional[Any] = field(default=None, metadata={"firestore_name": "recordedAt"})

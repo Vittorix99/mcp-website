@@ -112,7 +112,7 @@ function HeroSection() {
       )}
 
       {/* Content */}
-      <div style={{
+      <div className="home-hero-content" style={{
         position: "absolute", inset: 0,
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
@@ -121,18 +121,19 @@ function HeroSection() {
         zIndex: 2,
       }}>
         <Image
+          className="home-hero-logo"
           src="/logo-full-white.png"
           alt="MCP — Music Connecting People"
-          width={300}
+          width={350}
           height={90}
           style={{ height: "clamp(48px,8vw,90px)", width: "auto", marginBottom: "44px", opacity: 0.95 }}
           priority
         />
 
         {/* Giant wordmark */}
-        <div style={{ lineHeight: 0.86, textAlign: "center" }}>
+        <div className="home-hero-wordmark" style={{ lineHeight: 0.86, textAlign: "center" }}>
           <div>
-            <span style={{
+            <span className="home-hero-word" style={{
               fontFamily: HN, fontWeight: 900,
               fontSize: "clamp(52px,11vw,158px)", letterSpacing: "-0.035em",
               textTransform: "uppercase", color: "#F5F3EF", display: "block",
@@ -140,8 +141,8 @@ function HeroSection() {
             }}>music</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(10px,2vw,24px)" }}>
-            <div style={{ height: "4px", width: "clamp(28px,4vw,72px)", background: ACC, flexShrink: 0 }} />
-            <span style={{
+            <div className="home-hero-dash home-hero-dash--orange" style={{ height: "4px", width: "clamp(28px,4vw,72px)", background: ACC, flexShrink: 0 }} />
+            <span className="home-hero-word" style={{
               fontFamily: HN, fontWeight: 900,
               fontSize: "clamp(52px,11vw,158px)", letterSpacing: "-0.035em",
               textTransform: "uppercase", color: "#F5F3EF",
@@ -149,17 +150,17 @@ function HeroSection() {
             }}>connecting</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "clamp(10px,2vw,24px)" }}>
-            <span style={{
+            <span className="home-hero-word" style={{
               fontFamily: HN, fontWeight: 900,
               fontSize: "clamp(52px,11vw,158px)", letterSpacing: "-0.035em",
               textTransform: "uppercase", color: "#F5F3EF",
               textShadow: "0 2px 40px rgba(0,0,0,0.6)",
             }}>people</span>
-            <div style={{ height: "4px", width: "clamp(28px,4vw,72px)", background: RED, flexShrink: 0 }} />
+            <div className="home-hero-dash home-hero-dash--red" style={{ height: "4px", width: "clamp(28px,4vw,72px)", background: RED, flexShrink: 0 }} />
           </div>
         </div>
 
-        <p style={{
+        <p className="home-hero-subtitle" style={{
           fontFamily: CH, fontSize: "clamp(14px,1.5vw,18px)",
           fontStyle: "italic", color: "rgba(245,243,239,0.6)",
           marginTop: "32px", letterSpacing: "0.02em",

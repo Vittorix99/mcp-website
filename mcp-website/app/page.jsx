@@ -3,6 +3,7 @@ import HomeClient from "./HomeClient"
 import { buildOrganizationJsonLd } from "@/lib/seo/jsonld"
 import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
 import { getNextEvent } from "@/services/events"
+import { getPublishedEpisodes } from "@/services/radio"
 
 const baseUrl = getBaseUrlFromEnv()
 export const metadata = {
@@ -25,12 +26,8 @@ export default async function LandingPage() {
 
   let radioEpisodes = []
   try {
-    const SERVER_BASE =
-      process.env.NEXT_PUBLIC_ENV === "production"
-        ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
-        : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1"
-    const res = await fetch(`${SERVER_BASE}/get_published_radio_episodes`, { next: { revalidate: 300 } })
-    if (res.ok) radioEpisodes = await res.json()
+    const res = await getPublishedEpisodes({ revalidate: 300 })
+    if (res?.success) radioEpisodes = res.episodes
   } catch {}
 
   return (

@@ -21,6 +21,17 @@ const SHOWCASE_FOLDER = "foto/showcase"
 const SHOWCASE_PROD_BUCKET =
   process.env.NEXT_PUBLIC_SHOWCASE_STORAGE_BUCKET || "mcp-website-2a1ad.firebasestorage.app"
 
+function pickRandomImages(urls, count) {
+  const shuffled = [...urls]
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const current = shuffled[i]
+    shuffled[i] = shuffled[j]
+    shuffled[j] = current
+  }
+  return shuffled.slice(0, count)
+}
+
 export function AboutUs() {
   const [showcaseImages, setShowcaseImages] = useState([])
   useReveal()
@@ -35,12 +46,7 @@ export function AboutUs() {
           urls = await getImageUrlsFromBucket(SHOWCASE_FOLDER, SHOWCASE_PROD_BUCKET)
         }
         if (!alive) return
-        setShowcaseImages(
-          urls
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b))
-            .slice(0, PHOTOS.length)
-        )
+        setShowcaseImages(pickRandomImages(urls.filter(Boolean), PHOTOS.length))
       } catch (error) {
         console.error("Error fetching showcase images:", error)
       }

@@ -1,18 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
 import { SeasonForm } from "@/components/admin/radio/SeasonForm"
 import { getSeason } from "@/services/admin/radio"
 import { routes } from "@/config/routes"
 import { AdminInlineLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
-export default function EditSeasonPage({ params }) {
-  const { seasonId } = params
+export default function EditSeasonPage() {
+  const params = useParams()
+  const seasonId = params?.seasonId
   const [season, setSeason] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!seasonId) return
     async function load() {
       const res = await getSeason(seasonId)
       if (res?.error) {

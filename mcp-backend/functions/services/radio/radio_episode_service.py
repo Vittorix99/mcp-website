@@ -50,6 +50,12 @@ class RadioEpisodeService:
         episode = self.episode_repository.get_by_id_or_raise(episode_id)
         return episode_to_response_dto(episode)
 
+    def get_by_slug(self, slug: str) -> Optional[RadioEpisodeResponseDTO]:
+        episode = self.episode_repository.get_by_slug(slug)
+        if episode is None:
+            return None
+        return episode_to_response_dto(episode)
+
     def get_latest_published(self) -> Optional[RadioEpisodeResponseDTO]:
         episode = self.episode_repository.get_latest_published()
         if episode is None:

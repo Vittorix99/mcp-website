@@ -1,19 +1,22 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
 import { EpisodeForm } from "@/components/admin/radio/EpisodeForm"
 import { getEpisode, getSeasons } from "@/services/admin/radio"
 import { routes } from "@/config/routes"
 import { AdminInlineLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
-export default function EditEpisodePage({ params }) {
-  const { episodeId } = params
+export default function EditEpisodePage() {
+  const params = useParams()
+  const episodeId = params?.episodeId
   const [episode, setEpisode] = useState(null)
   const [seasons, setSeasons] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!episodeId) return
     async function load() {
       const [epRes, sRes] = await Promise.all([getEpisode(episodeId), getSeasons()])
       if (epRes?.error || sRes?.error) {

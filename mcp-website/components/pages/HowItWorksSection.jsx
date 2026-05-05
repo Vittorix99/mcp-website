@@ -10,20 +10,20 @@ const CH = "var(--font-charter), Georgia, serif"
 
 const STEPS = [
   {
-    n: "01", title: "Buy Your Participation",
-    body: "Purchase access to any MCP event through the site. Each event requires a participation fee — no generic ticketing platforms, just a direct connection with the collective.",
+    n: "01", title: "Acquista la partecipazione",
+    body: "Prenota l'accesso agli eventi MCP direttamente dal sito. Ogni evento prevede una quota di partecipazione: niente piattaforme esterne, solo un contatto diretto con il collettivo.",
   },
   {
-    n: "02", title: "Get Your Membership Card",
-    body: "Every participant holds an MCP membership card (tessera associativa). If you don't have one yet, it's included with your first purchase. It arrives in your email as an Apple Wallet or Google Wallet pass.",
+    n: "02", title: "Ricevi la tessera MCP",
+    body: "Ogni partecipante ha una tessera associativa MCP. Se non ne hai ancora una, viene inclusa nel primo acquisto e arriva via email come pass Apple Wallet o Google Wallet.",
   },
   {
-    n: "03", title: "Event Loaded on Your Card",
-    body: "Once confirmed, the event is loaded directly onto your membership card. One card, every MCP event — no printing, no separate tickets.",
+    n: "03", title: "L'evento viene caricato sulla tessera",
+    body: "Dopo la conferma, l'evento viene associato direttamente alla tua tessera. Una sola card per tutti gli eventi MCP: niente stampe, niente biglietti separati.",
   },
   {
-    n: "04", title: "Secret Location Revealed",
-    body: "We never publish the exact address publicly. After your purchase, you'll receive precise directions to the venue — a detail that's part of the experience itself.",
+    n: "04", title: "Ricevi la location",
+    body: "Non pubblichiamo mai l'indirizzo esatto in modo pubblico. Dopo l'acquisto riceverai le indicazioni precise per raggiungere il luogo dell'evento.",
   },
 ]
 
@@ -36,7 +36,7 @@ export function HowItWorksSection() {
       borderTop: "1px solid rgba(245,243,239,0.04)",
     }}>
       <div style={{ maxWidth: "880px", margin: "0 auto", padding: "0 40px" }}>
-        <SectionLabel text="How It Works" />
+        <SectionLabel text="Come funziona" />
 
         <h2 style={{
           fontFamily: HN, fontWeight: 900,
@@ -44,7 +44,7 @@ export function HowItWorksSection() {
           textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.88,
           marginBottom: "72px",
         }}>
-          Participating<br />in an MCP Event
+          Partecipare<br />a un evento MCP
         </h2>
 
         <div>
@@ -88,7 +88,7 @@ export function HowItWorksSection() {
               >
                 <Image
                   src="/tessera-mockup.png"
-                  alt="MCP Membership Card"
+                  alt="Tessera MCP"
                   width={300}
                   height={190}
                   style={{ width: "100%", display: "block", borderRadius: "16px" }}
@@ -108,29 +108,34 @@ export function HowItWorksSection() {
               fontFamily: HN, fontSize: "8px", fontWeight: 700,
               letterSpacing: "0.35em", textTransform: "uppercase",
               color: ACC, marginBottom: "14px",
-            }}>Your Membership Card</p>
+            }}>La tua tessera MCP</p>
             <h3 style={{
               fontFamily: HN, fontWeight: 900, fontSize: "22px",
               letterSpacing: "-0.01em", textTransform: "uppercase",
               color: "#F5F3EF", marginBottom: "16px",
-            }}>One card.<br />Every event.</h3>
+            }}>Una tessera.<br />Ogni evento.</h3>
             <p style={{
               fontFamily: CH, fontSize: "15px", lineHeight: 1.72,
               color: "rgba(245,243,239,0.5)", marginBottom: "24px",
             }}>
-              Your tessera associativa arrives as an Apple Wallet or Google Wallet pass.
-              Each event you join gets loaded directly onto it — no separate tickets, ever.
+              La tessera associativa arriva come pass Apple Wallet o Google Wallet.
+              Ogni evento a cui partecipi viene caricato direttamente sulla tessera: niente biglietti separati.
             </p>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              {["Apple Wallet", "Google Wallet"].map(w => (
-                <div key={w} style={{
-                  padding: "9px 18px",
-                  border: "1px solid rgba(245,243,239,0.14)", borderRadius: "6px",
-                  fontFamily: HN, fontSize: "10px", letterSpacing: "0.12em",
-                  color: "rgba(245,243,239,0.42)",
-                  background: "rgba(245,243,239,0.025)",
-                }}>{w}</div>
-              ))}
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+              <Image
+                src="/apple_wallet.png"
+                alt="Apple Wallet"
+                width={142}
+                height={44}
+                style={{ height: "40px", width: "auto", display: "block" }}
+              />
+              <Image
+                src="/google_wallet.png"
+                alt="Google Wallet"
+                width={142}
+                height={44}
+                style={{ height: "40px", width: "auto", display: "block" }}
+              />
             </div>
           </div>
         </div>

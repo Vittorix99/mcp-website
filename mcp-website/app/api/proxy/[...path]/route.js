@@ -1,16 +1,18 @@
 export const dynamic = "force-dynamic";
 
+import { getServerBaseUrl } from "@/config/endpoints";
+
 async function forward(request, context) {
-  const ENV = process.env.NEXT_PUBLIC_ENV || "local";
-  const SERVER_BASE_URL =
-    ENV === "production"
-      ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
-      : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1";
+  const serverBaseUrl = getServerBaseUrl();
+
+  if (!serverBaseUrl) {
+    return Response.json({ error: "Backend base URL is not configured." }, { status: 500 });
+  }
 
   const params = await context.params;
   const path = Array.isArray(params?.path) ? params.path.join("/") : "";
   const url = new URL(request.url);
-  const target = `${SERVER_BASE_URL}/${path}${url.search}`;
+  const target = `${serverBaseUrl}/${path}${url.search}`;
 
   const headers = new Headers(request.headers);
   headers.delete("host");

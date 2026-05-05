@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, Suspense, useRef } from "react"
+import { useEffect, useState, Suspense } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { EVENT_CONTENT_COMPONENT, resolvePurchaseMode } from "@/config/events-utils"
@@ -33,13 +33,10 @@ function formatDateDisplay(dateString) {
 }
 
 
-function EventHero({ event, onBuyClick, imageUrl }) {
-  const isActive = event?.status === "active" || (!["ended", "coming_soon", "sold_out"].includes(event?.status) && event?.status !== "soon")
-  const isSoon = event?.status === "coming_soon" || event?.status === "soon"
-
+function EventHero({ event, imageUrl }) {
   return (
     <div className="event-detail-hero" style={{
-      position: "relative", height: "65vh", minHeight: "440px",
+      position: "relative", height: "68vh", minHeight: "480px",
       background: "#0f0a05", overflow: "hidden",
     }}>
       {/* Texture */}
@@ -49,110 +46,104 @@ function EventHero({ event, onBuyClick, imageUrl }) {
           rgba(224,120,0,0.03) 0px,rgba(224,120,0,0.03) 1px,
           transparent 1px,transparent 18px)`,
       }} />
+      {/* Orange left ambient */}
       <div style={{
         position: "absolute", inset: 0,
-        background: `radial-gradient(ellipse at 30% 50%, ${ACC}14 0%, transparent 60%)`,
+        background: `radial-gradient(ellipse at 20% 60%, ${ACC}18 0%, transparent 55%)`,
       }} />
+      {/* Orange right ambient — behind poster */}
+      {imageUrl && (
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at 88% 35%, rgba(224,120,0,0.14) 0%, transparent 52%)",
+          pointerEvents: "none",
+        }} />
+      )}
+      {/* Bottom gradient */}
       <div style={{
         position: "absolute", inset: 0,
-        background: "linear-gradient(to bottom, rgba(8,8,8,0.2) 0%, rgba(8,8,8,0.8) 80%, #080808 100%)",
+        background: "linear-gradient(to bottom, rgba(8,8,8,0.15) 0%, rgba(8,8,8,0.72) 75%, #080808 100%)",
       }} />
-      {/* Accent bar */}
+      {/* Top accent bar */}
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: ACC }} />
 
-      {/* Content */}
-      <div className="event-detail-hero-content" style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        padding: "0 48px 48px",
-        display: "flex", alignItems: "flex-end", justifyContent: "space-between",
-        flexWrap: "wrap", gap: "24px",
-      }}>
-        <div>
-          <Link href="/events" style={{
-            fontFamily: HN, fontSize: "9px", letterSpacing: "0.32em",
-            textTransform: "uppercase", color: "rgba(245,243,239,0.38)",
-            textDecoration: "none", display: "block", marginBottom: "20px",
-          }}>← All Events</Link>
-          {imageUrl && (
-            <div className="event-hero-mobile-poster">
-              <Image
-                src={imageUrl}
-                alt={event?.title || "Event poster"}
-                width={720}
-                height={900}
-                priority
-                sizes="(max-width: 767px) calc(100vw - 32px), 1px"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  display: "block",
-                }}
-              />
-            </div>
-          )}
-          <p style={{
-            fontFamily: CH, fontSize: "14px", fontStyle: "italic",
-            color: "rgba(245,243,239,0.45)", marginBottom: "10px",
-          }}>{formatDateDisplay(event?.date)}</p>
-          <h1 style={{
-            fontFamily: HN, fontWeight: 900,
-            fontSize: "clamp(36px,6vw,80px)", letterSpacing: "-0.035em",
-            textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.88, margin: 0,
-          }}>{event?.title}</h1>
+      {/* ── POSTER — desktop, right side, natural aspect ratio ── */}
+      {imageUrl && (
+        <div className="event-hero-poster-wrap" style={{
+          position: "absolute", right: "48px",
+          top: "56%", transform: "translateY(-50%)",
+          zIndex: 2, maxWidth: "min(36vw, 320px)", width: "100%",
+        }}>
+          {/* Orange glow behind poster */}
+          <div style={{
+            position: "absolute", inset: "-32px",
+            background: "radial-gradient(ellipse at center, rgba(224,120,0,0.22) 0%, transparent 68%)",
+            pointerEvents: "none", zIndex: -1,
+          }} />
+          <Image
+            src={imageUrl}
+            alt={event?.title || "Event poster"}
+            width={480}
+            height={600}
+            priority
+            sizes="(max-width: 768px) 0px, 320px"
+            style={{
+              width: "100%", height: "auto", display: "block",
+              filter: "drop-shadow(-20px 8px 56px rgba(0,0,0,0.9))",
+            }}
+          />
+          {/* Left fade — blends poster into hero */}
+          <div style={{
+            position: "absolute", top: 0, left: 0, bottom: 0, width: "45%",
+            background: "linear-gradient(to right, #0f0a05, transparent)",
+            pointerEvents: "none",
+          }} />
+          {/* Bottom fade */}
+          <div style={{
+            position: "absolute", left: 0, right: 0, bottom: 0, height: "28%",
+            background: "linear-gradient(to top, #080808, transparent)",
+            pointerEvents: "none",
+          }} />
         </div>
+      )}
 
-        {/* CTA box */}
-        {isActive && (
-          <div style={{
-            padding: "28px 32px",
-            background: "rgba(8,8,8,0.85)",
-            border: `1px solid ${ACC}44`,
-            backdropFilter: "blur(12px)",
-            minWidth: "220px",
-          }}>
-            <p style={{
-              fontFamily: HN, fontSize: "8px", fontWeight: 700,
-              letterSpacing: "0.35em", textTransform: "uppercase",
-              color: ACC, marginBottom: "8px",
-            }}>Participation</p>
-            {typeof event?.price === "number" && (
-              <p style={{
-                fontFamily: HN, fontWeight: 900, fontSize: "32px",
-                color: "#F5F3EF", marginBottom: "18px", letterSpacing: "-0.02em",
-              }}>€ {event.price}</p>
-            )}
-            <button
-              onClick={onBuyClick}
-              style={{
-                display: "block", width: "100%", padding: "13px 0",
-                background: ACC, border: "none", cursor: "pointer",
-                fontFamily: HN, fontWeight: 700, fontSize: "10px",
-                letterSpacing: "0.28em", textTransform: "uppercase",
-                color: "#fff", borderRadius: "2px",
-              }}
-            >Buy Participation →</button>
-            <p style={{
-              fontFamily: CH, fontSize: "11px", fontStyle: "italic",
-              color: "rgba(245,243,239,0.35)", marginTop: "10px", textAlign: "center",
-            }}>Includes membership card if new</p>
+      {/* ── BACK LINK — positioned below fixed nav ── */}
+      <Link href="/events" className="event-hero-back" style={{
+        position: "absolute", top: "88px", left: "48px", zIndex: 5,
+        fontFamily: HN, fontSize: "9px", letterSpacing: "0.32em",
+        textTransform: "uppercase", color: "rgba(245,243,239,0.38)",
+        textDecoration: "none",
+      }}>← All Events</Link>
+
+      {/* ── MAIN TEXT — bottom-left ── */}
+      <div className="event-detail-hero-content" style={{
+        position: "absolute", bottom: "13%", left: 0, right: 0,
+        padding: "0 48px", zIndex: 3,
+      }}>
+        {/* Mobile poster — shown only on mobile */}
+        {imageUrl && (
+          <div className="event-hero-mobile-poster">
+            <Image
+              src={imageUrl}
+              alt={event?.title || "Event poster"}
+              width={720}
+              height={900}
+              priority
+              sizes="(max-width: 767px) calc(100vw - 32px), 1px"
+              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+            />
           </div>
         )}
 
-        {isSoon && (
-          <div style={{
-            padding: "28px 32px",
-            background: "rgba(8,8,8,0.85)",
-            border: "1px solid rgba(245,243,239,0.12)",
-            backdropFilter: "blur(12px)",
-          }}>
-            <p style={{
-              fontFamily: HN, fontSize: "8px", fontWeight: 700,
-              letterSpacing: "0.35em", textTransform: "uppercase",
-              color: "rgba(245,243,239,0.4)",
-            }}>Coming Soon</p>
-          </div>
-        )}
+        <p style={{
+          fontFamily: CH, fontSize: "14px", fontStyle: "italic",
+          color: "rgba(245,243,239,0.45)", marginBottom: "10px",
+        }}>{formatDateDisplay(event?.date)}</p>
+        <h1 className="event-hero-title" style={{
+          fontFamily: HN, fontWeight: 900,
+          fontSize: "clamp(36px,6vw,84px)", letterSpacing: "-0.035em",
+          textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.88, margin: 0,
+        }}>{event?.title}</h1>
       </div>
     </div>
   )
@@ -175,25 +166,7 @@ function InfoTab({ event }) {
         fontFamily: HN, fontSize: "8px", fontWeight: 700,
         letterSpacing: "0.35em", textTransform: "uppercase",
         color: ACC, marginBottom: "16px",
-      }}>About this event</p>
-      {event?.description ? (
-        <p style={{
-          fontFamily: CH, fontSize: "18px", lineHeight: 1.8,
-          color: "rgba(245,243,239,0.65)", marginBottom: "40px",
-          maxWidth: "680px",
-        }}>{event.description}</p>
-      ) : event?.note ? (
-        <p style={{
-          fontFamily: CH, fontSize: "18px", lineHeight: 1.8,
-          color: "rgba(245,243,239,0.65)", marginBottom: "40px",
-          maxWidth: "680px",
-        }}>{event.note}</p>
-      ) : (
-        <p style={{
-          fontFamily: CH, fontSize: "16px", fontStyle: "italic",
-          color: "rgba(245,243,239,0.35)", marginBottom: "40px",
-        }}>Details coming soon.</p>
-      )}
+      }}>Event info</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "28px", maxWidth: "680px" }}>
         {metaItems.map(([k, v]) => (
@@ -381,7 +354,6 @@ export function EventContent({ id, event, settings, error }) {
   const [showInfo, setShowInfo] = useState(Boolean(settings?.payment_blocked))
   const [activeTab, setActiveTab] = useState("info")
   const [eventImageUrl, setEventImageUrl] = useState(null)
-  const purchaseRef = useRef(null)
 
   useEffect(() => {
     if (event && analytics) {
@@ -427,22 +399,18 @@ export function EventContent({ id, event, settings, error }) {
 
   const Content = EVENT_CONTENT_COMPONENT
 
-  const scrollToPurchase = () => {
-    purchaseRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
   return (
     <div style={{ minHeight: "100svh", background: "#080808" }}>
-      <EventHero event={event} onBuyClick={scrollToPurchase} imageUrl={eventImageUrl} />
+      <EventHero event={event} imageUrl={eventImageUrl} />
 
       {/* Tab bar */}
-      <div style={{
+      <div className="event-tabbar" style={{
         borderBottom: "1px solid rgba(245,243,239,0.07)",
         padding: "0 48px",
         display: "flex", gap: 0,
       }}>
         {TABS.map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} style={{
+          <button key={t} className="event-tab-button" onClick={() => setActiveTab(t)} style={{
             background: "none", border: "none", cursor: "pointer",
             fontFamily: HN, fontSize: "10px",
             fontWeight: activeTab === t ? 700 : 400,
@@ -465,11 +433,10 @@ export function EventContent({ id, event, settings, error }) {
 
       {/* Purchase section */}
       <div
-        ref={purchaseRef}
         style={{ borderTop: "1px solid rgba(245,243,239,0.06)" }}
       >
         <Suspense fallback={<LoadingSpinner />}>
-          <Content id={id} event={event} settings={settings} />
+          <Content id={id} event={event} settings={settings} membershipPrice={settings?.membership_price_per_year ?? null} />
         </Suspense>
       </div>
 
