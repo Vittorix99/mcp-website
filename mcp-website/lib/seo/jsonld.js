@@ -106,3 +106,52 @@ export function buildEventPhotosCollectionJsonLd({ items = [], baseUrl = "", lis
 
   return JSON.parse(JSON.stringify(payload))
 }
+
+export function buildRadioEpisodesItemListJsonLd({ items = [], baseUrl = "", listUrl = "" }) {
+  const list = items
+    .filter((item) => item?.slug || item?.id)
+    .map((item, index) => {
+      const slug = item.slug || item.id
+      return {
+        "@type": "ListItem",
+        position: index + 1,
+        url: baseUrl ? `${baseUrl}/radio/${slug}` : undefined,
+        name: item.title || undefined,
+      }
+    })
+
+  const payload = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "MCP Radio",
+    url: listUrl || undefined,
+    itemListElement: list,
+  }
+
+  return JSON.parse(JSON.stringify(payload))
+}
+
+export function buildRadioEpisodeJsonLd({ episode, url, siteName = "Music Connecting People", siteUrl = "" }) {
+  const artworkUrl = episode?.customArtworkUrl || episode?.soundcloudArtworkUrl
+  const payload = {
+    "@context": "https://schema.org",
+    "@type": "AudioObject",
+    name: episode?.title || "MCP Radio episode",
+    description: episode?.description || undefined,
+    url,
+    contentUrl: episode?.soundcloudUrl || url,
+    thumbnailUrl: artworkUrl || undefined,
+    partOfSeries: {
+      "@type": "CreativeWorkSeries",
+      name: "MCP Radio",
+      url: siteUrl ? `${siteUrl}/radio` : undefined,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: siteName,
+      url: siteUrl || undefined,
+    },
+  }
+
+  return JSON.parse(JSON.stringify(payload))
+}

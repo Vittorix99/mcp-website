@@ -25,6 +25,7 @@ import {
 // Servizi API
 import { getAdminStats } from "@/services/admin/stats"
 import { getNextEvent } from "@/services/events"
+import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 // Funzioni di utilità
 const formatCurrency = (amount) => {
@@ -82,27 +83,6 @@ const StatCard = ({ title, value, icon: Icon, description }) => (
   </Card>
 )
 
-const LoadingSkeleton = () => (
-  <div className="space-y-6">
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="h-9 w-64 bg-gray-700 rounded animate-pulse"></div>
-        <div className="h-6 w-40 bg-gray-700 rounded mt-2 animate-pulse"></div>
-      </div>
-      <div className="h-10 w-28 bg-gray-700 rounded animate-pulse"></div>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="h-28 bg-gray-800 rounded-lg animate-pulse"></div>
-      ))}
-    </div>
-    <div className="grid lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-2 h-48 bg-gray-800 rounded-lg animate-pulse"></div>
-      <div className="h-96 bg-gray-800 rounded-lg animate-pulse"></div>
-    </div>
-  </div>
-)
-
 export default function AdminDashboard() {
   const router = useRouter()
   const { toast } = useToast()
@@ -151,16 +131,8 @@ useEffect(() => {
   loadAll()
 }, [])
 
-  useEffect(() => {
-    loadAll()
-  }, [])
-
   if (loading && !stats) {
-    return (
-      <div className="p-8">
-        <LoadingSkeleton />
-      </div>
-    )
+    return <AdminLoading label="Caricamento dashboard..." />
   }
 
   return (
@@ -170,16 +142,17 @@ useEffect(() => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-4xl text-center tracking-tight">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Statistiche e attività recenti.</p>
-        </div>
-        <Button onClick={loadAll} disabled={loading}>
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Aggiorna
-        </Button>
-      </div>
+      <AdminPageHeader
+        title="Dashboard"
+        description="Statistiche e attività recenti."
+        showBack={false}
+        actions={(
+          <Button onClick={loadAll} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Aggiorna
+          </Button>
+        )}
+      />
 
       {/* Griglia Statistiche Principali */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

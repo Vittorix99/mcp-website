@@ -15,8 +15,36 @@ import { getBaseUrlFromEnv } from "@/lib/seo/base-url";
 const siteUrl = getBaseUrlFromEnv();
 export const metadata = {
   metadataBase: siteUrl ? new URL(siteUrl) : undefined,
+  applicationName: "Music Connecting People",
   title: "Music Connecting People",
   description: "Experience the rhythm. Connect with the community.",
+  alternates: siteUrl ? { canonical: siteUrl } : undefined,
+  openGraph: {
+    type: "website",
+    siteName: "Music Connecting People",
+    title: "Music Connecting People",
+    description: "Experience the rhythm. Connect with the community.",
+    url: siteUrl || undefined,
+    images: siteUrl
+      ? [
+          {
+            url: `${siteUrl}/logo-full-white.png`,
+            width: 1200,
+            height: 630,
+            alt: "Music Connecting People",
+          },
+        ]
+      : undefined,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Music Connecting People",
+    description: "Experience the rhythm. Connect with the community.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 export const viewport = {
   width: "device-width",
@@ -56,7 +84,7 @@ export default function RootLayout({ children }) {
         {/* Iubenda */}
         <Script
           id="iubenda-widget-script"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           src="//embeds.iubenda.com/widgets/40b8b87f-b6a1-4a55-af93-2465acfa04c7.js"
         />
 

@@ -2,6 +2,8 @@
 import HomeClient from "./HomeClient"
 import { buildOrganizationJsonLd } from "@/lib/seo/jsonld"
 import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
+import { getNextEvent } from "@/services/events"
+import { getPublishedEpisodes } from "@/services/radio"
 
 const baseUrl = getBaseUrlFromEnv()
 export const metadata = {
@@ -10,11 +12,23 @@ export const metadata = {
   alternates: baseUrl ? { canonical: `${baseUrl}/` } : undefined,
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
   const orgJsonLd = buildOrganizationJsonLd({
     siteName: "Music Connecting People",
     siteUrl: baseUrl,
   })
+
+  let nextEvent = null
+  try {
+    const res = await getNextEvent()
+    if (res?.success) nextEvent = res.events?.[0] ?? res.event ?? res.data ?? null
+  } catch {}
+
+  let radioEpisodes = []
+  try {
+    const res = await getPublishedEpisodes({ revalidate: 300 })
+    if (res?.success) radioEpisodes = res.episodes
+  } catch {}
 
   return (
     <>
@@ -24,7 +38,7 @@ export default function LandingPage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       )}
-      <HomeClient />
+      <HomeClient nextEvent={nextEvent} radioEpisodes={radioEpisodes} />
     </>
   )
 }

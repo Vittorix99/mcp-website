@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Plus, Edit, Trash2, Eye, Loader2, Users, MoreVertical, ArrowLeft } from "lucide-react"
+import { Plus, Edit, Trash2, Eye, Loader2, Users, MoreVertical } from "lucide-react"
 
 import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import { routes } from "@/config/routes"
 import { EventModal } from "@/components/admin/events/EventModal"
 import { EVENT_STATUSES, PURCHASE_MODES, resolvePurchaseMode } from "@/config/events-utils"
 import { EventThumbnail } from "@/components/admin/events/EventThumbnail"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 export default function EventsPage() {
   const router = useRouter()
@@ -170,27 +171,22 @@ export default function EventsPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {/* HEADER */}
-      <div>
-        <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Torna admin
-        </Button>
-        <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Gestione Eventi</h1>
-        <p className="text-gray-300">Crea, modifica e gestisci eventi MCP.</p>
-      </div>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          onClick={refreshEvents}
-          disabled={loading}
-          className="bg-transparent"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiorna"}
-        </Button>
-        <Button onClick={() => openModal()}>
-          <Plus className="h-4 w-4 mr-2" /> Nuovo Evento
-        </Button>
-      </div>
+      <AdminPageHeader
+        title="Eventi"
+        description="Crea, modifica e gestisci eventi MCP."
+        backHref={routes.admin.dashboard}
+        backLabel="Torna alla dashboard"
+        actions={(
+          <>
+            <Button variant="outline" onClick={refreshEvents} disabled={loading} className="bg-transparent">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiorna"}
+            </Button>
+            <Button onClick={() => openModal()}>
+              <Plus className="h-4 w-4 mr-2" /> Nuovo Evento
+            </Button>
+          </>
+        )}
+      />
 
       {/* STATS */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

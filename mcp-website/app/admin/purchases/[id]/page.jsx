@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Loader2 } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card"
@@ -13,6 +11,7 @@ import { EVENT_STATUSES } from "@/config/events-utils"
 import { getPurchaseById } from "@/services/admin/purchases"
 import { getParticipantsByEvent } from "@/services/admin/participants"
 import { getEventById } from "@/services/admin/events"
+import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 export default function PurchaseDetailsPage() {
   const router = useRouter()
@@ -78,19 +77,13 @@ export default function PurchaseDetailsPage() {
   const participantsCount = purchase?.participants_count ?? participants.length
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen text-white">
-        <Loader2 className="animate-spin h-8 w-8" />
-      </div>
-    )
+    return <AdminLoading label="Caricamento acquisto..." />
   }
 
   if (error || !purchase) {
     return (
       <div className="min-h-screen bg-black text-white p-6">
-        <Button variant="ghost" onClick={() => router.push(routes.admin.purchases)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Torna agli acquisti
-        </Button>
+        <AdminPageHeader title="Dettagli acquisto" backHref={routes.admin.purchases} backLabel="Torna agli acquisti" />
         <p className="mt-6 text-red-400">{error || "Acquisto non trovato"}</p>
       </div>
     )
@@ -143,14 +136,12 @@ export default function PurchaseDetailsPage() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6 space-y-6">
-      <Button variant="ghost" onClick={() => router.push(routes.admin.purchases)}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Torna agli acquisti
-      </Button>
-
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Dettagli acquisto</h1>
-        <p className="text-gray-400">{purchase.id}</p>
-      </div>
+      <AdminPageHeader
+        title="Dettagli acquisto"
+        description={purchase.id}
+        backHref={routes.admin.purchases}
+        backLabel="Torna agli acquisti"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="bg-zinc-900 border-zinc-700">

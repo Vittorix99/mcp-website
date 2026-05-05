@@ -78,9 +78,11 @@ module.exports = {
     				foreground: 'hsl(var(--card-foreground))'
     			},
     			mcp: {
-    				orange: '#FF6B00',
-    				red: '#FF0000',
-    				black: '#000000'
+    				orange: '#E07800',
+    				red: '#D10000',
+    				black: '#080808',
+    				offblack: '#0f0f0f',
+    				white: '#F5F3EF',
     			},
     			sidebar: {
     				DEFAULT: 'hsl(var(--sidebar-background))',

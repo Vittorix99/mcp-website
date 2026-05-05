@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import { Loader2, ArrowLeft, Eye, Send, Trash2 } from "lucide-react"
+import { Loader2, Eye, Send, Trash2 } from "lucide-react"
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { routes } from "@/config/routes"
@@ -20,9 +19,9 @@ import { PreviewMessageModal } from "@/components/admin/messages/PreviewMessageM
 import { ReplyMessageModal } from "@/components/admin/messages/ReplyMessageModal"
 import { MessagesMobileView } from "@/components/mobile/messages/MessagesMobileView"
 import { formatFirestoreTimestamp } from "@/lib/utils"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 export default function MessagesPage() {
-  const router = useRouter()
   const { messages, loading, reload, deleteMessage, replyToMessage, total, last24h, answeredCount } = useAdminMessages()
 
   const [search, setSearch] = useState("")
@@ -114,11 +113,12 @@ export default function MessagesPage() {
   return (
     <TooltipProvider>
       <motion.div className="mx-auto space-y-6 p-4" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5 }}>
-        <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
-          <ArrowLeft className="mr-2 h-4 w-4"/> Torna indietro
-        </Button>
-
-        <h1 className="text-3xl font-bold">Gestione Messaggi</h1>
+        <AdminPageHeader
+          title="Messaggi"
+          description="Gestisci richieste, risposte ed eliminazioni dal form contatti."
+          backHref={routes.admin.dashboard}
+          backLabel="Torna alla dashboard"
+        />
         <MessagesStats total={total} last24h={last24h} answered={answeredCount} />
 
         <Card className="bg-zinc-900 border border-zinc-700">

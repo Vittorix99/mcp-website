@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Loader2, Search } from "lucide-react"
 import { Suspense } from "react"
 import "@/app/style/admin.css"
 
@@ -12,18 +11,9 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { CustomSidebar } from "@/components/admin/custom-sidebar"
 import { CustomToast } from "@/components/CustomToast"
 import { ErrorProvider } from "@/contexts/errorContext"
+import { AdminLoading } from "@/components/admin/AdminPageChrome"
 
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
 import { routes } from "@/config/routes"
 
@@ -41,7 +31,6 @@ export default function AdminLayout({ children }) {
 
   // Redirect se non admin o se non ammesso da mobile
   useEffect(() => {
-    const allowMobile = process.env.NEXT_PUBLIC_ADMIN_ON_MOBILE === "true"
      if (!loading && (!user || !isAdmin)) {
       router.push(routes.error.notAdmin)
     }
@@ -55,13 +44,7 @@ export default function AdminLayout({ children }) {
   }, [])
 
   if (loading) {
-    return (
-            <div className="min-h-screen bg-black py-24">
-          <div className="container mx-auto px-4">
-            <div className="text-center gradient-text text-white">Loading...</div>
-          </div>
-        </div>
-    )
+    return <AdminLoading />
   }
 
   if (!user || !isAdmin) return null
@@ -69,7 +52,7 @@ export default function AdminLayout({ children }) {
   return (
     <ErrorProvider>
       <SidebarProvider>
-        <Suspense fallback={<div className="p-4 text-white">Loading...</div>}>
+        <Suspense fallback={<AdminLoading />}>
           <div className={`flex min-h-screen w-full flex-col bg-black text-white admin-layout ${!isMobile ? "mt-4" : ""}`}>
             <CustomSidebar />
             <SidebarInset className="admin-header">

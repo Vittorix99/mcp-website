@@ -35,24 +35,56 @@ const db = getFirestore(app);
 const functions = getFunctions(app);
  const storageBucket = getStorage(app);
 let analytics = null;
+const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
+const analyticsFlag = process.env.NEXT_PUBLIC_ENABLE_ANALYTICS;
+const shouldInitAnalytics =
+  analyticsFlag === "true" || (analyticsFlag !== "false" && env === "production");
+
+async function initAnalyticsIfAvailable() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!shouldInitAnalytics) {
+    console.log("[Firebase Analytics] Disabled for this environment");
+    return;
+  }
+
+  if (!measurementId) {
+    console.warn("[Firebase Analytics] Missing measurement ID, skipping initialization");
+    return;
+  }
+
+  if (!window.navigator.onLine) {
+    console.warn("[Firebase Analytics] Browser offline, deferring initialization");
+    window.addEventListener("online", () => {
+      void initAnalyticsIfAvailable();
+    }, { once: true });
+    return;
+  }
+
+  try {
+    const supported = await isSupported();
+    if (!supported) {
+      console.warn("[Firebase Analytics] Analytics not supported in this browser");
+      return;
+    }
+    analytics = getAnalytics(app);
+    console.log("[Firebase Analytics] Analytics initialized");
+  } catch (err) {
+    const code = err?.code || "";
+    if (code === "installations/app-offline") {
+      console.warn("[Firebase Analytics] Installations offline, analytics will retry on next load");
+      return;
+    }
+    console.error("[Firebase Analytics] Initialization failed:", err);
+  }
+}
 
 if (typeof window !== "undefined") {
-  console.log("[Firebase Analytics] Running in browser ✅");
-
-  isSupported().then((supported) => {
-    console.log(`[Firebase Analytics] Analytics supported: ${supported}`);
-
-    if (supported) {
-      analytics = getAnalytics(app);
-      console.log("[Firebase Analytics] Analytics initialized 🎉", analytics);
-    } else {
-      console.warn("[Firebase Analytics] Analytics not supported on this browser ❌");
-    }
-  }).catch((err) => {
-    console.error("[Firebase Analytics] Error while checking support or initializing:", err);
-  });
+  void initAnalyticsIfAvailable();
 } else {
-  console.log("[Firebase Analytics] Skipping analytics init — running on server ❌");
+  console.log("[Firebase Analytics] Skipping analytics init on server");
 }
 
 export async function login(email, password) {

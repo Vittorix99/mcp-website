@@ -3,12 +3,13 @@ import { endpoints } from "@/config/endpoints"
 import { getBaseUrlFromHeaders } from "@/lib/seo/base-url"
 import { buildEventJsonLd } from "@/lib/seo/jsonld"
 import { getApiErrorMessage } from "@/lib/api-errors"
+import { getFolderLength } from "@/config/firebaseStorage"
 
 export const dynamic = "force-dynamic"
 
 const EVENT_REVALIDATE_SECONDS = 60
 const SETTINGS_REVALIDATE_SECONDS = 120
-const SETTING_KEYS = ["payment_blocked", "company_iban", "company_intestatario"]
+const SETTING_KEYS = ["payment_blocked", "company_iban", "company_intestatario", "membership_price_per_year"]
 
 
 async function fetchEvent(eventSlug) {
@@ -71,13 +72,25 @@ async function fetchSettingValue(key) {
 }
 
 async function fetchSettings() {
-  const [paymentBlocked, iban, intestatario] = await Promise.all(
+  const [paymentBlocked, iban, intestatario, membershipPrice] = await Promise.all(
     SETTING_KEYS.map((key) => fetchSettingValue(key))
   )
   return {
     payment_blocked: Boolean(paymentBlocked),
     company_iban: iban ? String(iban) : "",
     company_intestatario: intestatario ? String(intestatario) : "",
+    membership_price_per_year: membershipPrice != null ? Number(membershipPrice) : null,
+  }
+}
+
+async function fetchEventPhotoCount(event) {
+  if (!event?.photoPath) return 0
+
+  try {
+    const folder = event.photoPath.startsWith("foto/") ? event.photoPath : `foto/${event.photoPath}`
+    return await getFolderLength(folder)
+  } catch {
+    return 0
   }
 }
 
@@ -85,10 +98,18 @@ export default async function EventPage({ params }) {
   const { slug } = await params
 
   const [eventResult, settings] = await Promise.all([fetchEvent(slug), fetchSettings()])
+  const photoCount = eventResult?.event ? await fetchEventPhotoCount(eventResult.event) : 0
+  const event = eventResult?.event
+    ? {
+        ...eventResult.event,
+        photosCount: photoCount,
+        photosReady: Boolean(eventResult.event.photosReady || photoCount > 0),
+      }
+    : eventResult?.event
   const baseUrl = await getBaseUrlFromHeaders()
-  const jsonLd = eventResult?.event
+  const jsonLd = event
     ? buildEventJsonLd({
-        event: eventResult.event,
+        event,
         url: baseUrl ? `${baseUrl}/events/${slug}` : undefined,
         siteUrl: baseUrl,
       })
@@ -102,7 +123,7 @@ export default async function EventPage({ params }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      <EventContent id={slug} event={eventResult.event} settings={settings} error={eventResult.error} />
+      <EventContent id={slug} event={event} settings={settings} error={eventResult.error} />
     </>
   )
 }

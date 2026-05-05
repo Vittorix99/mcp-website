@@ -118,7 +118,7 @@ export const MasonryGallery = memo(function MasonryGallery({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2">
         {images.map((image, index) => {
           const key = image?.id || image?.src || `img-${index}`
           const isLoaded = loadedMap[key]
@@ -136,7 +136,8 @@ export const MasonryGallery = memo(function MasonryGallery({
                 src={image?.src || "/placeholder.svg"}
                 alt={image?.alt || ""}
                 fill
-                sizes="(max-width: 1024px) 50vw, 25vw"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 25vw"
+                suppressHydrationWarning
                 className={`object-cover ${isLoaded ? "opacity-100" : "opacity-0"}`}
                 loading="eager"
                 unoptimized
@@ -195,6 +196,7 @@ export const MasonryGallery = memo(function MasonryGallery({
                   alt={selectedImage.alt || ""}
                   fill
                   sizes="100vw"
+                  suppressHydrationWarning
                   className="object-contain"
                   priority
                   unoptimized

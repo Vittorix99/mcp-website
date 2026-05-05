@@ -17,6 +17,10 @@ export const routes = {
   },
 
 
+  radio: '/radio',
+  about: '/about',
+  contact: '/contact',
+
   error: {
     notAdmin: '/error/not-admin',
     generic: '/error',
@@ -40,6 +44,14 @@ export const routes = {
     automations: '/admin/automations',
     signupRequests: '/admin/signup-requests',
     messages: '/admin/messages',
+
+    radio: {
+      index:          '/admin/radio',
+      newSeason:      '/admin/radio/seasons/new',
+      editSeason:     (id) => `/admin/radio/seasons/${id}/edit`,
+      newEpisode:     '/admin/radio/episodes/new',
+      editEpisode:    (id) => `/admin/radio/episodes/${id}/edit`,
+    },
 
     sender: {
       campaigns: '/admin/sender/campaigns',

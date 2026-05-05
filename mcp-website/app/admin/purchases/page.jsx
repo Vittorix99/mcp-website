@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Loader2, ArrowLeft, Eye } from "lucide-react"
+import { Loader2, Eye } from "lucide-react"
 import { motion } from "framer-motion"
 import { routes } from "@/config/routes"
 
@@ -16,6 +16,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { useAdminPurchases } from "@/hooks/useAdminPurchases"
 import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { PurchaseModal } from "@/components/admin/purchases/PurchaseModal"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
 export default function PurchasesPage() {
   const router = useRouter()
@@ -146,10 +147,12 @@ export default function PurchasesPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
-          <ArrowLeft className="mr-2 h-4 w-4"/> Torna indietro
-        </Button>
-        <h1 className="text-3xl font-bold">Gestione Acquisti</h1>
+        <AdminPageHeader
+          title="Acquisti"
+          description="Consulta e filtra gli acquisti registrati."
+          backHref={routes.admin.dashboard}
+          backLabel="Torna alla dashboard"
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="bg-zinc-900 border border-zinc-700">

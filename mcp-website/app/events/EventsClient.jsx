@@ -1,23 +1,130 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import EventCard from "@/components/pages/events/EventCard"
-import { PageHeader } from "@/components/PageHeader"
-import { Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { motion } from "framer-motion"
+import Link from "next/link"
 import { getAllEvents } from "@/services/events"
-import { getImageUrl } from "@/config/firebaseStorage"
-import { useRouter } from "next/navigation"
+import { routes, getRoute } from "@/config/routes"
+import { useReveal } from "@/hooks/useReveal"
+
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
+
+function parseEventDate(dateString) {
+  try {
+    const [day, month, year] = (dateString || "").split("-").map(Number)
+    return new Date(year, month - 1, day)
+  } catch {
+    return new Date(0)
+  }
+}
+
+function formatEventDate(dateString) {
+  try {
+    const [day, month, year] = (dateString || "").split("-").map(Number)
+    return `${day.toString().padStart(2, "0")}.${month.toString().padStart(2, "0")}.${year}`
+  } catch {
+    return dateString || ""
+  }
+}
+
+function EventRow({ ev, index }) {
+  const [hov, setHov] = useState(false)
+  const eventHref = getRoute(routes.events.details, ev.slug)
+  const today = new Date()
+  const eventDate = parseEventDate(ev.date)
+  const isPast = eventDate < today
+  const isActive = ev.status === "active" || (!isPast && ev.status !== "soon")
+  const isSoon = ev.status === "soon"
+
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "grid", gridTemplateColumns: "72px 1fr auto",
+        gap: "28px", alignItems: "center",
+        padding: `28px 0 28px ${hov ? "18px" : "0"}`,
+        borderBottom: "1px solid rgba(245,243,239,0.06)",
+        borderLeft: hov ? `3px solid ${ACC}` : "3px solid transparent",
+        background: hov ? "rgba(224,120,0,0.025)" : "transparent",
+        cursor: "pointer", transition: "all 0.2s",
+      }}
+      onClick={() => window.location.href = eventHref}
+    >
+      <p style={{ fontFamily: HN, fontSize: "11px", fontWeight: 700, color: ACC, letterSpacing: "0.1em", margin: 0 }}>
+        {String(index + 1).padStart(2, "0")}
+      </p>
+      <div>
+        <h3 style={{
+          fontFamily: HN, fontWeight: 900,
+          fontSize: "clamp(18px,3vw,34px)", letterSpacing: "-0.02em",
+          textTransform: "uppercase",
+          color: hov ? "#F5F3EF" : "rgba(245,243,239,0.82)",
+          transition: "color 0.2s", margin: 0,
+        }}>{ev.title}</h3>
+        <div style={{ display: "flex", gap: "20px", marginTop: "6px", flexWrap: "wrap" }}>
+          <span style={{ fontFamily: CH, fontSize: "13px", fontStyle: "italic", color: "rgba(245,243,239,0.35)" }}>
+            {formatEventDate(ev.date)}
+          </span>
+          {ev.location && (
+            <span style={{ fontFamily: HN, fontSize: "10px", letterSpacing: "0.1em", color: "rgba(245,243,239,0.28)", textTransform: "uppercase" }}>
+              {ev.location}
+            </span>
+          )}
+          {ev.lineup?.length > 0 && (
+            <span style={{ fontFamily: HN, fontSize: "11px", color: "rgba(245,243,239,0.25)" }}>
+              {ev.lineup.filter(a => a.trim()).join(", ")}
+            </span>
+          )}
+        </div>
+      </div>
+      {isActive && !isPast ? (
+        <Link
+          href={eventHref}
+          onClick={e => e.stopPropagation()}
+          style={{
+            padding: "11px 26px", background: ACC, borderRadius: "2px",
+            fontFamily: HN, fontWeight: 700, fontSize: "9px",
+            letterSpacing: "0.26em", textTransform: "uppercase",
+            color: "#fff", textDecoration: "none", whiteSpace: "nowrap",
+            display: "inline-block",
+          }}
+        >Tickets →</Link>
+      ) : isSoon ? (
+        <span style={{
+          fontFamily: HN, fontSize: "8px", fontWeight: 700,
+          letterSpacing: "0.26em", textTransform: "uppercase",
+          color: "rgba(245,243,239,0.28)",
+          border: "1px solid rgba(245,243,239,0.12)",
+          padding: "10px 18px", whiteSpace: "nowrap",
+        }}>Coming Soon</span>
+      ) : (
+        <Link
+          href={eventHref}
+          onClick={e => e.stopPropagation()}
+          style={{
+            padding: "11px 26px", background: "transparent",
+            border: "1px solid rgba(245,243,239,0.14)", borderRadius: "2px",
+            fontFamily: HN, fontWeight: 400, fontSize: "9px",
+            letterSpacing: "0.2em", textTransform: "uppercase",
+            color: "rgba(245,243,239,0.38)", textDecoration: "none",
+            whiteSpace: "nowrap", display: "inline-block",
+          }}
+        >View Details</Link>
+      )}
+    </div>
+  )
+}
+
+const FILTERS = ["upcoming", "past", "all"]
 
 export default function EventsClient({ initialEvents, initialError }) {
+  useReveal()
   const [events, setEvents] = useState(() => initialEvents || [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(initialError)
   const [activeFilter, setActiveFilter] = useState("upcoming")
-  const [heroImageUrl, setHeroImageUrl] = useState(null)
-  const [heroLoading, setHeroLoading] = useState(false)
-  const router = useRouter()
 
   useEffect(() => {
     if (Array.isArray(initialEvents) && initialEvents.length > 0) return
@@ -27,247 +134,74 @@ export default function EventsClient({ initialEvents, initialError }) {
       try {
         const { success, events: fetched, error: fetchError } = await getAllEvents({ view: "card" })
         if (cancelled) return
-        if (!success || !Array.isArray(fetched)) {
-          setError(fetchError || "Impossibile caricare gli eventi.")
-          setEvents([])
-          return
-        }
+        if (!success || !Array.isArray(fetched)) { setError(fetchError || "Unable to load events."); setEvents([]); return }
         setEvents(fetched)
         setError(null)
       } catch {
-        if (!cancelled) setError("Errore imprevisto durante il recupero degli eventi.")
+        if (!cancelled) setError("An error occurred.")
       } finally {
         if (!cancelled) setLoading(false)
       }
     })()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [initialEvents])
 
-  // Funzione per convertire la data nel formato "DD-MM-YYYY" in un oggetto Date
-  const parseEventDate = (dateString) => {
-    try {
-      const [day, month, year] = dateString.split("-").map(Number)
-      return new Date(year, month - 1, day)
-    } catch (e) {
-      return new Date(0) // Fallback a una data molto vecchia in caso di errore
-    }
-  }
+  const sorted = useMemo(() =>
+    [...events].sort((a, b) => parseEventDate(b.date) - parseEventDate(a.date)),
+    [events]
+  )
 
-  const formatDate = (dateString) => {
-    try {
-      const [day, month, year] = dateString?.split("-").map(Number)
-      return `${day.toString().padStart(2, "0")}-${month.toString().padStart(2, "0")}-${year}`
-    } catch (e) {
-      return dateString || "Date to be announced"
-    }
-  }
-
-  const sortedEvents = [...events].sort((a, b) => {
-    const dateA = parseEventDate(a.date)
-    const dateB = parseEventDate(b.date)
-    return dateB - dateA
-  })
-
-  const filteredEvents = sortedEvents.filter((event) => {
-    const eventDate = parseEventDate(event.date)
+  const filtered = useMemo(() => {
     const today = new Date()
-
-    if (activeFilter === "upcoming") {
-      return eventDate >= today
-    } else if (activeFilter === "past") {
-      return eventDate < today
-    }
-    return true // "all" filter
-  })
-
-  const nextUpcomingEvent = useMemo(() => {
-    const today = new Date()
-    return sortedEvents.find((event) => parseEventDate(event.date) >= today) || null
-  }, [sortedEvents])
-
-  useEffect(() => {
-    let cancelled = false
-    const loadHero = async () => {
-      if (!nextUpcomingEvent?.image) {
-        setHeroImageUrl(null)
-        return
-      }
-      setHeroLoading(true)
-      try {
-        const url = await getImageUrl("events", `${nextUpcomingEvent.image}.jpg`)
-        if (!cancelled) setHeroImageUrl(url)
-      } catch {
-        if (!cancelled) setHeroImageUrl(null)
-      } finally {
-        if (!cancelled) setHeroLoading(false)
-      }
-    }
-    loadHero()
-    return () => {
-      cancelled = true
-    }
-  }, [nextUpcomingEvent])
-
-  const getSeason = (date) => {
-    const month = date.getMonth()
-    if (month <= 1 || month === 11) return "Winter"
-    if (month <= 4) return "Spring"
-    if (month <= 7) return "Summer"
-    return "Autumn"
-  }
-
-  const groupedEvents = useMemo(() => {
-    const groups = new Map()
-    filteredEvents.forEach((event) => {
-      const date = parseEventDate(event.date)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-      const label = `${date.toLocaleString("en-US", { month: "long" })} ${date.getFullYear()}`
-      const season = getSeason(date)
-      if (!groups.has(monthKey)) {
-        groups.set(monthKey, { key: monthKey, label, season, items: [] })
-      }
-      groups.get(monthKey).items.push(event)
-    })
-    return Array.from(groups.values())
-  }, [filteredEvents])
-
-  const gridVariants = {
-    hidden: {},
-    show: {
-      transition: { staggerChildren: 0.08 },
-    },
-  }
-
-  const cardVariants = {
-    hidden: { opacity: 0, y: 18 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
-  }
-
-  if (loading) {
-    return (
-    <div className="min-h-screen bg-black">
-      <div className="container mx-auto px-4">
-        <PageHeader title="ALL EVENTS" />
-      </div>
-      <div className="flex items-center justify-center pt-10">
-        <Loader2 className="w-8 h-8 text-mcp-orange animate-spin" />
-      </div>
-    </div>
-    )
-  }
-
-  if (error) {
-    return (
-    <div className="min-h-screen bg-black">
-      <div className="container mx-auto px-4">
-        <PageHeader title="ALL EVENTS" />
-      </div>
-      <div className="container mx-auto px-4 md:px-6 pt-10">
-        <div className="text-center text-red-500 font-helvetica">{error}</div>
-      </div>
-    </div>
-    )
-  }
+    if (activeFilter === "upcoming") return sorted.filter(e => parseEventDate(e.date) >= today)
+    if (activeFilter === "past") return sorted.filter(e => parseEventDate(e.date) < today)
+    return sorted
+  }, [sorted, activeFilter])
 
   return (
-    <div className="min-h-screen bg-black space-y-4 events-page">
-      <div className="container mx-auto px-4">
-        <PageHeader title="ALL EVENTS" />
+    <div style={{ minHeight: "100svh", background: "#080808", paddingTop: "100px" }}>
+      <div style={{ padding: "40px 40px 0" }}>
+        <h1 style={{
+          fontFamily: HN, fontWeight: 900,
+          fontSize: "clamp(48px,10vw,120px)", letterSpacing: "-0.04em",
+          textTransform: "uppercase", color: "#F5F3EF", lineHeight: 0.84,
+          marginBottom: "40px",
+        }}>All Events</h1>
 
-        {activeFilter !== "past" && nextUpcomingEvent && (
-          <motion.section
-            className="events-hero"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="events-hero__media">
-              {heroImageUrl ? (
-                <img src={heroImageUrl} alt={nextUpcomingEvent.title} className="events-hero__img" />
-              ) : (
-                <div className="events-hero__placeholder" />
-              )}
-              {heroLoading && <div className="events-hero__loading" />}
-            </div>
-            <div className="events-hero__content">
-              <p className="events-hero__eyebrow">Next Event</p>
-              <h2 className="events-hero__title">{nextUpcomingEvent.title}</h2>
-              <p className="events-hero__meta">{formatDate(nextUpcomingEvent.date)}</p>
-              <Button
-                onClick={() => router.push(`/events/${nextUpcomingEvent.slug}`)}
-                className="events-hero__cta"
-              >
-                View Details
-              </Button>
-            </div>
-          </motion.section>
-        )}
-
-        {/* Filtri */}
-        <div className="flex justify-center mb-8 mt-10 events-page__filters">
-          <div className="inline-flex bg-black/40 backdrop-blur-sm rounded-full p-1 border border-white/10">
-            <button
-              onClick={() => setActiveFilter("upcoming")}
-              className={`font-helvetica px-4 py-2 rounded-full text-sm transition-colors ${
-                activeFilter === "upcoming" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
-              }`}
-            >
-              Upcoming
-            </button>
-            <button
-              onClick={() => setActiveFilter("past")}
-              className={`font-helvetica px-4 py-2 rounded-full text-sm transition-colors ${
-                activeFilter === "past" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
-              }`}
-            >
-              Past
-            </button>
-            <button
-              onClick={() => setActiveFilter("all")}
-              className={`font-helvetica px-4 py-2 rounded-full text-sm transition-colors ${
-                activeFilter === "all" ? "bg-mcp-gradient text-white" : "text-gray-400 hover:text-white"
-              }`}
-            >
-              All
-            </button>
-          </div>
-        </div>
-
-        {/* Eventi */}
-        <div className="relative">
-          {activeFilter === "upcoming" && filteredEvents.length === 0 && (
-            <div className="text-center text-gray-400 font-helvetica py-12">
-              No upcoming events scheduled
-            </div>
-          )}
-
-          {groupedEvents.map((group) => (
-            <section key={group.key} className="events-month">
-              <div className="events-month__header">
-                <h3 className="events-month__title">{group.label}</h3>
-                <span className="events-month__season">{group.season}</span>
-              </div>
-              <motion.div
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 events-grid"
-                variants={gridVariants}
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true, amount: 0.2 }}
-              >
-                {group.items.map((event) => {
-                  const key = event.id || event.slug || event.title
-                  return (
-                    <motion.div key={key} variants={cardVariants}>
-                      <EventCard event={event} />
-                    </motion.div>
-                  )
-                })}
-              </motion.div>
-            </section>
+        {/* Tab filters */}
+        <div style={{ display: "flex", gap: 0, marginBottom: "52px", borderBottom: "1px solid rgba(245,243,239,0.07)" }}>
+          {FILTERS.map(f => (
+            <button key={f} onClick={() => setActiveFilter(f)} style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontFamily: HN, fontSize: "10px",
+              fontWeight: activeFilter === f ? 700 : 400,
+              letterSpacing: "0.28em", textTransform: "uppercase",
+              color: activeFilter === f ? ACC : "rgba(245,243,239,0.32)",
+              padding: "12px 24px 16px",
+              borderBottom: activeFilter === f ? `2px solid ${ACC}` : "2px solid transparent",
+              marginBottom: "-1px", transition: "all 0.2s",
+            }}>{f}</button>
           ))}
         </div>
+      </div>
+
+      <div style={{ padding: "0 40px 80px" }}>
+        {loading && (
+          <p style={{ fontFamily: HN, fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(245,243,239,0.3)" }}>
+            Loading…
+          </p>
+        )}
+        {error && (
+          <p style={{ fontFamily: CH, fontSize: "14px", color: "#D10000" }}>{error}</p>
+        )}
+        {!loading && !error && filtered.length === 0 && (
+          <p style={{ fontFamily: CH, fontSize: "16px", fontStyle: "italic", color: "rgba(245,243,239,0.35)" }}>
+            No events found.
+          </p>
+        )}
+        {filtered.map((ev, i) => (
+          <EventRow key={ev.id || ev.slug || i} ev={ev} index={i} />
+        ))}
       </div>
     </div>
   )

@@ -5,11 +5,9 @@ import { Navigation } from "@/components/Navigation"
 
 export const TopBar = () => {
   const pathname = usePathname()
-  if (pathname === "/") {
-    return <Navigation />
-  }
-
-  return null
+  // Hide navigation inside admin panel
+  if (pathname?.startsWith("/admin")) return null
+  return <Navigation />
 }
 
 export default TopBar

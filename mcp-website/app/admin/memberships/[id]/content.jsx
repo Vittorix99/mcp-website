@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Loader2, Wallet } from "lucide-react";
+import { AlertTriangle, Loader2, Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 import { routes } from "@/config/routes"
 
@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { useAdminMemberships } from "@/hooks/useAdminMemberships";
 import { EventThumbnail } from "@/components/admin/events/EventThumbnail";
+import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome";
 
 export default function MembershipContent({ id }) {
   const router = useRouter();
@@ -73,11 +74,7 @@ export default function MembershipContent({ id }) {
 
   // Mostra uno spinner finché i dettagli base non sono pronti
   if (loading || !member) {
-    return (
-      <div className="flex items-center justify-center h-screen  text-white">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <AdminLoading label="Caricamento membro..." />;
   }
 
   const {
@@ -92,12 +89,12 @@ export default function MembershipContent({ id }) {
     <TooltipProvider>
       <div className="text-gray-50 min-h-screen p-6 lg:p-8">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="max-w-5xl mx-auto space-y-6">
-         <Button variant="ghost" onClick={() => router.push(routes.admin.memberships)}>
-
-            <ArrowLeft className="mr-2 h-4 w-4" /> Torna a Memberships
-          </Button>
-
-          <h1 className="text-3xl font-bold">{name} {surname}</h1>
+          <AdminPageHeader
+            title={`${name} ${surname}`}
+            description={email}
+            backHref={routes.admin.memberships}
+            backLabel="Torna ai membri"
+          />
 
           {/* Dettagli membro */}
           <Card className="bg-zinc-900 border border-zinc-700 shadow-lg">

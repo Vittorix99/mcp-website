@@ -1,190 +1,157 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { ArrowRight, Instagram, Youtube } from "lucide-react"
+import { useState } from "react"
 import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import Link from "next/link"
 import { sendNewsLetterRequest } from "@/services/newsLetter"
 import { legalInfo, socialLinks, iubendaLinks } from "@/config/legal-info"
-import { useMediaQuery } from "@/hooks/useMediaQuery"
+import { WaveDivider } from "@/components/WavePattern"
+
+const ACC = "#E07800"
+const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
+const CH = "var(--font-charter), Georgia, serif"
+
+const NAV_LINKS = [
+  { label: "Events", href: "/events" },
+  { label: "Radio", href: "/radio" },
+  { label: "Photos", href: "/events-foto" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
+]
+
+const labelStyle = {
+  fontFamily: HN, fontSize: "8px", fontWeight: 700,
+  letterSpacing: "0.35em", textTransform: "uppercase",
+  color: ACC, marginBottom: "18px", display: "block",
+}
+
+const textStyle = {
+  fontFamily: CH, fontSize: "13px", lineHeight: 1.7,
+  color: "rgba(245,243,239,0.45)",
+}
 
 export function Footer() {
-  const [emailNewsLetter, setEmailNewsLetter] = useState("")
-  const [status, setStatus] = useState({ type: "", message: "" })
+  const [email, setEmail] = useState("")
+  const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
-  const isMobile = useMediaQuery("(max-width: 768px)")
-
-  useEffect(() => {
-    if (status.type === "success") {
-      const timer = setTimeout(() => {
-        setStatus({ type: "", message: "" })
-      }, 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [status.type])
 
   const handleNewsletter = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setStatus({ type: "", message: "" })
-
     try {
-      const { success, message, error } = await sendNewsLetterRequest({ email: emailNewsLetter })
-      if (success) {
-        setStatus({
-          type: "success",
-          message: "Thanks for subscribing to our newsletter",
-        })
-        setEmailNewsLetter("")
-      } else {
-        setStatus({
-          type: "error",
-          message: message || error || "Subscription failed",
-        })
-      }
-    } catch (error) {
-      setStatus({
-        type: "error",
-        message: error.message || "An error occurred during subscription",
-      })
-    } finally {
-      setLoading(false)
-    }
+      const { success } = await sendNewsLetterRequest({ email })
+      if (success) { setDone(true); setEmail("") }
+    } catch {}
+    finally { setLoading(false) }
   }
 
-  // Newsletter section - used in both mobile and desktop layouts
-  const newsletterSection = (
-    <div className={isMobile ? "w-full mb-2" : "w-1/4 px-2"}>
-      <div className="flex items-center gap-2 mb-2">
-        <Image
-          src="/secondaryLogo.png"
-          alt="MCP Logo"
-          width={50}
-          height={50}
-          className="h-auto footer-logo--invert"
-        />
-        <p className="font-helvetica text-xs">Stay updated with our news</p>
-      </div>
-      <form onSubmit={handleNewsletter} className="flex gap-2 mb-1">
-        <Input
-          type="email"
-          placeholder="enter your email@email.com"
-          value={emailNewsLetter}
-          onChange={(e) => setEmailNewsLetter(e.target.value)}
-          className="font-helvetica flex-1 bg-black/30 text-white placeholder:text-gray-300 text-xs border border-white/15 h-8"
-          required
-          disabled={loading}
-        />
-        <Button
-          type="submit"
-          className="footer-modern__cta h-8 px-2"
-          disabled={loading}
-        >
-          {loading ? (
-            <div className="h-3 w-3 animate-spin rounded-full border-2 border-black border-t-transparent" />
-          ) : (
-            <ArrowRight size={14} />
-          )}
-        </Button>
-      </form>
-      {status.message && (
-        <Alert className={`py-0.5 ${status.type === "success" ? "bg-green-500" : "bg-red-500"}`}>
-          <AlertDescription className="font-helvetica text-white text-[10px]">{status.message}</AlertDescription>
-        </Alert>
-      )}
-    </div>
-  )
-
-  // Social section - used in both mobile and desktop layouts
-  const socialSection = (
-    <div className={isMobile ? "w-1/3 text-center" : "w-1/4 px-2 text-center"}>
-      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1 footer-modern__label">
-        SOCIAL
-      </h3>
-      <div className="flex gap-2 md:gap-6 justify-center">
-        <a href={socialLinks.instagram} target="_blank" rel="noopener noreferrer" className="hover:text-white">
-          <Instagram size={isMobile ? 16 : 24} />
-        </a>
-        <a href={socialLinks.youtube} target="_blank" rel="noopener noreferrer" className="hover:text-white">
-          <Youtube size={isMobile ? 16 : 24} />
-        </a>
-      </div>
-    </div>
-  )
-
-  // Legal info section - used in both mobile and desktop layouts
-  const legalInfoSection = (
-    <div className={isMobile ? "w-1/3 px-1" : "w-1/4 px-2"}>
-      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1 footer-modern__label">
-        LEGAL INFO
-      </h3>
-      <div className="font-helvetica text-[8px] md:text-xs space-y-0 md:space-y-1">
-        <p>{legalInfo.name}</p>
-        <p>{legalInfo.address}</p>
-        <p>P.IVA: {legalInfo.vat}</p>
-        <p>CF: {legalInfo.fiscalCode}</p>
-        <p>
-          <a href={`mailto:${legalInfo.email}`} className="hover:text-white">
-            {legalInfo.email}
-          </a>
-        </p>
-      </div>
-    </div>
-  )
-
-  // Links section - used in both mobile and desktop layouts
-  const linksSection = (
-    <div className={isMobile ? "w-1/3 pl-1" : "w-1/4 px-2"}>
-      <h3 className="font-charter text-[10px] md:text-sm font-bold uppercase mb-1 footer-modern__label">
-        USEFUL LINKS
-      </h3>
-      <div className="font-helvetica text-[8px] md:text-xs space-y-0.5 md:space-y-2">
-        <a
-          href={iubendaLinks.privacyPolicy}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block hover:text-white"
-        >
-          Privacy Policy
-        </a>
-        <a
-          href={iubendaLinks.cookiePolicy}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block hover:text-white"
-        >
-          Cookie Policy
-        </a>
-      </div>
-    </div>
-  )
-
   return (
-    <footer className="footer-modern text-white relative z-10">
-      <div className="container mx-auto px-4 py-2 max-w-7xl footer-modern__inner">
-        {isMobile ? (
-          // Mobile layout: Newsletter in first row, then three columns below
-          <div className="flex flex-col">
-            {/* First row: Newsletter */}
-            {newsletterSection}
-            {/* Second row: Legal info, Social, and Links in three columns */}
-            <div className="flex flex-row justify-between items-start">
-              {legalInfoSection}
-              {socialSection}
-              {linksSection}
+    <footer style={{
+      background: "#060606",
+      borderTop: "1px solid rgba(224,120,0,0.15)",
+      padding: "64px 40px 32px",
+    }}>
+      <div style={{ maxWidth: "1360px", margin: "0 auto" }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "48px",
+          marginBottom: "56px",
+        }}>
+          {/* Brand */}
+          <div>
+            <Image
+              src="/logo-full-white.png"
+              alt="MCP"
+              width={160}
+              height={46}
+              style={{ height: "46px", width: "auto", marginBottom: "18px", opacity: 0.88 }}
+            />
+            <p style={{ ...textStyle, marginBottom: "18px" }}>
+              Music Connecting People.<br />Palermo, Italy.
+            </p>
+            <div style={{ display: "flex", gap: "16px" }}>
+              <a href={socialLinks.instagram} target="_blank" rel="noreferrer" style={{
+                fontFamily: HN, fontSize: "10px", letterSpacing: "0.14em",
+                color: "rgba(245,243,239,0.38)", textDecoration: "none",
+              }}>Instagram ↗</a>
+              <a href="https://soundcloud.com/music_connectingpeople" target="_blank" rel="noreferrer" style={{
+                fontFamily: HN, fontSize: "10px", letterSpacing: "0.14em",
+                color: "rgba(245,243,239,0.38)", textDecoration: "none",
+              }}>SoundCloud ↗</a>
             </div>
           </div>
-        ) : (
-          // Desktop layout: All sections in one row
-          <div className="flex flex-row justify-between items-start">
-            {newsletterSection}
-            {socialSection}
-            {legalInfoSection}
-            {linksSection}
+
+          {/* Navigate */}
+          <div>
+            <span style={labelStyle}>Navigate</span>
+            {NAV_LINKS.map(l => (
+              <Link key={l.href} href={l.href} style={{
+                display: "block", padding: "0 0 10px",
+                fontFamily: HN, fontSize: "12px", letterSpacing: "0.12em",
+                color: "rgba(245,243,239,0.5)", textDecoration: "none",
+              }}>{l.label}</Link>
+            ))}
           </div>
-        )}
+
+          {/* Newsletter */}
+          <div>
+            <span style={labelStyle}>Newsletter</span>
+            {done ? (
+              <p style={{ ...textStyle, fontStyle: "italic", color: ACC }}>
+                Thanks — see you on the floor.
+              </p>
+            ) : (
+              <form onSubmit={handleNewsletter} style={{ display: "flex", gap: "8px" }}>
+                <input
+                  type="email" required value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  disabled={loading}
+                  style={{
+                    flex: 1, padding: "10px 12px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "2px", color: "#F5F3EF",
+                    fontFamily: HN, fontSize: "12px", outline: "none",
+                  }}
+                />
+                <button type="submit" disabled={loading} style={{
+                  padding: "10px 16px", background: loading ? "rgba(224,120,0,0.6)" : ACC,
+                  border: "none", borderRadius: "2px", cursor: loading ? "default" : "pointer",
+                  color: "#fff", fontWeight: 700, fontSize: "13px",
+                }}>→</button>
+              </form>
+            )}
+          </div>
+
+          {/* Legal */}
+          <div>
+            <span style={labelStyle}>Legal</span>
+            <p style={{ ...textStyle, fontSize: "12px", lineHeight: 1.75 }}>
+              {legalInfo.name}<br />
+              {legalInfo.address}<br /><br />
+              P.IVA / CF: {legalInfo.vat}<br /><br />
+              <a href={iubendaLinks.privacyPolicy} target="_blank" rel="noreferrer"
+                 style={{ color: "rgba(245,243,239,0.3)", fontSize: "11px" }}>Privacy Policy</a><br />
+              <a href={iubendaLinks.cookiePolicy} target="_blank" rel="noreferrer"
+                 style={{ color: "rgba(245,243,239,0.3)", fontSize: "11px" }}>Cookie Policy</a>
+            </p>
+          </div>
+        </div>
+
+        <WaveDivider color="rgba(224,120,0,0.18)" scale={0.55} />
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          paddingTop: "22px", flexWrap: "wrap", gap: "8px",
+        }}>
+          <p style={{ fontFamily: HN, fontSize: "9px", letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(245,243,239,0.2)", margin: 0 }}>
+            © 2026 Music Connecting People ETS
+          </p>
+          <p style={{ fontFamily: CH, fontSize: "11px", fontStyle: "italic", color: "rgba(245,243,239,0.15)", margin: 0 }}>
+            "Experience the rhythm. Connect with the community."
+          </p>
+        </div>
       </div>
     </footer>
   )

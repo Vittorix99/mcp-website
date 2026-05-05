@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Send, Copy, Trash2, Clock, Loader2, BarChart2, ArrowLeft } from "lucide-react"
+import { Plus, Send, Copy, Trash2, Clock, Loader2, BarChart2 } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { routes } from "@/config/routes"
 import { getAllEventsAdmin } from "@/services/admin/events"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 import { buildEventCampaignTemplate, getEventTemplateTypes, getEventPublicUrl } from "@/lib/event-email-templates"
 import {
   listSenderCampaigns,
@@ -579,18 +580,17 @@ export default function SenderCampaignsPage() {
         />
       )}
 
-      <div>
-        <Button variant="ghost" onClick={() => router.push(routes.admin.dashboard)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Torna admin
-        </Button>
-        <h1 className="text-3xl md:text-4xl font-bold gradient-text mt-2">Campagne Email</h1>
-        <p className="text-gray-300">Crea, schedula e gestisci le campagne Sender.</p>
-      </div>
-      <div className="flex gap-2">
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Nuova campagna
-        </Button>
-      </div>
+      <AdminPageHeader
+        title="Campagne Email"
+        description="Crea, schedula e gestisci le campagne Sender."
+        backHref={routes.admin.dashboard}
+        backLabel="Torna alla dashboard"
+        actions={(
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Nuova campagna
+          </Button>
+        )}
+      />
 
       {/* Stats row */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">

@@ -1,12 +1,10 @@
-const ENV = process.env.NEXT_PUBLIC_ENV || "local";
-
-const SERVER_BASE_URL =
-  ENV === "production"
-    ? "https://us-central1-mcp-website-2a1ad.cloudfunctions.net"
-    : process.env.NEXT_PUBLIC_BASE_URL || "http://127.0.0.1:5001/mcp-website-2a1ad/us-central1";
+export function getServerBaseUrl() {
+  return (process.env.NEXT_PUBLIC_BASE_URL || process.env.BACKEND_BASE_URL || "").replace(/\/$/, "");
+}
 
 // Use same-origin proxy for browser requests to avoid CORS preflight.
 const CLIENT_BASE_URL = "/api/proxy";
+const SERVER_BASE_URL = getServerBaseUrl();
 const BASE_URL = typeof window === "undefined" ? SERVER_BASE_URL : CLIENT_BASE_URL;
 
 // Utility per costruire endpoint completi
@@ -26,6 +24,14 @@ export const endpoints = {
   // Public Events
   getAllEvents: make("get_all_events"),
   getEventById: make("get_event_by_id"),
+
+  // Public Radio
+  radio: {
+    getPublishedEpisodes: make("get_published_radio_episodes"),
+    getLatestEpisode:     make("get_latest_radio_episode"),
+    getEpisode:           make("get_radio_episode"),
+    getSeasons:           make("get_radio_seasons"),
+  },
 
   // Questions
   questions: {
@@ -92,6 +98,21 @@ export const endpoints = {
         // ✅ Settings endpoints
     getSetting: make("get_settings"),
     setSetting: make("set_settings"),
+
+    radio: {
+      getSeasons:       make("admin_get_radio_seasons"),
+      createSeason:     make("admin_create_radio_season"),
+      getSeason:        make("admin_get_radio_season"),
+      updateSeason:     make("admin_update_radio_season"),
+      deleteSeason:     make("admin_delete_radio_season"),
+      getEpisodes:      make("admin_get_radio_episodes"),
+      createEpisode:    make("admin_create_radio_episode"),
+      getEpisode:       make("admin_get_radio_episode"),
+      updateEpisode:    make("admin_update_radio_episode"),
+      deleteEpisode:    make("admin_delete_radio_episode"),
+      publishEpisode:   make("admin_publish_radio_episode"),
+      unpublishEpisode: make("admin_unpublish_radio_episode"),
+    },
 
     newsletter: {
       getSignups: make("admin_get_newsletter_signups"),
