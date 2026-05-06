@@ -1,312 +1,324 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
+import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
+import { Loader2, RefreshCw, ArrowRight, CalendarDays, ChartNoAxesCombined } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {routes} from "@/config/routes"
-import {
-  Users,
-  Wallet,
-  ShoppingCart,
-  DollarSign,
-  RefreshCw,
-  Loader2,
-  ArrowRight,
-  CalendarIcon,
-  CreditCard,
-  MailWarning,
-  MessageSquare,
-} from "lucide-react"
+import { routes } from "@/config/routes"
+import { getDashboardSnapshot, rebuildAnalytics } from "@/services/admin/stats"
+import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
-// Servizi API
-import { getAdminStats } from "@/services/admin/stats"
-import { getNextEvent } from "@/services/events"
-import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
+const ADMIN_THEME = {
+  "--color-black": "#0a0a0a",
+  "--color-surface": "#111111",
+  "--color-border": "#1e1e1e",
+  "--color-muted": "#3a3a3a",
+  "--color-white": "#ffffff",
+  "--color-off": "#b0b0b0",
+  "--color-orange": "#e8820c",
+  "--color-purple": "#511a6c",
+  "--color-red": "#e8241a",
+  "--color-yellow": "#f0d44a",
+}
 
-// Funzioni di utilità
-const formatCurrency = (amount) => {
-  if (amount === null || amount === undefined) return "-"
+const TITLE_FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
+const BODY_FONT = 'Charter, Georgia, "Times New Roman", serif'
+
+function fmtCurrency(value) {
+  const amount = Number(value || 0)
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(amount)
 }
 
-const formatDate = (dateString) => {
-  if (!dateString) return "-"
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) {
-      const parts = dateString.split("-")
-      if (parts.length === 3) {
-        // Assumendo dd-mm-yyyy
-        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).toLocaleDateString("it-IT", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })
-      }
-      return dateString
-    }
-    return date.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })
-  } catch (e) {
-    return dateString
-  }
+function fmtPercent(value) {
+  return `${Number(value || 0).toFixed(1)}%`
 }
 
-const getInitials = (name = "", surname = "") => {
-  return `${name.charAt(0)}${surname.charAt(0)}`.toUpperCase()
+function fmtDateTime(value) {
+  if (!value) return "-"
+  const dt = new Date(value)
+  if (Number.isNaN(dt.getTime())) return "-"
+  return dt.toLocaleString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
-const extractEventNameFromUrl = (url) => {
-  if (!url) return "Evento sconosciuto"
-  try {
-    const parts = url.split("/")
-    const encodedName = parts[parts.length - 2]
-    return decodeURIComponent(encodedName)
-  } catch (e) {
-    return "Evento sconosciuto"
-  }
+function mapActivityLabel(type) {
+  if (type === "purchase") return "Acquisto"
+  if (type === "participant") return "Partecipante"
+  if (type === "membership") return "Tessera"
+  if (type === "message") return "Messaggio"
+  return "Attività"
 }
 
-const StatCard = ({ title, value, icon: Icon, description }) => (
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      <Icon className="h-4 w-4 text-muted-foreground" />
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold">{value}</div>
-      {description && <p className="text-xs text-muted-foreground">{description}</p>}
-    </CardContent>
-  </Card>
-)
+function KPI({ label, value, sub }) {
+  return (
+    <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+      <CardContent className="p-4">
+        <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
+          {label}
+        </p>
+        <p className="mt-2 text-2xl text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>
+          {value}
+        </p>
+        {sub ? <p className="mt-1 text-xs text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>{sub}</p> : null}
+      </CardContent>
+    </Card>
+  )
+}
 
-export default function AdminDashboard() {
-  const router = useRouter()
+function SkeletonCard() {
+  return (
+    <div className="h-[112px] animate-pulse rounded-none border border-[var(--color-border)] bg-[var(--color-surface)]" />
+  )
+}
+
+export default function AdminDashboardPage() {
   const { toast } = useToast()
-  const [stats, setStats] = useState(null)
-  const [nextEvent, setNextEvent] = useState(null)
+
+  const [snapshot, setSnapshot] = useState(null)
   const [loading, setLoading] = useState(true)
-const loadAll = async () => {
+  const [refreshing, setRefreshing] = useState(false)
+  const [clock, setClock] = useState(new Date())
 
-  setLoading(true)
-  try {
-    const [statsResp, eventResp] = await Promise.all([
-      getAdminStats(),
-      getNextEvent()
-    ])
-
-
-    const parsedStats = {
-      ...statsResp,
-      total_purchases: Number(statsResp?.total_purchases || 0),
-      total_gross_amount: Number(statsResp?.total_gross_amount || 0),
-      total_net_amount: Number(statsResp?.total_net_amount || 0),
-      last_24h_unanswered_messages: Number(statsResp?.last_24h_unanswered_messages || 0),
-    }
-
-    setStats(parsedStats)
-
-    if (eventResp?.success && Array.isArray(eventResp.events) && eventResp.events.length > 0) {
-      setNextEvent(eventResp.events[0])
+  const loadDashboard = async ({ soft = false } = {}) => {
+    if (soft) {
+      setRefreshing(true)
     } else {
-      console.warn("[loadAll] Nessun prossimo evento trovato.")
-      setNextEvent(null)
+      setLoading(true)
     }
-  } catch (e) {
-    console.error("[loadAll] Errore durante il caricamento:", e)
-    toast({
-      variant: "destructive",
-      title: "Errore",
-      description: e.message || "Errore durante il caricamento dei dati.",
-    })
-  } finally {
-    setLoading(false)
+
+    try {
+      const payload = await getDashboardSnapshot()
+      if (payload?.error) {
+        throw new Error(payload.error)
+      }
+      setSnapshot(payload)
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Errore dashboard",
+        description: err?.message || "Impossibile caricare lo snapshot dashboard.",
+      })
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }
-}
 
-useEffect(() => {
-  loadAll()
-}, [])
+  useEffect(() => {
+    loadDashboard()
+  }, [])
 
-  if (loading && !stats) {
-    return <AdminLoading label="Caricamento dashboard..." />
+  useEffect(() => {
+    const id = setInterval(() => setClock(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  const kpis = snapshot?.kpis || {}
+  const globalCards = snapshot?.global_cards || {}
+  const upcomingEvents = snapshot?.upcoming_events || []
+  const recentActivity = snapshot?.recent_activity || []
+
+  const genderQuick = useMemo(() => {
+    const split = globalCards.gender_split || {}
+    return `M ${split.male || 0} · F ${split.female || 0} · U ${split.unknown || 0}`
+  }, [globalCards])
+
+  const triggerRebuild = async () => {
+    setRefreshing(true)
+    try {
+      const response = await rebuildAnalytics("all")
+      if (response?.error) {
+        throw new Error(response.error)
+      }
+      toast({
+        title: "Rebuild avviato",
+        description: `Job ${response.job_id || "queued"} messo in coda.`,
+      })
+      await loadDashboard({ soft: true })
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Rebuild non avviato",
+        description: err?.message || "Errore durante il rebuild analytics.",
+      })
+      setRefreshing(false)
+    }
   }
 
   return (
-    <motion.div
-      className="p-4 sm:p-6 md:p-8 space-y-6 text-white"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
+    <div className="space-y-6 bg-[var(--color-black)] p-4 text-[var(--color-white)] sm:p-6" style={ADMIN_THEME}>
       <AdminPageHeader
-        title="Dashboard"
-        description="Statistiche e attività recenti."
+        title="Admin"
+        description="Snapshot-first dashboard"
         showBack={false}
-        actions={(
-          <Button onClick={loadAll} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Aggiorna
-          </Button>
-        )}
+        actions={
+          <>
+            <span className="text-sm text-muted-foreground">
+              {clock.toLocaleString("it-IT", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => loadDashboard({ soft: true })}
+              disabled={refreshing}
+            >
+              {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Aggiorna
+            </Button>
+            <Button
+              onClick={triggerRebuild}
+              disabled={refreshing}
+            >
+              Rebuild Snapshot
+            </Button>
+          </>
+        }
       />
 
-      {/* Griglia Statistiche Principali */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          title="Incasso Lordo"
-          value={formatCurrency(stats?.total_gross_amount)}
-          icon={DollarSign}
-          description="Totale di tutte le transazioni"
-        />
-        <StatCard
-          title="Incasso Netto"
-          value={formatCurrency(stats?.total_net_amount)}
-          icon={Wallet}
-          description="Al netto delle commissioni"
-        />
-        <StatCard
-          title="Membri Attivi"
-          value={stats?.total_active_members ?? "-"}
-          icon={Users}
-          description="Membri con abbonamento valido"
-        />
-        <StatCard
-          title="Acquisti Totali"
-          value={stats?.total_purchases ?? "-"}
-          icon={ShoppingCart}
-          description="Numero totale di acquisti"
-        />
-        <StatCard
-          title="Messaggi non letti (24h)"
-          value={stats?.last_24h_unanswered_messages ?? "-"}
-          icon={MailWarning}
-          description="Dal form di contatto"
-        />
-      </div>
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        {loading ? (
+          Array.from({ length: 6 }).map((_, idx) => <SkeletonCard key={`kpi-${idx}`} />)
+        ) : (
+          <>
+            <KPI label="Total Revenue (net)" value={fmtCurrency(kpis.total_revenue_net)} />
+            <KPI label="Events" value={kpis.events ?? 0} />
+            <KPI label="Members attivi" value={kpis.active_members ?? 0} />
+            <KPI label="Participants unici" value={kpis.unique_participants ?? 0} />
+            <KPI label="Avg Fill Rate" value={fmtPercent(kpis.avg_fill_rate)} />
+            <KPI label="This Month Revenue" value={fmtCurrency(kpis.this_month_revenue)} />
+          </>
+        )}
+      </section>
 
-      {/* Prossimo Evento e Attività Recenti */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {nextEvent ? (
-            <Card className="bg-gray-900/50 border-orange-500/30">
-              <CardHeader>
-                <CardTitle className="text-orange-400">Prossimo Evento</CardTitle>
-                <CardDescription>{nextEvent.title}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-lg">
-                      <CalendarIcon className="h-5 w-5" />
-                      <span>{formatDate(nextEvent.date)}</span>
-                    </div>
-                    <div className="mt-2 space-y-1">
-                      <p>
-                        <strong>Partecipanti:</strong> {stats?.upcoming_event_participants ?? "0"}
-                      </p>
-                      <p>
-                        <strong>Incasso evento:</strong> {formatCurrency(stats?.upcoming_event_total_paid)}
-                      </p>
-                    </div>
-                  </div>
-                  <Button onClick={() => router.push(routes.admin.eventDetails(nextEvent.id))}>
-                    Gestisci Evento <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="pt-6">
-                <p>Nessun evento imminente in programma.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)] lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg uppercase tracking-wide" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>
+              Quick Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Link href={routes.admin.events} className="flex items-center justify-between border border-[var(--color-border)] p-3 text-sm hover:border-[var(--color-orange)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
+              Eventi <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link href={routes.admin.purchases} className="flex items-center justify-between border border-[var(--color-border)] p-3 text-sm hover:border-[var(--color-orange)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
+              Acquisti <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link href={routes.admin.memberships} className="flex items-center justify-between border border-[var(--color-border)] p-3 text-sm hover:border-[var(--color-orange)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
+              Tessere <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link href={routes.admin.messages} className="flex items-center justify-between border border-[var(--color-border)] p-3 text-sm hover:border-[var(--color-orange)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
+              Messaggi <ArrowRight className="h-4 w-4" />
+            </Link>
+          </CardContent>
+        </Card>
 
-        {/* Attività Recenti */}
-        <div className="lg:row-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Attività Recenti</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {stats?.last_message && (
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-9 w-9">
-                    <AvatarFallback>
-                      <MessageSquare />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1 overflow-hidden">
-                    <p className="text-sm font-medium leading-none">Ultimo Messaggio</p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      Da: {stats.last_message.name} - "{stats.last_message.message}"
+        <Card className="rounded-none border-[var(--color-orange)] bg-[var(--color-surface)]">
+          <CardContent className="flex h-full flex-col justify-between gap-4 p-4">
+            <div>
+              <p className="text-sm uppercase text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
+                Analytics Snapshot
+              </p>
+              <p className="mt-2 text-sm text-[var(--color-white)]" style={{ fontFamily: BODY_FONT }}>
+                Usa grafici evento/global già pre-aggregati per dataset grandi.
+              </p>
+            </div>
+            <Link href={routes.admin.analytics}>
+              <Button className="w-full rounded-none bg-[var(--color-orange)] text-black hover:opacity-90">
+                Vai ad Analytics <ChartNoAxesCombined className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <KPI label="Avg Unit Payment" value={fmtCurrency(globalCards.avg_unit_payment)} />
+        <KPI label="Omaggi Totali" value={globalCards.omaggi_total ?? 0} />
+        <KPI label="Gender Split" value={genderQuick} />
+        <KPI label="Age Band Dominante" value={globalCards.age_band_dominant || "unknown"} />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)] xl:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg uppercase" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>
+              Upcoming Events
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {upcomingEvents.length === 0 ? (
+              <p className="text-sm text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
+                Nessun evento imminente nello snapshot.
+              </p>
+            ) : (
+              upcomingEvents.slice(0, 3).map((event) => (
+                <Link
+                  key={event.id}
+                  href={routes.admin.eventDetails(event.id)}
+                  className="block border border-[var(--color-border)] p-3 hover:border-[var(--color-orange)]"
+                >
+                  <p className="text-sm" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>{event.title}</p>
+                  <p className="mt-1 text-xs text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
+                    <CalendarDays className="mr-1 inline h-3 w-3" />
+                    {event.date || "-"} · {event.start_time || "--:--"}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
+                    {event.participants || 0}/{event.max_participants || 0} · Fill {fmtPercent(event.fill_rate)}
+                  </p>
+                </Link>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)] xl:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg uppercase" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>
+              Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
+                Nessuna attività recente nello snapshot.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {recentActivity.slice(0, 10).map((item) => (
+                  <div key={`${item.type}-${item.id}`} className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] py-2 last:border-b-0">
+                    <div>
+                      <p className="text-sm" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
+                        {mapActivityLabel(item.type)}
+                      </p>
+                      <p className="text-sm text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
+                        {item.subtitle || "-"}
+                        {typeof item.amount === "number" ? ` · ${fmtCurrency(item.amount)}` : ""}
+                      </p>
+                    </div>
+                    <p className="text-xs text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
+                      {fmtDateTime(item.timestamp)}
                     </p>
                   </div>
-                </div>
-              )}
-              {stats?.last_purchase && (
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-9 w-9">
-                    <AvatarFallback>
-                      <CreditCard />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1">
-                    <p className="text-sm font-medium leading-none">Ultimo Acquisto</p>
-                    <p className="text-sm text-muted-foreground">
-                      {stats.last_purchase.payer_name} {stats.last_purchase.payer_surname} -{" "}
-                      {formatCurrency(stats.last_purchase.amount_total)}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {stats?.last_membership && (
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage
-                      src={`https://api.dicebear.com/7.x/initials/svg?seed=${stats.last_membership.name} ${stats.last_membership.surname}`}
-                    />
-                    <AvatarFallback>
-                      {getInitials(stats.last_membership.name, stats.last_membership.surname)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1">
-                    <p className="text-sm font-medium leading-none">Nuovo Membro</p>
-                    <p className="text-sm text-muted-foreground">
-                      {stats.last_membership.name} {stats.last_membership.surname}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {stats?.last_participant && (
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage
-                      src={`https://api.dicebear.com/7.x/initials/svg?seed=${stats.last_participant.name} ${stats.last_participant.surname}`}
-                    />
-                    <AvatarFallback>
-                      {getInitials(stats.last_participant.name, stats.last_participant.surname)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid gap-1 overflow-hidden">
-                    <p className="text-sm font-medium leading-none">Nuovo Partecipante</p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {stats.last_participant.name} {stats.last_participant.surname} per{" "}
-                      {extractEventNameFromUrl(stats.last_participant.ticket_pdf_url)}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </motion.div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+    </div>
   )
 }

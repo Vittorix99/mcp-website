@@ -6,6 +6,7 @@ from flask import jsonify
 from api.decorators import public_endpoint
 from config.external_services import SENDER_WEBHOOK_SECRET
 from repositories.newsletter_repository import NewsletterRepository
+from utils.safe_logging import mask_email, redact_sensitive
 
 logger = logging.getLogger("SenderWebhook")
 
@@ -33,13 +34,13 @@ def sender_webhook(req):
     data = payload.get("data") or {}
     email = (data.get("email") or "").strip().lower()
 
-    logger.info("[SenderWebhook] event=%s email=%s", event, email)
+    logger.info("[SenderWebhook] event=%s email=%s", event, mask_email(email))
 
     if event in _UNSUBSCRIBE_EVENTS and email:
         try:
             NewsletterRepository().unsubscribe_by_email(email)
-            logger.info("[SenderWebhook] unsubscribed %s (event=%s)", email, event)
+            logger.info("[SenderWebhook] unsubscribed %s (event=%s)", mask_email(email), event)
         except Exception as exc:
-            logger.error("[SenderWebhook] unsubscribe_by_email failed for %s: %s", email, exc)
+            logger.error("[SenderWebhook] unsubscribe_by_email failed for %s: %s", mask_email(email), redact_sensitive(str(exc)))
 
     return jsonify({"received": True}), 200

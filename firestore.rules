@@ -47,6 +47,17 @@ service cloud.firestore {
       allow read, write: if isSelf(userId);
     }
 
+    // Background jobs
+    match /location_jobs/{jobId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /analytics_jobs/{jobId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // ✨ Add other collections here as needed
   }
 }

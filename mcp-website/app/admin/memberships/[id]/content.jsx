@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, Wallet } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 import { routes } from "@/config/routes"
 
@@ -20,6 +20,21 @@ import { Badge } from "@/components/ui/badge";
 import { useAdminMemberships } from "@/hooks/useAdminMemberships";
 import { EventThumbnail } from "@/components/admin/events/EventThumbnail";
 import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome";
+import { renewMembership as renewMembershipService } from "@/services/admin/memberships";
+
+const ADMIN_THEME = {
+  "--color-black": "#0a0a0a",
+  "--color-surface": "#111111",
+  "--color-border": "#1e1e1e",
+  "--color-muted": "#3a3a3a",
+  "--color-white": "#ffffff",
+  "--color-off": "#b0b0b0",
+  "--color-orange": "#e8820c",
+  "--color-purple": "#511a6c",
+  "--color-red": "#e8241a",
+  "--color-yellow": "#f0d44a",
+}
+const TITLE_FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
 
 export default function MembershipContent({ id }) {
   const router = useRouter();
@@ -37,8 +52,30 @@ export default function MembershipContent({ id }) {
     await createWalletPass(id);
   };
 
+  const handleRenew = async () => {
+    if (!id) return;
+    if (!confirm("Rinnovare il tesseramento per l'anno corrente?")) return;
+    setRenewing(true);
+    setRenewResult(null);
+    try {
+      const res = await renewMembershipService(id);
+      if (res?.error) {
+        setRenewResult({ error: res.error });
+      } else {
+        setRenewResult({ success: true });
+        loadOne(id);
+      }
+    } catch (err) {
+      setRenewResult({ error: err?.message || "Errore durante il rinnovo." });
+    } finally {
+      setRenewing(false);
+    }
+  };
+
   const [purchaseFilter, setPurchaseFilter] = useState("");
   const [purchaseSortDesc, setPurchaseSortDesc] = useState(true);
+  const [renewing, setRenewing] = useState(false);
+  const [renewResult, setRenewResult] = useState(null);
   const loadedMembershipRef = useRef(null);
 
   useEffect(() => {
@@ -87,7 +124,7 @@ export default function MembershipContent({ id }) {
 
   return (
     <TooltipProvider>
-      <div className="text-gray-50 min-h-screen p-6 lg:p-8">
+      <div className="min-h-screen p-6 lg:p-8" style={ADMIN_THEME}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="max-w-5xl mx-auto space-y-6">
           <AdminPageHeader
             title={`${name} ${surname}`}
@@ -97,8 +134,10 @@ export default function MembershipContent({ id }) {
           />
 
           {/* Dettagli membro */}
-          <Card className="bg-zinc-900 border border-zinc-700 shadow-lg">
-            <CardHeader><CardTitle>Dettagli Membro</CardTitle></CardHeader>
+          <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+            <CardHeader className="border-b border-[var(--color-border)]">
+              <CardTitle className="uppercase tracking-wide" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>Dettagli Membro</CardTitle>
+            </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-base">
               <div><strong>ID:</strong> {membershipId || "-"}</div>
               <div><strong>Email:</strong> {email}</div>
@@ -158,12 +197,37 @@ export default function MembershipContent({ id }) {
                   </Button>
                 </div>
               )}
+
+              {/* Renewal */}
+              <div className="col-span-full border-t border-[var(--color-border)] pt-4 mt-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    size="sm"
+                    onClick={handleRenew}
+                    disabled={renewing}
+                    className="rounded-none bg-[var(--color-orange)] text-black hover:opacity-90 font-bold uppercase tracking-wide"
+                    style={{ fontFamily: TITLE_FONT }}
+                  >
+                    {renewing
+                      ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Rinnovo…</>
+                      : <><RefreshCw className="mr-2 h-4 w-4" /> Rinnova Tesseramento</>}
+                  </Button>
+                  {renewResult?.success && (
+                    <span className="text-sm text-emerald-400">Rinnovo completato.</span>
+                  )}
+                  {renewResult?.error && (
+                    <span className="text-sm text-[var(--color-red)]">{renewResult.error}</span>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           {/* Storico Rinnovi */}
-          <Card className="bg-zinc-900 border border-zinc-700 shadow-lg">
-            <CardHeader><CardTitle>Storico Rinnovi ({(member.renewals || []).length})</CardTitle></CardHeader>
+          <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+            <CardHeader className="border-b border-[var(--color-border)]">
+              <CardTitle className="uppercase tracking-wide" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>Storico Rinnovi ({(member.renewals || []).length})</CardTitle>
+            </CardHeader>
             <CardContent>
               {(member.renewals || []).length ? (
                 <div className="overflow-x-auto">
@@ -203,10 +267,10 @@ export default function MembershipContent({ id }) {
           </Card>
 
           {/* Acquisti */}
-          <Card>
-            <CardHeader>
+          <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+            <CardHeader className="border-b border-[var(--color-border)]">
               <div className="flex justify-between items-center flex-wrap gap-3">
-                <CardTitle>Acquisti ({filteredPurchases.length})</CardTitle>
+                <CardTitle className="uppercase tracking-wide" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>Acquisti ({filteredPurchases.length})</CardTitle>
                 <div className="flex gap-2 items-center">
                   <select className="bg-zinc-900 border border-zinc-700 rounded px-3 py-1 text-sm"
                     value={purchaseFilter} onChange={e => setPurchaseFilter(e.target.value)}>
@@ -269,8 +333,10 @@ export default function MembershipContent({ id }) {
           </Card>
 
           {/* Eventi */}
-          <Card>
-            <CardHeader><CardTitle>Eventi Partecipati ({events.length})</CardTitle></CardHeader>
+          <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+            <CardHeader className="border-b border-[var(--color-border)]">
+              <CardTitle className="uppercase tracking-wide" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>Eventi Partecipati ({events.length})</CardTitle>
+            </CardHeader>
             <CardContent>
               {extrasLoading ? (
                 <div className="space-y-2">

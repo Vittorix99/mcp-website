@@ -29,6 +29,7 @@ export const routes = {
   // Admin routes
   admin: {
     dashboard: '/admin',
+    analytics: '/admin/analytics',
     events: '/admin/events',
     eventDetails: (id) => `/admin/events/${id}`,
 

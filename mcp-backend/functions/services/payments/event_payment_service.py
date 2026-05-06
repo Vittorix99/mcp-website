@@ -59,6 +59,7 @@ from repositories.purchase_repository import PurchaseRepository
 from services.core.error_logs_service import log_external_error
 from services.memberships.renewal_command import RenewMembershipCommand
 from utils.events_utils import calculate_end_of_year, ensure_event_is_active, normalize_email, normalize_phone
+from utils.safe_logging import redact_sensitive
 
 
 logger = logging.getLogger("EventPaymentService")
@@ -84,24 +85,8 @@ class EventPaymentService:
         memberships_service: Optional[MembershipsServiceProtocol] = None,
         paypal_client: Optional[PaypalServersdkClient] = None,
     ):
-        self.paypal_client = paypal_client or PaypalServersdkClient(
-            client_credentials_auth_credentials=ClientCredentialsAuthCredentials(
-                o_auth_client_id=(
-                    os.getenv("PAYPAL_CLIENT_ID")
-                    if os.getenv("PAYPAL_ENV") == "sandbox"
-                    else os.getenv("PAYPAL_LIVE_CLIENT_ID")
-                ),
-                o_auth_client_secret=(
-                    os.getenv("PAYPAL_CLIENT_SECRET")
-                    if os.getenv("PAYPAL_ENV") == "sandbox"
-                    else os.getenv("PAYPAL_LIVE_CLIENT_SECRET")
-                ),
-            ),
-            environment=Environment.SANDBOX
-            if os.getenv("PAYPAL_ENV") == "sandbox"
-            else Environment.PRODUCTION,
-        )
-        self.orders_controller: OrdersController = self.paypal_client.orders
+        self.paypal_client = paypal_client
+        self.orders_controller: Optional[OrdersController] = paypal_client.orders if paypal_client else None
         self.debug = os.getenv("EVENT_PAYMENT_DEBUG", "true").lower() in {"1", "true", "yes"}
         self.event_repository = event_repository or EventRepository()
         self.membership_repository = membership_repository or MembershipRepository()
@@ -121,6 +106,27 @@ class EventPaymentService:
             )
         self.memberships_service = memberships_service
 
+    def _build_paypal_client(self) -> PaypalServersdkClient:
+        is_sandbox = os.getenv("PAYPAL_ENV") == "sandbox"
+        client_id = os.getenv("PAYPAL_CLIENT_ID") if is_sandbox else os.getenv("PAYPAL_LIVE_CLIENT_ID")
+        client_secret = os.getenv("PAYPAL_CLIENT_SECRET") if is_sandbox else os.getenv("PAYPAL_LIVE_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            raise ExternalServiceError("Missing PayPal credentials")
+
+        return PaypalServersdkClient(
+            client_credentials_auth_credentials=ClientCredentialsAuthCredentials(
+                o_auth_client_id=client_id,
+                o_auth_client_secret=client_secret,
+            ),
+            environment=Environment.SANDBOX if is_sandbox else Environment.PRODUCTION,
+        )
+
+    def _get_orders_controller(self) -> OrdersController:
+        if self.orders_controller is None:
+            self.paypal_client = self.paypal_client or self._build_paypal_client()
+            self.orders_controller = self.paypal_client.orders
+        return self.orders_controller
+
     def _get_membership_fee(self, year: Optional[int] = None) -> Optional[float]:
         target_year = str(year or datetime.now(timezone.utc).year)
         return self.membership_settings_repository.get_price_by_year(target_year)
@@ -128,9 +134,9 @@ class EventPaymentService:
     def _debug(self, message: str, *args):
         if self.debug:
             try:
-                print("[EventPaymentService DEBUG]", message % args if args else message)
+                logger.debug("[EventPaymentService] %s", redact_sensitive(message % args if args else message))
             except Exception:
-                print("[EventPaymentService DEBUG]", message, *args)
+                logger.debug("[EventPaymentService] %s", redact_sensitive({"message": message, "args": args}))
 
     def _resolve_event_model(self, event_id: str, event_data: Optional[Event]) -> Event:
         if event_data:
@@ -236,7 +242,7 @@ class EventPaymentService:
             ],
         )
         try:
-            order = self.orders_controller.orders_create({"body": order_request})
+            order = self._get_orders_controller().orders_create({"body": order_request})
         except ApiException as exc:
             status = getattr(exc, "response_code", None)
             log_external_error(
@@ -455,7 +461,7 @@ class EventPaymentService:
 
     def capture_paypal_order(self, order_id):
         try:
-            order = self.orders_controller.orders_capture(
+            order = self._get_orders_controller().orders_capture(
                 {"id": order_id, "prefer": "return=representation"}
             )
         except ApiException as exc:

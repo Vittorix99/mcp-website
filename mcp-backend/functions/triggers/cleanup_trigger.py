@@ -6,6 +6,7 @@ from firebase_functions import scheduler_fn
 from google.cloud import firestore
 
 from config.firebase_config import db
+from repositories.job_repository import ANALYTICS_JOBS_COLLECTION, JOBS_COLLECTION, LOCATION_JOBS_COLLECTION
 
 logger = logging.getLogger("cleanup_trigger")
 
@@ -88,13 +89,14 @@ def _cleanup_failed_jobs(now: datetime) -> int:
     """Delete jobs with status=failed that are older than 30 days."""
     threshold = now - timedelta(days=30)
     refs = []
-    for doc in db.collection("jobs").stream():
-        data = doc.to_dict() or {}
-        if data.get("status") != "failed":
-            continue
-        created_at = _to_utc(data.get("created_at"))
-        if created_at is None or created_at < threshold:
-            refs.append(doc.reference)
+    for collection_name in (JOBS_COLLECTION, LOCATION_JOBS_COLLECTION, ANALYTICS_JOBS_COLLECTION):
+        for doc in db.collection(collection_name).stream():
+            data = doc.to_dict() or {}
+            if data.get("status") != "failed":
+                continue
+            created_at = _to_utc(data.get("created_at"))
+            if created_at is None or created_at < threshold:
+                refs.append(doc.reference)
     deleted = _batch_delete(refs)
     logger.info("cleanup_failed_jobs: %d job falliti eliminati", deleted)
     return deleted

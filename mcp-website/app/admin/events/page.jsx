@@ -19,6 +19,20 @@ import { EVENT_STATUSES, PURCHASE_MODES, resolvePurchaseMode } from "@/config/ev
 import { EventThumbnail } from "@/components/admin/events/EventThumbnail"
 import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
+const ADMIN_THEME = {
+  "--color-black": "#0a0a0a",
+  "--color-surface": "#111111",
+  "--color-border": "#1e1e1e",
+  "--color-muted": "#3a3a3a",
+  "--color-white": "#ffffff",
+  "--color-off": "#b0b0b0",
+  "--color-orange": "#e8820c",
+  "--color-purple": "#511a6c",
+  "--color-red": "#e8241a",
+  "--color-yellow": "#f0d44a",
+}
+const TITLE_FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
+
 export default function EventsPage() {
   const router = useRouter()
   const { events, loading, error, createEvent, updateEvent, deleteEvent, refreshEvents } = useAdminEvents()
@@ -135,18 +149,18 @@ export default function EventsPage() {
   }
 
   function getStatus(ev) {
-    if (!ev || !ev.date) return { label: "Dati mancanti", color: "bg-red-500" }
+    if (!ev || !ev.date) return { label: "Dati mancanti", color: "bg-[var(--color-red)]" }
     const [d, m, y] = ev.date.split("-").map(Number)
     const now = new Date()
     now.setHours(0, 0, 0, 0)
     const dt = new Date(y, m - 1, d)
-    if (isNaN(dt.getTime())) return { label: "Data errata", color: "bg-red-500" }
+    if (isNaN(dt.getTime())) return { label: "Data errata", color: "bg-[var(--color-red)]" }
     const status = ev.status || EVENT_STATUSES.ACTIVE
-    if (status === EVENT_STATUSES.COMING_SOON) return { label: "Coming soon", color: "bg-blue-500" }
-    if (status === EVENT_STATUSES.SOLD_OUT) return { label: "Sold out", color: "bg-orange-600" }
-    if (status === EVENT_STATUSES.ENDED || dt < now) return { label: "Terminato", color: "bg-gray-500" }
-    if (status === EVENT_STATUSES.ACTIVE) return { label: "Attivo", color: "bg-green-600" }
-    return { label: "Sconosciuto", color: "bg-neutral-500" }
+    if (status === EVENT_STATUSES.COMING_SOON) return { label: "Coming soon", color: "bg-[var(--color-purple)]" }
+    if (status === EVENT_STATUSES.SOLD_OUT) return { label: "Sold out", color: "bg-[var(--color-orange)]" }
+    if (status === EVENT_STATUSES.ENDED || dt < now) return { label: "Terminato", color: "bg-[var(--color-muted)]" }
+    if (status === EVENT_STATUSES.ACTIVE) return { label: "Attivo", color: "bg-emerald-700" }
+    return { label: "Sconosciuto", color: "bg-[var(--color-muted)]" }
   }
 
   const filtered = useMemo(() => {
@@ -167,6 +181,7 @@ export default function EventsPage() {
   return (
     <motion.div
       className="space-y-6 pb-8"
+      style={ADMIN_THEME}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
@@ -189,53 +204,34 @@ export default function EventsPage() {
       />
 
       {/* STATS */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Eventi Totali</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{events.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Eventi Attivi</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{events.filter((e) => getStatus(e).label === "Attivo").length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Eventi Terminati</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{events.filter((e) => getStatus(e).label === "Terminato").length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Partecipanti</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{events.reduce((s, e) => s + (e.participantsCount || 0), 0)}</div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "EVENTI TOTALI", value: events.length },
+          { label: "EVENTI ATTIVI", value: events.filter((e) => getStatus(e).label === "Attivo").length },
+          { label: "EVENTI TERMINATI", value: events.filter((e) => getStatus(e).label === "Terminato").length },
+          { label: "PARTECIPANTI TOT.", value: events.reduce((s, e) => s + (e.participantsCount || 0), 0) },
+        ].map(({ label, value }) => (
+          <Card key={label} className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+            <CardContent className="p-4">
+              <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>{label}</p>
+              <p className="mt-2 text-2xl text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>{value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* TABLE CONTAINER */}
-      <Card>
-        <CardHeader className="flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+        <CardHeader className="flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[var(--color-border)] pb-4">
           <div>
-            <CardTitle>Eventi</CardTitle>
-            <CardDescription>{filtered.length} trovati</CardDescription>
+            <CardTitle className="uppercase tracking-wide text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>Eventi</CardTitle>
+            <CardDescription className="text-[var(--color-off)]">{filtered.length} trovati</CardDescription>
           </div>
           <Input
             placeholder="Cerca evento..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:max-w-sm"
+            className="w-full md:max-w-sm rounded-none border-[var(--color-border)] bg-[var(--color-black)] text-[var(--color-white)] placeholder:text-[var(--color-off)] focus-visible:ring-[var(--color-orange)]"
           />
         </CardHeader>
         <CardContent>
@@ -263,30 +259,30 @@ export default function EventsPage() {
                     const st = getStatus(ev)
                     const purchaseMode = resolvePurchaseMode(ev)
                     return (
-                      <TableRow key={ev.id}>
+                      <TableRow key={ev.id} className="border-[var(--color-border)] hover:bg-[var(--color-surface)]">
                         <TableCell>
                           <div className="flex items-center gap-4">
                             {ev.image && <EventThumbnail imageName={ev.image} alt={ev.title} />}
                             <div>
-                              <div className="font-medium">{ev.title}</div>
-                              <div className="text-sm text-gray-400">{ev.location}</div>
-                              <div className="text-xs text-gray-500 italic">{purchaseMode}</div>
+                              <div className="font-bold text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT }}>{ev.title}</div>
+                              <div className="text-sm text-[var(--color-off)]">{ev.location}</div>
+                              <div className="text-xs text-[var(--color-muted)] italic">{purchaseMode}</div>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div>{formatDate(ev.date)}</div>
-                          <div className="text-sm text-gray-400">{ev.startTime}</div>
+                          <div className="font-medium text-[var(--color-white)]">{formatDate(ev.date)}</div>
+                          <div className="text-sm text-[var(--color-off)]">{ev.startTime}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4" />
+                          <div className="flex items-center gap-2 text-[var(--color-white)]">
+                            <Users className="h-4 w-4 text-[var(--color-off)]" />
                             {ev.participantsCount || 0}
-                            {ev.maxParticipants ? `/${ev.maxParticipants}` : ""}
+                            {ev.maxParticipants ? <span className="text-[var(--color-off)]">/{ev.maxParticipants}</span> : ""}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={`${st.color} text-white p-2 whitespace-nowrap`}>{st.label}</Badge>
+                          <Badge className={`${st.color} text-white p-2 whitespace-nowrap rounded-none`}>{st.label}</Badge>
                         </TableCell>
                         <TableCell className="text-right space-x-1">
                           <Button
@@ -332,14 +328,14 @@ export default function EventsPage() {
                 const st = getStatus(ev)
                 const purchaseMode = resolvePurchaseMode(ev)
                 return (
-                  <Card key={ev.id} className="bg-neutral-900 border-neutral-800">
-                    <CardHeader className="flex flex-row items-start justify-between gap-4 p-4">
+                  <Card key={ev.id} className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+                    <CardHeader className="flex flex-row items-start justify-between gap-4 p-4 border-b border-[var(--color-border)]">
                       <div className="flex items-start gap-4">
                         {ev.image && <EventThumbnail imageName={ev.image} alt={ev.title} className="w-16 h-16" />}
                         <div>
-                          <h3 className="font-bold">{ev.title}</h3>
-                          <p className="text-sm text-gray-400">{ev.location}</p>
-                          <p className="text-xs text-gray-500 italic">{purchaseMode}</p>
+                          <h3 className="font-bold text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT }}>{ev.title}</h3>
+                          <p className="text-sm text-[var(--color-off)]">{ev.location}</p>
+                          <p className="text-xs italic text-[var(--color-muted)]">{purchaseMode}</p>
                         </div>
                       </div>
                       <DropdownMenu>
@@ -363,21 +359,21 @@ export default function EventsPage() {
                     </CardHeader>
                     <CardContent className="p-4 pt-0 grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <p className="font-semibold">Data/Ora</p>
-                        <p>{formatDate(ev.date)}</p>
-                        <p className="text-gray-400">{ev.startTime}</p>
+                        <p className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Data/Ora</p>
+                        <p className="mt-1 text-[var(--color-white)]">{formatDate(ev.date)}</p>
+                        <p className="text-[var(--color-off)]">{ev.startTime}</p>
                       </div>
                       <div>
-                        <p className="font-semibold">Partecipanti</p>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4" />
+                        <p className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Partecipanti</p>
+                        <div className="mt-1 flex items-center gap-2 text-[var(--color-white)]">
+                          <Users className="h-4 w-4 text-[var(--color-off)]" />
                           {ev.participantsCount || 0}
-                          {ev.maxParticipants ? `/${ev.maxParticipants}` : ""}
+                          {ev.maxParticipants ? <span className="text-[var(--color-off)]">/{ev.maxParticipants}</span> : ""}
                         </div>
                       </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-0">
-                      <Badge className={`${st.color} text-white p-2 w-full justify-center`}>{st.label}</Badge>
+                      <Badge className={`${st.color} text-white p-2 w-full justify-center rounded-none`}>{st.label}</Badge>
                     </CardFooter>
                   </Card>
                 )

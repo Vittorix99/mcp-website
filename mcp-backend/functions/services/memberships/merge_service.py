@@ -8,6 +8,7 @@ from interfaces.services import Pass2UServiceProtocol
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from services.memberships.pass2u_service import Pass2UService
+from utils.safe_logging import redact_sensitive
 
 
 class MergeService:
@@ -89,7 +90,7 @@ class MergeService:
                 try:
                     self.pass2u_service.invalidate_membership_pass(source.wallet_pass_id)
                 except Exception as exc:
-                    self.logger.warning("Invalidazione source wallet fallita (non bloccante): %s", exc)
+                    self.logger.warning("Invalidazione source wallet fallita (non bloccante): %s", redact_sensitive(str(exc)))
 
             # 7. Sposta riferimenti participant source -> target (primo sweep)
             participants_updated = self.participant_repository.update_membership_reference(source_id, target_id)
@@ -132,7 +133,7 @@ class MergeService:
             try:
                 self.membership_repository.set_merging(source_id, None)
             except Exception as cleanup_exc:
-                self.logger.warning("Impossibile rimuovere il flag merging da source %s: %s", source_id, cleanup_exc)
+                self.logger.warning("Impossibile rimuovere il flag merging da source %s: %s", source_id, redact_sensitive(str(cleanup_exc)))
             raise
 
         # 10. Crea nuovo wallet per target (non bloccante)
@@ -146,7 +147,7 @@ class MergeService:
                 wallet_url = wallet.wallet_url
                 self.membership_repository.set_wallet(target_id, wallet_pass_id, wallet_url)
         except Exception as exc:
-            self.logger.warning("Creazione wallet target fallita (non bloccante): %s", exc)
+            self.logger.warning("Creazione wallet target fallita (non bloccante): %s", redact_sensitive(str(exc)))
 
         return {
             "message": "Merge completato",

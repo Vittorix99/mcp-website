@@ -7,6 +7,7 @@ import requests
 
 from config.external_services import SENDER_BASE_URL
 from services.core.error_logs_service import log_external_error
+from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("sender_client")
 
@@ -132,7 +133,7 @@ class SenderRoutes:
                 context={"url": url},
             )
         else:
-            logger.info("%s %s → %d", method.upper(), endpoint, response.status_code)
+            logger.info("%s %s -> %d", method.upper(), redact_sensitive(endpoint), response.status_code)
 
         return SenderApiResult(
             status_code=response.status_code,
@@ -300,7 +301,7 @@ class SenderRoutes:
                 context={"campaign_id": campaign_id},
             )
         else:
-            logger.info("DELETE %s → %d", _Endpoints.CAMPAIGNS, response.status_code)
+            logger.info("DELETE %s -> %d", _Endpoints.CAMPAIGNS, response.status_code)
         return SenderApiResult(status_code=response.status_code, payload=payload, error_message=error_message)
 
     @classmethod

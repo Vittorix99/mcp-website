@@ -5,15 +5,17 @@ import logging
 # === Path setup (solo se necessario per import locali) ===
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+# === Logging config ===
+_log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, _log_level_name, logging.INFO))
+logger = logging.getLogger("main")
+
 # === Environment loading ===
 from config import load_environment
 
-_env_path = load_environment()
+load_environment()
 _mcp_env = os.environ.get("MCP_ENV", "test")
-print(f"Environment: {_mcp_env} (env_file={_env_path})")
-
-# === Logging config ===
-logging.basicConfig(level=logging.DEBUG)  # Usa INFO o WARNING in produzione
+logger.info("Environment loaded: mode=%s cloud_runtime=%s", _mcp_env, bool(os.environ.get("K_SERVICE")))
 
 # === Mail Service init ===
 from services.communications.mail_service import init_mail_service
@@ -111,7 +113,22 @@ from triggers.registration_trigger import (
     on_membership_created
 )
 
-from api.admin.stats_api import admin_get_general_stats
+from api.admin.stats_api import (
+    admin_get_general_stats,
+    admin_get_dashboard_snapshot,
+    admin_get_analytics_event_snapshot,
+    admin_get_analytics_global_snapshot,
+    admin_get_analytics_events_index,
+    admin_get_entrance_flow,
+    admin_get_sales_over_time,
+    admin_get_audience_retention,
+    admin_get_revenue_breakdown,
+    admin_get_event_funnel,
+    admin_get_gender_distribution,
+    admin_get_membership_trend,
+    admin_get_dashboard_kpis,
+    admin_rebuild_analytics,
+)
 from api.admin.setting_api import get_settings, set_settings
 
 # === API Admin: Radio ===
@@ -131,9 +148,16 @@ from api.admin.radio_episodes_api import (
     admin_publish_radio_episode,
     admin_unpublish_radio_episode,
 )
-from triggers.jobs_trigger import process_send_location_job
+from triggers.jobs_trigger import process_send_location_job, process_analytics_rebuild_job
 from triggers.new_year_trigger import invalidate_memberships_new_year
 from triggers.cleanup_trigger import cleanup_stale_data
+from triggers.analytics_trigger import (
+    on_purchase_written,
+    on_participant_written,
+    on_entrance_scan_written,
+    on_membership_written,
+    rebuild_analytics_nightly,
+)
 
 # === API Entrance Scanner ===
 from api.entrance.entrance_api import (

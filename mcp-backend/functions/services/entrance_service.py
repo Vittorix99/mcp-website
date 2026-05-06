@@ -33,6 +33,7 @@ from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.scan_token_repository import ScanTokenRepository
+from utils.safe_logging import safe_id
 
 
 class EntranceService:
@@ -84,7 +85,7 @@ class EntranceService:
         token = secrets.token_hex(16)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
         self.scan_token_repository.create(token, dto.event_id, admin_uid, expires_at)
-        self.logger.info("Scan token generato: %s per evento %s da %s", token, dto.event_id, admin_uid)
+        self.logger.info("Scan token generato per evento %s da admin %s", dto.event_id, safe_id(admin_uid))
 
         return GenerateScanTokenResponseDTO(
             token=token,
@@ -102,7 +103,7 @@ class EntranceService:
         event_title = event_model.title if event_model else ""
         counts = self._build_event_counts(event_id)
 
-        self.logger.info("Scan token verificato: %s — evento %s", dto.token, event_id)
+        self.logger.info("Scan token verificato: token=%s evento=%s", safe_id(dto.token), event_id)
 
         return VerifyScanTokenResponseDTO(
             valid=True,
@@ -117,7 +118,7 @@ class EntranceService:
         try:
             token_data = self._get_scan_token_doc(dto.scan_token)
         except ValidationError:
-            self.logger.warning("validate_entry: scan token non valido — %s", dto.scan_token)
+            self.logger.warning("validate_entry: scan token non valido token=%s", safe_id(dto.scan_token))
             return ValidateEntryResponseDTO(result="invalid_token")
 
         event_id = token_data.event_id
@@ -184,8 +185,8 @@ class EntranceService:
         self.participant_repository.update_entered(event_id, participant_model.id, entered=True)
         counts = self._build_event_counts(event_id)
         self.logger.info(
-            "validate_entry: ingresso registrato — %s evento %s token %s",
-            dto.membership_id, event_id, dto.scan_token,
+            "validate_entry: ingresso registrato membership=%s evento=%s token=%s",
+            safe_id(dto.membership_id), event_id, safe_id(dto.scan_token),
         )
 
         return ValidateEntryResponseDTO(
@@ -218,8 +219,8 @@ class EntranceService:
             self.entrance_scan_repository.create_manual(dto.event_id, dto.membership_id, admin_uid)
             self.participant_repository.update_entered(dto.event_id, participant_model.id, entered=True)
             self.logger.info(
-                "manual_entry: ingresso manuale — %s evento %s operatore %s",
-                dto.membership_id, dto.event_id, admin_uid,
+                "manual_entry: ingresso manuale membership=%s evento=%s operatore=%s",
+                safe_id(dto.membership_id), dto.event_id, safe_id(admin_uid),
             )
             counts = self._build_event_counts(dto.event_id)
             return ManualEntryResponseDTO(
@@ -232,8 +233,8 @@ class EntranceService:
         self.entrance_scan_repository.delete(dto.event_id, dto.membership_id)
         self.participant_repository.update_entered(dto.event_id, participant_model.id, entered=False)
         self.logger.info(
-            "manual_entry: ingresso annullato — %s evento %s operatore %s",
-            dto.membership_id, dto.event_id, admin_uid,
+            "manual_entry: ingresso annullato membership=%s evento=%s operatore=%s",
+            safe_id(dto.membership_id), dto.event_id, safe_id(admin_uid),
         )
         counts = self._build_event_counts(dto.event_id)
         return ManualEntryResponseDTO(
@@ -255,8 +256,8 @@ class EntranceService:
         self.scan_token_repository.deactivate(dto.token, admin_uid)
 
         self.logger.info(
-            "Scan token disattivato: %s (event=%s, by=%s, was_active=%s)",
-            dto.token, event_id, admin_uid, was_active,
+            "Scan token disattivato: token=%s event=%s by=%s was_active=%s",
+            safe_id(dto.token), event_id, safe_id(admin_uid), was_active,
         )
 
         return DeactivateScanTokenResponseDTO(

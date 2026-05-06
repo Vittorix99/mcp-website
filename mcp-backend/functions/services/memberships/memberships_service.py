@@ -57,6 +57,7 @@ from utils.templates_mail import get_membership_email_template, get_membership_e
 from utils.events_utils import (
     calculate_end_of_year_membership,
 )
+from utils.safe_logging import redact_sensitive
 
 
 class MembershipsService:
@@ -453,7 +454,7 @@ class MembershipsService:
                     wallet_url = wallet.wallet_url
                     self.membership_repository.update_from_model(membership_id, membership)
             except Exception as exc:
-                self.logger.warning(f"[Pass2U] wallet generation failed for {membership_id}: {exc}")
+                self.logger.warning("[Pass2U] wallet generation failed for %s: %s", membership_id, redact_sensitive(str(exc)))
 
         membership_payload["wallet_url"] = wallet_url
 

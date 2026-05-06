@@ -2,10 +2,11 @@
 
 from .admin_auth_repository import AdminAuthRepository
 from .admin_repository import AdminRepository
+from .analytics_snapshot_repository import AnalyticsSnapshotRepository
 from .base import BaseRepository
 from .entrance_scan_repository import EntranceScanRepository
 from .event_repository import EventRepository
-from .job_repository import JobRepository
+from .job_repository import AnalyticsJobRepository, JobRepository, LocationJobRepository
 from interfaces.repositories import (
     AdminAuthRepositoryProtocol,
     AdminRepositoryProtocol,
@@ -28,10 +29,13 @@ __all__ = [
     "AdminRepository",
     "AdminAuthRepositoryProtocol",
     "AdminRepositoryProtocol",
+    "AnalyticsSnapshotRepository",
     "BaseRepository",
     "EntranceScanRepository",
     "EventRepository",
     "JobRepository",
+    "AnalyticsJobRepository",
+    "LocationJobRepository",
     "OrderRepository",
     "ParticipantRepository",
     "MembershipRepository",

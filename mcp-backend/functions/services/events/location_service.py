@@ -2,12 +2,11 @@ import logging
 import random
 import time
 from dataclasses import replace
-from typing import List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 from google.cloud import firestore
-from google.cloud.firestore_v1 import transactional as _fs_transactional
 
-from config.firebase_config import db
 from config.location_config import (
     LOCATION_BASE_DELAY,
     LOCATION_MAX_DELAY,
@@ -28,26 +27,17 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
 )
 from mappers.participant_mappers import mark_participant_location_sent
-from models import Event, EventParticipant, Job
+from models import Event, EventParticipant, LocationJob
 from repositories import EventRepository, ParticipantRepository
-from repositories.job_repository import JobRepository
+from repositories.job_repository import LOCATION_JOBS_COLLECTION, LocationJobRepository
 from services.communications.mail_service import EmailMessage, MailService, mail_service
 from utils.templates_mail import build_location_email_payload
+from utils.safe_logging import mask_email, redact_sensitive
 
 
 logger = logging.getLogger("LocationService")
-
-
-@_fs_transactional
-def _claim_job(transaction, job_ref):
-    snap = job_ref.get(transaction=transaction)
-    if not snap.exists:
-        return False
-    status = (snap.to_dict() or {}).get("status")
-    if status != "queued":
-        return False
-    transaction.update(job_ref, {"status": "running"})
-    return True
+LOCATION_JOB_TYPE = "send_location"
+LOCATION_JOB_STALE_AFTER = timedelta(hours=1)
 
 
 def _sleep_with_jitter(seconds: float) -> None:
@@ -76,7 +66,7 @@ def _send_with_retry(
             )
             if ok:
                 return True
-            logger.warning("Send returned False for %s (attempt %s)", email, attempt)
+            logger.warning("Send returned False for %s (attempt %s)", mask_email(email), attempt)
         except Exception as exc:
             msg = str(exc).lower()
             transient = any(
@@ -92,9 +82,9 @@ def _send_with_retry(
                 )
             )
             if not transient:
-                logger.warning("Non-retriable error for %s: %s", email, exc)
+                logger.warning("Non-retriable error for %s: %s", mask_email(email), redact_sensitive(str(exc)))
                 return False
-            logger.warning("Transient error for %s, retry %s: %s", email, attempt, exc)
+            logger.warning("Transient error for %s, retry %s: %s", mask_email(email), attempt, redact_sensitive(str(exc)))
 
         if attempt < LOCATION_MAX_RETRIES:
             _sleep_with_jitter(delay)
@@ -107,12 +97,12 @@ class LocationService:
         self,
         event_repository: Optional[EventRepositoryProtocol] = None,
         participant_repository: Optional[ParticipantRepositoryProtocol] = None,
-        job_repository: Optional[JobRepositoryProtocol] = None,
+        job_repository: Optional[JobRepositoryProtocol[LocationJob]] = None,
         mail_service_instance: Optional[MailService] = None,
     ) -> None:
         self.event_repository = event_repository or EventRepository()
         self.participant_repository = participant_repository or ParticipantRepository()
-        self.job_repository = job_repository or JobRepository()
+        self.job_repository = job_repository or LocationJobRepository()
         self.mail_service = mail_service_instance or mail_service
 
     def _load_event_model(self, event_id: str) -> Event:
@@ -148,9 +138,26 @@ class LocationService:
             updated_participant,
         )
 
-    def _update_job(self, job_id: str, job: Job, **changes) -> Job:
+    def _update_job(self, job_id: str, job: LocationJob, **changes) -> LocationJob:
+        if "updated_at" not in changes:
+            changes = {"updated_at": datetime.now(timezone.utc), **changes}
         self.job_repository.update(job_id, changes)
-        return replace(job, **changes)
+        model_changes = {key: value for key, value in changes.items() if hasattr(job, key)}
+        return replace(job, **model_changes)
+
+    def _is_stale_job(self, payload: Dict[str, Any], now: datetime) -> bool:
+        marker = self._to_datetime(payload.get("updated_at")) or self._to_datetime(payload.get("created_at"))
+        if marker is None:
+            return True
+        return now - marker > LOCATION_JOB_STALE_AFTER
+
+    @staticmethod
+    def _to_datetime(value: Any) -> Optional[datetime]:
+        if not isinstance(value, datetime):
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
 
     def send_location(self, dto: SendLocationRequestDTO) -> LocationActionResponseDTO:
         event_model = self._load_event_model(dto.event_id)
@@ -197,10 +204,59 @@ class LocationService:
             for participant in self.participant_repository.stream(dto.event_id)
             if participant.email and not participant.location_sent
         )
+        event_id = event_model.id or dto.event_id
+        now = datetime.now(timezone.utc)
 
-        job = Job(
-            type="send_location",
-            event_id=event_model.id or dto.event_id,
+        for doc_id, payload in self.job_repository.stream_raw_by_type(LOCATION_JOB_TYPE):
+            status = str(payload.get("status") or "").lower()
+            if status not in {"queued", "running"}:
+                continue
+            if (payload.get("event_id") or "") != event_id:
+                continue
+
+            if status == "queued":
+                self.job_repository.update(
+                    doc_id,
+                    {
+                        "address": dto.address,
+                        "link": dto.link,
+                        "message": dto.message,
+                        "total": remaining,
+                        "error": None,
+                        "updated_at": now,
+                        "last_kicked_at": now,
+                    },
+                )
+                return LocationJobResponseDTO(
+                    message="Job queued",
+                    job_id=doc_id,
+                    job_collection=LOCATION_JOBS_COLLECTION,
+                    total=remaining,
+                    status="queued",
+                )
+
+            if self._is_stale_job(payload, now):
+                self.job_repository.update(
+                    doc_id,
+                    {
+                        "status": "failed",
+                        "error": "Stale location job superseded by a new request",
+                        "finished_at": now,
+                        "updated_at": now,
+                    },
+                )
+                continue
+
+            return LocationJobResponseDTO(
+                message="Job already running",
+                job_id=doc_id,
+                job_collection=LOCATION_JOBS_COLLECTION,
+                total=int(payload.get("total") or remaining),
+                status="running",
+            )
+
+        job = LocationJob(
+            event_id=event_id,
             status="queued",
             address=dto.address,
             link=dto.link,
@@ -210,23 +266,24 @@ class LocationService:
             failed=0,
             percent=0,
             created_at=firestore.SERVER_TIMESTAMP,
+            updated_at=now,
         )
         job_id = self.job_repository.create_from_model(job)
 
         return LocationJobResponseDTO(
             message="Job queued",
             job_id=job_id,
+            job_collection=LOCATION_JOBS_COLLECTION,
             total=remaining,
             status="queued",
         )
 
     def _worker_send_location(self, job_id: str):
-        job: Optional[Job] = None
+        job: Optional[LocationJob] = None
         try:
             logger.info("[LocationService] Avvio worker per job %s", job_id)
 
-            job_ref = db.collection("jobs").document(job_id)
-            claimed = _claim_job(db.transaction(), job_ref)
+            claimed = self.job_repository.claim_queued(job_id)
             if not claimed:
                 logger.info(
                     "[LocationService] Job %s non rivendicato (già in esecuzione o stato non processabile), skip",
@@ -258,7 +315,7 @@ class LocationService:
             for idx, participant in enumerate(participants, start=1):
                 email = participant.email
                 name = participant.name or "Partecipante"
-                logger.info("[LocationService] (%s/%s) Invio a %s…", idx, total, email)
+                logger.info("[LocationService] (%s/%s) Invio a %s", idx, total, mask_email(email))
 
                 if not email:
                     failed += 1
@@ -303,7 +360,7 @@ class LocationService:
             )
 
         except Exception as exc:
-            logger.exception("[LocationService] Errore in worker per job %s: %s", job_id, exc)
+            logger.error("[LocationService] Errore in worker per job %s: %s", job_id, redact_sensitive(str(exc)))
             failed_job = job or self.job_repository.get_model(job_id)
             if failed_job:
                 self._update_job(job_id, failed_job, status="failed", error=str(exc))

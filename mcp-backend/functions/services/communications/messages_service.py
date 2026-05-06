@@ -15,6 +15,7 @@ from mappers.message_mappers import contact_form_dto_to_model, contact_message_t
 from repositories.message_repository import MessageRepository
 from services.communications.mail_service import EmailMessage, MailService, mail_service
 from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from utils.safe_logging import mask_email
 
 logger = logging.getLogger("MessagesService")
 
@@ -62,7 +63,7 @@ class MessagesService:
         return MessageActionResponseDTO(success=True, deletedId=message_id)
 
     def reply(self, dto: ReplyMessageRequestDTO) -> MessageActionResponseDTO:
-        self.logger.debug("Sending email reply to: %s, subject: %s", dto.email, dto.subject)
+        self.logger.debug("Sending email reply to: %s, subject: %s", mask_email(dto.email), dto.subject)
 
         message = self.message_repository.get_model(dto.message_id)
         if not message:

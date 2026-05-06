@@ -22,6 +22,7 @@ from mappers.newsletter_mappers import consent_to_response, participant_item_to_
 from repositories.newsletter_repository import NewsletterRepository
 from services.communications.mail_service import EmailMessage, MailService, mail_service
 from utils.templates_mail import get_newsletter_signup_template, get_newsletter_signup_text
+from utils.safe_logging import mask_email, redact_sensitive
 
 logger = logging.getLogger("NewsletterService")
 
@@ -40,7 +41,7 @@ class NewsletterService:
         if not existing:
             signup = NewsletterSignup(email=dto.email, timestamp=firestore.SERVER_TIMESTAMP)
             self.newsletter_repository.add_signup_from_model(signup)
-            logger.info("New newsletter signup: %s", dto.email)
+            logger.info("New newsletter signup: %s", mask_email(dto.email))
 
         self._send_welcome_email(dto.email)
         return NewsletterActionResponseDTO(message="Signed up for newsletter successfully")
@@ -59,9 +60,9 @@ class NewsletterService:
                     html_content=html,
                 )
             )
-            logger.info("Newsletter welcome email sent to %s", email)
+            logger.info("Newsletter welcome email sent to %s", mask_email(email))
         except Exception as exc:
-            logger.error("[NewsletterService] Welcome email failed for %s: %s", email, exc)
+            logger.error("[NewsletterService] Welcome email failed for %s: %s", mask_email(email), redact_sensitive(str(exc)))
 
     def get_signup_by_id(self, signup_id: str) -> NewsletterSignupEnvelopeResponseDTO:
         signup = self.newsletter_repository.get_signup(signup_id)

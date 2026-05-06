@@ -7,7 +7,7 @@ from dto.event_api import CreateEventRequestDTO
 from models import EventParticipant, PaymentMethod
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
-from repositories.job_repository import JobRepository
+from repositories.job_repository import LocationJobRepository
 from services.events.events_service import EventsService
 from services.events.location_service import LocationService
 
@@ -29,7 +29,7 @@ def participant_repository():
 
 @pytest.fixture
 def job_repository():
-    return JobRepository()
+    return LocationJobRepository()
 
 
 @pytest.fixture

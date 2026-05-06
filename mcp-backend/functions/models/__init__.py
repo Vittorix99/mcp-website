@@ -6,7 +6,7 @@ from .enums import EventPurchaseAccessType, EventStatus, PaymentMethod, Purchase
 from .event import Event
 from .event_participant import EventParticipant
 from .event_purchase import EventPurchase
-from .job import Job
+from .job import AnalyticsJob, Job, LocationJob
 from .membership import Membership, MembershipRef
 from .newsletter_consent import NewsletterConsent
 from .newsletter_participant import NewsletterParticipant
@@ -31,6 +31,8 @@ __all__ = [
     "Purchase",
     "EventPurchase",
     "Job",
+    "AnalyticsJob",
+    "LocationJob",
     "MembershipRef",
     "Membership",
     "Order",

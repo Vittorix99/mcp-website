@@ -15,6 +15,7 @@ from repositories.participant_repository import ParticipantRepository
 from services.events.documents_service import DocumentsService
 from services.communications.mail_service import EmailAttachment, EmailMessage, MailService, mail_service
 from utils.templates_mail import get_ticket_email_template, get_ticket_email_text
+from utils.safe_logging import redact_sensitive
 
 
 @dataclass
@@ -184,7 +185,7 @@ class TicketService:
             return {"success": True}
 
         except Exception as exc:
-            self.logger.exception("Error processing ticket")
+            self.logger.error("Error processing ticket: %s", redact_sensitive(str(exc)))
             self.log_failed_ticket_email(participant_id, participant_data, str(exc))
             return {"success": False, "error": str(exc)}
 
@@ -202,5 +203,5 @@ class TicketService:
             )
             self.message_repository.create_from_model(message)
             self.logger.info("Ticket email failure logged for %s", participant_id)
-        except Exception:
-            self.logger.exception("Failed to log ticket email failure")
+        except Exception as exc:
+            self.logger.error("Failed to log ticket email failure: %s", redact_sensitive(str(exc)))

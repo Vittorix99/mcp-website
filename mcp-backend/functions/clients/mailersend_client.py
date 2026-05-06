@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Type
 
 from clients._mailersend_sdk import EmailBuilder, MailerSendClient
 from services.core.error_logs_service import log_external_error
+from utils.safe_logging import mask_email, redact_sensitive
 
 logger = logging.getLogger("mailersend_client")
 
@@ -41,8 +42,8 @@ class MailerSendRoutes:
     @staticmethod
     def _extract_error(payload: Any) -> str:
         if isinstance(payload, dict):
-            return str(payload.get("message") or payload.get("error") or payload)
-        return str(payload)
+            return str(redact_sensitive(payload.get("message") or payload.get("error") or payload))
+        return str(redact_sensitive(payload))
 
     @classmethod
     def send_email(
@@ -83,7 +84,7 @@ class MailerSendRoutes:
             error_message = None if success else cls._extract_error(payload)
 
             if success:
-                logger.info("send_email: sent to %s (status=%d)", request.to_email, status_code)
+                logger.info("send_email: sent to %s (status=%d)", mask_email(request.to_email), status_code)
             else:
                 log_external_error(
                     service="MailerSend",

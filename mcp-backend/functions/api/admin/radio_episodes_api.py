@@ -11,6 +11,7 @@ from dto.radio import (
 )
 from services.radio import RadioEpisodeService
 from utils.http_responses import handle_pydantic_error, handle_service_error
+from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("AdminRadioEpisodesAPI")
 episode_service = RadioEpisodeService()
@@ -22,7 +23,7 @@ def admin_get_radio_episodes(req):
         payload = episode_service.get_all(published_only=False)
         return jsonify([e.to_payload() for e in payload]), 200
     except Exception as err:
-        logger.error("[admin_get_radio_episodes] %s", str(err))
+        logger.error("[admin_get_radio_episodes] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -35,7 +36,7 @@ def admin_create_radio_episode(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_create_radio_episode] %s", str(err))
+        logger.error("[admin_create_radio_episode] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -48,7 +49,7 @@ def admin_get_radio_episode(req):
         payload = episode_service.get_by_id(episode_id)
         return jsonify(payload.to_payload()), 200
     except Exception as err:
-        logger.error("[admin_get_radio_episode] %s", str(err))
+        logger.error("[admin_get_radio_episode] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -61,7 +62,7 @@ def admin_update_radio_episode(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_update_radio_episode] %s", str(err))
+        logger.error("[admin_update_radio_episode] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -75,7 +76,7 @@ def admin_delete_radio_episode(req):
         episode_service.delete(episode_id)
         return jsonify({"message": "Radio episode deleted"}), 200
     except Exception as err:
-        logger.error("[admin_delete_radio_episode] %s", str(err))
+        logger.error("[admin_delete_radio_episode] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -88,7 +89,7 @@ def admin_publish_radio_episode(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_publish_radio_episode] %s", str(err))
+        logger.error("[admin_publish_radio_episode] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -101,5 +102,5 @@ def admin_unpublish_radio_episode(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_unpublish_radio_episode] %s", str(err))
+        logger.error("[admin_unpublish_radio_episode] %s", redact_sensitive(str(err)))
         return handle_service_error(err)

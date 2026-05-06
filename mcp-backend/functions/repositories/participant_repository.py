@@ -142,3 +142,12 @@ class ParticipantRepository:
             })
             updated += 1
         return updated
+
+    def stream_all(self) -> Iterable[EventParticipant]:
+        for snap in db.collection_group("participants_event").stream():
+            payload = snap.to_dict() or {}
+            event_ref = snap.reference.parent.parent
+            event_id = event_ref.id if event_ref else payload.get("event_id", "")
+            if event_id:
+                payload["event_id"] = payload.get("event_id") or event_id
+            yield EventParticipant.from_firestore(payload, snap.id)

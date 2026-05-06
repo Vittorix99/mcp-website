@@ -12,6 +12,7 @@ from clients.mailersend_client import (
     MailerSendRoutes,
 )
 from services.core.error_logs_service import log_external_error
+from utils.safe_logging import mask_email, redact_sensitive
 
 
 # Backward-compatible symbol expected by existing tests.
@@ -106,7 +107,7 @@ class MailerSendMailService(MailService):
         try:
             config = get_mail_config()
         except Exception as exc:
-            logger.exception("Unable to load MailerSend configuration: %s", exc)
+            logger.error("Unable to load MailerSend configuration: %s", redact_sensitive(str(exc)))
             log_external_error(
                 service="MailerSend",
                 operation="send_email",
@@ -150,14 +151,14 @@ class MailerSendMailService(MailService):
             )
 
             if result.success:
-                logger.info("Email sent successfully to %s", email.to_email)
+                logger.info("Email sent successfully to %s", mask_email(email.to_email))
                 return True
 
-            payload_preview = str(result.payload or result.error_message or "")[:500]
+            payload_preview = str(redact_sensitive(result.payload or result.error_message or ""))[:500]
             logger.error(
                 "MailerSend error status %s for %s: %s",
                 result.status_code or "unknown",
-                email.to_email,
+                mask_email(email.to_email),
                 payload_preview,
             )
             log_external_error(
@@ -171,7 +172,7 @@ class MailerSendMailService(MailService):
             )
             return False
         except Exception as exc:
-            logger.exception("Error sending email to %s: %s", email.to_email, exc)
+            logger.error("Error sending email to %s: %s", mask_email(email.to_email), redact_sensitive(str(exc)))
             log_external_error(
                 service="MailerSend",
                 operation="send_email",
@@ -200,13 +201,13 @@ _mail_service: Optional[MailService] = None
 _mail_config_logged = False
 
 
-def _print_mail_config(config: MailConfig) -> None:
-    print(
-        "Mail config: "
-        f"from={config.from_email}, "
-        f"from_name={config.from_name or '-'}, "
-        f"reply_to={config.reply_to or '-'}, "
-        f"api_key_set={'yes' if config.api_key else 'no'}"
+def _log_mail_config(config: MailConfig) -> None:
+    logger.info(
+        "Mail service configured: from_set=%s from_name_set=%s reply_to_set=%s api_key_set=%s",
+        bool(config.from_email),
+        bool(config.from_name),
+        bool(config.reply_to),
+        bool(config.api_key),
     )
 
 
@@ -215,10 +216,10 @@ def _log_mail_config_once() -> None:
     if _mail_config_logged:
         return
     try:
-        _print_mail_config(get_mail_config())
+        _log_mail_config(get_mail_config())
         _mail_config_logged = True
     except Exception as exc:
-        logger.debug("Unable to print mail config: %s", exc)
+        logger.debug("Unable to log mail config: %s", redact_sensitive(str(exc)))
 
 
 def init_mail_service(service: Optional[MailService] = None) -> MailService:
