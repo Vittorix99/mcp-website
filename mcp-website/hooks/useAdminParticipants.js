@@ -168,7 +168,7 @@ const update = useCallback(async (id, data) => {
       // Detach previous listener if any, then attach a fresh one
       try { if (jobUnsubRef.current) { jobUnsubRef.current(); jobUnsubRef.current = null; } } catch {}
       console.debug(DBG, "sendLocationToAll:listener:attach", { jobId: res.jobId });
-      const jobDocRef = doc(db, "jobs", res.jobId);
+      const jobDocRef = doc(db, res.jobCollection || "location_jobs", res.jobId);
       jobUnsubRef.current = onSnapshot(jobDocRef, (snapshot) => {
         const data = snapshot.data();
         console.debug(DBG, "sendLocationToAll:snapshot", data);

@@ -215,6 +215,7 @@ class LocationBulkActionResponseDTO(ParticipantApiBaseDTO):
 class LocationJobResponseDTO(ParticipantApiBaseDTO):
     message: str
     job_id: str = Field(serialization_alias="jobId")
+    job_collection: str = Field(serialization_alias="jobCollection")
     total: int
     status: str
 

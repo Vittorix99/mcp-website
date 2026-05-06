@@ -6,6 +6,7 @@ from api.decorators import admin_endpoint
 from dto.event_api import CreateEventRequestDTO, EventDeleteRequestDTO, EventLookupQueryDTO, UpdateEventRequestDTO
 from services.events.events_service import EventsService
 from utils.http_responses import handle_pydantic_error, handle_service_error
+from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("AdminEventsAPI")
 events_service = EventsService()
@@ -24,7 +25,7 @@ def admin_create_event(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_create_event] %s", str(err))
+        logger.error("[admin_create_event] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -41,7 +42,7 @@ def admin_update_event(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_update_event] %s", str(err))
+        logger.error("[admin_update_event] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -58,7 +59,7 @@ def admin_delete_event(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_delete_event] %s", str(err))
+        logger.error("[admin_delete_event] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -71,7 +72,7 @@ def admin_get_all_events(req):
         logger.info("Fetched all events successfully")
         return jsonify([item.to_payload() for item in payload]), 200
     except Exception as err:
-        logger.error("[admin_get_all_events] %s", str(err))
+        logger.error("[admin_get_all_events] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -87,5 +88,5 @@ def admin_get_event_by_id(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_get_event_by_id] %s", str(err))
+        logger.error("[admin_get_event_by_id] %s", redact_sensitive(str(err)))
         return handle_service_error(err)

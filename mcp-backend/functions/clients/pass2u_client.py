@@ -6,6 +6,7 @@ import requests
 
 from config.external_services import PASS2U_BASE_URL
 from services.core.error_logs_service import log_external_error
+from utils.safe_logging import redact_sensitive, safe_id
 
 logger = logging.getLogger("pass2u_client")
 
@@ -44,8 +45,8 @@ class Pass2URoutes:
     @classmethod
     def _extract_error(cls, payload: Any) -> Optional[str]:
         if isinstance(payload, dict):
-            return payload.get("errorMessage") or payload.get("message")
-        return str(payload) if payload else None
+            return str(redact_sensitive(payload.get("errorMessage") or payload.get("message")))
+        return str(redact_sensitive(payload)) if payload else None
 
     @classmethod
     def create_pass(
@@ -94,7 +95,7 @@ class Pass2URoutes:
                 context={"model_id": model_id},
             )
         else:
-            logger.info("create_pass: model=%s status=%d", model_id, response.status_code)
+            logger.info("create_pass: model=%s status=%d", safe_id(model_id), response.status_code)
 
         return Pass2UApiResult(
             status_code=response.status_code,
@@ -145,7 +146,7 @@ class Pass2URoutes:
                 context={"pass_id": pass_id},
             )
         else:
-            logger.info("invalidate_pass: pass_id=%s status=%d", pass_id, response.status_code)
+            logger.info("invalidate_pass: pass_id=%s status=%d", safe_id(pass_id), response.status_code)
 
         return Pass2UApiResult(
             status_code=response.status_code,

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from config.external_services import SENDER_API_KEY
 from clients.sender_client import SenderRoutes, SenderApiResult
 from services.core.error_logs_service import log_external_error
+from utils.safe_logging import mask_email, redact_sensitive
 
 logger = logging.getLogger("SenderService")
 
@@ -27,9 +28,9 @@ def _format_sender_error(payload: Any, status_code: int) -> str:
                     parts.append(f"{title}: {details}" if title else details)
                 else:
                     parts.append(str(e))
-            return " | ".join(parts) if parts else f"HTTP {status_code}"
+            return str(redact_sensitive(" | ".join(parts) if parts else f"HTTP {status_code}"))
         if isinstance(errors, str):
-            return errors
+            return str(redact_sensitive(errors))
     return f"HTTP {status_code}"
 
 
@@ -54,7 +55,12 @@ class SenderService:
 
     def _ok(self, result: SenderApiResult, context: str) -> bool:
         if not result.ok:
-            logger.error("[Sender] %s failed (HTTP %s): %s", context, result.status_code, result.error_message or result.payload)
+            logger.error(
+                "[Sender] %s failed (HTTP %s): %s",
+                redact_sensitive(context),
+                result.status_code,
+                redact_sensitive(result.error_message or result.payload),
+            )
             log_external_error(
                 service="Sender",
                 operation=context,
@@ -93,11 +99,11 @@ class SenderService:
             if fields:
                 body["fields"] = fields
             result = SenderRoutes.upsert_subscriber(self._key(), body)
-            if self._ok(result, f"upsert_subscriber({email})"):
+            if self._ok(result, f"upsert_subscriber({mask_email(email)})"):
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] upsert_subscriber(%s) exception: %s", email, exc)
+            logger.error("[Sender] upsert_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
             return None
 
     def get_subscriber(self, email: str) -> Optional[Dict]:
@@ -105,17 +111,17 @@ class SenderService:
             result = SenderRoutes.get_subscriber(self._key(), email)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_subscriber(%s) exception: %s", email, exc)
+            logger.error("[Sender] get_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
             return None
 
     def update_subscriber(self, email: str, data: Dict) -> Optional[Dict]:
         try:
             result = SenderRoutes.update_subscriber(self._key(), email, data)
-            if self._ok(result, f"update_subscriber({email})"):
+            if self._ok(result, f"update_subscriber({mask_email(email)})"):
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] update_subscriber(%s) exception: %s", email, exc)
+            logger.error("[Sender] update_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
             return None
 
     def delete_subscriber(self, email: str) -> bool:
@@ -123,7 +129,7 @@ class SenderService:
             result = SenderRoutes.delete_subscriber(self._key(), email)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] delete_subscriber(%s) exception: %s", email, exc)
+            logger.error("[Sender] delete_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
             return False
 
     def add_to_group(self, email: str, group_id: str) -> bool:
@@ -131,7 +137,7 @@ class SenderService:
             result = SenderRoutes.add_to_group(self._key(), email, group_id)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] add_to_group(%s, %s) exception: %s", email, group_id, exc)
+            logger.error("[Sender] add_to_group(%s, %s) exception: %s", mask_email(email), group_id, redact_sensitive(str(exc)))
             return False
 
     def remove_from_group(self, email: str, group_id: str) -> bool:
@@ -139,7 +145,7 @@ class SenderService:
             result = SenderRoutes.remove_from_group(self._key(), email, group_id)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] remove_from_group(%s, %s) exception: %s", email, group_id, exc)
+            logger.error("[Sender] remove_from_group(%s, %s) exception: %s", mask_email(email), group_id, redact_sensitive(str(exc)))
             return False
 
     def list_subscribers(self, params: Optional[Dict] = None) -> Optional[Dict]:
@@ -148,7 +154,7 @@ class SenderService:
             result = SenderRoutes.list_subscribers(self._key(), params=normalized)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_subscribers exception: %s", exc)
+            logger.error("[Sender] list_subscribers exception: %s", redact_sensitive(str(exc)))
             return None
 
     # ------------------------------------------------------------------ #
@@ -160,7 +166,7 @@ class SenderService:
             result = SenderRoutes.list_groups(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_groups exception: %s", exc)
+            logger.error("[Sender] list_groups exception: %s", redact_sensitive(str(exc)))
             return None
 
     def get_group(self, group_id: str) -> Optional[Dict]:
@@ -168,7 +174,7 @@ class SenderService:
             result = SenderRoutes.get_group(self._key(), group_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_group(%s) exception: %s", group_id, exc)
+            logger.error("[Sender] get_group(%s) exception: %s", group_id, redact_sensitive(str(exc)))
             return None
 
     def create_group(self, title: str) -> Optional[Dict]:
@@ -178,7 +184,7 @@ class SenderService:
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] create_group(%s) exception: %s", title, exc)
+            logger.error("[Sender] create_group(%s) exception: %s", title, redact_sensitive(str(exc)))
             return None
 
     def rename_group(self, group_id: str, title: str) -> Optional[Dict]:
@@ -188,7 +194,7 @@ class SenderService:
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] rename_group(%s) exception: %s", group_id, exc)
+            logger.error("[Sender] rename_group(%s) exception: %s", group_id, redact_sensitive(str(exc)))
             return None
 
     def delete_group(self, group_id: str) -> bool:
@@ -196,7 +202,7 @@ class SenderService:
             result = SenderRoutes.delete_group(self._key(), group_id)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] delete_group(%s) exception: %s", group_id, exc)
+            logger.error("[Sender] delete_group(%s) exception: %s", group_id, redact_sensitive(str(exc)))
             return False
 
     def list_group_subscribers(self, group_id: str, params: Optional[Dict] = None) -> Optional[Dict]:
@@ -205,7 +211,7 @@ class SenderService:
             result = SenderRoutes.list_group_subscribers(self._key(), group_id, params=normalized)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_group_subscribers(%s) exception: %s", group_id, exc)
+            logger.error("[Sender] list_group_subscribers(%s) exception: %s", group_id, redact_sensitive(str(exc)))
             return None
 
     # ------------------------------------------------------------------ #
@@ -217,7 +223,7 @@ class SenderService:
             result = SenderRoutes.list_fields(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_fields exception: %s", exc)
+            logger.error("[Sender] list_fields exception: %s", redact_sensitive(str(exc)))
             return None
 
     def create_field(self, title: str, field_type: str = "string") -> Optional[Dict]:
@@ -227,7 +233,7 @@ class SenderService:
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] create_field(%s) exception: %s", title, exc)
+            logger.error("[Sender] create_field(%s) exception: %s", title, redact_sensitive(str(exc)))
             return None
 
     def rename_field(self, field_id: str, title: str) -> Optional[Dict]:
@@ -237,7 +243,7 @@ class SenderService:
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] rename_field(%s) exception: %s", field_id, exc)
+            logger.error("[Sender] rename_field(%s) exception: %s", field_id, redact_sensitive(str(exc)))
             return None
 
     def delete_field(self, field_id: str) -> bool:
@@ -245,7 +251,7 @@ class SenderService:
             result = SenderRoutes.delete_field(self._key(), field_id)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] delete_field(%s) exception: %s", field_id, exc)
+            logger.error("[Sender] delete_field(%s) exception: %s", field_id, redact_sensitive(str(exc)))
             return False
 
     # ------------------------------------------------------------------ #
@@ -257,7 +263,7 @@ class SenderService:
             result = SenderRoutes.list_segments(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_segments exception: %s", exc)
+            logger.error("[Sender] list_segments exception: %s", redact_sensitive(str(exc)))
             return None
 
     def get_segment(self, segment_id: str) -> Optional[Dict]:
@@ -265,7 +271,7 @@ class SenderService:
             result = SenderRoutes.get_segment(self._key(), segment_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_segment(%s) exception: %s", segment_id, exc)
+            logger.error("[Sender] get_segment(%s) exception: %s", segment_id, redact_sensitive(str(exc)))
             return None
 
     def list_segment_subscribers(self, segment_id: str, params: Optional[Dict] = None) -> Optional[Dict]:
@@ -273,7 +279,7 @@ class SenderService:
             result = SenderRoutes.list_segment_subscribers(self._key(), segment_id, params=params)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_segment_subscribers(%s) exception: %s", segment_id, exc)
+            logger.error("[Sender] list_segment_subscribers(%s) exception: %s", segment_id, redact_sensitive(str(exc)))
             return None
 
     def delete_segment(self, segment_id: str) -> bool:
@@ -281,7 +287,7 @@ class SenderService:
             result = SenderRoutes.delete_segment(self._key(), segment_id)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] delete_segment(%s) exception: %s", segment_id, exc)
+            logger.error("[Sender] delete_segment(%s) exception: %s", segment_id, redact_sensitive(str(exc)))
             return False
 
     def get_subscriber_events(self, identifier: str, actions: Optional[str] = None) -> Optional[Dict]:
@@ -289,7 +295,7 @@ class SenderService:
             result = SenderRoutes.get_subscriber_events(self._key(), identifier, actions=actions)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_subscriber_events(%s) exception: %s", identifier, exc)
+            logger.error("[Sender] get_subscriber_events(%s) exception: %s", mask_email(identifier), redact_sensitive(str(exc)))
             return None
 
     # ------------------------------------------------------------------ #
@@ -301,7 +307,7 @@ class SenderService:
             result = SenderRoutes.list_campaigns(self._key(), params=params)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_campaigns exception: %s", exc)
+            logger.error("[Sender] list_campaigns exception: %s", redact_sensitive(str(exc)))
             return None
 
     def get_campaign(self, campaign_id: str) -> Optional[Dict]:
@@ -309,7 +315,7 @@ class SenderService:
             result = SenderRoutes.get_campaign(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_campaign(%s) exception: %s", campaign_id, exc)
+            logger.error("[Sender] get_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
             return None
 
     def create_campaign(
@@ -338,7 +344,7 @@ class SenderService:
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] create_campaign exception: %s", exc)
+            logger.error("[Sender] create_campaign exception: %s", redact_sensitive(str(exc)))
             return None
 
     def update_campaign(
@@ -369,7 +375,7 @@ class SenderService:
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] update_campaign(%s) exception: %s", campaign_id, exc)
+            logger.error("[Sender] update_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
             return None
 
     def send_campaign(self, campaign_id: str) -> tuple:
@@ -382,8 +388,8 @@ class SenderService:
             logger.error("[Sender] send_campaign(%s) failed: %s", campaign_id, error)
             return False, error
         except Exception as exc:
-            logger.error("[Sender] send_campaign(%s) exception: %s", campaign_id, exc)
-            return False, str(exc)
+            logger.error("[Sender] send_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
+            return False, str(redact_sensitive(str(exc)))
 
     def schedule_campaign(self, campaign_id: str, scheduled_at_iso: str) -> tuple:
         """Returns (ok: bool, error: str | None)."""
@@ -398,15 +404,15 @@ class SenderService:
             logger.error("[Sender] schedule_campaign(%s) failed: %s", campaign_id, error)
             return False, error
         except Exception as exc:
-            logger.error("[Sender] schedule_campaign(%s) exception: %s", campaign_id, exc)
-            return False, str(exc)
+            logger.error("[Sender] schedule_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
+            return False, str(redact_sensitive(str(exc)))
 
     def cancel_scheduled_campaign(self, campaign_id: str) -> bool:
         try:
             result = SenderRoutes.cancel_scheduled_campaign(self._key(), campaign_id)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] cancel_scheduled_campaign(%s) exception: %s", campaign_id, exc)
+            logger.error("[Sender] cancel_scheduled_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
             return False
 
     def delete_campaign(self, campaign_id: str) -> bool:
@@ -414,7 +420,7 @@ class SenderService:
             result = SenderRoutes.delete_campaign(self._key(), campaign_id)
             return result.ok
         except Exception as exc:
-            logger.error("[Sender] delete_campaign(%s) exception: %s", campaign_id, exc)
+            logger.error("[Sender] delete_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
             return False
 
     def copy_campaign(self, campaign_id: str) -> Optional[Dict]:
@@ -422,7 +428,7 @@ class SenderService:
             result = SenderRoutes.copy_campaign(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] copy_campaign(%s) exception: %s", campaign_id, exc)
+            logger.error("[Sender] copy_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
             return None
 
     # ------------------------------------------------------------------ #
@@ -434,7 +440,7 @@ class SenderService:
             result = SenderRoutes.get_campaign_opens(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_campaign_opens exception: %s", exc)
+            logger.error("[Sender] get_campaign_opens exception: %s", redact_sensitive(str(exc)))
             return None
 
     def get_campaign_clicks(self, campaign_id: str) -> Optional[Dict]:
@@ -442,7 +448,7 @@ class SenderService:
             result = SenderRoutes.get_campaign_clicks(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_campaign_clicks exception: %s", exc)
+            logger.error("[Sender] get_campaign_clicks exception: %s", redact_sensitive(str(exc)))
             return None
 
     def get_campaign_unsubscribes(self, campaign_id: str) -> Optional[Dict]:
@@ -450,7 +456,7 @@ class SenderService:
             result = SenderRoutes.get_campaign_unsubscribes(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_campaign_unsubscribes exception: %s", exc)
+            logger.error("[Sender] get_campaign_unsubscribes exception: %s", redact_sensitive(str(exc)))
             return None
 
     def get_campaign_bounces_hard(self, campaign_id: str) -> Optional[Dict]:
@@ -458,7 +464,7 @@ class SenderService:
             result = SenderRoutes.get_campaign_bounces_hard(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_campaign_bounces_hard exception: %s", exc)
+            logger.error("[Sender] get_campaign_bounces_hard exception: %s", redact_sensitive(str(exc)))
             return None
 
     def get_campaign_bounces_soft(self, campaign_id: str) -> Optional[Dict]:
@@ -466,7 +472,7 @@ class SenderService:
             result = SenderRoutes.get_campaign_bounces_soft(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] get_campaign_bounces_soft exception: %s", exc)
+            logger.error("[Sender] get_campaign_bounces_soft exception: %s", redact_sensitive(str(exc)))
             return None
 
     # ------------------------------------------------------------------ #
@@ -497,11 +503,11 @@ class SenderService:
                     for name, url in attachments.items()
                 ]
             result = SenderRoutes.send_transactional(self._key(), body)
-            if self._ok(result, f"send_transactional({to_email})"):
+            if self._ok(result, f"send_transactional({mask_email(to_email)})"):
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] send_transactional(%s) exception: %s", to_email, exc)
+            logger.error("[Sender] send_transactional(%s) exception: %s", mask_email(to_email), redact_sensitive(str(exc)))
             return None
 
     def list_transactional_campaigns(self) -> Optional[Dict]:
@@ -509,7 +515,7 @@ class SenderService:
             result = SenderRoutes.list_transactional_campaigns(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
-            logger.error("[Sender] list_transactional_campaigns exception: %s", exc)
+            logger.error("[Sender] list_transactional_campaigns exception: %s", redact_sensitive(str(exc)))
             return None
 
     def create_transactional_campaign(
@@ -532,7 +538,7 @@ class SenderService:
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] create_transactional_campaign exception: %s", exc)
+            logger.error("[Sender] create_transactional_campaign exception: %s", redact_sensitive(str(exc)))
             return None
 
     def send_transactional_campaign(
@@ -547,11 +553,11 @@ class SenderService:
             if variables:
                 body["variables"] = variables
             result = SenderRoutes.send_transactional_campaign(self._key(), campaign_id, body)
-            if self._ok(result, f"send_transactional_campaign({campaign_id}, {to_email})"):
+            if self._ok(result, f"send_transactional_campaign({campaign_id}, {mask_email(to_email)})"):
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] send_transactional_campaign exception: %s", exc)
+            logger.error("[Sender] send_transactional_campaign exception: %s", redact_sensitive(str(exc)))
             return None
 
     # ------------------------------------------------------------------ #
@@ -569,9 +575,9 @@ class SenderService:
             if variables:
                 body["variables"] = variables
             result = SenderRoutes.start_workflow(self._key(), workflow_id, body)
-            if self._ok(result, f"start_workflow({workflow_id}, {email})"):
+            if self._ok(result, f"start_workflow({workflow_id}, {mask_email(email)})"):
                 return result.payload
             return None
         except Exception as exc:
-            logger.error("[Sender] start_workflow exception: %s", exc)
+            logger.error("[Sender] start_workflow exception: %s", redact_sensitive(str(exc)))
             return None

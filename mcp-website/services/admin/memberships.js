@@ -77,3 +77,7 @@ export async function createWalletPass(membership_id) {
 export async function invalidateWalletPass(membership_id) {
   return safeFetch(endpoints.admin.invalidateWalletPass, "POST", { membership_id });
 }
+
+export async function renewMembership(membership_id) {
+  return safeFetch(endpoints.admin.renewMembership, "POST", { membership_id });
+}

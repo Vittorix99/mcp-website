@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Protocol
+from typing import Any, Dict, Iterable, List, Optional, Protocol, TypeVar
 
 from models import (
     AdminUser,
@@ -20,6 +20,9 @@ from models import (
 )
 from models.radio import RadioEpisode, RadioSeason
 from models.scan_token import ScanToken
+
+
+JobModel = TypeVar("JobModel", bound=Job)
 
 
 class AdminRepositoryProtocol(Protocol):
@@ -161,6 +164,9 @@ class ParticipantRepositoryProtocol(Protocol):
     def stream(self, event_id: str) -> Iterable[EventParticipant]:
         ...
 
+    def stream_all(self) -> Iterable[EventParticipant]:
+        ...
+
     def get(self, event_id: str, participant_id: str) -> Optional[EventParticipant]:
         ...
 
@@ -228,6 +234,9 @@ class PurchaseRepositoryProtocol(Protocol):
 
 
 class MessageRepositoryProtocol(Protocol):
+    def stream(self) -> Iterable[ContactMessage]:
+        ...
+
     def list_models_ordered_by_name(self) -> List[ContactMessage]:
         ...
 
@@ -281,17 +290,26 @@ class OrderRepositoryProtocol(Protocol):
         ...
 
 
-class JobRepositoryProtocol(Protocol):
-    def create_from_model(self, job: Job) -> str:
+class JobRepositoryProtocol(Protocol[JobModel]):
+    def create_from_model(self, job: JobModel) -> str:
         ...
 
-    def get_model(self, job_id: str) -> Optional[Job]:
+    def get_model(self, job_id: str) -> Optional[JobModel]:
         ...
 
     def update(self, job_id: str, payload: Dict[str, Any]) -> None:
         ...
 
-    def update_from_model(self, job_id: str, job: Job) -> None:
+    def update_from_model(self, job_id: str, job: JobModel) -> None:
+        ...
+
+    def get_raw(self, job_id: str) -> Optional[Dict[str, Any]]:
+        ...
+
+    def stream_raw_by_type(self, job_type: str) -> Iterable[tuple[str, Dict[str, Any]]]:
+        ...
+
+    def claim_queued(self, job_id: str) -> bool:
         ...
 
 
@@ -341,6 +359,9 @@ class ScanTokenRepositoryProtocol(Protocol):
 
 
 class EntranceScanRepositoryProtocol(Protocol):
+    def list(self, event_id: str) -> List[EntranceScan]:
+        ...
+
     def get(self, event_id: str, membership_id: str) -> Optional[EntranceScan]:
         ...
 

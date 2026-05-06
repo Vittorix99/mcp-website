@@ -23,6 +23,7 @@ from dto.sender_subscriber import SenderSubscriberDTO
 from models.membership import Membership
 from models.event_participant import EventParticipant
 from services.sender.sender_service import SenderService
+from utils.safe_logging import mask_email, redact_sensitive
 
 logger = logging.getLogger("SenderSync")
 
@@ -52,9 +53,9 @@ def _upsert(dto: SenderSubscriberDTO, group_ids: List[Optional[str]], context: s
         logger.warning("[SenderSync] %s: no valid group_ids, skipping group assignment", context)
     try:
         SenderService().upsert_subscriber(**dto.to_upsert_kwargs(groups=valid_groups or None))
-        logger.info("[SenderSync] %s: %s synced to Sender (source=%s)", context, dto.email, dto.source.value)
+        logger.info("[SenderSync] %s: %s synced to Sender (source=%s)", context, mask_email(dto.email), dto.source.value)
     except Exception as exc:
-        logger.error("[SenderSync] %s: upsert failed for %s: %s", context, dto.email, exc)
+        logger.error("[SenderSync] %s: upsert failed for %s: %s", context, mask_email(dto.email), redact_sensitive(str(exc)))
 
 
 def sync_membership_to_sender(membership_id: str, membership: Membership) -> None:
@@ -69,7 +70,7 @@ def sync_membership_to_sender(membership_id: str, membership: Membership) -> Non
         group_id = _find_or_create_group(svc, "Memberships")
         _upsert(dto, [group_id], "sync_membership_to_sender")
     except Exception as exc:
-        logger.error("[SenderSync] sync_membership_to_sender: group find/create failed: %s", exc)
+        logger.error("[SenderSync] sync_membership_to_sender: group find/create failed: %s", redact_sensitive(str(exc)))
         _upsert(dto, [SENDER_GROUP_MEMBERS], "sync_membership_to_sender")
 
 
@@ -86,7 +87,7 @@ def sync_participant_to_sender(
     falling back to SENDER_GROUP_TICKET_BUYERS env var.
     """
     if not participant.newsletter_consent:
-        logger.debug("[SenderSync] sync_participant_to_sender: no consent for %s, skipping", participant.email)
+        logger.debug("[SenderSync] sync_participant_to_sender: no consent for %s, skipping", mask_email(participant.email))
         return
     dto = SenderSubscriberDTO.from_participant(participant_id, participant, event_id)
 
@@ -97,10 +98,10 @@ def sync_participant_to_sender(
             per_event_group_id = _find_or_create_group(svc, f"Participant-{event_title}")
             _upsert(dto, [newsletter_group_id, per_event_group_id], "sync_participant_to_sender")
         else:
-            logger.warning("[SenderSync] sync_participant_to_sender: no event_title for %s, using fallback group", participant.email)
+            logger.warning("[SenderSync] sync_participant_to_sender: no event_title for %s, using fallback group", mask_email(participant.email))
             _upsert(dto, [newsletter_group_id, SENDER_GROUP_TICKET_BUYERS], "sync_participant_to_sender")
     except Exception as exc:
-        logger.error("[SenderSync] sync_participant_to_sender: group find/create failed: %s", exc)
+        logger.error("[SenderSync] sync_participant_to_sender: group find/create failed: %s", redact_sensitive(str(exc)))
         _upsert(dto, [SENDER_GROUP_TICKET_BUYERS], "sync_participant_to_sender")
 
 
@@ -115,7 +116,7 @@ def sync_newsletter_signup_to_sender(email: str, name: Optional[str] = None) -> 
         group_id = _find_or_create_group(svc, "Newsletter")
         _upsert(dto, [group_id], "sync_newsletter_signup_to_sender")
     except Exception as exc:
-        logger.error("[SenderSync] sync_newsletter_signup_to_sender: group find/create failed: %s", exc)
+        logger.error("[SenderSync] sync_newsletter_signup_to_sender: group find/create failed: %s", redact_sensitive(str(exc)))
         _upsert(dto, [], "sync_newsletter_signup_to_sender")
 
 
@@ -130,9 +131,9 @@ def unsubscribe_from_sender(email: str) -> None:
         return
     try:
         SenderService().update_subscriber(email, {"subscriber_status": "UNSUBSCRIBED"})
-        logger.info("[SenderSync] unsubscribe_from_sender: %s marked UNSUBSCRIBED", email)
+        logger.info("[SenderSync] unsubscribe_from_sender: %s marked UNSUBSCRIBED", mask_email(email))
     except Exception as exc:
-        logger.error("[SenderSync] unsubscribe_from_sender(%s) failed: %s", email, exc)
+        logger.error("[SenderSync] unsubscribe_from_sender(%s) failed: %s", mask_email(email), redact_sensitive(str(exc)))
 
 
 def delete_subscriber_from_sender(email: str) -> None:
@@ -146,6 +147,6 @@ def delete_subscriber_from_sender(email: str) -> None:
         return
     try:
         SenderService().delete_subscriber(email)
-        logger.info("[SenderSync] delete_subscriber_from_sender: %s deleted from Sender", email)
+        logger.info("[SenderSync] delete_subscriber_from_sender: %s deleted from Sender", mask_email(email))
     except Exception as exc:
-        logger.error("[SenderSync] delete_subscriber_from_sender(%s) failed: %s", email, exc)
+        logger.error("[SenderSync] delete_subscriber_from_sender(%s) failed: %s", mask_email(email), redact_sensitive(str(exc)))

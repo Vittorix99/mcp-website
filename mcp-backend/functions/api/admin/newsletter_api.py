@@ -11,6 +11,7 @@ from dto.newsletter_api import (
 )
 from services.communications.newsletter_service import NewsletterService
 from utils.http_responses import handle_pydantic_error, handle_service_error
+from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("AdminNewsletterAPI")
 newsletter_service = NewsletterService()
@@ -29,7 +30,7 @@ def admin_get_newsletter_signups(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_get_newsletter_signups] %s", str(err))
+        logger.error("[admin_get_newsletter_signups] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -43,7 +44,7 @@ def admin_update_newsletter_signup(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_update_newsletter_signup] %s", str(err))
+        logger.error("[admin_update_newsletter_signup] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -57,7 +58,7 @@ def admin_delete_newsletter_signup(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[admin_delete_newsletter_signup] %s", str(err))
+        logger.error("[admin_delete_newsletter_signup] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -68,5 +69,5 @@ def admin_get_newsletter_consents(req):
         payload = newsletter_service.get_all_consents()
         return jsonify(payload.to_payload()), 200
     except Exception as err:
-        logger.error("[admin_get_newsletter_consents] %s", str(err))
+        logger.error("[admin_get_newsletter_consents] %s", redact_sensitive(str(err)))
         return handle_service_error(err)

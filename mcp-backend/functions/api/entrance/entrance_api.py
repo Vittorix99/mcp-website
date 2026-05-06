@@ -13,6 +13,7 @@ from dto.entrance_api import (
 )
 from services.entrance_service import EntranceService
 from utils.http_responses import handle_pydantic_error, handle_service_error
+from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("EntranceAPI")
 entrance_service = EntranceService()
@@ -29,7 +30,7 @@ def entrance_generate_scan_token(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[entrance_generate_scan_token] %s", str(err))
+        logger.error("[entrance_generate_scan_token] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -57,7 +58,7 @@ def entrance_deactivate_scan_token(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[entrance_deactivate_scan_token] %s", str(err))
+        logger.error("[entrance_deactivate_scan_token] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 
@@ -72,7 +73,7 @@ def entrance_manual_entry(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[entrance_manual_entry] %s", str(err))
+        logger.error("[entrance_manual_entry] %s", redact_sensitive(str(err)))
         return handle_service_error(err)
 
 

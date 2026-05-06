@@ -28,6 +28,9 @@ class EntranceScanRepository:
     def exists(self, event_id: str, membership_id: str) -> bool:
         return self._collection(event_id).document(membership_id).get().exists
 
+    def list(self, event_id: str):
+        return [self._model_from_snapshot(doc) for doc in self._collection(event_id).stream()]
+
     def create_scan(self, event_id: str, membership_id: str, scan_token: str) -> Optional[EntranceScan]:
         """Ritorna None se crea il record; ritorna lo scan esistente se intercetta una race condition."""
         model = EntranceScan(

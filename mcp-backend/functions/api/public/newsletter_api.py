@@ -8,6 +8,7 @@ from dto.newsletter_api import NewsletterSignupRequestDTO
 from services.communications.newsletter_service import NewsletterService
 from services.sender.sender_sync import sync_newsletter_signup_to_sender
 from utils.http_responses import handle_pydantic_error, handle_service_error
+from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("PublicNewsletterAPI")
 newsletter_service = NewsletterService()
@@ -22,7 +23,7 @@ def newsletter_signup(req):
         try:
             sync_newsletter_signup_to_sender(email=dto.email, name=dto.name)
         except Exception as exc:
-            logger.warning("[newsletter_signup] Sender sync failed: %s", exc)
+            logger.warning("[newsletter_signup] Sender sync failed: %s", redact_sensitive(str(exc)))
 
         return jsonify(payload.to_payload()), 200
     except PydanticValidationError as err:

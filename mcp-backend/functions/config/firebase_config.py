@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 import firebase_admin
@@ -9,6 +10,7 @@ from config.environment import load_environment
 
 load_environment()
 
+logger = logging.getLogger("firebase_config")
 region = "us-central1"
 
 _explicit_cred = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
@@ -39,6 +41,10 @@ def _resolve_cred_path(path: str) -> str:
 _cred_path = _resolve_cred_path(_raw_cred)
 
 
+def _is_cloud_runtime() -> bool:
+    return bool(os.environ.get("K_SERVICE"))
+
+
 def _load_credentials():
     """Return a firebase_admin credential, supporting both service accounts and ADC files."""
     service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
@@ -50,10 +56,13 @@ def _load_credentials():
     if _cred_path:
         if not os.path.exists(_cred_path):
             if _explicit_cred:
-                raise FileNotFoundError(
-                    f"Service account not found: {_cred_path} "
-                    f"(from GOOGLE_APPLICATION_CREDENTIALS='{_explicit_cred}')"
-                )
+                if _is_cloud_runtime():
+                    # Cloud Functions/Run should use runtime ADC. A local
+                    # service-account path may still be present from legacy env
+                    # config, but that file is intentionally not deployed.
+                    os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+                else:
+                    raise FileNotFoundError("Configured Google application credentials file was not found.")
         else:
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _cred_path
             try:
@@ -92,13 +101,10 @@ db = firestore.client()
 bucket = storage.bucket() if os.environ.get("STORAGE_BUCKET") else None
 
 if os.environ.get("FIRESTORE_EMULATOR_HOST"):
-    print(f"Using Firestore emulator at {os.environ['FIRESTORE_EMULATOR_HOST']}")
+    logger.info("Firestore emulator enabled")
 else:
-    print(
-        "Using Firestore cloud project "
-        f"(cred={_cred_path}, project={db.project})"
-    )
-print(f"Firebase credentials file: {_cred_path}")
+    cred_label = "application_default" if _is_cloud_runtime() else "local_file"
+    logger.info("Firestore cloud client initialized: auth=%s project=%s", cred_label, db.project)
 
 cors = options.CorsOptions(
     cors_origins="*",

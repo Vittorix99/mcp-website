@@ -2,6 +2,8 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
+from utils.safe_logging import redact_sensitive
+
 logger = logging.getLogger("ExternalErrorLogger")
 
 
@@ -10,7 +12,7 @@ def _normalize_message(value: Any) -> str:
         return ""
 
     if isinstance(value, str):
-        return value
+        return str(redact_sensitive(value))
 
     if isinstance(value, dict):
         primary = value.get("error") or value.get("message")
@@ -18,17 +20,17 @@ def _normalize_message(value: Any) -> str:
 
         invalid_emails = value.get("invalid_emails")
         if isinstance(invalid_emails, list) and invalid_emails:
-            details.append("Invalid: " + ", ".join(str(item) for item in invalid_emails))
+            details.append("Invalid: " + ", ".join(str(redact_sensitive(item)) for item in invalid_emails))
 
         non_existing = value.get("non_existing_subscribers")
         if isinstance(non_existing, list) and non_existing:
-            details.append("Missing: " + ", ".join(str(item) for item in non_existing))
+            details.append("Missing: " + ", ".join(str(redact_sensitive(item)) for item in non_existing))
 
         if isinstance(primary, str) and (primary or details):
-            return " | ".join([primary, *details] if primary else details)
+            return str(redact_sensitive(" | ".join([primary, *details] if primary else details)))
 
     try:
-        return json.dumps(value, ensure_ascii=True, default=str)
+        return json.dumps(redact_sensitive(value), ensure_ascii=True, default=str)
     except Exception:
         return str(value)
 
@@ -48,11 +50,11 @@ def log_external_error(
         details: Dict[str, Any] = {
             "service": service,
             "message": _normalize_message(message),
-            "operation": operation,
-            "source": source,
+            "operation": redact_sensitive(operation),
+            "source": redact_sensitive(source),
             "status_code": status_code,
-            "payload": payload,
-            "context": context,
+            "payload": redact_sensitive(payload),
+            "context": redact_sensitive(context),
             "severity": severity or "error",
         }
         compact = json.dumps(

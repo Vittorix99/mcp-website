@@ -19,7 +19,6 @@ def is_minor(birthdate_str):
     """Restituisce True se la persona è minorenne. Accetta formato 'gg-mm-aaaa'."""
     try:
         birthdate = datetime.datetime.strptime(birthdate_str, "%d-%m-%Y").date()
-        print("Birthday is:", birthdate)
         today = datetime.date.today()
         return (today - birthdate).days // 365 < 18
     except Exception:
@@ -30,7 +29,6 @@ def is_Under_21(birthdate_str):
     """Restituisce True se la persona è minorenne. Accetta formato 'gg-mm-aaaa'."""
     try:
         birthdate = datetime.datetime.strptime(birthdate_str, "%d-%m-%Y").date()
-        print("Birthday is:", birthdate)
         today = datetime.date.today()
         return (today - birthdate).days // 365 < 21
     except Exception:

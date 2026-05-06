@@ -68,6 +68,20 @@ import { EventStats } from "@/components/admin/events/EventStats"
 import { exportParticipantsToExcel } from "@/lib/excel" // ✅ NUOVO IMPORT
 import { resolvePurchaseMode } from "@/config/events-utils"
 import { getMembershipPrice, getMemberships } from "@/services/admin/memberships"
+
+const ADMIN_THEME = {
+  "--color-black": "#0a0a0a",
+  "--color-surface": "#111111",
+  "--color-border": "#1e1e1e",
+  "--color-muted": "#3a3a3a",
+  "--color-white": "#ffffff",
+  "--color-off": "#b0b0b0",
+  "--color-orange": "#e8820c",
+  "--color-purple": "#511a6c",
+  "--color-red": "#e8241a",
+  "--color-yellow": "#f0d44a",
+}
+const TITLE_FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
 import { generateScanToken as apiGenerateScanToken, verifyScanToken as apiVerifyScanToken, deactivateScanToken as apiDeactivateScanToken, manualEntry as apiManualEntry } from "@/services/admin/entrance"
 
 function parseMembershipDate(value) {
@@ -764,7 +778,7 @@ export default function EventContent({ id: eventId }) {
 
   return (
     <TooltipProvider>
-      <div className="text-gray-50 min-h-screen p-6 lg:p-8">
+      <div className="min-h-screen p-6 lg:p-8" style={ADMIN_THEME}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -780,10 +794,10 @@ export default function EventContent({ id: eventId }) {
 
           {/* Event card */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {imageUrl && <img src={imageUrl || "/placeholder.svg"} className="w-full object-cover rounded-lg" />}
-            <Card className="bg-zinc-900 text-white p-6 shadow-xl border border-zinc-700 rounded-xl">
+            {imageUrl && <img src={imageUrl || "/placeholder.svg"} className="w-full object-cover" />}
+            <Card className="border-[var(--color-border)] bg-[var(--color-surface)] rounded-none">
               <CardHeader>
-                <CardTitle className="text-xl font-bold flex items-center gap-3 border-b border-zinc-700 pb-3 mb-5">
+                <CardTitle className="text-base uppercase tracking-wide flex items-center gap-3 border-b border-[var(--color-border)] pb-3 mb-3" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>
                   Dettagli evento
                 </CardTitle>
               </CardHeader>
@@ -847,7 +861,7 @@ export default function EventContent({ id: eventId }) {
           </div>
 
           {(eventStatus !== "active" || isPastEvent) && (
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-4 text-center">
+            <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
               <p className="text-lg font-semibold text-white">
                 {eventStatus === "sold_out"
                   ? "Evento sold out"
@@ -1210,9 +1224,9 @@ export default function EventContent({ id: eventId }) {
             {/* ── In the event (check-in) ── */}
             <TabsContent value="ingresso" className="space-y-4">
               {/* Scan token panel */}
-              <Card className="bg-zinc-900 border-zinc-700">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Ingresso</CardTitle>
+              <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
+                <CardHeader className="pb-3 border-b border-[var(--color-border)]">
+                  <CardTitle className="text-sm uppercase tracking-wide" style={{ fontFamily: TITLE_FONT, fontWeight: 800 }}>Ingresso</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {!scanUrl ? (
@@ -1244,17 +1258,17 @@ export default function EventContent({ id: eventId }) {
 
               {/* Counters */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-zinc-900 rounded-md p-3 text-center">
-                  <div className="text-xs text-gray-400">Entrati</div>
-                  <div className="text-2xl font-bold text-emerald-400">{checkinCounters.entered}</div>
+                <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-center">
+                  <div className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Entrati</div>
+                  <div className="text-2xl font-bold text-emerald-400" style={{ fontFamily: TITLE_FONT }}>{checkinCounters.entered}</div>
                 </div>
-                <div className="bg-zinc-900 rounded-md p-3 text-center">
-                  <div className="text-xs text-gray-400">Mancanti</div>
-                  <div className="text-2xl font-bold text-yellow-400">{checkinCounters.missing}</div>
+                <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-center">
+                  <div className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Mancanti</div>
+                  <div className="text-2xl font-bold text-[var(--color-yellow)]" style={{ fontFamily: TITLE_FONT }}>{checkinCounters.missing}</div>
                 </div>
-                <div className="bg-zinc-900 rounded-md p-3 text-center">
-                  <div className="text-xs text-gray-400">Totale</div>
-                  <div className="text-2xl font-bold text-blue-400">{checkinCounters.total}</div>
+                <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-center">
+                  <div className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Totale</div>
+                  <div className="text-2xl font-bold text-[var(--color-orange)]" style={{ fontFamily: TITLE_FONT }}>{checkinCounters.total}</div>
                 </div>
               </div>
 

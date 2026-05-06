@@ -97,7 +97,22 @@ ENV_LOCAL="$SCRIPT_DIR/mcp-website/.env.local"
 cleanup() { rm -f "$ENV_LOCAL"; }
 trap cleanup EXIT
 
+ENV_EXCLUDE_RE="^(NEXT_PUBLIC_ENV|NEXT_PUBLIC_PAYPAL_ENV|NEXT_PUBLIC_AUTH_EMULATOR_HOST)="
+if [ "$PROD_EMULATOR" = true ]; then
+  ENV_EXCLUDE_RE="^(NEXT_PUBLIC_ENV|NEXT_PUBLIC_PAYPAL_ENV|NEXT_PUBLIC_AUTH_EMULATOR_HOST|NEXT_PUBLIC_BASE_URL|NEXT_PUBLIC_FIREBASE_)="
+fi
+
+write_selected_env() {
+  if [ "${MCP_USE_DOPPLER:-}" = "1" ]; then
+    env | grep -E "^(NEXT_PUBLIC_|BACKEND_BASE_URL=)" | grep -Ev "$ENV_EXCLUDE_RE" || true
+  else
+    grep -E "^(NEXT_PUBLIC_|BACKEND_BASE_URL=)" "$ENV_FILE" | grep -Ev "$ENV_EXCLUDE_RE" || true
+  fi
+}
+
 {
+  write_selected_env
+
   if [ "$DEVELOPMENT" = true ]; then
     echo "NEXT_PUBLIC_ENV=development"
     echo "NEXT_PUBLIC_PAYPAL_ENV=development"

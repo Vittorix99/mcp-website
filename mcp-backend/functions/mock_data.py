@@ -124,8 +124,6 @@ def seed_participants(event_id: str, count: int, email: str) -> None:
             })
             female_index += 1
 
-    print(f"Inseriti {count} partecipanti nell’evento {event_id} con email {email}.")
-
 if __name__ == "__main__":
     # Esempio: popola 100 partecipanti nell’evento specificato usando l’emulatore Firestore
     seed_participants("EexnCTGLfmmPa968sHtJ", 100, "vittorio.digiorgio@hotmail.it")

@@ -36,7 +36,6 @@ def _resolve_local_asset(image_path):
 
 
 def generate_ticket_pdf(ticket_data, event_data, logo_path):
-    print("Event data is:", event_data)
     purchase_mode = map_purchase_mode(event_data.get("purchaseMode") or event_data.get("type"))
 
     if purchase_mode in (
@@ -56,7 +55,6 @@ def generate_ticket_pdf(ticket_data, event_data, logo_path):
 
 def generate_membership_pdf(membership_data, logo_path, pattern_path):
     if not membership_data.get("subscription_valid"):
-        print("Subscription is not valid, no membership card generated.")
         return None
 
 

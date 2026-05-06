@@ -130,6 +130,7 @@ class _DummyParticipantRepo:
 
 def _make_service():
     service = EventPaymentService.__new__(EventPaymentService)
+    service.paypal_client = None
     service.debug = False
     service.orders_controller = _DummyOrdersController()
     service.event_repository = _DummyEventRepo()
@@ -139,6 +140,22 @@ def _make_service():
     service.purchase_repository = _DummyPurchaseRepo()
     service.participant_repository = _DummyParticipantRepo()
     return service
+
+
+def test_paypal_client_is_lazy_when_credentials_are_missing(monkeypatch):
+    for key in (
+        "PAYPAL_CLIENT_ID",
+        "PAYPAL_CLIENT_SECRET",
+        "PAYPAL_LIVE_CLIENT_ID",
+        "PAYPAL_LIVE_CLIENT_SECRET",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    service = _make_service()
+    service.orders_controller = None
+
+    with pytest.raises(ExternalServiceError, match="Missing PayPal credentials"):
+        service._get_orders_controller()
 
 
 def _participant(name="Mario"):

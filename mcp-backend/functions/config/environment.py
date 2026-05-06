@@ -24,8 +24,15 @@ def _should_override_env(override: bool) -> bool:
     return False
 
 
+def _is_cloud_runtime() -> bool:
+    return bool(os.environ.get("K_SERVICE"))
+
+
 def load_environment(override: bool = False) -> Path:
     env_path = _resolve_env_path()
+    if _is_cloud_runtime():
+        return env_path
+
     # Quando il processo parte con Doppler, le variabili sono gia iniettate
     # nell'ambiente. In quel caso non carichiamo i file .env locali per evitare
     # che configurazioni obsolete sovrascrivano la source of truth.

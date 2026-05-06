@@ -12,6 +12,7 @@ from services.events.ticket_service import TicketService
 from services.memberships.pass2u_service import Pass2UService
 from services.sender.sender_sync import sync_membership_to_sender, sync_participant_to_sender
 from utils.events_utils import is_valid_email
+from utils.safe_logging import mask_email, redact_sensitive
 from utils.templates_mail import get_membership_email_template, get_membership_email_text
 
 logger = logging.getLogger("registration_trigger")
@@ -60,7 +61,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
                 gender = gender_info.get("gender") or "N/A"
                 probability = round(float(gender_info.get("probability", 0.0)), 1)
             except Exception as exc:
-                logger.warning("on_participant_created: gender API failed for %s: %s", name, exc)
+                logger.warning("on_participant_created: gender API failed: %s", redact_sensitive(str(exc)))
 
         snapshot.reference.update({"gender": gender, "gender_probability": probability})
         logger.info("on_participant_created: gender=%s (%.1f) for %s", gender, probability, participant_id)
@@ -88,7 +89,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
                 event_title = (event_doc.to_dict() or {}).get("title", "") if event_doc.exists else ""
                 sync_participant_to_sender(participant_id, participant_model, event_id, event_title=event_title)
             except Exception as exc:
-                logger.error("on_participant_created: Sender sync failed for %s: %s", email, exc)
+                logger.error("on_participant_created: Sender sync failed for %s: %s", mask_email(email), redact_sensitive(str(exc)))
                 log_external_error(
                     service="Sender",
                     operation="participant_trigger_sync",
@@ -99,7 +100,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
                 )
 
     except Exception as exc:
-        logger.error("on_participant_created: unhandled error for %s: %s", participant_id, exc)
+        logger.error("on_participant_created: unhandled error for %s: %s", participant_id, redact_sensitive(str(exc)))
         ticket_service.log_failed_ticket_email(
             participant_id,
             snapshot.to_dict() if snapshot else {},
@@ -155,7 +156,7 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
                     })
                     logger.info("on_membership_created: wallet pass created for %s", membership_id)
             except Exception as exc:
-                logger.error("on_membership_created: Pass2U creation failed for %s: %s", membership_id, exc)
+                logger.error("on_membership_created: Pass2U creation failed for %s: %s", membership_id, redact_sensitive(str(exc)))
                 log_external_error(
                     service="Pass2U",
                     operation="membership_trigger_create_wallet",
@@ -190,7 +191,7 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
             )
             if sent:
                 snapshot.reference.update({"membership_sent": True})
-                logger.info("on_membership_created: card sent to %s", membership_model.email)
+                logger.info("on_membership_created: card sent to %s", mask_email(membership_model.email))
             else:
                 logger.error("on_membership_created: card email failed for %s", membership_id)
 
@@ -200,7 +201,7 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
             if is_valid_email(email):
                 sync_membership_to_sender(membership_id, membership_model)
         except Exception as exc:
-            logger.error("on_membership_created: Sender sync failed for %s: %s", membership_id, exc)
+            logger.error("on_membership_created: Sender sync failed for %s: %s", membership_id, redact_sensitive(str(exc)))
             log_external_error(
                 service="Sender",
                 operation="membership_trigger_sync",
@@ -211,4 +212,4 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
             )
 
     except Exception as exc:
-        logger.error("on_membership_created: unhandled error for %s: %s", membership_id, exc)
+        logger.error("on_membership_created: unhandled error for %s: %s", membership_id, redact_sensitive(str(exc)))

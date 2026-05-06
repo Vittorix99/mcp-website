@@ -7,6 +7,7 @@ from api.decorators import admin_endpoint, public_endpoint
 from dto.setting_api import GetSettingQueryDTO, SetSettingRequestDTO
 from services.core.settings_service import SettingsService
 from utils.http_responses import handle_pydantic_error, handle_service_error
+from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("SettingAPI")
 settings_service = SettingsService()
@@ -36,5 +37,5 @@ def set_settings(req):
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
-        logger.error("[set_settings] %s", str(err))
+        logger.error("[set_settings] %s", redact_sensitive(str(err)))
         return handle_service_error(err)

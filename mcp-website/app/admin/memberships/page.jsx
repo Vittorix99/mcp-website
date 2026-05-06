@@ -26,6 +26,20 @@ import { useError } from "@/contexts/errorContext"
 import { getMembershipsReport } from "@/services/admin/memberships"
 import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
+const ADMIN_THEME = {
+  "--color-black": "#0a0a0a",
+  "--color-surface": "#111111",
+  "--color-border": "#1e1e1e",
+  "--color-muted": "#3a3a3a",
+  "--color-white": "#ffffff",
+  "--color-off": "#b0b0b0",
+  "--color-orange": "#e8820c",
+  "--color-purple": "#511a6c",
+  "--color-red": "#e8241a",
+  "--color-yellow": "#f0d44a",
+}
+const TITLE_FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
+
 export default function MembershipsPage() {
   const router = useRouter()
   const {
@@ -445,6 +459,7 @@ export default function MembershipsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="space-y-6 pb-8"
+        style={ADMIN_THEME}
       >
         <AdminPageHeader
           title="Membri"
@@ -534,7 +549,7 @@ export default function MembershipsPage() {
           </Select>
         </div>
 
-        <Card>
+        <Card className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
           <CardContent className="p-0 md:p-6">
             {loading ? (
               <div className="py-12 flex justify-center items-center">
@@ -644,7 +659,7 @@ export default function MembershipsPage() {
                 {/* MOBILE CARDS */}
                 <div className="block md:hidden space-y-4 p-4">
                   {paginatedMembers.map((m) => (
-                    <Card key={m.id} className="bg-neutral-900 border-neutral-800">
+                    <Card key={m.id} className="rounded-none border-[var(--color-border)] bg-[var(--color-surface)]">
                       <CardHeader className="flex flex-row items-start justify-between gap-4 p-4">
                         <div>
                           <h3 className="font-bold">
