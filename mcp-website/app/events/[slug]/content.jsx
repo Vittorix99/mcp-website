@@ -36,7 +36,7 @@ function formatDateDisplay(dateString) {
 function EventHero({ event, imageUrl }) {
   return (
     <div className="event-detail-hero" style={{
-      position: "relative", height: "68vh", minHeight: "480px",
+      position: "relative", height: "53vh", minHeight: "400px",
       background: "#0f0a05", overflow: "hidden",
     }}>
       {/* Texture */}
@@ -46,16 +46,22 @@ function EventHero({ event, imageUrl }) {
           rgba(224,120,0,0.03) 0px,rgba(224,120,0,0.03) 1px,
           transparent 1px,transparent 18px)`,
       }} />
-      {/* Orange left ambient */}
+      {/* Orange left ambient — wide mid-field glow */}
       <div style={{
         position: "absolute", inset: 0,
-        background: `radial-gradient(ellipse at 20% 60%, ${ACC}18 0%, transparent 55%)`,
+        background: `radial-gradient(ellipse at 18% 52%, ${ACC}2e 0%, transparent 50%)`,
+      }} />
+      {/* Orange title warmth — focused glow right above/behind the title */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `radial-gradient(ellipse at 8% 82%, ${ACC}28 0%, transparent 38%)`,
+        pointerEvents: "none",
       }} />
       {/* Orange right ambient — behind poster */}
       {imageUrl && (
         <div style={{
           position: "absolute", inset: 0,
-          background: "radial-gradient(ellipse at 88% 35%, rgba(224,120,0,0.14) 0%, transparent 52%)",
+          background: "radial-gradient(ellipse at 88% 35%, rgba(224,120,0,0.18) 0%, transparent 52%)",
           pointerEvents: "none",
         }} />
       )}
@@ -117,7 +123,7 @@ function EventHero({ event, imageUrl }) {
 
       {/* ── MAIN TEXT — bottom-left ── */}
       <div className="event-detail-hero-content" style={{
-        position: "absolute", bottom: "13%", left: 0, right: 0,
+        position: "absolute", bottom: "8%", left: 0, right: 0,
         padding: "0 48px", zIndex: 3,
       }}>
         {/* Mobile poster — shown only on mobile */}
@@ -162,26 +168,55 @@ function InfoTab({ event }) {
 
   return (
     <div>
-      <p style={{
-        fontFamily: HN, fontSize: "8px", fontWeight: 700,
-        letterSpacing: "0.35em", textTransform: "uppercase",
-        color: ACC, marginBottom: "16px",
-      }}>Event info</p>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "28px", maxWidth: "680px" }}>
-        {metaItems.map(([k, v]) => (
-          <div key={k}>
+      <div className={event?.note ? "event-detail-grid-new" : ""} style={{ alignItems: "start" }}>
+        {/* Left column: about */}
+        {event?.note && (
+          <div>
+            <div style={{
+              display: "flex", alignItems: "center", gap: "12px",
+              marginBottom: "20px",
+            }}>
+              <div style={{ width: "28px", height: "1px", background: ACC, flexShrink: 0 }} />
+              <p style={{
+                fontFamily: HN, fontSize: "8px", fontWeight: 700,
+                letterSpacing: "0.35em", textTransform: "uppercase",
+                color: ACC, margin: 0,
+              }}>About this event</p>
+            </div>
             <p style={{
-              fontFamily: HN, fontSize: "8px", fontWeight: 700,
-              letterSpacing: "0.32em", textTransform: "uppercase",
-              color: ACC, marginBottom: "6px",
-            }}>{k}</p>
-            <p style={{
-              fontFamily: HN, fontSize: "14px",
-              color: "rgba(245,243,239,0.65)", letterSpacing: "0.02em",
-            }}>{v}</p>
+              fontFamily: CH, fontSize: "17px", lineHeight: 1.78,
+              color: "rgba(245,243,239,0.6)",
+              borderLeft: `2px solid ${ACC}`,
+              paddingLeft: "22px",
+              margin: 0,
+              whiteSpace: "pre-line",
+            }}>{event.note}</p>
           </div>
-        ))}
+        )}
+
+        {/* Right column: meta */}
+        <div className={event?.note ? "event-info-meta-col" : ""}>
+          <p style={{
+            fontFamily: HN, fontSize: "8px", fontWeight: 700,
+            letterSpacing: "0.35em", textTransform: "uppercase",
+            color: ACC, marginBottom: "28px",
+          }}>Event info</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "28px" }}>
+            {metaItems.map(([k, v]) => (
+              <div key={k}>
+                <p style={{
+                  fontFamily: HN, fontSize: "8px", fontWeight: 700,
+                  letterSpacing: "0.32em", textTransform: "uppercase",
+                  color: ACC, marginBottom: "6px",
+                }}>{k}</p>
+                <p style={{
+                  fontFamily: HN, fontSize: "14px",
+                  color: "rgba(245,243,239,0.65)", letterSpacing: "0.02em",
+                }}>{v}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

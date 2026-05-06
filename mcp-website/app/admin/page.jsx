@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, RefreshCw, ArrowRight, CalendarDays, ChartNoAxesCombined } from "lucide-react"
+import { Loader2, RefreshCw, ArrowRight, CalendarDays, ChartNoAxesCombined, ShoppingBag, UserPlus, BadgeCheck, MessageSquare, Activity } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,12 +49,76 @@ function fmtDateTime(value) {
   })
 }
 
-function mapActivityLabel(type) {
-  if (type === "purchase") return "Acquisto"
-  if (type === "participant") return "Partecipante"
-  if (type === "membership") return "Tessera"
-  if (type === "message") return "Messaggio"
-  return "Attività"
+const ACTIVITY_CONFIG = {
+  purchase: {
+    label: "Acquisto",
+    icon: ShoppingBag,
+    color: "#e8820c",
+    bg: "rgba(232,130,12,0.12)",
+  },
+  participant: {
+    label: "Partecipante",
+    icon: UserPlus,
+    color: "#8b5cf6",
+    bg: "rgba(139,92,246,0.12)",
+  },
+  membership: {
+    label: "Tessera",
+    icon: BadgeCheck,
+    color: "#f0d44a",
+    bg: "rgba(240,212,74,0.12)",
+  },
+  message: {
+    label: "Messaggio",
+    icon: MessageSquare,
+    color: "#22d3ee",
+    bg: "rgba(34,211,238,0.12)",
+  },
+}
+
+const ACTIVITY_DEFAULT = {
+  label: "Attività",
+  icon: Activity,
+  color: "#b0b0b0",
+  bg: "rgba(176,176,176,0.12)",
+}
+
+function ActivityItem({ item }) {
+  const config = ACTIVITY_CONFIG[item.type] || ACTIVITY_DEFAULT
+  const Icon = config.icon
+
+  return (
+    <div
+      className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
+      style={{ borderLeft: `2px solid ${config.color}` }}
+    >
+      <div
+        className="flex h-7 w-7 shrink-0 items-center justify-center"
+        style={{ background: config.bg }}
+      >
+        <Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <span
+          className="inline-block px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest"
+          style={{ color: config.color, background: config.bg, fontFamily: TITLE_FONT }}
+        >
+          {config.label}
+        </span>
+        <p className="mt-0.5 truncate text-sm text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT, fontWeight: 600 }}>
+          {item.subtitle || "-"}
+          {typeof item.amount === "number" && (
+            <span className="ml-2 font-bold" style={{ color: config.color }}>
+              {fmtCurrency(item.amount)}
+            </span>
+          )}
+        </p>
+      </div>
+      <p className="shrink-0 text-xs text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
+        {fmtDateTime(item.timestamp)}
+      </p>
+    </div>
+  )
 }
 
 function KPI({ label, value, sub }) {
@@ -297,22 +361,9 @@ export default function AdminDashboardPage() {
                 Nessuna attività recente nello snapshot.
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="overflow-hidden border border-[var(--color-border)]">
                 {recentActivity.slice(0, 10).map((item) => (
-                  <div key={`${item.type}-${item.id}`} className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] py-2 last:border-b-0">
-                    <div>
-                      <p className="text-sm" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>
-                        {mapActivityLabel(item.type)}
-                      </p>
-                      <p className="text-sm text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
-                        {item.subtitle || "-"}
-                        {typeof item.amount === "number" ? ` · ${fmtCurrency(item.amount)}` : ""}
-                      </p>
-                    </div>
-                    <p className="text-xs text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
-                      {fmtDateTime(item.timestamp)}
-                    </p>
-                  </div>
+                  <ActivityItem key={`${item.type}-${item.id}`} item={item} />
                 ))}
               </div>
             )}

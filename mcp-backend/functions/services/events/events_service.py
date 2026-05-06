@@ -108,7 +108,7 @@ class EventsService:
         return [event_to_public_response(model) for _, model in upcoming]
 
     def get_next_public_event(self) -> List[PublicEventResponseDTO]:
-        return self.list_upcoming_events(limit=0)
+        return self.list_upcoming_events(limit=1)
 
     def get_public_event_by_id(
         self,

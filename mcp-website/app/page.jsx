@@ -21,7 +21,7 @@ export default async function LandingPage() {
   let nextEvent = null
   try {
     const res = await getNextEvent()
-    if (res?.success) nextEvent = res.events?.[0] ?? res.event ?? res.data ?? null
+    if (res?.success) nextEvent = res.events?.[0] ?? null
   } catch {}
 
   let radioEpisodes = []

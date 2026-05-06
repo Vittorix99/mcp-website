@@ -16,6 +16,7 @@ const PHOTOS = [
   { bg: "#0c0c22", label: "DJ set · dancefloor" },
   { bg: "#220a10", label: "Crowd · connection" },
   { bg: "#181806", label: "Light show" },
+  { bg: "#121111", label: "Night ritual" },
 ]
 const SHOWCASE_FOLDER = "foto/showcase"
 const SHOWCASE_PROD_BUCKET =
