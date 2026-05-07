@@ -906,10 +906,12 @@ class AnalyticsSnapshotService:
     def _count_entered(self, entrance_flow: List[Dict[str, Any]]) -> int:
         return sum(self._safe_int(bucket.get("count")) for bucket in entrance_flow)
 
+    _VALID_EVENT_TYPE_VALUES = {PurchaseTypes.EVENT.value, "event_and_membership"}
+
     def _is_valid_event_purchase(self, purchase: Any) -> bool:
         purchase_type = getattr(purchase, "purchase_type", None)
         purchase_type_value = str(getattr(purchase_type, "value", purchase_type or "")).lower()
-        if purchase_type_value != PurchaseTypes.EVENT.value:
+        if purchase_type_value not in self._VALID_EVENT_TYPE_VALUES:
             return False
 
         event_id = getattr(purchase, "ref_id", None)

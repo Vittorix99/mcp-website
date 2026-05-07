@@ -19,6 +19,7 @@ class CreateRadioEpisodeRequestDTO(RadioEpisodeBaseDTO):
     season_id: str = Field(min_length=1, alias="seasonId")
     episode_number: int = Field(gt=0, alias="episodeNumber")
     description: Optional[str] = None
+    custom_artwork_url: Optional[str] = Field(default=None, alias="customArtworkUrl")
     artist_ids: List[str] = Field(default_factory=list, alias="artistIds")
     video_urls: List[str] = Field(default_factory=list, alias="videoUrls")
     recorded_at: Optional[datetime] = Field(default=None, alias="recordedAt")

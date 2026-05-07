@@ -12,10 +12,12 @@ class PurchaseRepository:
     def __init__(self):
         self.collection = db.collection("purchases")
 
+    _EVENT_TYPE_VALUES = {PurchaseTypes.EVENT.value, "event_and_membership"}
+
     def _model_from_snapshot(self, snapshot) -> Purchase:
         data = snapshot.to_dict() or {}
         purchase_type = data.get("type")
-        if purchase_type == PurchaseTypes.EVENT.value:
+        if purchase_type in self._EVENT_TYPE_VALUES:
             return EventPurchase.from_firestore(data, snapshot.id)
         return Purchase.from_firestore(data, snapshot.id)
 

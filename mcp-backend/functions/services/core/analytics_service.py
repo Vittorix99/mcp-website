@@ -484,10 +484,12 @@ class AnalyticsService:
 
     # ---- Internal helpers ------------------------------------------------
 
+    _VALID_EVENT_TYPE_VALUES = {PurchaseTypes.EVENT.value, "event_and_membership"}
+
     def _is_valid_event_purchase(self, purchase: Any) -> bool:
         purchase_type = getattr(purchase, "purchase_type", None)
         type_value = str(getattr(purchase_type, "value", purchase_type or "")).lower()
-        if type_value != PurchaseTypes.EVENT.value:
+        if type_value not in self._VALID_EVENT_TYPE_VALUES:
             return False
         if not getattr(purchase, "ref_id", None):
             return False

@@ -25,6 +25,7 @@ def create_episode_dto_to_model(dto: CreateRadioEpisodeRequestDTO, sc_data: Dict
         season_id=dto.season_id,
         episode_number=dto.episode_number,
         description=dto.description,
+        custom_artwork_url=dto.custom_artwork_url,
         artist_ids=dto.artist_ids,
         video_urls=dto.video_urls,
         recorded_at=dto.recorded_at,
