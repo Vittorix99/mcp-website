@@ -32,16 +32,20 @@ async function safeDownload(src, filename = "image.jpg") {
 export const MasonryGallery = memo(function MasonryGallery({
   images = [],
   onAllLoaded,
+  onEagerLoaded,
   onImageClick,
   onProgress,
+  eagerCount = 4,
 }) {
   const [selectedImage, setSelectedImage] = useState(null)
   const [loadedMap, setLoadedMap] = useState({})
   const scrollYRef = useRef(0)
   const progressRef = useRef(onProgress)
   const allLoadedRef = useRef(onAllLoaded)
+  const eagerLoadedRef = useRef(onEagerLoaded)
   const lastProgressRef = useRef(-1)
   const allLoadedSentRef = useRef(false)
+  const eagerLoadedSentRef = useRef(false)
 
   const visibleKeys = useMemo(() => {
     return images.map((image, index) => image?.id || image?.src || `img-${index}`)
@@ -60,9 +64,14 @@ export const MasonryGallery = memo(function MasonryGallery({
   }, [onAllLoaded])
 
   useEffect(() => {
+    eagerLoadedRef.current = onEagerLoaded
+  }, [onEagerLoaded])
+
+  useEffect(() => {
     setLoadedMap({})
     lastProgressRef.current = -1
     allLoadedSentRef.current = false
+    eagerLoadedSentRef.current = false
   }, [visibleKeys.join("|")])
 
   useEffect(() => {
@@ -83,16 +92,26 @@ export const MasonryGallery = memo(function MasonryGallery({
     }
 
     const loadedCount = visibleKeys.filter((key) => loadedMap[key]).length
+    const eagerLimit = Math.min(Math.max(0, eagerCount), total)
+    const eagerKeys = visibleKeys.slice(0, eagerLimit)
     const ratio = loadedCount / total
     if (ratio !== lastProgressRef.current) {
       lastProgressRef.current = ratio
       if (typeof progressRef.current === "function") defer(() => progressRef.current(ratio))
     }
+    if (
+      eagerKeys.length > 0
+      && eagerKeys.every((key) => loadedMap[key])
+      && !eagerLoadedSentRef.current
+    ) {
+      eagerLoadedSentRef.current = true
+      if (typeof eagerLoadedRef.current === "function") defer(() => eagerLoadedRef.current())
+    }
     if (loadedCount === total && !allLoadedSentRef.current) {
       allLoadedSentRef.current = true
       if (typeof allLoadedRef.current === "function") defer(() => allLoadedRef.current())
     }
-  }, [loadedMap, visibleKeys])
+  }, [eagerCount, loadedMap, visibleKeys])
 
   const onOpenModal = useCallback((img) => {
     scrollYRef.current = window.scrollY
@@ -110,7 +129,7 @@ export const MasonryGallery = memo(function MasonryGallery({
 
   const handleImageClick = (image) => {
     if (typeof onImageClick === "function") {
-      onImageClick(image?.src)
+      onImageClick(image?.src, image)
       return
     }
     onOpenModal(image)
@@ -118,15 +137,20 @@ export const MasonryGallery = memo(function MasonryGallery({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2">
         {images.map((image, index) => {
           const key = image?.id || image?.src || `img-${index}`
           const isLoaded = loadedMap[key]
+          const isEager = index < eagerCount
           return (
             <motion.div
               key={key}
               className="relative cursor-pointer overflow-hidden"
-              style={{ aspectRatio: "1" }}
+              style={{
+                aspectRatio: "1",
+                contentVisibility: isEager ? "visible" : "auto",
+                containIntrinsicSize: "320px 320px",
+              }}
               whileHover={{ scale: 1.02 }}
               transition={{ duration: 0.2 }}
               onClick={() => handleImageClick(image)}
@@ -136,10 +160,13 @@ export const MasonryGallery = memo(function MasonryGallery({
                 src={image?.src || "/placeholder.svg"}
                 alt={image?.alt || ""}
                 fill
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 25vw"
+                sizes="(max-width: 1023px) 50vw, (max-width: 1535px) 33vw, 25vw"
                 suppressHydrationWarning
                 className={`object-cover ${isLoaded ? "opacity-100" : "opacity-0"}`}
-                loading="eager"
+                decoding="async"
+                {...(isEager
+                  ? { priority: true, fetchPriority: "high" }
+                  : { loading: "lazy", fetchPriority: "low" })}
                 unoptimized
                 onLoad={() => markLoaded(key)}
                 onError={() => markLoaded(key)}

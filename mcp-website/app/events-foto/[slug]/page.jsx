@@ -92,11 +92,6 @@ export default async function EventPhotosDetailPage({ params, searchParams }) {
 
   const initialEvent = await fetchEvent(slug)
   const { totalLength, pageUrls } = await fetchPagePhotos(initialEvent?.photoPath || "", PAGE_SIZE, pageIndex)
-  let nextPageUrls = []
-  if ((pageIndex + 1) * PAGE_SIZE < totalLength) {
-    const next = await fetchPagePhotos(initialEvent?.photoPath || "", PAGE_SIZE, pageIndex + 1)
-    nextPageUrls = next.pageUrls || []
-  }
 
   const pageImages = (pageUrls || []).map((url, index) => ({
     src: url,
@@ -118,7 +113,6 @@ export default async function EventPhotosDetailPage({ params, searchParams }) {
         totalLength={totalLength}
         currentPage={page}
         slug={slug}
-        prefetchUrls={nextPageUrls}
       />
     </Suspense>
   )

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
-import NextImage from "next/image"
+import { useRouter } from "next/navigation"
 import { MasonryGallery } from "@/components/pages/pictures/MasonGallery"
 import ImageModal from "@/components/pages/modals/ImageModal"
 
@@ -50,36 +50,57 @@ export function EventContent({
   totalLength = 0,
   currentPage = 1,
   slug,
-  prefetchUrls = [],
 }) {
   const [event] = useState(initialEvent)
   const [selectedImage, setSelectedImage] = useState(null)
-  const [isHydrated, setIsHydrated] = useState(false)
   const images = useMemo(() => pageImages || [], [pageImages])
-  const prefetchedRef = useRef(new Set())
-  const loadedUrlsRef = useRef(new Set())
+  const router = useRouter()
+  const prefetchedPagesRef = useRef(new Set())
 
-  useEffect(() => {
-    setIsHydrated(true)
-  }, [])
+  const totalPages = Math.max(1, Math.ceil((totalLength || 0) / pageSize))
+  const canPrev = currentPage > 1
+  const canNext = currentPage < totalPages
+  const basePath = slug ? `/events-foto/${slug}` : ""
+  const pageHref = useCallback((page) => (page <= 1 ? basePath : `${basePath}?page=${page}`), [basePath])
 
-  useEffect(() => {
-    loadedUrlsRef.current = new Set()
-  }, [images.length, currentPage])
+  const prefetchNextPage = useCallback(() => {
+    if (!canNext || !slug || typeof window === "undefined") return
 
-  useEffect(() => {
-    if (!Array.isArray(prefetchUrls) || prefetchUrls.length === 0) return
-    prefetchUrls.forEach((url) => {
-      if (!url || prefetchedRef.current.has(url)) return
-      prefetchedRef.current.add(url)
-      if (typeof window === "undefined") return
-      const img = new window.Image()
-      img.src = url
-    })
-  }, [prefetchUrls])
+    const nextPage = currentPage + 1
+    const key = `${basePath || event?.slug || "event"}:${nextPage}`
+    if (prefetchedPagesRef.current.has(key)) return
+    prefetchedPagesRef.current.add(key)
 
-  const downloadImage = (image) => {
-    const src = image?.fullSrc || image?.src
+    const nextHref = pageHref(nextPage)
+    router.prefetch(nextHref)
+
+    const preloadNextImages = async () => {
+      try {
+        const response = await fetch(`/api/event-photos/${encodeURIComponent(slug)}?page=${nextPage}&pageSize=${pageSize}`, {
+          cache: "force-cache",
+        })
+        if (!response.ok) return
+
+        const { pageUrls = [] } = await response.json()
+        pageUrls.forEach((url) => {
+          if (!url) return
+          const img = new window.Image()
+          img.decoding = "async"
+          img.src = url
+        })
+      } catch {
+        // Best-effort prefetch only; navigation still works without it.
+      }
+    }
+
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(() => { preloadNextImages() }, { timeout: 2000 })
+    } else {
+      window.setTimeout(preloadNextImages, 500)
+    }
+  }, [basePath, canNext, currentPage, event?.slug, pageHref, pageSize, router, slug])
+
+  const downloadImage = (src) => {
     if (!src) return
     const link = document.createElement("a")
     link.href = src
@@ -90,6 +111,19 @@ export function EventContent({
     document.body.removeChild(link)
   }
 
+  const handleImageClick = (src, image) => {
+    const imageSrc = image?.fullSrc || src
+    const isMobile = typeof window !== "undefined"
+      && window.matchMedia("(max-width: 1023px)").matches
+
+    if (isMobile) {
+      downloadImage(imageSrc)
+      return
+    }
+
+    setSelectedImage({ src: imageSrc })
+  }
+
   if (!event) {
     return (
       <div style={{ minHeight: "100svh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -97,12 +131,6 @@ export function EventContent({
       </div>
     )
   }
-
-  const totalPages = Math.max(1, Math.ceil((totalLength || 0) / pageSize))
-  const canPrev = currentPage > 1
-  const canNext = currentPage < totalPages
-  const basePath = slug ? `/events-foto/${slug}` : ""
-  const pageHref = (page) => (page <= 1 ? basePath : `${basePath}?page=${page}`)
   const hasPhotos = totalLength > 0 || images.length > 0
 
   return (
@@ -154,30 +182,14 @@ export function EventContent({
             </div>
           )}
 
-          {!isHydrated ? (
-            <PhotoGridSkeleton count={Math.min(pageSize, images.length || pageSize)} />
-          ) : (
-            <>
-              {/* Mobile grid */}
-              <div className="lg:hidden" style={{ padding: "0 40px 80px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px" }}>
-                  {images.map((image, index) => (
-                    <MobileImage
-                      key={image?.id || image?.src || `img-${index}`}
-                      image={image}
-                      loadedUrlsRef={loadedUrlsRef}
-                      onOpen={() => downloadImage(image)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Desktop masonry */}
-              <div className="hidden lg:block" style={{ padding: "0 56px 80px" }}>
-                <MasonryGallery images={images} onImageClick={(src) => setSelectedImage({ src })} />
-              </div>
-            </>
-          )}
+          <div style={{ padding: "0 clamp(24px,4vw,56px) 80px" }}>
+            <MasonryGallery
+              images={images}
+              eagerCount={4}
+              onEagerLoaded={prefetchNextPage}
+              onImageClick={handleImageClick}
+            />
+          </div>
 
           {/* Pagination bottom */}
           {totalPages > 1 && (
@@ -206,56 +218,6 @@ export function EventContent({
           }}
         />
       )}
-    </div>
-  )
-}
-
-function PhotoGridSkeleton({ count = 16 }) {
-  const items = Array.from({ length: Math.max(1, count) })
-  return (
-    <>
-      <div className="lg:hidden" style={{ padding: "0 40px 80px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px" }}>
-          {items.map((_, index) => (
-            <div key={index} style={{ aspectRatio: "1", background: "#111" }} />
-          ))}
-        </div>
-      </div>
-      <div className="hidden lg:block" style={{ padding: "0 56px 80px" }}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2">
-          {items.map((_, index) => (
-            <div key={index} style={{ aspectRatio: "1", background: "#111" }} />
-          ))}
-        </div>
-      </div>
-    </>
-  )
-}
-
-function MobileImage({ image, loadedUrlsRef, onOpen }) {
-  const src = image?.src || "/placeholder.svg"
-  const [loaded, setLoaded] = useState(() => loadedUrlsRef?.current?.has(src))
-  return (
-    <div style={{ position: "relative", overflow: "hidden", aspectRatio: "1" }}>
-      {!loaded && <div style={{ position: "absolute", inset: 0, background: "#111" }} />}
-      <button
-        type="button"
-        onClick={onOpen}
-        style={{ position: "absolute", inset: 0, zIndex: 10 }}
-        aria-label="Open image"
-      />
-      <NextImage
-        src={src}
-        alt={image?.alt || ""}
-        fill
-        sizes="50vw"
-        suppressHydrationWarning
-        style={{ objectFit: "cover", opacity: loaded ? 1 : 0 }}
-        loading="lazy"
-        unoptimized
-        onLoad={() => { loadedUrlsRef?.current?.add(src); setLoaded(true) }}
-        onError={() => { loadedUrlsRef?.current?.add(src); setLoaded(true) }}
-      />
     </div>
   )
 }

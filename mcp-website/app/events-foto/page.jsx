@@ -1,6 +1,7 @@
 import EventPhotosClient from "./EventPhotosClient"
 import { buildEventPhotosCollectionJsonLd } from "@/lib/seo/jsonld"
 import { getBaseUrlFromEnv } from "@/lib/seo/base-url"
+import { getEventPhotoAlbums } from "@/lib/event-photo-albums"
 
 const baseUrl = getBaseUrlFromEnv()
 export const metadata = {
@@ -11,9 +12,10 @@ export const metadata = {
 
 export const revalidate = 300
 
-export default function EventPhotosPage() {
+export default async function EventPhotosPage() {
+  const { events, error } = await getEventPhotoAlbums()
   const jsonLd = buildEventPhotosCollectionJsonLd({
-    items: [],
+    items: events,
     baseUrl,
     listUrl: baseUrl ? `${baseUrl}/events-foto` : "",
   })
@@ -26,7 +28,7 @@ export default function EventPhotosPage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      <EventPhotosClient />
+      <EventPhotosClient initialEvents={events} initialError={error} />
     </>
   )
 }
