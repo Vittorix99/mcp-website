@@ -33,6 +33,7 @@ from api.public.settings_api import get_setting, get_membership_price_public
 from api.public.sender_webhook_api import sender_webhook
 from api.public.event_payment_api import create_order_event, capture_order_event
 from api.public.events_api import get_event_by_id, get_next_event, get_all_events, get_event_guide
+from api.public.discount_code_public_api import validate_discount_code
 from api.public.events_tickets_api import check_participants
 from api.public.radio_public_api import (
     get_published_radio_episodes,
@@ -91,6 +92,14 @@ from api.member.member_api import (
     member_patch_preferences,
 )
 from api.member.location_api import member_get_event_location
+
+from api.admin.discount_code_api import (
+    admin_create_discount_code,
+    admin_list_discount_codes,
+    admin_get_discount_code,
+    admin_update_discount_code,
+    admin_disable_discount_code,
+)
 
 # === API Admin: Participants ===
 from api.admin.participants_api import (

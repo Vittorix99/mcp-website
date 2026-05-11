@@ -51,6 +51,7 @@ from models import (
     PurchaseTypes,
 )
 from repositories.event_repository import EventRepository
+from repositories.discount_code_repository import DiscountCodeRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
 from repositories.order_repository import OrderRepository
@@ -58,6 +59,7 @@ from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
 from services.core.error_logs_service import log_external_error
 from services.memberships.renewal_command import RenewMembershipCommand
+from services.payments.discount_code_service import DiscountCodeService
 from utils.events_utils import calculate_end_of_year, ensure_event_is_active, normalize_email, normalize_phone
 from utils.safe_logging import redact_sensitive
 
@@ -84,6 +86,8 @@ class EventPaymentService:
         participant_repository: Optional[ParticipantRepositoryProtocol] = None,
         memberships_service: Optional[MembershipsServiceProtocol] = None,
         paypal_client: Optional[PaypalServersdkClient] = None,
+        discount_code_repository: Optional[DiscountCodeRepository] = None,
+        discount_code_service: Optional[DiscountCodeService] = None,
     ):
         self.paypal_client = paypal_client
         self.orders_controller: Optional[OrdersController] = paypal_client.orders if paypal_client else None
@@ -94,6 +98,11 @@ class EventPaymentService:
         self.order_repository = order_repository or OrderRepository()
         self.purchase_repository = purchase_repository or PurchaseRepository()
         self.participant_repository = participant_repository or ParticipantRepository()
+        self.discount_code_repository = discount_code_repository or DiscountCodeRepository()
+        self.discount_code_service = discount_code_service or DiscountCodeService(
+            discount_code_repository=self.discount_code_repository,
+            membership_repository=self.membership_repository,
+        )
         if memberships_service is None:
             from services.memberships.memberships_service import MembershipsService
 
@@ -224,12 +233,32 @@ class EventPaymentService:
             if membership_fee is None:
                 raise ValidationError("Missing membership fee in settings")
 
+        discount_validation = None
+        if cart_item.discount_code:
+            payer_email = normalized_participants[0].email if normalized_participants else ""
+            payer_membership_id = None
+            membership = membership_lookup.get(normalize_email(payer_email))
+            if membership and membership.id:
+                payer_membership_id = membership.id
+            discount_validation = self.discount_code_service.validate_discount_code(
+                event_id=event_id,
+                code=cart_item.discount_code,
+                participants_count=len(normalized_participants),
+                payer_email=payer_email,
+                payer_membership_id=payer_membership_id,
+                event_price=float(event_model.price or 0),
+            )
+            if not discount_validation.valid:
+                raise ValidationError(discount_validation.error_message or "Codice sconto non valido")
+
         total = self._compute_total(
             event_model,
             normalized_participants,
             membership_targets,
             membership_fee,
         )
+        if discount_validation and discount_validation.valid:
+            total = round(float(discount_validation.final_price or 0) + float(event_model.fee or 0), 2)
         formatted_total = f"{total:.2f}"
 
         order_request = OrderRequest(
@@ -290,6 +319,10 @@ class EventPaymentService:
             membership_fee=float(membership_fee) if membership_fee is not None else None,
             purchase_mode=purchase_mode,
             membership_lookup=membership_lookup_payload,
+            discount_code_id=discount_validation.discount_code_id if discount_validation else None,
+            discount_code=discount_validation.code if discount_validation else None,
+            discount_amount=discount_validation.discount_amount if discount_validation else None,
+            original_price=float(event_model.price or 0) if discount_validation else None,
         )
 
         self.order_repository.save(order_info.order_id, event_order)
@@ -332,6 +365,9 @@ class EventPaymentService:
         # Anche se l'ordine PayPal era stato creato prima, non catturiamo pagamenti dopo fine evento.
         ensure_event_is_active(self._resolve_event_model(event_id, None))
 
+        if stored_order.discount_code_id:
+            self.discount_code_repository.claim_usage(stored_order.discount_code_id)
+
         participants = self._participants_from_payload(stored_order.participants or [])
         membership_targets = self._participants_from_payload(stored_order.membership_targets or [])
 
@@ -341,6 +377,9 @@ class EventPaymentService:
             order_info,
             event_id,
             purchase_mode,
+            discount_code_id=stored_order.discount_code_id,
+            discount_code=stored_order.discount_code,
+            discount_amount=stored_order.discount_amount,
         )
         self.order_repository.set_purchase_id(order_id, purchase_id)
 
@@ -373,8 +412,11 @@ class EventPaymentService:
             participants,
             membership_refs,
             purchase_id,
-            stored_order.event_price,
+            self._participant_price_from_order(stored_order),
             existing_memberships,
+            price_original=stored_order.original_price,
+            discount_code_id=stored_order.discount_code_id,
+            discount_code=stored_order.discount_code,
         )
 
         self.order_repository.delete(order_id)
@@ -550,6 +592,9 @@ class EventPaymentService:
         order_info: PayPalOrderInfo,
         event_id: str,
         purchase_mode: EventPurchaseAccessType,
+        discount_code_id: Optional[str] = None,
+        discount_code: Optional[str] = None,
+        discount_amount: Optional[float] = None,
     ) -> str:
         purchase = EventPurchase(
             payer_name=order_info.payer.given_name,
@@ -568,6 +613,9 @@ class EventPaymentService:
             capture_status=order_info.capture.status,
             event_id=event_id,
             event_purchase_type=purchase_mode,
+            discount_code_id=discount_code_id,
+            discount_code=discount_code,
+            discount_amount=discount_amount,
         )
         return self.purchase_repository.create_from_model(purchase)
 
@@ -666,6 +714,9 @@ class EventPaymentService:
         purchase_id: str,
         price: float,
         existing_memberships: Dict[str, Membership],
+        price_original: Optional[float] = None,
+        discount_code_id: Optional[str] = None,
+        discount_code: Optional[str] = None,
     ):
         membership_map = {
             ref.email: ref.membership_id
@@ -696,6 +747,9 @@ class EventPaymentService:
                 location_sent=False,
                 purchase_id=purchase_id,
                 price=price,
+                price_original=price_original,
+                discount_code_id=discount_code_id,
+                discount_code=discount_code,
                 payment_method=PaymentMethod.WEBSITE,
                 newsletter_consent=participant_dto.newsletter_consent,
                 created_at=firestore.SERVER_TIMESTAMP,
@@ -709,6 +763,12 @@ class EventPaymentService:
                 )
 
             self.participant_repository.create_from_model(event_id, participant)
+
+    def _participant_price_from_order(self, stored_order: EventOrder) -> float:
+        if stored_order.discount_code_id and stored_order.discount_amount is not None:
+            original = float(stored_order.original_price if stored_order.original_price is not None else stored_order.event_price or 0)
+            return round(original - float(stored_order.discount_amount or 0), 2)
+        return float(stored_order.event_price or 0)
 
     def _update_order_status(self, order_id, status):
         try:

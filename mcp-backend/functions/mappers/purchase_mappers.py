@@ -34,6 +34,9 @@ def create_purchase_dto_to_model(dto: CreatePurchaseRequestDTO) -> Purchase:
             ),
             participants_count=dto.participants_count or 0,
             membership_ids=list(dto.membership_ids),
+            discount_code_id=dto.discount_code_id,
+            discount_code=dto.discount_code,
+            discount_amount=dto.discount_amount,
         )
 
     return Purchase(
@@ -65,6 +68,9 @@ def purchase_to_response(purchase: Purchase) -> PurchaseDTO:
         event_purchase_type=getattr(purchase, "event_purchase_type", None),
         participants_count=getattr(purchase, "participants_count", None),
         membership_ids=list(getattr(purchase, "membership_ids", []) or []),
+        discount_code_id=getattr(purchase, "discount_code_id", None),
+        discount_code=getattr(purchase, "discount_code", None),
+        discount_amount=getattr(purchase, "discount_amount", None),
     )
 
 

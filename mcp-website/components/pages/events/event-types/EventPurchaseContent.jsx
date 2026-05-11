@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { CheckCircle2, Loader2, Tag, X } from "lucide-react"
 import Link from "next/link"
 
 import PaymentBlockedWarning from "@/components/warnings/PaymentBlockedWarning"
@@ -11,6 +11,7 @@ import { PayPalSection } from "@/components/pages/events/PayPalSection"
 import ParticipantsModal from "@/components/pages/events/modals/ParticipantsModal"
 import { SelectParticipants } from "@/components/pages/events/SelectParticipants"
 import { resolvePurchaseMode, PURCHASE_MODES } from "@/config/events-utils"
+import { validateDiscountCode } from "@/services/discountCodes"
 
 const ACC = "#E07800"
 const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
@@ -38,6 +39,13 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
   const [formComplete, setFormComplete] = useState(false)
   const [newsletterConsent, setNewsletterConsent] = useState(true)
   const [eventMeta, setEventMeta] = useState({ nonMembers: [] })
+  const [discountOpen, setDiscountOpen] = useState(false)
+  const [discountCode, setDiscountCode] = useState("")
+  const [discountStatus, setDiscountStatus] = useState("idle")
+  const [discountCodeId, setDiscountCodeId] = useState(null)
+  const [discountAmount, setDiscountAmount] = useState(null)
+  const [finalPrice, setFinalPrice] = useState(null)
+  const [errorMessage, setErrorMessage] = useState(null)
 
   const purchaseMode = resolvePurchaseMode(event)
   const isEnded = isEventEnded(event)
@@ -50,20 +58,79 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
   const cart = useMemo(() => {
     const price = typeof event?.price === "number" ? event.price : 0
     const fee = typeof event?.fee === "number" ? event.fee : 0
+    const effectivePrice = discountStatus === "valid" && typeof finalPrice === "number" ? finalPrice : price
     const participantsPayload = newsletterConsent
       ? participants.map((p) => ({ ...p, newsletterConsent: true }))
       : participants
-    return {
+    const payload = {
       eventId: event?.id,
       quantity,
       participants: participantsPayload,
-      price,
+      price: effectivePrice,
       fee,
-      total: (price + fee) * quantity,
+      total: (effectivePrice + fee) * quantity,
       eventMeta,
       purchaseMode,
     }
-  }, [quantity, participants, event, newsletterConsent, eventMeta, purchaseMode])
+    if (discountStatus === "valid" && discountCode) {
+      payload.discountCode = discountCode
+    }
+    return payload
+  }, [quantity, participants, event, newsletterConsent, eventMeta, purchaseMode, discountStatus, finalPrice, discountCode, discountCodeId, discountAmount])
+
+  const clearDiscount = (message = null) => {
+    setDiscountStatus(message ? "invalid" : "idle")
+    setDiscountCodeId(null)
+    setDiscountAmount(null)
+    setFinalPrice(null)
+    setErrorMessage(message)
+  }
+
+  useEffect(() => {
+    if (discountStatus === "valid" && quantity !== 1) {
+      clearDiscount("Codice sconto rimosso — modifica il numero di partecipanti")
+    }
+  }, [quantity, discountStatus])
+
+  const handleApplyDiscount = async () => {
+    const code = discountCode.trim().toUpperCase()
+    setDiscountCode(code)
+    setErrorMessage(null)
+
+    if (!code) {
+      clearDiscount("Inserisci un codice sconto")
+      return
+    }
+    if (quantity !== 1) {
+      clearDiscount("Il codice sconto è valido solo per acquisti singoli")
+      return
+    }
+
+    const payerEmail = participants?.[0]?.email
+    if (!payerEmail) {
+      clearDiscount("Completa i dati del partecipante prima di applicare il codice")
+      return
+    }
+
+    setDiscountStatus("loading")
+    const result = await validateDiscountCode({
+      eventId: event?.id,
+      code,
+      participantsCount: quantity,
+      payerEmail,
+    })
+
+    if (!result?.valid) {
+      clearDiscount(result?.errorMessage || result?.error_message || "Codice sconto non valido")
+      return
+    }
+
+    setDiscountStatus("valid")
+    setDiscountCodeId(result.discountCodeId || result.discount_code_id || null)
+    setDiscountAmount(Number(result.discountAmount ?? result.discount_amount ?? 0))
+    setFinalPrice(Number(result.finalPrice ?? result.final_price ?? 0))
+    setErrorMessage(null)
+  }
 
   if (!event) {
     return (
@@ -203,6 +270,23 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
                 </div>
 
                 <div style={{ marginTop: "32px" }}>
+                  <DiscountCodePanel
+                    open={discountOpen}
+                    onToggle={() => setDiscountOpen((value) => !value)}
+                    code={discountCode}
+                    onCodeChange={(value) => {
+                      setDiscountCode(value.toUpperCase())
+                      if (discountStatus === "valid") clearDiscount()
+                    }}
+                    status={discountStatus}
+                    errorMessage={errorMessage}
+                    discountAmount={discountAmount}
+                    onApply={handleApplyDiscount}
+                    onRemove={() => {
+                      setDiscountCode("")
+                      clearDiscount()
+                    }}
+                  />
                   <PayPalSection event={event} cart={cart} purchaseMode={purchaseMode} />
                 </div>
               </>
@@ -234,6 +318,138 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
             setFormComplete(true)
           }}
         />
+      )}
+    </div>
+  )
+}
+
+function formatEuro(value) {
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(value || 0))
+}
+
+function DiscountCodePanel({
+  open,
+  onToggle,
+  code,
+  onCodeChange,
+  status,
+  errorMessage,
+  discountAmount,
+  onApply,
+  onRemove,
+}) {
+  const isLoading = status === "loading"
+  const isValid = status === "valid"
+  const isInvalid = status === "invalid" && errorMessage
+
+  return (
+    <div style={{ marginBottom: "18px", borderTop: "1px solid rgba(245,243,239,0.08)", paddingTop: "18px" }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          background: "transparent",
+          border: 0,
+          padding: 0,
+          cursor: "pointer",
+          color: "#F5F3EF",
+          fontFamily: HN,
+          fontSize: "10px",
+          fontWeight: 800,
+          letterSpacing: "0.22em",
+          textTransform: "uppercase",
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "9px" }}>
+          <Tag style={{ width: 15, height: 15, color: ACC }} />
+          Hai un codice sconto?
+        </span>
+        <span style={{ color: "rgba(245,243,239,0.42)" }}>{open ? "−" : "+"}</span>
+      </button>
+
+      {open && (
+        <div style={{ marginTop: "14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "10px" }}>
+            <input
+              value={code}
+              onChange={(event) => onCodeChange(event.target.value)}
+              placeholder="CODICE"
+              disabled={isLoading || isValid}
+              style={{
+                minWidth: 0,
+                height: "44px",
+                background: "rgba(245,243,239,0.04)",
+                border: "1px solid rgba(245,243,239,0.12)",
+                color: "#F5F3EF",
+                padding: "0 12px",
+                fontFamily: HN,
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                outline: "none",
+              }}
+            />
+            {isValid ? (
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label="Rimuovi codice sconto"
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  display: "grid",
+                  placeItems: "center",
+                  background: "rgba(245,243,239,0.04)",
+                  border: "1px solid rgba(245,243,239,0.12)",
+                  color: "rgba(245,243,239,0.72)",
+                  cursor: "pointer",
+                }}
+              >
+                <X style={{ width: 17, height: 17 }} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onApply}
+                disabled={isLoading}
+                style={{
+                  height: "44px",
+                  padding: "0 18px",
+                  background: isLoading ? "rgba(224,120,0,0.4)" : ACC,
+                  border: 0,
+                  color: "#fff",
+                  fontFamily: HN,
+                  fontSize: "9px",
+                  fontWeight: 800,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  cursor: isLoading ? "default" : "pointer",
+                }}
+              >
+                {isLoading ? <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> : "Applica"}
+              </button>
+            )}
+          </div>
+
+          {isValid && (
+            <div style={{ marginTop: "10px", display: "flex", alignItems: "center", gap: "8px", color: "#9ee6b2", fontFamily: CH, fontSize: "13px" }}>
+              <CheckCircle2 style={{ width: 16, height: 16 }} />
+              <span>Codice {code} applicato — −{formatEuro(discountAmount)}</span>
+            </div>
+          )}
+
+          {isInvalid && (
+            <p style={{ margin: "10px 0 0", color: "#ffb6b6", fontFamily: CH, fontSize: "13px", lineHeight: 1.45 }}>
+              {errorMessage}
+            </p>
+          )}
+        </div>
       )}
     </div>
   )

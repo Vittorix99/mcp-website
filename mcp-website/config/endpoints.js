@@ -18,6 +18,7 @@ export const endpoints = {
   newsletterParticipantsSignup: make("newsletter_participants"),
   createEventOrder: make("create_order_event"),
   captureEventOrder: make("capture_order_event"),
+  validateDiscountCode: make("validate_discount_code"),
   signupRequest: make("signup_request"),
   checkParticipants: make("check_participants"),
 
@@ -104,6 +105,11 @@ export const endpoints = {
     getAgeDistribution: make("admin_get_age_distribution"),
     getMembershipTrend: make("admin_get_membership_trend"),
     getDashboardKpis: make("admin_get_dashboard_kpis"),
+    createDiscountCode: make("admin_create_discount_code"),
+    listDiscountCodes: make("admin_list_discount_codes"),
+    getDiscountCode: make("admin_get_discount_code"),
+    updateDiscountCode: make("admin_update_discount_code"),
+    disableDiscountCode: make("admin_disable_discount_code"),
 
     entrance: {
       generateScanToken: make("entrance_generate_scan_token"),

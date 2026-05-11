@@ -24,3 +24,6 @@ class EventPurchase(Purchase):
     )
     participants_count: int = field(default=0, metadata={"firestore_name": "participants_count"})
     membership_ids: List[str] = field(default_factory=list, metadata={"firestore_name": "membership_ids"})
+    discount_code_id: Optional[str] = field(default=None, metadata={"firestore_name": "discountCodeId"})
+    discount_code: Optional[str] = field(default=None, metadata={"firestore_name": "discountCode"})
+    discount_amount: Optional[float] = field(default=None, metadata={"firestore_name": "discountAmount"})

@@ -25,6 +25,11 @@ export function EventStats({ participants, onRefresh }) {
   }, 0)
 
   const omaggiCount = participants.filter((p) => Number.parseFloat(p.price) === 0).length
+  const discountedParticipants = participants.filter((p) => p.discountCodeId || p.discount_code_id)
+  const discountedRevenue = discountedParticipants.reduce((sum, p) => {
+    const price = Number.parseFloat(p.price)
+    return sum + (isNaN(price) ? 0 : price)
+  }, 0)
 
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
@@ -183,7 +188,7 @@ export function EventStats({ participants, onRefresh }) {
   return (
     <div className="space-y-4">
       {/* Statistiche esistenti */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <Card className="bg-zinc-900 border border-zinc-700 text-white shadow-md">
           <CardContent className="p-4">
             <p className="text-sm text-gray-400">Partecipanti totali</p>
@@ -212,6 +217,13 @@ export function EventStats({ participants, onRefresh }) {
           <CardContent className="p-4">
             <p className="text-sm text-gray-400">Totale omaggi</p>
             <p className="text-2xl font-bold">{omaggiCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900 border border-zinc-700 text-white shadow-md">
+          <CardContent className="p-4">
+            <p className="text-sm text-gray-400">Scontati</p>
+            <p className="text-2xl font-bold">{discountedParticipants.length}</p>
+            <p className="text-xs text-gray-500">{discountedRevenue.toFixed(2)} €</p>
           </CardContent>
         </Card>
       </div>

@@ -105,6 +105,11 @@ class _DummyTicketService:
         return self.result
 
 
+class _DummyLocationRepo:
+    def get(self, event_id):
+        return None
+
+
 def _make_service():
     service = ParticipantsService.__new__(ParticipantsService)
     service.logger = logging.getLogger("ParticipantsServiceTest")
@@ -114,6 +119,7 @@ def _make_service():
     service.allowed_payment_methods = {method.value for method in PaymentMethod}
     service.ticket_service = _DummyTicketService()
     service.mail_service = SimpleNamespace(send=lambda *_args, **_kwargs: True)
+    service.location_repository = _DummyLocationRepo()
     return service
 
 
@@ -381,7 +387,7 @@ def test_send_ticket_happy_path():
 
 def test_send_omaggio_emails_skips_already_sent():
     service = _make_service()
-    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", location="Roma"))
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", location_hint="Roma"))
     service.participant_repository.list_items = [
         _participant_model(id="p1", name="A", surname="One", email="a@test.com", payment_method=PaymentMethod.OMAGGIO),
         _participant_model(id="p2", name="B", surname="Two", email="b@test.com", payment_method=PaymentMethod.OMAGGIO, omaggio_email_sent=True),
@@ -402,7 +408,7 @@ def test_send_omaggio_emails_skips_already_sent():
 
 def test_send_omaggio_email_single_allows_resend():
     service = _make_service()
-    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", location="Roma"))
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", location_hint="Roma"))
     service.participant_repository.list_items = [
         _participant_model(id="p2", name="B", surname="Two", email="b@test.com", payment_method=PaymentMethod.OMAGGIO, omaggio_email_sent=True),
     ]

@@ -4,8 +4,9 @@ from .event_guide import EventGuide
 from .event_location import EventLocation
 from .entrance_scan import EntranceScan
 from .contact_message import ContactMessage
-from .enums import EventPurchaseAccessType, EventStatus, PaymentMethod, PurchaseStatus, PurchaseTypes
+from .enums import DiscountType, EventPurchaseAccessType, EventStatus, PaymentMethod, PurchaseStatus, PurchaseTypes
 from .event import Event
+from .discount_code import DiscountCode
 from .event_participant import EventParticipant
 from .event_purchase import EventPurchase
 from .job import AnalyticsJob, Job, LocationJob
@@ -26,6 +27,8 @@ __all__ = [
     "EventLocation",
     "AdminUser",
     "EntranceScan",
+    "DiscountCode",
+    "DiscountType",
     "EventPurchaseAccessType",
     "EventStatus",
     "PaymentMethod",

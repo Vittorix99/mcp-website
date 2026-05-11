@@ -78,6 +78,9 @@ class CreatePurchaseRequestDTO(PurchaseApiBaseDTO):
         validation_alias=AliasChoices("participants_count", "participantsCount"),
     )
     membership_ids: List[str] = Field(default_factory=list)
+    discount_code_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("discount_code_id", "discountCodeId"))
+    discount_code: Optional[str] = Field(default=None, validation_alias=AliasChoices("discount_code", "discountCode"))
+    discount_amount: Optional[float] = Field(default=None, validation_alias=AliasChoices("discount_amount", "discountAmount"))
 
     @field_validator(
         "slug",
@@ -87,6 +90,8 @@ class CreatePurchaseRequestDTO(PurchaseApiBaseDTO):
         "payment_method",
         "capture_status",
         "event_id",
+        "discount_code_id",
+        "discount_code",
         mode="before",
     )
     @classmethod
@@ -121,6 +126,9 @@ class PurchaseDTO(PurchaseApiBaseDTO):
     event_purchase_type: Optional[EventPurchaseAccessType] = Field(default=None, serialization_alias="eventPurchaseType")
     participants_count: Optional[int] = Field(default=None, serialization_alias="participants_count")
     membership_ids: List[str] = Field(default_factory=list, serialization_alias="membership_ids")
+    discount_code_id: Optional[str] = Field(default=None, serialization_alias="discountCodeId")
+    discount_code: Optional[str] = Field(default=None, serialization_alias="discountCode")
+    discount_amount: Optional[float] = Field(default=None, serialization_alias="discountAmount")
 
     def to_payload(self) -> Dict[str, Any]:
         return self.model_dump(by_alias=True, exclude_none=True)

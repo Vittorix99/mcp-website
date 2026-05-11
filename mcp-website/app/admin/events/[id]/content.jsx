@@ -27,6 +27,7 @@ import {
   Check,
   UserPlus,
   RefreshCw,
+  Tag,
 } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -85,6 +86,8 @@ const ADMIN_THEME = {
 }
 const TITLE_FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
 import { generateScanToken as apiGenerateScanToken, verifyScanToken as apiVerifyScanToken, deactivateScanToken as apiDeactivateScanToken, manualEntry as apiManualEntry } from "@/services/admin/entrance"
+import { listDiscountCodes } from "@/services/admin/discountCodes"
+import { getAllPurchases } from "@/services/admin/purchases"
 
 function parseMembershipDate(value) {
   if (!value) return null
@@ -231,6 +234,8 @@ export default function EventContent({ id: eventId }) {
   const currentMembershipYear = useMemo(() => new Date().getFullYear().toString(), [])
   const [currentYearMemberships, setCurrentYearMemberships] = useState([])
   const [membershipsLoading, setMembershipsLoading] = useState(false)
+  const [discountCodes, setDiscountCodes] = useState([])
+  const [discountPurchases, setDiscountPurchases] = useState([])
 
   // Event Guide state
   const [guidePublished, setGuidePublished] = useState(false)
@@ -331,6 +336,28 @@ export default function EventContent({ id: eventId }) {
   useEffect(() => {
     loadCurrentYearMemberships()
   }, [loadCurrentYearMemberships])
+
+  useEffect(() => {
+    let isMounted = true
+    async function loadDiscountSummary() {
+      if (!eventId) return
+      const [codesRes, purchasesRes] = await Promise.all([
+        listDiscountCodes(eventId),
+        getAllPurchases(),
+      ])
+      if (!isMounted) return
+      setDiscountCodes(Array.isArray(codesRes) ? codesRes : [])
+      setDiscountPurchases(
+        Array.isArray(purchasesRes)
+          ? purchasesRes.filter((purchase) => (purchase.ref_id || purchase.event_id) === eventId && (purchase.discountCodeId || purchase.discount_code_id))
+          : []
+      )
+    }
+    loadDiscountSummary()
+    return () => {
+      isMounted = false
+    }
+  }, [eventId])
 
   const targetEvent = useMemo(() => events.find((e) => e.id === eventId) || null, [events, eventId])
 
@@ -484,6 +511,13 @@ export default function EventContent({ id: eventId }) {
     }),
     [participants],
   )
+
+  const discountSummary = useMemo(() => {
+    const active = discountCodes.filter((code) => Boolean(code.isActive ?? code.is_active)).length
+    const used = discountCodes.reduce((sum, code) => sum + Number(code.usedCount ?? code.used_count ?? 0), 0)
+    const discountTotal = discountPurchases.reduce((sum, purchase) => sum + Number(purchase.discountAmount ?? purchase.discount_amount ?? 0), 0)
+    return { active, used, discountTotal }
+  }, [discountCodes, discountPurchases])
 
   // Derived pagination (regular)
   const totalItems = sorted.length
@@ -918,6 +952,23 @@ export default function EventContent({ id: eventId }) {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="bg-zinc-900 border-zinc-700 text-white">
+            <CardContent className="p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <Tag className="h-5 w-5 text-mcp-orange" />
+                <div>
+                  <p className="font-semibold">Codici Sconto</p>
+                  <p className="text-sm text-gray-400">
+                    {discountSummary.active} attivi / {discountSummary.used} utilizzi totali / {discountSummary.discountTotal.toFixed(2)} € erogati
+                  </p>
+                </div>
+              </div>
+              <Button onClick={() => router.push(routes.admin.eventDiscountCodes(eventId))}>
+                Gestisci codici
+              </Button>
+            </CardContent>
+          </Card>
 
           {(eventStatus !== "active" || isPastEvent) && (
             <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
