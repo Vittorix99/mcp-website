@@ -143,7 +143,6 @@ def only_members_event(events_service):
         "date": date_value,
         "startTime": "21:00",
         "endTime": "23:00",
-        "location": "Integration Hall",
         "locationHint": "Ingresso principale",
         "price": 12.0,
         "fee": 0.0,

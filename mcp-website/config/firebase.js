@@ -110,6 +110,7 @@ export async function logout() {
 
   try {
     await signOut(auth);
+    await fetch("/api/auth/session", { method: "DELETE", cache: "no-store" }).catch(() => {});
     window.location.replace("/");
 
  

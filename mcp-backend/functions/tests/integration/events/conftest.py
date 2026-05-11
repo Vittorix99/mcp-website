@@ -27,7 +27,6 @@ def base_event_payload():
         "date": today,
         "startTime": "21:00",
         "endTime": "23:00",
-        "location": "Integration Hall",
         "locationHint": "Near the main entrance",
         "price": 10.0,
         "fee": 1.5,

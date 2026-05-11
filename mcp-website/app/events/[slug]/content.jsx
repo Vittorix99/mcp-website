@@ -22,11 +22,14 @@ const HOW_TO_JOIN = [
   ["04", "Show up", "Scan your card at the door. That's it."],
 ]
 
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
 function formatDateDisplay(dateString) {
   try {
     const [day, month, year] = (dateString || "").split("-").map(Number)
     const d = new Date(year, month - 1, day)
-    return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
   } catch {
     return dateString || ""
   }

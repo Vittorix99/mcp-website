@@ -15,12 +15,19 @@
     <td style="padding:20px 24px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr><td style="padding:6px 0;"><span style="color:#555555;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Data&nbsp;&nbsp;</span><span style="color:#e8e8e8;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;">{{ event_date }}</span></td></tr>
-        {{ ui.details_row("Luogo", event_location) }}
+        {% if location_label %}
+          {{ ui.details_row("Luogo", location_label) }}
+        {% elif event_location %}
+          {{ ui.details_row("Luogo", event_location) }}
+        {% endif %}
+        {% if location_address %}{{ ui.details_row("Indirizzo", location_address) }}{% endif %}
         {% if entry_time %}{{ ui.details_row("Orario di entrata", "Entro le " ~ entry_time, true) }}{% endif %}
       </table>
     </td>
   </tr>
 </table>
+
+{% if location_url %}{{ ui.cta_button(location_url, "Apri in Google Maps") }}{% endif %}
 
 {{ ui.instagram_footer(instagram_url) }}
 {% endblock %}

@@ -156,6 +156,21 @@ class EventFunnelResponseDTO(_ResponseBase):
     scan_coverage_pct: float = Field(serialization_alias="scanCoveragePct")
 
 
+# ---- Age Distribution ----------------------------------------------------
+
+class AgeBandDTO(_ResponseBase):
+    band: str
+    count: int
+    pct: float
+
+
+class AgeDistributionResponseDTO(_ResponseBase):
+    event_id: str = Field(serialization_alias="eventId")
+    total: int
+    dominant: str
+    bands: List[AgeBandDTO]
+
+
 # ---- Gender Distribution -------------------------------------------------
 
 class GenderDistributionResponseDTO(_ResponseBase):

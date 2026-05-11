@@ -78,6 +78,9 @@ class PurchaseRepository:
         for snap in snaps:
             yield self._model_from_snapshot(snap)
 
+    def update_status(self, purchase_id: str, status: str) -> None:
+        self.collection.document(purchase_id).update({"status": status})
+
     def delete(self, purchase_id: str) -> bool:
         doc_ref = self.collection.document(purchase_id)
         if not doc_ref.get().exists:

@@ -19,6 +19,10 @@ export async function createPurchase(data) {
   return safeFetch(endpoints.admin.createPurchase, "POST", data);
 }
 
+export async function updatePurchaseStatus(purchase_id, status) {
+  return safeFetch(endpoints.admin.updatePurchaseStatus, "POST", { purchase_id, status });
+}
+
 export async function deletePurchase(purchase_id) {
   return safeFetch(endpoints.admin.deletePurchase, "DELETE", { purchase_id });
 }

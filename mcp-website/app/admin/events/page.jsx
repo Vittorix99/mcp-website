@@ -39,7 +39,6 @@ export default function EventsPage() {
 
   const emptyForm = {
     title: "",
-    location: "",
     locationHint: "",
     date: "",
     startTime: "",
@@ -78,7 +77,6 @@ export default function EventsPage() {
       const [d, m, y] = ev.date.split("-")
       const norm = {
         title: ev.title,
-        location: ev.location,
         locationHint: ev.locationHint || "",
         date: `${y}-${m}-${d}`,
         startTime: ev.startTime,
@@ -169,8 +167,7 @@ export default function EventsPage() {
     return events
       .filter(
         (ev) => {
-          const locText = (ev.locationHint || ev.location || "").toLowerCase()
-          return ev.title.toLowerCase().includes(search.toLowerCase()) || locText.includes(search.toLowerCase())
+          return ev.title.toLowerCase().includes(search.toLowerCase()) || (ev.locationHint || "").toLowerCase().includes(search.toLowerCase())
         },
       )
       .sort((a, b) => {
@@ -267,7 +264,7 @@ export default function EventsPage() {
                             {ev.image && <EventThumbnail imageName={ev.image} alt={ev.title} />}
                             <div>
                               <div className="font-bold text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT }}>{ev.title}</div>
-                              <div className="text-sm text-[var(--color-off)]">{ev.location}</div>
+                              <div className="text-sm text-[var(--color-off)]">{ev.locationHint}</div>
                               <div className="text-xs text-[var(--color-muted)] italic">{purchaseMode}</div>
                             </div>
                           </div>
@@ -336,7 +333,7 @@ export default function EventsPage() {
                         {ev.image && <EventThumbnail imageName={ev.image} alt={ev.title} className="w-16 h-16" />}
                         <div>
                           <h3 className="font-bold text-[var(--color-white)]" style={{ fontFamily: TITLE_FONT }}>{ev.title}</h3>
-                          <p className="text-sm text-[var(--color-off)]">{ev.location}</p>
+                          <p className="text-sm text-[var(--color-off)]">{ev.locationHint}</p>
                           <p className="text-xs italic text-[var(--color-muted)]">{purchaseMode}</p>
                         </div>
                       </div>

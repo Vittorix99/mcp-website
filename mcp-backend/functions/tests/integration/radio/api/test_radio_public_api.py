@@ -75,7 +75,11 @@ def test_public_get_episode_returns_404_for_unpublished(base_episode_payload):
 
 
 @pytest.mark.integration
-def test_public_get_latest_episode_returns_404_when_none_published():
+def test_public_get_latest_episode_returns_404_when_none_published(monkeypatch):
+    monkeypatch.setattr(radio_public_api.episode_service, "get_latest_published", lambda: None)
+
     req = DummyRequest(method="GET")
     resp, status = unwrap_response(radio_public_api.get_latest_radio_episode(req))
-    assert status in (200, 404)
+
+    assert status == 404
+    assert resp == {"error": "No published episodes found"}

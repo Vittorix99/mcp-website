@@ -9,7 +9,7 @@ from tests.utils import DummyRequest, unwrap_response
 pytestmark = pytest.mark.integration
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_campaigns_get_list_integration(mock_request, sender_response_factory):
     """GET campaigns returns Sender payload through API->service->routes chain."""
     mock_request.return_value = sender_response_factory(200, {"data": [{"id": "camp-1"}]})
@@ -24,7 +24,7 @@ def test_campaigns_get_list_integration(mock_request, sender_response_factory):
     assert mock_request.call_args.kwargs["params"] == {"status": "draft"}
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_campaigns_create_maps_body_integration(mock_request, sender_response_factory):
     """POST create campaign maps frontend fields to Sender body format."""
     mock_request.return_value = sender_response_factory(201, {"data": {"id": "camp-2"}})
@@ -57,7 +57,7 @@ def test_campaigns_create_maps_body_integration(mock_request, sender_response_fa
     }
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_campaign_send_422_returns_error_payload(mock_request, sender_response_factory):
     """Send endpoint surfaces Sender validation errors as 422."""
     payload = {"error": [{"title": "Unsubscribe link", "details": "missing"}]}
@@ -72,7 +72,7 @@ def test_campaign_send_422_returns_error_payload(mock_request, sender_response_f
     assert mock_request.call_args.kwargs["url"].endswith("/campaigns/camp-3/send")
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_campaign_schedule_converts_iso_to_sender_format(mock_request, sender_response_factory):
     """Schedule endpoint converts ISO datetime to Sender UTC format."""
     mock_request.return_value = sender_response_factory(200, {"scheduled": True})
@@ -89,7 +89,7 @@ def test_campaign_schedule_converts_iso_to_sender_format(mock_request, sender_re
     assert mock_request.call_args.kwargs["json"] == {"schedule_time": "2025-06-15 20:00:00"}
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_campaign_stats_clicks_routes_to_clicks_endpoint(mock_request, sender_response_factory):
     """Stats endpoint delegates to /campaigns/{id}/clicks."""
     mock_request.return_value = sender_response_factory(200, {"data": [{"email": "x@test.com"}]})
@@ -102,7 +102,7 @@ def test_campaign_stats_clicks_routes_to_clicks_endpoint(mock_request, sender_re
     assert mock_request.call_args.kwargs["url"].endswith("/campaigns/camp-5/clicks")
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_campaign_copy_endpoint_integration(mock_request, sender_response_factory):
     """Copy endpoint calls Sender /campaigns/{id}/copy route."""
     mock_request.return_value = sender_response_factory(200, {"data": {"id": "camp-copy"}})

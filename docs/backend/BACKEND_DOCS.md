@@ -17,6 +17,7 @@
    - [API Admin Sender.net](#33-api-admin-sendernet)
    - [Sync Automatico Sender.net](#34-sync-automatico-sendernet)
    - [Sistema Entrata (Entrance)](#35-sistema-entrata-entrance)
+   - [API Area Soci (Member)](#36-api-area-soci-member)
 4. [Layer Services](#4-layer-services)
 5. [Layer Domain](#5-layer-domain)
 6. [Models](#6-models)
@@ -144,8 +145,9 @@ mcp-backend/functions/
 │   ├── public/                   # Endpoint senza autenticazione
 │   ├── admin/                    # Endpoint riservati ad admin
 │   │   └── sender/               # Proxy API Sender.net
+│   ├── member/                   # Endpoint area soci (idToken membro)
 │   ├── entrance/                 # Sistema scansione QR entrata eventi
-│   └── decorators/               # Decoratori HTTP (@public_endpoint, @admin_endpoint)
+│   └── decorators/               # Decoratori HTTP (@public_endpoint, @admin_endpoint, @member_endpoint)
 ├── config/
 │   ├── firebase_config.py        # Inizializzazione Firebase
 │   ├── environment.py            # Caricamento variabili d'ambiente
@@ -173,6 +175,8 @@ mcp-backend/functions/
 │   ├── sender/                   # Sync con Sender.net
 │   └── templates/                # Rendering template email/PDF
 ├── triggers/                     # Cloud Function triggers Firestore
+├── scripts/                      # Script di migrazione/utility (non deployati)
+│   └── migrate_locations.py      # Migra events.location → event_locations
 ├── tests/unit/                   # Suite test pytest
 ├── utils/                        # Funzioni di utilità
 └── main.py                       # Entry point dell'applicazione
@@ -317,7 +321,26 @@ Nota: `@admin_endpoint` registra la Cloud Function, valida il metodo HTTP e appl
 | `GET` | `/admin_get_all_events` | Lista tutti gli eventi con contatori partecipanti |
 | `GET` | `/admin_get_event_by_id` | Dettaglio evento. Query: `id` o `slug` |
 
-**Campi obbligatori per la creazione**: `title`, `date`, `startTime`, `endTime`, `location`, `locationHint`
+**Campi obbligatori per la creazione**: `title`, `date`, `startTime`, `locationHint`. (`location` rimosso — gestito via `event_locations`.)
+
+#### Gestione Location Evento — `api/admin/location_api.py`
+
+| Metodo | Path | Descrizione |
+|---|---|---|
+| `GET` | `/admin_get_event_location` | Legge la location di un evento. Query: `event_id` |
+| `PUT` | `/admin_update_event_location` | Aggiorna location. Body: `{event_id, label, address, maps_url, maps_embed_url, message}` |
+| `PATCH` | `/admin_toggle_location_published` | Pubblica/nasconde la location. Body: `{event_id, published}` |
+
+Note: quando `published=true` la location diventa visibile ai soci tramite `/member_get_event_location`. L'aggiornamento denormalizza `locationLabel` sull'evento padre.
+
+#### Provisioning Account Soci — `api/admin/members_auth_api.py`
+
+| Metodo | Path | Descrizione |
+|---|---|---|
+| `POST` | `/provision_member_accounts` | Crea account Firebase Auth per tutti i soci senza `uid`. Batch da 50, pausa 1s tra batch. |
+| `POST` | `/provision_single_member_account` | Crea account Firebase Auth per un singolo socio. Body: `{membership_id}` |
+
+Note: usare questi endpoint per abilitare il login passwordless (magic link) per i soci già esistenti nel DB prima dell'introduzione del flusso di autenticazione.
 
 #### Gestione Partecipanti — `api/admin/participants_api.py`
 
@@ -436,6 +459,26 @@ Tutte queste integrazioni sono best-effort: loggano e non bloccano il flusso pri
 | `POST` | `/entrance_manual_entry` | Segna entrata/uscita manuale. Body: `{event_id, membership_id, entered}` |
 | `POST` | `/entrance_validate` | Valida accesso da scansione QR. Body: `{membership_id, scan_token}` |
 
+### 3.6 API Area Soci (Member)
+
+> Tutti richiedono `Authorization: Bearer <id_token>` di un socio (Firebase Auth). Il decorator `@member_endpoint` verifica l'idToken e risolve la membership dalla email del token.
+
+#### Profilo e Dashboard — `api/member/member_api.py`
+
+| Metodo | Path | Descrizione |
+|---|---|---|
+| `GET` | `/member_get_me` | Profilo socio: `name`, `subscription_valid`, `end_date`, `renewals`, `card_url`, `wallet_url`, `newsletter_consent`. |
+| `GET` | `/member_get_events` | Lista eventi a cui il socio ha partecipato (da `attended_events[]`). |
+| `GET` | `/member_get_purchases` | Lista acquisti del socio (da `purchases[]`), con `event_title` per acquisti evento. |
+| `GET` | `/member_get_ticket` | Ticket del socio per un evento. Query: `event_id`. Ritorna `ticket_pdf_url` e `wallet_url`. |
+| `PATCH` | `/member_patch_preferences` | Aggiorna `newsletter_consent`. Body: `{newsletter_consent}`. Sincronizza su Sender.net (best-effort). |
+
+#### Location Evento — `api/member/location_api.py`
+
+| Metodo | Path | Descrizione |
+|---|---|---|
+| `GET` | `/member_get_event_location` | Location di un evento. Query: `event_id`. Ritorna 404 se `published=false`. |
+
 ---
 
 ## 4. Layer Services
@@ -503,8 +546,12 @@ Comportamenti non banali di `update()`:
 - Se il payload non contiene `membership_id` ma cambia l'email, il backend ricalcola il collegamento membership in automatico.
 
 #### `LocationService` — `services/events/location_service.py`
-- `send_location(event_id, participant_id, address, link, message)` — Sincrono, uno
-- `start_send_location_job(event_id, address, link, message)` — Asincrono, tutti
+- `get_admin_location(dto)` — Legge la location da `event_locations` (per admin, senza controllo `published`)
+- `get_member_location(event_id)` — Legge la location da `event_locations`; ritorna `NotFoundError` se `published=false`
+- `update_location(dto)` — Aggiorna `event_locations/{event_id}` e denormalizza `locationLabel` su `events/{event_id}`
+- `set_location_published(dto)` — Togola il flag `published` su `event_locations/{event_id}`
+- `send_location(event_id, participant_id, link, message)` — Sincrono, invia la location a un partecipante; legge `label` e `address` da `event_locations`
+- `start_send_location_job(event_id, link, message)` — Asincrono, tutti; carica `event_locations` una volta prima del loop
 
 #### `TicketService` — `services/events/ticket_service.py`
 - `generate_ticket_pdf()` — Genera PDF biglietto con `reportlab`/`weasyprint`
@@ -603,12 +650,22 @@ La mappa visuale aggiornata è in [`DATA_MODEL_UML.md`](./DATA_MODEL_UML.md).
 
 ```
 title, slug, date, startTime, endTime
-location, locationHint, price, fee
+locationHint, locationLabel, price, fee
 maxParticipants, status, image, lineup, note
 photoPath, type/purchaseMode, allowDuplicates
 over21Only, onlyFemales, participantsCount, externalLink
 createdAt, createdBy, updatedAt, updatedBy
 ```
+
+Note: `location` field rimosso. `locationHint` è il teaser pubblico; `locationLabel` è il nome venue denormalizzato da `event_locations`.
+
+### `EventLocation` — `models/event_location.py`
+
+```
+label, address, maps_url, maps_embed_url, message, published
+```
+
+Document id = event id. Gestito tramite `EventLocationRepository`. Letto da `LocationService` per l'invio email e dalle API area soci.
 
 ### `EventParticipant` — `models/event_participant.py`
 
@@ -938,13 +995,46 @@ Esegui handler
 
 **Implementato in**: `services/core/auth_service.py` + decoratore `@require_admin`
 
+**Accesso frontend**: `LoginModal` con `signInWithEmailAndPassword` (email + password). Pulsante "Staff" visibile ma discreto nel nav.
+
+### Flusso Member Auth — Passwordless (Magic Link)
+
+```
+Socio → /login (inserisce email)
+  │
+  ▼
+Firebase: sendSignInLinkToEmail()
+  │ email con magic link
+  ▼
+Socio clicca link → /login/verify
+  │
+  ▼
+Firebase: signInWithEmailLink()  → idToken
+  │
+  ▼
+Set cookie mcp_auth_token = idToken
+  │
+  ▼
+Redirect /dashboard
+  │ (middleware.js verifica cookie)
+  ▼
+Chiamate API: memberFetch() usa auth.currentUser.getIdToken()
+  │
+  ▼
+@member_endpoint: verifica idToken → lookup memberships.where(email=token.email)
+```
+
+**Implementato in**: `api/decorators/__init__.py` (`@member_endpoint`), `mcp-website/app/login/`, `mcp-website/middleware.js`.
+
+**Prerequisito**: abilitare "Email link (passwordless sign-in)" in Firebase Console → Authentication → Sign-in methods (secondo toggle sotto Email/Password).
+
 ### Claim Token
 
 | Claim | Tipo | Obbligatorio |
 |---|---|---|
 | `uid` | string | Sì |
 | `admin` | boolean | Solo endpoint admin |
-| `email` | string | No |
+| `email` | string | Sì per endpoint member |
 
 ### Entrance Scanning Auth
 
@@ -1138,14 +1228,16 @@ POST /create_participant
 POST /send_location_to_all   (202 Accepted)
   │
   ├─ LocationService.start_send_location_job()
-  │    └─ Crea Job document su Firestore (status: pending)
-  └─ → { message }
+  │    ├─ Legge event_locations/{eventId} (label, address, maps_url)
+  │    └─ Crea Job document su Firestore (status: queued)
+  └─ → { jobId, total }
 
 Trigger: process_send_location_job
   │
-  ├─ Legge partecipanti evento
+  ├─ Legge event_locations/{eventId} (label, address — caricato una volta)
+  ├─ Legge partecipanti evento (location_sent=false)
   ├─ Per ogni partecipante:
-  │    └─ LocationService.send_location() con retry
+  │    └─ LocationService._send_one() con retry (label + address + link + message in email)
   ├─ Aggiorna job progress
   └─ Job status: "completed" | "failed"
 ```

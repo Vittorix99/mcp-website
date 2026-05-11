@@ -7,6 +7,8 @@ Last reviewed: 2026-04-27.
 
 ## Latest Updates (News)
 
+- 2026-05-09: **Location centralization** — `location` field removed from `Event`; replaced by new `event_locations` collection (`EventLocation` model). `Event` retains `locationHint` (public teaser) and `locationLabel` (cached label). Admin manages location via dedicated `/admin_get_event_location`, `/admin_update_event_location`, `/admin_toggle_location_published` endpoints. Members access it via `/member_get_event_location` (only when `published=true`). Location email now includes the venue `label` field. Migration script at `mcp-backend/functions/scripts/migrate_locations.py`.
+- 2026-05-09: **Member area** — Passwordless Firebase magic-link auth flow for members (`/login` → `/login/verify` → `/dashboard`). New `api/member/` endpoints for profile, events, purchases, ticket, preferences, and location. Admin can provision Firebase Auth accounts for members via `provision_member_accounts` / `provision_single_member_account`.
 - 2026-03-14 (`4d1612e`): membership wallet pass flow added (Pass2U, Apple Wallet, Google Wallet).
 - `slug` fields are now first-class for Event, Membership, and Purchase retrieval paths.
 - `jobs` collection model is now documented for background send-location workflows.
@@ -53,8 +55,8 @@ Model: `mcp-backend/functions/models/event.py`
 | date | string | Event date in `DD-MM-YYYY`. | Firestore `date`. | Required on create; normalized from `DD-MM-YYYY`, `DD/MM/YYYY`, or `YYYY-MM-DD`. |
 | start_time | string | Start time (HH:MM). | Firestore `startTime`. | Required on create. |
 | end_time | string | End time (HH:MM or label). | Firestore `endTime`. | Optional. |
-| location | string | Full location (admin). | Firestore `location`. | Required on create. |
-| location_hint | string | Public location hint. | Firestore `locationHint`. | Required on create. |
+| location_hint | string | Public teaser shown before location is revealed. | Firestore `locationHint`. | Required on create. |
+| location_label | string | Cached venue name from `event_locations` (denormalized). | Firestore `locationLabel`. | Optional; set when location is saved. |
 | price | number | Ticket price. | Firestore `price`. | Optional; validated numeric if present. |
 | fee | number | Fee amount. | Firestore `fee`. | Optional; validated numeric if present. |
 | max_participants | number | Max participants. | Firestore `maxParticipants`. | Optional; validated integer if present. |
@@ -77,6 +79,27 @@ Model: `mcp-backend/functions/models/event.py`
 Additional rules:
 - `_validate_event_data` removes empty string fields on update and validates types.
 - `map_purchase_mode` normalizes `purchaseMode` for updates.
+
+### EventLocation (`event_locations`)
+Model: `mcp-backend/functions/models/event_location.py`
+
+One document per event, keyed by the event's Firestore id.
+
+| Field | Type | Description | Origin | Validations / Rules |
+| --- | --- | --- | --- | --- |
+| id | string | Firestore document id (= event id). | Firestore doc id. | Set to event id on upsert. |
+| label | string | Venue name (e.g. "Villa Tasca"). | Firestore `label`. | Optional. |
+| address | string | Street address. | Firestore `address`. | Optional. |
+| maps_url | string | Google Maps link. | Firestore `maps_url`. | Optional. |
+| maps_embed_url | string | Embeddable map iframe URL. | Firestore `maps_embed_url`. | Optional. |
+| message | string | Organizer message sent in the location email. | Firestore `message`. | Optional. |
+| published | boolean | Whether the location is visible to members. | Firestore `published`. | Default `false`; toggled by admin. |
+
+Additional rules:
+- Only returned to members (via `/member_get_event_location`) when `published=true`.
+- Admin can read and update regardless of `published` state.
+- When a location is saved/updated, `events/{id}.locationLabel` is denormalized for quick reads.
+- Migration script `mcp-backend/functions/scripts/migrate_locations.py` can seed this collection from legacy `events.location` data.
 
 ### EventParticipant (`participants/{eventId}/participants_event`)
 Model: `mcp-backend/functions/models/event_participant.py`
@@ -347,7 +370,7 @@ Location: `mcp-backend/functions/dto/purchase.py`
 
 ### Events
 Location: `mcp-backend/functions/api/validators/events.py`
-- Create requires: `title`, `location`, `locationHint`, `date`, `startTime`.
+- Create requires: `title`, `locationHint`, `date`, `startTime`. (`location` field removed.)
 - Update requires: `id`.
 - Query schema supports `id` or `slug`.
 - `price`/`fee` must be numeric if provided.

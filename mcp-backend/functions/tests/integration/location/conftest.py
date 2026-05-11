@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from dto.event_api import CreateEventRequestDTO
+from config.firebase_config import db
 from models import EventParticipant, PaymentMethod
 from repositories.event_repository import EventRepository
 from repositories.participant_repository import ParticipantRepository
@@ -49,7 +50,6 @@ def create_event(events_service):
                 "date": date_value,
                 "startTime": "21:00",
                 "endTime": "23:00",
-                "location": "Integration Hall",
                 "locationHint": "Ingresso principale",
                 "price": 10.0,
                 "fee": 1.0,
@@ -65,6 +65,7 @@ def create_event(events_service):
 
     for event_id in created:
         if event_id:
+            db.collection("event_locations").document(event_id).delete()
             events_service.delete_event(event_id, admin_uid="admin-test")
 
 

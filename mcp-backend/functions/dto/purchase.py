@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from models import EventPurchaseAccessType, PurchaseTypes
+from models import EventPurchaseAccessType, PurchaseStatus, PurchaseTypes
 from utils.events_utils import normalize_email
 
 
@@ -124,6 +124,14 @@ class PurchaseDTO(PurchaseApiBaseDTO):
 
     def to_payload(self) -> Dict[str, Any]:
         return self.model_dump(by_alias=True, exclude_none=True)
+
+
+class UpdatePurchaseStatusRequestDTO(PurchaseApiBaseDTO):
+    purchase_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("purchase_id", "purchaseId", "id"),
+    )
+    status: PurchaseStatus
 
 
 class PurchaseActionResponseDTO(PurchaseApiBaseDTO):

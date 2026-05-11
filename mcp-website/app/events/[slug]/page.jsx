@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 
 const EVENT_REVALIDATE_SECONDS = 60
 const SETTINGS_REVALIDATE_SECONDS = 120
-const SETTING_KEYS = ["payment_blocked", "company_iban", "company_intestatario", "membership_price_per_year"]
+const SETTING_KEYS = ["payment_blocked", "company_iban", "company_intestatario"]
 
 
 async function fetchEvent(eventSlug) {
@@ -58,7 +58,7 @@ export async function generateMetadata({ params }) {
 
 async function fetchSettingValue(key) {
   try {
-    const url = `${endpoints.admin.getSetting}?key=${encodeURIComponent(key)}`
+    const url = `${endpoints.getSetting}?key=${encodeURIComponent(key)}`
     const res = await fetch(url, {
       cache: "force-cache",
       next: { revalidate: SETTINGS_REVALIDATE_SECONDS },
@@ -71,15 +71,30 @@ async function fetchSettingValue(key) {
   }
 }
 
+async function fetchMembershipPrice() {
+  try {
+    const res = await fetch(endpoints.getMembershipPrice, {
+      cache: "force-cache",
+      next: { revalidate: SETTINGS_REVALIDATE_SECONDS },
+    })
+    if (!res.ok) return null
+    const data = await res.json().catch(() => null)
+    return data?.price != null ? Number(data.price) : null
+  } catch {
+    return null
+  }
+}
+
 async function fetchSettings() {
-  const [paymentBlocked, iban, intestatario, membershipPrice] = await Promise.all(
-    SETTING_KEYS.map((key) => fetchSettingValue(key))
-  )
+  const [[paymentBlocked, iban, intestatario], membershipPrice] = await Promise.all([
+    Promise.all(SETTING_KEYS.map((key) => fetchSettingValue(key))),
+    fetchMembershipPrice(),
+  ])
   return {
     payment_blocked: Boolean(paymentBlocked),
     company_iban: iban ? String(iban) : "",
     company_intestatario: intestatario ? String(intestatario) : "",
-    membership_price_per_year: membershipPrice != null ? Number(membershipPrice) : null,
+    membership_price_per_year: membershipPrice,
   }
 }
 

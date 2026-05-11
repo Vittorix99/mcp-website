@@ -24,6 +24,14 @@ const C_YELLOW = "#f0d44a"
 const C_WHITE = "#ffffff"
 const C_OFF = "#b0b0b0"
 const C_RED = "#e8241a"
+const C_GREEN = "#4ade80"
+
+const TIER_META = {
+  super_early: { label: "Super Early", color: C_GREEN },
+  early:       { label: "Early",       color: C_YELLOW },
+  regular:     { label: "Regular",     color: C_ORANGE },
+  late:        { label: "Late",        color: C_RED },
+}
 
 const TOOLTIP_STYLE = {
   contentStyle: { background: "#111111", border: "1px solid #1e1e1e", color: "#ffffff", borderRadius: 0 },
@@ -59,12 +67,14 @@ export default function EventCharts({
   revenueBreakdown,
   eventFunnel,
   genderDistribution,
+  ageDistribution,
 }) {
   const flowBuckets = entranceFlow.data?.buckets || []
   const salesDays = salesOverTime.data?.dailySales || []
   const funnelData = eventFunnel.data
   const revenueData = revenueBreakdown.data
   const genderData = genderDistribution.data
+  const ageData = ageDistribution.data
   const retentionData = audienceRetention.data
 
   // Funnel bar data
@@ -222,6 +232,71 @@ export default function EventCharts({
         )}
       </SnapshotChartCard>
 
+      {/* Ticket per Tier */}
+      <SnapshotChartCard
+        title="Ticket per Tier"
+        loading={revenueBreakdown.loading}
+        error={revenueBreakdown.error}
+        empty={revTiers.length === 0}
+      >
+        {revenueData && (() => {
+          const TIER_ORDER = ["super_early", "early", "regular", "late"]
+          const sorted = TIER_ORDER
+            .map(key => revTiers.find(t => t.tier === key))
+            .filter(Boolean)
+          const totalTierCount = sorted.reduce((s, t) => s + (t.count || 0), 0) || 1
+          const totalGross = sorted.reduce((s, t) => s + (t.gross || 0), 0)
+          const totalNet   = sorted.reduce((s, t) => s + (t.net   || 0), 0)
+          const totalFee   = totalGross - totalNet
+          return (
+            <div className="flex h-full flex-col justify-between">
+              <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
+                <span style={{ color: C_OFF }}>
+                  Ticket: <span style={{ color: "#fff", fontWeight: 700 }}>{totalTierCount}</span>
+                </span>
+                <span style={{ color: C_OFF }}>
+                  Incassato: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(totalGross)}</span>
+                </span>
+                <span style={{ color: C_OFF }}>
+                  Netto: <span style={{ color: C_YELLOW, fontWeight: 700 }}>{fmtEur(totalNet)}</span>
+                </span>
+                <span style={{ color: C_OFF }}>
+                  Fee: <span style={{ color: C_RED, fontWeight: 700 }}>{fmtEur(totalFee)}</span>
+                </span>
+              </div>
+              <div className="flex-1 space-y-4">
+                {sorted.map((t) => {
+                  const meta = TIER_META[t.tier] || { label: t.tier, color: C_OFF }
+                  const pct = Math.round((t.count / totalTierCount) * 100)
+                  const avgPrice = t.count > 0 ? (t.gross / t.count) : 0
+                  const tierFee = (t.gross || 0) - (t.net || 0)
+                  return (
+                    <div key={t.tier}>
+                      <div className="mb-1 flex items-baseline justify-between" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: meta.color }}>
+                          {meta.label}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
+                          {t.count}
+                          <span style={{ fontSize: 11, fontWeight: 400, color: C_OFF, marginLeft: 4 }}>({pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-[#1e1e1e]">
+                        <div className="h-full transition-all" style={{ width: `${pct}%`, background: meta.color }} />
+                      </div>
+                      <div className="mt-0.5 flex justify-between" style={{ fontSize: 10, color: C_OFF, fontFamily: '"Helvetica Neue", sans-serif' }}>
+                        <span>avg {fmtEur(avgPrice)}/ticket · fee {fmtEur(tierFee)}</span>
+                        <span>lordo <span style={{ color: "#fff" }}>{fmtEur(t.gross)}</span> · netto <span style={{ color: C_YELLOW }}>{fmtEur(t.net)}</span></span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+      </SnapshotChartCard>
+
       {/* Gender Distribution */}
       <SnapshotChartCard
         title="Distribuzione Genere"
@@ -259,6 +334,52 @@ export default function EventCharts({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+      </SnapshotChartCard>
+
+      {/* Age Distribution */}
+      <SnapshotChartCard
+        title="Distribuzione Età"
+        loading={ageDistribution.loading}
+        error={ageDistribution.error}
+        empty={!ageData || ageData.total === 0}
+      >
+        {ageData && (
+          <div className="flex h-full flex-col justify-between gap-2 py-1">
+            <p className="text-xs" style={{ fontFamily: '"Helvetica Neue", sans-serif', color: C_OFF }}>
+              Fascia dominante:{" "}
+              <span style={{ color: C_ORANGE, fontWeight: 700 }}>{ageData.dominant}</span>
+              {" · "}totale{" "}
+              <span style={{ color: "#fff", fontWeight: 700 }}>{ageData.total}</span>
+            </p>
+            <div className="flex-1 space-y-3">
+              {(ageData.bands || []).filter((b) => b.band !== "unknown").map((b) => (
+                <div key={b.band}>
+                  <div className="mb-1 flex justify-between text-[11px]" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
+                    <span style={{ color: C_OFF, textTransform: "uppercase", letterSpacing: "0.08em" }}>{b.band}</span>
+                    <span style={{ color: "#fff", fontWeight: 700 }}>{b.count} <span style={{ color: C_OFF }}>({b.pct}%)</span></span>
+                  </div>
+                  <div className="h-1.5 w-full bg-[#1e1e1e]">
+                    <div className="h-full bg-[#e8820c]" style={{ width: `${b.pct}%` }} />
+                  </div>
+                </div>
+              ))}
+              {ageData.bands?.find((b) => b.band === "unknown")?.count > 0 && (() => {
+                const u = ageData.bands.find((b) => b.band === "unknown")
+                return (
+                  <div key="unknown">
+                    <div className="mb-1 flex justify-between text-[11px]" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
+                      <span style={{ color: C_OFF, textTransform: "uppercase", letterSpacing: "0.08em" }}>N/D</span>
+                      <span style={{ color: "#fff", fontWeight: 700 }}>{u.count} <span style={{ color: C_OFF }}>({u.pct}%)</span></span>
+                    </div>
+                    <div className="h-1.5 w-full bg-[#1e1e1e]">
+                      <div className="h-full" style={{ width: `${u.pct}%`, background: C_OFF }} />
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         )}

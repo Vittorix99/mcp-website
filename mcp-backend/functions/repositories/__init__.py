@@ -1,6 +1,8 @@
 """Repository helpers for Firestore persistence."""
 
 from .admin_auth_repository import AdminAuthRepository
+from .event_guide_repository import EventGuideRepository
+from .event_location_repository import EventLocationRepository
 from .admin_repository import AdminRepository
 from .analytics_snapshot_repository import AnalyticsSnapshotRepository
 from .base import BaseRepository
@@ -33,6 +35,8 @@ __all__ = [
     "BaseRepository",
     "EntranceScanRepository",
     "EventRepository",
+    "EventGuideRepository",
+    "EventLocationRepository",
     "JobRepository",
     "AnalyticsJobRepository",
     "LocationJobRepository",

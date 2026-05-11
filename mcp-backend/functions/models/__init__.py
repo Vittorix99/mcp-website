@@ -1,8 +1,10 @@
 from .base import FirestoreModel
 from .admin_user import AdminUser
+from .event_guide import EventGuide
+from .event_location import EventLocation
 from .entrance_scan import EntranceScan
 from .contact_message import ContactMessage
-from .enums import EventPurchaseAccessType, EventStatus, PaymentMethod, PurchaseTypes
+from .enums import EventPurchaseAccessType, EventStatus, PaymentMethod, PurchaseStatus, PurchaseTypes
 from .event import Event
 from .event_participant import EventParticipant
 from .event_purchase import EventPurchase
@@ -20,11 +22,14 @@ from .user_profile import UserProfile
 
 __all__ = [
     "FirestoreModel",
+    "EventGuide",
+    "EventLocation",
     "AdminUser",
     "EntranceScan",
     "EventPurchaseAccessType",
     "EventStatus",
     "PaymentMethod",
+    "PurchaseStatus",
     "PurchaseTypes",
     "Event",
     "EventParticipant",

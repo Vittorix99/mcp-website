@@ -1,6 +1,7 @@
 import logging
 
 import requests
+import firebase_admin.auth as fb_auth
 from firebase_functions.firestore_fn import on_document_created, Event, DocumentSnapshot
 
 from config.external_services import GENDER_API_URL
@@ -66,12 +67,10 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         snapshot.reference.update({"gender": gender, "gender_probability": probability})
         logger.info("on_participant_created: gender=%s (%.1f) for %s", gender, probability, participant_id)
 
-        # Generazione ticket: idempotente lato trigger grazie al flag ticket_sent.
+        # Generazione ticket: PDF sempre creato; send=True invia anche l'email.
         send = participant_model.send_ticket_on_create
         if ticket_already_sent:
             logger.info("on_participant_created: ticket already sent for %s, skipping", participant_id)
-        elif not send:
-            logger.info("on_participant_created: send_ticket_on_create=False for %s, skipping", participant_id)
         else:
             result = ticket_service.process_new_ticket(participant_id, participant_data, send)
             if not result.get("success", False):
@@ -195,9 +194,33 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
             else:
                 logger.error("on_membership_created: card email failed for %s", membership_id)
 
+        # Firebase Auth provisioning: create an account for this member so they can log in.
+        email = (membership_model.email or "").strip().lower()
+        if is_valid_email(email) and not current_data.get("uid"):
+            try:
+                user = fb_auth.create_user(email=email, email_verified=False)
+                snapshot.reference.update({"uid": user.uid})
+                logger.info("on_membership_created: Firebase Auth account created for %s", mask_email(email))
+            except fb_auth.EmailAlreadyExistsError:
+                try:
+                    existing_user = fb_auth.get_user_by_email(email)
+                    snapshot.reference.update({"uid": existing_user.uid})
+                    logger.info("on_membership_created: reused existing Firebase Auth uid for %s", mask_email(email))
+                except Exception as exc:
+                    logger.error(
+                        "on_membership_created: get_user_by_email failed for %s: %s",
+                        mask_email(email),
+                        redact_sensitive(str(exc)),
+                    )
+            except Exception as exc:
+                logger.error(
+                    "on_membership_created: Firebase Auth create_user failed for %s: %s",
+                    mask_email(email),
+                    redact_sensitive(str(exc)),
+                )
+
         # Sender sync: aggiorna il CRM/newsletter senza influenzare la validita' della membership.
         try:
-            email = (membership_model.email or "").strip().lower()
             if is_valid_email(email):
                 sync_membership_to_sender(membership_id, membership_model)
         except Exception as exc:

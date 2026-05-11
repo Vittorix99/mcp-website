@@ -155,6 +155,19 @@ def admin_get_gender_distribution(req):
 
 
 @admin_endpoint(methods=("GET",))
+def admin_get_age_distribution(req):
+    try:
+        dto = EventAnalyticsQueryDTO.model_validate(dict(req.args or {}))
+        result = analytics_service.get_age_distribution(dto.event_id)
+        return jsonify(result.model_dump(by_alias=True)), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        logger.error("[admin_get_age_distribution] %s", redact_sensitive(str(err)))
+        return handle_service_error(err)
+
+
+@admin_endpoint(methods=("GET",))
 def admin_get_membership_trend(req):
     try:
         dto = MembershipTrendQueryDTO.model_validate(dict(req.args or {}))

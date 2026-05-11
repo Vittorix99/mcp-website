@@ -14,7 +14,9 @@ import {
   getRevenueBreakdown,
   getEventFunnel,
   getGenderDistribution,
+  getAgeDistribution,
   getMembershipTrend,
+  getAnalyticsGlobalSnapshot,
 } from "@/services/admin/stats"
 
 import EventCharts from "./components/EventCharts"
@@ -111,7 +113,13 @@ export default function AdminAnalyticsPage() {
             return da > db ? -1 : da < db ? 1 : 0
           })
           setEvents(sorted)
-          if (sorted.length > 0) setSelectedEventId(sorted[0].id || sorted[0].event_id || "")
+          if (sorted.length > 0) {
+            const stored = typeof window !== "undefined"
+              ? localStorage.getItem("analytics_selectedEventId")
+              : null
+            const storedExists = stored && sorted.some((e) => (e.id || e.event_id) === stored)
+            setSelectedEventId(storedExists ? stored : sorted[0].id || sorted[0].event_id || "")
+          }
         }
       })
       .finally(() => setEventsLoading(false))
@@ -136,9 +144,11 @@ export default function AdminAnalyticsPage() {
   const revenueBreakdown = useLiveData(getRevenueBreakdown, [selectedEventId, refreshKey])
   const eventFunnel = useLiveData(getEventFunnel, [selectedEventId, refreshKey])
   const genderDistribution = useLiveData(getGenderDistribution, [selectedEventId, refreshKey])
+  const ageDistribution = useLiveData(getAgeDistribution, [selectedEventId, refreshKey])
 
-  // Global: membership trend
+  // Global
   const membershipTrend = useLiveData(getMembershipTrend, [selectedYear, refreshKey])
+  const globalSnapshot = useLiveData(getAnalyticsGlobalSnapshot, [refreshKey])
 
   const anyLoading = entranceFlow.loading || salesOverTime.loading || audienceRetention.loading ||
     revenueBreakdown.loading || eventFunnel.loading || genderDistribution.loading
@@ -183,7 +193,10 @@ export default function AdminAnalyticsPage() {
             </p>
             <select
               value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
+              onChange={(e) => {
+                setSelectedEventId(e.target.value)
+                localStorage.setItem("analytics_selectedEventId", e.target.value)
+              }}
               disabled={eventsLoading || events.length === 0}
               className="mt-2 w-full rounded-none border-2 border-[var(--color-border)] bg-[var(--color-black)] p-2 text-sm text-[var(--color-white)] focus:border-[var(--color-orange)] focus:outline-none"
               style={{ fontFamily: BODY_FONT }}
@@ -286,6 +299,7 @@ export default function AdminAnalyticsPage() {
           revenueBreakdown={revenueBreakdown}
           eventFunnel={eventFunnel}
           genderDistribution={genderDistribution}
+          ageDistribution={ageDistribution}
         />
       ) : (
         <div
@@ -322,7 +336,7 @@ export default function AdminAnalyticsPage() {
             ))}
           </div>
         </div>
-        <GlobalCharts membershipTrend={membershipTrend} />
+        <GlobalCharts membershipTrend={membershipTrend} globalSnapshot={globalSnapshot} />
       </section>
     </div>
   )

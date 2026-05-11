@@ -5,13 +5,19 @@ import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { routes } from "@/config/routes"
 import { EVENT_STATUSES } from "@/config/events-utils"
-import { getPurchaseById } from "@/services/admin/purchases"
+import { getPurchaseById, updatePurchaseStatus } from "@/services/admin/purchases"
 import { getParticipantsByEvent } from "@/services/admin/participants"
 import { getEventById } from "@/services/admin/events"
 import { AdminLoading, AdminPageHeader } from "@/components/admin/AdminPageChrome"
+
+const PURCHASE_STATUSES = ["COMPLETED", "REFUNDED", "CANCELLED", "VOIDED", "FAILED", "DECLINED", "ERROR"]
+const INVALID_STATUSES = new Set(["FAILED", "CANCELLED", "VOIDED", "REFUNDED", "DECLINED", "ERROR"])
+
+const isInvalidStatus = (status) => INVALID_STATUSES.has((status || "").toUpperCase())
 
 export default function PurchaseDetailsPage() {
   const router = useRouter()
@@ -23,6 +29,9 @@ export default function PurchaseDetailsPage() {
   const [participants, setParticipants] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [statusValue, setStatusValue] = useState("")
+  const [statusUpdating, setStatusUpdating] = useState(false)
+  const [statusError, setStatusError] = useState("")
 
   useEffect(() => {
     let isMounted = true
@@ -43,6 +52,7 @@ export default function PurchaseDetailsPage() {
       }
 
       setPurchase(res)
+      setStatusValue(res.status || "COMPLETED")
 
       if (res?.ref_id) {
         const [eventRes, participantsRes] = await Promise.all([
@@ -73,6 +83,24 @@ export default function PurchaseDetailsPage() {
       isMounted = false
     }
   }, [purchaseId])
+
+  const handleStatusUpdate = async () => {
+    if (!statusValue || statusValue === purchase?.status) return
+    setStatusUpdating(true)
+    setStatusError("")
+    try {
+      const res = await updatePurchaseStatus(purchaseId, statusValue)
+      if (res?.error) {
+        setStatusError(res.error)
+      } else {
+        setPurchase(prev => ({ ...prev, status: statusValue }))
+      }
+    } catch {
+      setStatusError("Errore aggiornamento status.")
+    } finally {
+      setStatusUpdating(false)
+    }
+  }
 
   const participantsCount = purchase?.participants_count ?? participants.length
 
@@ -187,7 +215,9 @@ export default function PurchaseDetailsPage() {
           </div>
           <div className="flex justify-between border-b border-zinc-800 pb-2">
             <span className="text-gray-400">Status</span>
-            <span>{purchase.status || "-"}</span>
+            <Badge variant={isInvalidStatus(purchase.status) ? "destructive" : "secondary"}>
+              {purchase.status || "-"}
+            </Badge>
           </div>
           <div className="flex justify-between border-b border-zinc-800 pb-2">
             <span className="text-gray-400">Transaction ID</span>
@@ -205,6 +235,31 @@ export default function PurchaseDetailsPage() {
             <span className="text-gray-400">Timestamp</span>
             <span>{purchase.timestamp ? formatDate(purchase.timestamp) : "-"}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-zinc-900 border-zinc-700">
+        <CardHeader>
+          <CardTitle>Aggiorna status</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <Select value={statusValue} onValueChange={setStatusValue}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PURCHASE_STATUSES.map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={handleStatusUpdate}
+            disabled={statusUpdating || statusValue === purchase.status}
+          >
+            {statusUpdating ? "Salvataggio..." : "Aggiorna status"}
+          </Button>
+          {statusError && <p className="text-red-400 text-sm">{statusError}</p>}
         </CardContent>
       </Card>
 

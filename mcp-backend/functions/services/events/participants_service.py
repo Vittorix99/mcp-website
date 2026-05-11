@@ -31,13 +31,14 @@ from mappers.participant_mappers import (
     participant_to_response,
 )
 from models import Event, EventParticipant, EventPurchaseAccessType, Membership, PaymentMethod
+from repositories.event_location_repository import EventLocationRepository
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError, ForbiddenError
 from services.events.ticket_service import TicketService
 from services.memberships.renewal_command import RenewMembershipCommand
-from services.communications.mail_service import EmailMessage, MailService, mail_service
+from services.communications.mail_service import EmailAttachment, EmailMessage, MailService, mail_service
 from utils.templates_mail import get_omaggio_email_template, get_omaggio_email_text
 from utils.events_utils import (
     calculate_end_of_year_membership,
@@ -73,6 +74,7 @@ class ParticipantsService:
             )
         self.memberships_service = memberships_service
         self.mail_service = mail_service_instance or mail_service
+        self.location_repository = EventLocationRepository()
 
     def _get_memberships_service(self) -> MembershipsServiceProtocol:
         memberships_service = getattr(self, "memberships_service", None)
@@ -426,20 +428,48 @@ class ParticipantsService:
         if not participant.email:
             return False
 
+        location = self.location_repository.get(event_model.id or "")
+        location_label = None
+        location_address = None
+        location_url = None
+        if location and location.published:
+            location_label = location.label or None
+            location_address = location.address or None
+            location_url = location.maps_url or None
+
+        pdf_attachment = None
+        try:
+            event_payload = self.ticket_service._event_payload(event_model)
+            ticket_doc = self.ticket_service.create_ticket_document(participant, event_payload)
+            if ticket_doc.buffer:
+                filename = self.ticket_service._build_attachment_filename(event_model.title)
+                pdf_attachment = EmailAttachment(
+                    content=ticket_doc.buffer.getvalue(),
+                    filename=filename,
+                )
+        except Exception as exc:
+            self.logger.warning("PDF generation failed for omaggio %s: %s", participant.id, exc)
+
         name = f"{participant.name or ''} {participant.surname or ''}".strip() or "Ospite"
         html_content = get_omaggio_email_template(
             participant_name=name,
             event_title=event_model.title or "",
             event_date=event_model.date or "",
-            event_location=event_model.location or "",
+            event_location=event_model.location_hint or "",
             entry_time=entry_time,
+            location_label=location_label,
+            location_address=location_address,
+            location_url=location_url,
         )
         text_content = get_omaggio_email_text(
             participant_name=name,
             event_title=event_model.title or "",
             event_date=event_model.date or "",
-            event_location=event_model.location or "",
+            event_location=event_model.location_hint or "",
             entry_time=entry_time,
+            location_label=location_label,
+            location_address=location_address,
+            location_url=location_url,
         )
         subject = f"Il tuo invito – {event_model.title}"
         return self.mail_service.send(
@@ -448,7 +478,7 @@ class ParticipantsService:
                 subject=subject,
                 text_content=text_content,
                 html_content=html_content,
-                attachment=None,
+                attachment=pdf_attachment,
                 category="omaggio",
             )
         )

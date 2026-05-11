@@ -69,6 +69,14 @@ export const routes = {
   user: {
     profile: '/',
   },
+
+  // Member auth & dashboard
+  login: '/login',
+  loginVerify: '/login/verify',
+  dashboard: '/dashboard',
+
+  // Event guide
+  eventGuide: (slug) => `/events/${slug}/guide`,
 }
 
 // Helper function to get URL with ID

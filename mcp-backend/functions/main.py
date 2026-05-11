@@ -29,9 +29,10 @@ from config.firebase_config import db, bucket, cors
 # === API Pubbliche ===
 from api.public.contact_api import contact_us
 from api.public.newsletter_api import newsletter_signup
+from api.public.settings_api import get_setting, get_membership_price_public
 from api.public.sender_webhook_api import sender_webhook
 from api.public.event_payment_api import create_order_event, capture_order_event
-from api.public.events_api import get_event_by_id, get_next_event, get_all_events
+from api.public.events_api import get_event_by_id, get_next_event, get_all_events, get_event_guide
 from api.public.events_tickets_api import check_participants
 from api.public.radio_public_api import (
     get_published_radio_episodes,
@@ -62,8 +63,34 @@ from api.admin.events_api import (
     admin_update_event,
     admin_delete_event,
     admin_get_all_events,
-    admin_get_event_by_id
+    admin_get_event_by_id,
+    admin_get_event_guide,
+    admin_update_event_guide,
+    admin_toggle_guide_published,
 )
+
+# === API Admin: Location ===
+from api.admin.location_api import (
+    admin_get_event_location,
+    admin_update_event_location,
+    admin_toggle_location_published,
+)
+
+# === API Admin: Member Auth Provisioning ===
+from api.admin.members_auth_api import (
+    provision_member_accounts,
+    provision_single_member_account,
+)
+
+# === API Member ===
+from api.member.member_api import (
+    member_get_me,
+    member_get_events,
+    member_get_purchases,
+    member_get_ticket,
+    member_patch_preferences,
+)
+from api.member.location_api import member_get_event_location
 
 # === API Admin: Participants ===
 from api.admin.participants_api import (
@@ -104,6 +131,7 @@ from api.admin.purchases_api import (
     get_purchase,
     get_all_purchases,
     create_purchase,
+    update_purchase_status,
     delete_purchase
 )
 
@@ -125,6 +153,7 @@ from api.admin.stats_api import (
     admin_get_revenue_breakdown,
     admin_get_event_funnel,
     admin_get_gender_distribution,
+    admin_get_age_distribution,
     admin_get_membership_trend,
     admin_get_dashboard_kpis,
     admin_rebuild_analytics,

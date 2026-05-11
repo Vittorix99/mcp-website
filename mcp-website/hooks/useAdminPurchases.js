@@ -6,6 +6,7 @@ import {
   getAllPurchases,
   getPurchaseById,
   createPurchase as createPurchaseService,
+  updatePurchaseStatus as updatePurchaseStatusService,
   deletePurchase as deletePurchaseService
 } from "@/services/admin/purchases";
 
@@ -69,6 +70,26 @@ export function useAdminPurchases() {
     }
   }, [loadAll, setError]);
 
+  const updateStatus = useCallback(async (purchaseId, status) => {
+    if (!purchaseId || !status) return;
+    setLoading(true);
+    try {
+      const res = await updatePurchaseStatusService(purchaseId, status);
+      if (res?.error) setError(res.error);
+      else {
+        setPurchases(prev =>
+          prev.map(p => p.id === purchaseId ? { ...p, status } : p)
+        );
+        if (selected?.id === purchaseId) setSelected(prev => ({ ...prev, status }));
+      }
+    } catch (e) {
+      console.error("updatePurchaseStatus error", e);
+      setError("Errore aggiornamento status acquisto.");
+    } finally {
+      setLoading(false);
+    }
+  }, [setError, selected]);
+
   const remove = useCallback(async (purchaseId) => {
     if (!purchaseId) return;
     setLoading(true);
@@ -76,7 +97,6 @@ export function useAdminPurchases() {
       const res = await deletePurchaseService(purchaseId);
       if (res?.error) setError(res.error);
       else {
-        // se stiamo visualizzando l'acquisto corrente, resetta
         if (selected?.id === purchaseId) setSelected(null);
         await loadAll();
       }
@@ -99,6 +119,7 @@ export function useAdminPurchases() {
     loadAll,
     loadOne,
     create,
+    updateStatus,
     remove,
   };
 }

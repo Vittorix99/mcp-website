@@ -31,21 +31,17 @@ export async function deleteParticipant(participantId, data = {}) {
     ...data,
   });
 }
-export async function sendLocationToParticipant({ eventId, participantId, address, link }) {
+export async function sendLocationToParticipant({ eventId, participantId, message }) {
   return safeFetch(endpoints.admin.sendLocation, 'POST', {
     eventId,
     participantId,
-    address,
-    link,
+    ...(message != null ? { message } : {}),
   });
 }
-// Avvio job asincrono "send_location" (nuovo flusso)
-export async function startSendLocationJobService({ eventId, address, link, message }) {
+export async function startSendLocationJobService({ eventId, message }) {
   return safeFetch(endpoints.admin.sendLocationToAll, 'POST', {
     eventId,
-    address,
-    link,
-    message,
+    ...(message != null ? { message } : {}),
   });
 }
 export async function sendTicketToParticipant(participantId, eventId) {

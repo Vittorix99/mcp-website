@@ -32,4 +32,21 @@ class PaymentMethod(str, Enum):
 
 class PurchaseTypes(str, Enum):
     EVENT = "event"
-    MEMBERSHIP = "membership" 
+    MEMBERSHIP = "membership"
+
+
+class PurchaseStatus(str, Enum):
+    COMPLETED = "COMPLETED"
+    FAILED    = "FAILED"
+    CANCELLED = "CANCELLED"
+    VOIDED    = "VOIDED"
+    REFUNDED  = "REFUNDED"
+    DECLINED  = "DECLINED"
+    ERROR     = "ERROR"
+
+    @classmethod
+    def invalid_statuses(cls) -> frozenset:
+        return frozenset({
+            cls.FAILED, cls.CANCELLED, cls.VOIDED,
+            cls.REFUNDED, cls.DECLINED, cls.ERROR,
+        })

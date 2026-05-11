@@ -9,7 +9,7 @@ from tests.utils import DummyRequest, unwrap_response
 pytestmark = pytest.mark.integration
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_fields_list_create_delete_integration(mock_request, sender_response_factory):
     """Fields API integration: list/create/delete via Sender endpoints."""
     mock_request.side_effect = [
@@ -41,7 +41,7 @@ def test_fields_list_create_delete_integration(mock_request, sender_response_fac
     assert calls[2].kwargs["method"] == "DELETE"
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_segments_get_delete_and_subscribers_integration(mock_request, sender_response_factory):
     """Segments API integration for get single, list subscribers, and delete."""
     mock_request.side_effect = [
@@ -71,7 +71,7 @@ def test_segments_get_delete_and_subscribers_integration(mock_request, sender_re
     assert calls[2].kwargs["method"] == "DELETE"
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_transactional_list_create_send_integration(mock_request, sender_response_factory):
     """Transactional APIs list/create/send with expected Sender routes and bodies."""
     mock_request.side_effect = [
@@ -133,9 +133,9 @@ def test_transactional_list_create_send_integration(mock_request, sender_respons
 
 
 def test_transactional_delete_not_supported():
-    """DELETE transactional campaigns is intentionally not implemented."""
+    """DELETE transactional campaigns is not an allowed endpoint method."""
     req = DummyRequest(method="DELETE", json={"id": "tc-2"})
     resp, status = unwrap_response(transactional_api.admin_sender_transactional(req))
 
-    assert status == 501
-    assert resp == {"error": "Delete not supported by Sender transactional API"}
+    assert status == 405
+    assert resp == {"error": "Invalid method"}

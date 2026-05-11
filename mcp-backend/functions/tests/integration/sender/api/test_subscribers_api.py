@@ -9,7 +9,7 @@ from tests.utils import DummyRequest, unwrap_response
 pytestmark = pytest.mark.integration
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_subscribers_upsert_integration(mock_request, sender_response_factory):
     """POST subscribers forwards upsert data through service/routes."""
     mock_request.return_value = sender_response_factory(200, {"data": {"id": "sub-1", "email": "x@test.com"}})
@@ -33,7 +33,7 @@ def test_subscribers_upsert_integration(mock_request, sender_response_factory):
     assert mock_request.call_args.kwargs["json"]["email"] == "x@test.com"
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_subscribers_update_integration(mock_request, sender_response_factory):
     """PUT subscribers maps to PATCH /subscribers/{email} without email in body."""
     mock_request.return_value = sender_response_factory(200, {"data": {"updated": True}})
@@ -48,7 +48,7 @@ def test_subscribers_update_integration(mock_request, sender_response_factory):
     assert mock_request.call_args.kwargs["json"] == {"firstname": "Luigi"}
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_subscribers_delete_integration(mock_request, sender_response_factory):
     """DELETE subscribers calls Sender batch-delete route and returns deleted=true."""
     mock_request.return_value = sender_response_factory(200, {"deleted": True})
@@ -63,7 +63,7 @@ def test_subscribers_delete_integration(mock_request, sender_response_factory):
     assert mock_request.call_args.kwargs["json"] == {"subscribers": ["x@test.com"]}
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_subscriber_groups_add_remove_integration(mock_request, sender_response_factory):
     """Group assignment endpoints call Sender add/remove group routes."""
     mock_request.side_effect = [
@@ -89,7 +89,7 @@ def test_subscriber_groups_add_remove_integration(mock_request, sender_response_
     assert second["method"] == "DELETE"
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_subscriber_events_integration(mock_request, sender_response_factory):
     """GET subscriber events forwards identifier and actions query."""
     mock_request.return_value = sender_response_factory(200, {"data": [{"action": "open"}]})

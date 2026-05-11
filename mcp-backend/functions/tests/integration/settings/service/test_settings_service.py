@@ -1,5 +1,6 @@
 import pytest
 
+from dto.setting_api import SetSettingRequestDTO
 from errors.service_errors import NotFoundError, ValidationError
 
 
@@ -7,9 +8,10 @@ from errors.service_errors import NotFoundError, ValidationError
 def test_settings_service_set_get(settings_service, settings_repository, setting_key):
     """Sets and retrieves a setting via the service layer."""
     try:
-        dto = settings_service.set_setting(setting_key, "value-1")
-        assert dto.key == setting_key
-        assert dto.value == "value-1"
+        dto = SetSettingRequestDTO(key=setting_key, value="value-1")
+        result = settings_service.set_setting(dto)
+        assert result.setting.key == setting_key
+        assert result.setting.value == "value-1"
 
         fetched = settings_service.get_setting(setting_key)
         assert fetched.key == setting_key

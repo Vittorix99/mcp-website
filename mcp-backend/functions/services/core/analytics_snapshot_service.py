@@ -16,7 +16,7 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import AnalyticsJob, PurchaseTypes
+from models import AnalyticsJob, PurchaseStatus, PurchaseTypes
 from repositories.analytics_snapshot_repository import AnalyticsSnapshotRepository
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
@@ -922,10 +922,9 @@ class AnalyticsSnapshotService:
         if participants_count <= 0:
             return False
 
-        status = str(getattr(purchase, "status", "") or "").lower()
-        capture_status = str(getattr(purchase, "capture_status", "") or "").lower()
-        bad_status_tokens = {"failed", "cancelled", "canceled", "voided", "refunded", "declined", "error"}
-        if status in bad_status_tokens or capture_status in bad_status_tokens:
+        status = str(getattr(purchase, "status", "") or "").upper()
+        capture_status = str(getattr(purchase, "capture_status", "") or "").upper()
+        if status in PurchaseStatus.invalid_statuses() or capture_status in PurchaseStatus.invalid_statuses():
             return False
 
         return True

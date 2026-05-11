@@ -16,6 +16,7 @@ class EventLocationPayload(Protocol):
 def get_location_email_template(
     participant_name: str,
     event_data: EventLocationPayload,
+    label: Optional[str] = None,
     address: Optional[str] = None,
     link: Optional[str] = None,
     message: Optional[str] = None,
@@ -30,6 +31,7 @@ def get_location_email_template(
         event_date=event_data.date,
         start_time=event_data.start_time,
         end_time=event_data.end_time,
+        label=label,
         address=address,
         link=link,
         organizer_message=message,
@@ -40,18 +42,20 @@ def get_location_email_template(
 def build_location_email_payload(
     name: str,
     event_dict: EventLocationPayload,
+    label: Optional[str] = None,
     address: Optional[str] = None,
     link: Optional[str] = None,
     message: Optional[str] = None,
 ) -> Tuple[str, str, str]:
     subject = f"Location per l'evento {event_dict.title}"
-    html_content = get_location_email_template(name, event_dict, address, link, message)
+    html_content = get_location_email_template(name, event_dict, label, address, link, message)
     text_content = f"""Ciao {name},
 
 Ecco i dettagli della location per l'evento "{event_dict.title}":
 
 Data: {event_dict.date}
 Orario: {event_dict.start_time} - {event_dict.end_time}
+{f"Venue: {label}" if label else ""}
 {f"Indirizzo: {address}" if address else ""}
 {f"Link: {link}" if link else ""}"""
     if message:

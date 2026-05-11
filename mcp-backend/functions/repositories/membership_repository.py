@@ -130,6 +130,9 @@ class MembershipRepository(BaseRepository[Membership]):
             "wallet_url": wallet_url,
         })
 
+    def set_uid(self, membership_id: str, uid: str) -> None:
+        self.collection.document(membership_id).update({"uid": uid})
+
     def set_merging(self, membership_id: str, value: Optional[bool]) -> None:
         self.collection.document(membership_id).update({"merging": value})
 

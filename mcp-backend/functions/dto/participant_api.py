@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from models import PaymentMethod
 from utils.events_utils import normalize_email, normalize_phone
@@ -23,31 +23,33 @@ class ParticipantApiBaseDTO(BaseModel):
 
 
 class ParticipantEventRequestDTO(ParticipantApiBaseDTO):
-    event_id: str = Field(min_length=1, validation_alias=AliasChoices("event_id", "eventId"))
+    event_id: str = Field(min_length=1, alias="eventId")
 
 
 class ParticipantLookupRequestDTO(ParticipantEventRequestDTO):
-    participant_id: str = Field(min_length=1, validation_alias=AliasChoices("participant_id", "participantId", "id"))
+    participant_id: str = Field(min_length=1, alias="participantId")
 
 
 class ParticipantCreateRequestDTO(ParticipantEventRequestDTO):
+    model_config = ConfigDict(extra="ignore", populate_by_name=True, str_strip_whitespace=True)
+
     name: Optional[str] = None
     surname: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     birthdate: Optional[str] = None
-    membership_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("membership_id", "membershipId"))
-    membership_included: Optional[bool] = Field(default=None, validation_alias=AliasChoices("membership_included", "membershipIncluded"))
-    ticket_sent: Optional[bool] = Field(default=None, validation_alias=AliasChoices("ticket_sent", "ticketSent"))
-    send_ticket_on_create: Optional[bool] = Field(default=None, validation_alias=AliasChoices("send_ticket_on_create", "sendTicketOnCreate"))
-    location_sent: Optional[bool] = Field(default=None, validation_alias=AliasChoices("location_sent", "locationSent"))
-    newsletter_consent: Optional[bool] = Field(default=None, validation_alias=AliasChoices("newsletter_consent", "newsletterConsent"))
+    membership_id: Optional[str] = None
+    membership_included: Optional[bool] = None
+    ticket_sent: Optional[bool] = None
+    send_ticket_on_create: Optional[bool] = None
+    location_sent: Optional[bool] = None
+    newsletter_consent: Optional[bool] = None
     price: Optional[float] = None
-    payment_method: Optional[str] = Field(default=None, validation_alias=AliasChoices("payment_method", "paymentMethod"))
-    purchase_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("purchase_id", "purchaseId"))
+    payment_method: Optional[str] = None
+    purchase_id: Optional[str] = None
     riduzione: Optional[bool] = None
     gender: Optional[str] = None
-    gender_probability: Optional[float] = Field(default=None, validation_alias=AliasChoices("gender_probability", "genderProbability"))
+    gender_probability: Optional[float] = None
 
     @field_validator(
         "name",
@@ -90,7 +92,7 @@ class ParticipantCreateRequestDTO(ParticipantEventRequestDTO):
 
 
 class ParticipantUpdateRequestDTO(ParticipantCreateRequestDTO):
-    participant_id: str = Field(min_length=1, validation_alias=AliasChoices("participant_id", "participantId", "id"))
+    participant_id: str = Field(min_length=1, alias="participantId")  # frontend sends camelCase for this one
 
     @model_validator(mode="after")
     def validate_update_fields(self) -> "ParticipantUpdateRequestDTO":
@@ -130,9 +132,9 @@ class SendLocationToAllRequestDTO(ParticipantEventRequestDTO):
 
 
 class SendOmaggioEmailsRequestDTO(ParticipantEventRequestDTO):
-    entry_time: Optional[str] = Field(default=None, validation_alias=AliasChoices("entry_time", "entryTime"))
-    participant_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("participant_id", "participantId"))
-    skip_already_sent: bool = Field(default=True, validation_alias=AliasChoices("skip_already_sent", "skipAlreadySent"))
+    entry_time: Optional[str] = Field(default=None, alias="entryTime")
+    participant_id: Optional[str] = Field(default=None, alias="participantId")
+    skip_already_sent: bool = Field(default=True, alias="skipAlreadySent")
 
     @field_validator("entry_time", "participant_id", mode="before")
     @classmethod
@@ -146,9 +148,9 @@ class CheckoutParticipantRequestDTO(ParticipantApiBaseDTO):
     email: str = ""
     phone: str = ""
     birthdate: Optional[str] = None
-    newsletter_consent: bool = Field(default=False, validation_alias=AliasChoices("newsletter_consent", "newsletterConsent"))
+    newsletter_consent: bool = Field(default=False, alias="newsletterConsent")
     gender: Optional[str] = None
-    gender_probability: Optional[float] = Field(default=None, validation_alias=AliasChoices("gender_probability", "genderProbability"))
+    gender_probability: Optional[float] = Field(default=None, alias="genderProbability")
 
 
 class CheckParticipantsRequestDTO(ParticipantEventRequestDTO):

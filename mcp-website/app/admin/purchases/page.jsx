@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, Eye } from "lucide-react"
 import { motion } from "framer-motion"
 import { routes } from "@/config/routes"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardHeader, CardContent, CardTitle, CardFooter } from "@/components/ui/card"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
@@ -18,11 +19,22 @@ import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { PurchaseModal } from "@/components/admin/purchases/PurchaseModal"
 import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
 
+const PURCHASE_STATUSES = ["COMPLETED", "REFUNDED", "CANCELLED", "VOIDED", "FAILED", "DECLINED", "ERROR"]
+const INVALID_STATUSES = new Set(["FAILED", "CANCELLED", "VOIDED", "REFUNDED", "DECLINED", "ERROR"])
+
+const parseAmount = (value) => {
+  const amount = parseFloat(value || "0")
+  return Number.isFinite(amount) ? amount : 0
+}
+
+const isInvalidStatus = (purchase) =>
+  INVALID_STATUSES.has((purchase?.status || "").toUpperCase())
+
 export default function PurchasesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const legacyPurchaseId = searchParams.get("purchaseId")
-  const { purchases, loading } = useAdminPurchases()
+  const { purchases, loading, updateStatus } = useAdminPurchases()
   const { events } = useAdminEvents()
 
   const filtersKey = "mcp_admin_purchases_filters"
@@ -41,10 +53,12 @@ export default function PurchasesPage() {
   const [dateTo, setDateTo] = useState(stored.dateTo || "")
   const [manualId, setManualId] = useState(stored.manualId || "")
   const [eventFilter, setEventFilter] = useState(stored.eventFilter || "all")
+  const [statusFilter, setStatusFilter] = useState(stored.statusFilter || "all")
   const [dateSort, setDateSort] = useState(stored.dateSort || "desc")
   const [notFoundMsg, setNotFoundMsg] = useState("")
   const [selectedPurchase, setSelectedPurchase] = useState(null)
   const [dateKey, setDateKey] = useState(0)
+  const [savingIds, setSavingIds] = useState(new Set())
 
   useEffect(() => {
     if (legacyPurchaseId) {
@@ -54,23 +68,15 @@ export default function PurchasesPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    const payload = {
-      search,
-      dateFrom,
-      dateTo,
-      manualId,
-      eventFilter,
-      dateSort,
-    }
-    window.localStorage.setItem(filtersKey, JSON.stringify(payload))
-  }, [search, dateFrom, dateTo, manualId, eventFilter, dateSort])
+    window.localStorage.setItem(filtersKey, JSON.stringify({
+      search, dateFrom, dateTo, manualId, eventFilter, statusFilter, dateSort,
+    }))
+  }, [search, dateFrom, dateTo, manualId, eventFilter, statusFilter, dateSort])
 
   const handleManualIdSearch = () => {
     if (!manualId) return
     const found = purchases.find(
-      p => p.id === manualId ||
-           p.transaction_id === manualId ||
-           p.ref_id === manualId
+      p => p.id === manualId || p.transaction_id === manualId || p.ref_id === manualId
     )
     if (found) {
       setSearch(found.payer_email)
@@ -81,6 +87,16 @@ export default function PurchasesPage() {
       setNotFoundMsg(`Nessun acquisto trovato per ID "${manualId}"`)
     }
   }
+
+  const handleStatusChange = useCallback(async (purchaseId, newStatus) => {
+    setSavingIds(prev => new Set(prev).add(purchaseId))
+    await updateStatus(purchaseId, newStatus)
+    setSavingIds(prev => {
+      const next = new Set(prev)
+      next.delete(purchaseId)
+      return next
+    })
+  }, [updateStatus])
 
   const filtered = useMemo(() => {
     return purchases
@@ -93,6 +109,9 @@ export default function PurchasesPage() {
         )) return false
 
         if (eventFilter !== "all" && p.ref_id !== eventFilter) return false
+
+        if (statusFilter === "invalid" && !isInvalidStatus(p)) return false
+        if (statusFilter === "valid" && isInvalidStatus(p)) return false
 
         const ts = new Date(p.timestamp)
         if (dateFrom) {
@@ -111,13 +130,14 @@ export default function PurchasesPage() {
         const diff = new Date(a.timestamp) - new Date(b.timestamp)
         return dateSort === "asc" ? diff : -diff
       })
-  }, [purchases, search, dateFrom, dateTo, eventFilter, dateSort])
+  }, [purchases, search, dateFrom, dateTo, eventFilter, statusFilter, dateSort])
 
   const stats = useMemo(() => {
-    const totalGross = filtered.reduce((sum, p) => sum + parseFloat(p.amount_total || "0"), 0)
-    const totalFees = filtered.reduce((sum, p) => sum + parseFloat(p.paypal_fee || "0"), 0)
-    const totalNet   = filtered.reduce((sum, p) => sum + parseFloat(p.net_amount || "0"), 0)
-    return { totalGross, totalFees, totalNet }
+    const valid = filtered.filter(p => !isInvalidStatus(p))
+    const totalGross = valid.reduce((sum, p) => sum + parseAmount(p.amount_total), 0)
+    const totalFees = valid.reduce((sum, p) => sum + parseAmount(p.paypal_fee), 0)
+    const totalNet = valid.reduce((sum, p) => sum + parseAmount(p.net_amount), 0)
+    return { totalGross, totalFees, totalNet, validCount: valid.length }
   }, [filtered])
 
   const formatDate = iso =>
@@ -131,6 +151,7 @@ export default function PurchasesPage() {
     setDateTo("")
     setManualId("")
     setEventFilter("all")
+    setStatusFilter("all")
     setDateSort("desc")
     setNotFoundMsg("")
     setDateKey(k => k + 1)
@@ -157,15 +178,24 @@ export default function PurchasesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="bg-zinc-900 border border-zinc-700">
             <CardHeader><CardTitle>Totale Lordo</CardTitle></CardHeader>
-            <CardContent className="text-2xl font-bold">{stats.totalGross.toFixed(2)} €</CardContent>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalGross.toFixed(2)} €</div>
+              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni valide</p>
+            </CardContent>
           </Card>
           <Card className="bg-zinc-900 border border-zinc-700">
             <CardHeader><CardTitle>Totale Fee</CardTitle></CardHeader>
-            <CardContent className="text-2xl font-bold">{stats.totalFees.toFixed(2)} €</CardContent>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalFees.toFixed(2)} €</div>
+              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni valide</p>
+            </CardContent>
           </Card>
           <Card className="bg-zinc-900 border border-zinc-700">
             <CardHeader><CardTitle>Totale Netto</CardTitle></CardHeader>
-            <CardContent className="text-2xl font-bold">{stats.totalNet.toFixed(2)} €</CardContent>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalNet.toFixed(2)} €</div>
+              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni valide</p>
+            </CardContent>
           </Card>
         </div>
 
@@ -185,10 +215,18 @@ export default function PurchasesPage() {
                 <SelectContent>
                   <SelectItem value="all">Tutti gli eventi</SelectItem>
                   {(events || []).map(ev => (
-                    <SelectItem key={ev.id} value={ev.id}>
-                      {ev.title}
-                    </SelectItem>
+                    <SelectItem key={ev.id} value={ev.id}>{ev.title}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Filtra per status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli status</SelectItem>
+                  <SelectItem value="valid">Solo validi</SelectItem>
+                  <SelectItem value="invalid">Solo non validi</SelectItem>
                 </SelectContent>
               </Select>
               <div className="relative flex-1">
@@ -205,9 +243,7 @@ export default function PurchasesPage() {
                     onClick={() => setDateFrom("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-lg leading-none"
                     aria-label="Cancella data da"
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 )}
               </div>
               <div className="relative flex-1">
@@ -224,9 +260,7 @@ export default function PurchasesPage() {
                     onClick={() => setDateTo("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-lg leading-none"
                     aria-label="Cancella data a"
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 )}
               </div>
               <Select value={dateSort} onValueChange={setDateSort}>
@@ -270,76 +304,128 @@ export default function PurchasesPage() {
                         <TableHead>Pagante</TableHead>
                         <TableHead>Metodo</TableHead>
                         <TableHead>Importo</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead className="text-right">Dettagli</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filtered.map(p => (
-                        <TableRow key={getPurchaseKey(p)}>
-                          <TableCell>
-                            <div className="font-medium">{p.payer_name} {p.payer_surname}</div>
-                            <div className="text-sm text-gray-400">{p.payer_email}</div>
-                          </TableCell>
-                          <TableCell>{p.payment_method}</TableCell>
-                          <TableCell>{parseFloat(p.amount_total).toFixed(2)} {p.currency}</TableCell>
-                          <TableCell>{formatDate(p.timestamp)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
-                                <Eye className="h-4 w-4"/>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => router.push(routes.admin.purchasesDetails(p.id))}
-                              >
-                                Dettagli
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {filtered.map(p => {
+                        const isSaving = savingIds.has(p.id)
+                        return (
+                          <TableRow key={getPurchaseKey(p)}>
+                            <TableCell>
+                              <div className="font-medium">{p.payer_name} {p.payer_surname}</div>
+                              <div className="text-sm text-gray-400">{p.payer_email}</div>
+                            </TableCell>
+                            <TableCell>{p.payment_method}</TableCell>
+                            <TableCell>{parseAmount(p.amount_total).toFixed(2)} {p.currency}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                {isSaving && <Loader2 className="h-3 w-3 animate-spin shrink-0" />}
+                                <Select
+                                  value={p.status || "COMPLETED"}
+                                  onValueChange={val => handleStatusChange(p.id, val)}
+                                  disabled={isSaving}
+                                >
+                                  <SelectTrigger className={[
+                                    "h-7 text-xs px-2 w-32",
+                                    isInvalidStatus(p) ? "border-red-500 text-red-400" : "border-zinc-600",
+                                  ].join(" ")}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {PURCHASE_STATUSES.map(s => (
+                                      <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatDate(p.timestamp)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
+                                  <Eye className="h-4 w-4"/>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => router.push(routes.admin.purchasesDetails(p.id))}
+                                >
+                                  Dettagli
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </div>
 
                 <div className="md:hidden space-y-4 p-4">
-                  {filtered.map(p => (
-                    <Card key={getPurchaseKey(p)} className="bg-neutral-900 border-neutral-800">
-                      <CardHeader className="flex justify-between items-center p-4">
-                        <div>
-                          <h3 className="font-bold">{p.payer_name} {p.payer_surname}</h3>
-                          <p className="text-sm text-gray-400">{p.payer_email}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
-                            <Eye className="h-5 w-5"/>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => router.push(routes.admin.purchasesDetails(p.id))}
-                          >
-                            Dettagli
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0 grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="font-semibold text-gray-400">Importo</p>
-                          <p>{parseFloat(p.amount_total).toFixed(2)} {p.currency}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-400">Metodo</p>
-                          <p className="truncate text-right">{p.payment_method}</p>
-                        </div>
-                      </CardContent>
-                      <CardFooter className="p-4 pt-0">
-                        <p className="text-xs text-gray-500 text-center">{formatDate(p.timestamp)}</p>
-                      </CardFooter>
-                    </Card>
-                  ))}
+                  {filtered.map(p => {
+                    const isSaving = savingIds.has(p.id)
+                    return (
+                      <Card key={getPurchaseKey(p)} className="bg-neutral-900 border-neutral-800">
+                        <CardHeader className="flex justify-between items-center p-4">
+                          <div>
+                            <h3 className="font-bold">{p.payer_name} {p.payer_surname}</h3>
+                            <p className="text-sm text-gray-400">{p.payer_email}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button size="icon" variant="ghost" onClick={() => setSelectedPurchase(p)}>
+                              <Eye className="h-5 w-5"/>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => router.push(routes.admin.purchasesDetails(p.id))}
+                            >
+                              Dettagli
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0 grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="font-semibold text-gray-400">Importo</p>
+                            <p>{parseAmount(p.amount_total).toFixed(2)} {p.currency}</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-400 mb-1">Status</p>
+                            <div className="flex items-center gap-1.5">
+                              {isSaving && <Loader2 className="h-3 w-3 animate-spin shrink-0" />}
+                              <Select
+                                value={p.status || "COMPLETED"}
+                                onValueChange={val => handleStatusChange(p.id, val)}
+                                disabled={isSaving}
+                              >
+                                <SelectTrigger className={[
+                                  "h-7 text-xs px-2 w-32",
+                                  isInvalidStatus(p) ? "border-red-500 text-red-400" : "border-zinc-600",
+                                ].join(" ")}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PURCHASE_STATUSES.map(s => (
+                                    <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-400">Metodo</p>
+                            <p className="truncate">{p.payment_method}</p>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="p-4 pt-0">
+                          <p className="text-xs text-gray-500 text-center">{formatDate(p.timestamp)}</p>
+                        </CardFooter>
+                      </Card>
+                    )
+                  })}
                 </div>
               </>
             )}
@@ -352,9 +438,7 @@ export default function PurchasesPage() {
         {selectedPurchase && (
           <PurchaseModal
             purchase={selectedPurchase}
-            onClose={() => {
-              setSelectedPurchase(null)
-            }}
+            onClose={() => setSelectedPurchase(null)}
           />
         )}
       </motion.div>

@@ -24,6 +24,7 @@ export const endpoints = {
   // Public Events
   getAllEvents: make("get_all_events"),
   getEventById: make("get_event_by_id"),
+  getEventGuide: make("get_event_guide"),
 
   // Public Radio
   radio: {
@@ -32,6 +33,10 @@ export const endpoints = {
     getEpisode:           make("get_radio_episode"),
     getSeasons:           make("get_radio_seasons"),
   },
+
+  // Public Settings
+  getSetting: make("get_setting"),
+  getMembershipPrice: make("get_membership_price_public"),
 
   // Questions
   questions: {
@@ -82,6 +87,7 @@ export const endpoints = {
     getAllPurchases: make("get_all_purchases"),
     getPurchase: make("get_purchase"),
     createPurchase: make("create_purchase"),
+    updatePurchaseStatus: make("update_purchase_status"),
     deletePurchase: make("delete_purchase"),
     getGeneralStats: make("admin_get_general_stats"),
     getDashboardSnapshot: make("admin_get_dashboard_snapshot"),
@@ -95,6 +101,7 @@ export const endpoints = {
     getRevenueBreakdown: make("admin_get_revenue_breakdown"),
     getEventFunnel: make("admin_get_event_funnel"),
     getGenderDistribution: make("admin_get_gender_distribution"),
+    getAgeDistribution: make("admin_get_age_distribution"),
     getMembershipTrend: make("admin_get_membership_trend"),
     getDashboardKpis: make("admin_get_dashboard_kpis"),
 
@@ -109,8 +116,7 @@ export const endpoints = {
     getAllMessages: make("get_messages"),
     deleteMessage: make("delete_message"),
     replyToMessage: make("reply_to_message"),
-        // ✅ Settings endpoints
-    getSetting: make("get_settings"),
+    getSettings: make("get_settings"),
     setSetting: make("set_settings"),
 
     radio: {
@@ -153,7 +159,28 @@ export const endpoints = {
       transactionalSend: make("admin_sender_transactional_send"),
     },
 
+    events: {
+      getGuide: make("admin_get_event_guide"),
+      updateGuide: make("admin_update_event_guide"),
+      toggleGuidePublished: make("admin_toggle_guide_published"),
+      getLocation: make("admin_get_event_location"),
+      updateLocation: make("admin_update_event_location"),
+      toggleLocationPublished: make("admin_toggle_location_published"),
+    },
 
-  
+    members: {
+      provisionAll: make("provision_member_accounts"),
+      provisionSingle: make("provision_single_member_account"),
+    },
+  },
+
+  // Member (authenticated) endpoints
+  member: {
+    me: make("member_get_me"),
+    events: make("member_get_events"),
+    purchases: make("member_get_purchases"),
+    ticket: make("member_get_ticket"),
+    preferences: make("member_patch_preferences"),
+    getEventLocation: make("member_get_event_location"),
   },
 };

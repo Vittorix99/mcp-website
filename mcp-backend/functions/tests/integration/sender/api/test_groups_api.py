@@ -9,7 +9,7 @@ from tests.utils import DummyRequest, unwrap_response
 pytestmark = pytest.mark.integration
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_groups_list_create_rename_delete_integration(mock_request, sender_response_factory):
     """Groups API supports list/create/rename/delete through Sender routes."""
     mock_request.side_effect = [
@@ -50,7 +50,7 @@ def test_groups_list_create_rename_delete_integration(mock_request, sender_respo
     assert calls[3].kwargs["method"] == "DELETE"
 
 
-@patch("routes.sender_routes.requests.request")
+@patch("clients.sender_client.requests.request")
 def test_group_subscribers_integration(mock_request, sender_response_factory):
     """Group subscribers endpoint calls /groups/{group_id}/subscribers with passthrough params."""
     mock_request.return_value = sender_response_factory(200, {"data": [{"email": "x@test.com"}]})

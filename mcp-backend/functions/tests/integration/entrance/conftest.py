@@ -37,7 +37,7 @@ def _configure_firestore_emulator_before_firebase_import() -> None:
 
     configured_port = os.environ.get("FIRESTORE_EMULATOR_PORT")
     candidate_ports = [configured_port] if configured_port else []
-    candidate_ports.extend(["8085", "8080"])
+    candidate_ports.extend(["8080", "8085"])
 
     for raw_port in candidate_ports:
         if not raw_port:
@@ -161,7 +161,6 @@ def entrance_seed():
             "date": date_value,
             "startTime": "21:00",
             "endTime": "23:00",
-            "location": "Test Venue",
             "locationHint": "Ingresso principale",
             "price": 10.0,
             "status": "active",

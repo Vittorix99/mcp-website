@@ -16,6 +16,7 @@
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr><td style="padding:6px 0;"><span style="color:#555555;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Data&nbsp;&nbsp;</span><span style="color:#e8e8e8;font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;">{{ event_date }}</span></td></tr>
         {{ ui.details_row("Orario", (start_time or "") ~ " – " ~ (end_time or "")) }}
+        {% if label %}{{ ui.details_row("Venue", label) }}{% endif %}
         {% if address %}{{ ui.details_row("Indirizzo", address) }}{% endif %}
       </table>
     </td>

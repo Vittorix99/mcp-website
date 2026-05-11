@@ -20,7 +20,7 @@ def _response(status_code, payload):
 class TestCreateCampaignIntegration:
     """Integration tests for create campaign through service + routes + HTTP layer."""
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_full_create_flow(self, mock_request):
         mock_request.return_value = _response(201, {"data": {"id": "camp-1"}})
         svc = SenderService("test-key")
@@ -53,7 +53,7 @@ class TestCreateCampaignIntegration:
 class TestSendCampaignIntegration:
     """Integration tests for campaign send flow through HTTP wrapper."""
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_send_success_200(self, mock_request):
         mock_request.return_value = _response(200, {"sent": True})
         svc = SenderService("test-key")
@@ -63,7 +63,7 @@ class TestSendCampaignIntegration:
         assert ok is True
         assert err is None
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_send_unsubscribe_error(self, mock_request):
         payload = {"error": [{"title": "Unsubscribe link", "details": "Insert <a href=..."}]}
         mock_request.return_value = _response(422, payload)
@@ -74,7 +74,7 @@ class TestSendCampaignIntegration:
         assert ok is False
         assert "Unsubscribe link" in err
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_send_dmarc_error(self, mock_request):
         payload = {"error": [{"title": "DMARC record", "details": "domain not set up"}]}
         mock_request.return_value = _response(422, payload)
@@ -85,7 +85,7 @@ class TestSendCampaignIntegration:
         assert ok is False
         assert err == "DMARC record: domain not set up"
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_send_multiple_errors(self, mock_request):
         payload = {
             "error": [
@@ -105,7 +105,7 @@ class TestSendCampaignIntegration:
 class TestScheduleCampaignIntegration:
     """Integration tests for schedule campaign flow through HTTP wrapper."""
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_schedule_iso_to_sender_format(self, mock_request):
         mock_request.return_value = _response(200, {"scheduled": True})
         svc = SenderService("test-key")
@@ -117,7 +117,7 @@ class TestScheduleCampaignIntegration:
         sent_json = mock_request.call_args.kwargs["json"]
         assert sent_json["schedule_time"] == "2025-12-01 18:30:00"
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_schedule_failure_422(self, mock_request):
         mock_request.return_value = _response(422, {"error": [{"title": "Invalid time", "details": "past"}]})
         svc = SenderService("test-key")
@@ -131,7 +131,7 @@ class TestScheduleCampaignIntegration:
 class TestUpsertSubscriberIntegration:
     """Integration tests for subscriber/group service methods with HTTP mocked."""
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_upsert_new_subscriber(self, mock_request):
         mock_request.return_value = _response(200, {"data": {"id": "sub-1"}})
         svc = SenderService("test-key")
@@ -140,7 +140,7 @@ class TestUpsertSubscriberIntegration:
 
         assert result == {"data": {"id": "sub-1"}}
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_upsert_existing_subscriber_200(self, mock_request):
         mock_request.return_value = _response(200, {"data": {"id": "sub-1", "updated": True}})
         svc = SenderService("test-key")
@@ -149,7 +149,7 @@ class TestUpsertSubscriberIntegration:
 
         assert result == {"data": {"id": "sub-1", "updated": True}}
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_add_to_group(self, mock_request):
         mock_request.return_value = _response(200, {"ok": True})
         svc = SenderService("test-key")
@@ -158,7 +158,7 @@ class TestUpsertSubscriberIntegration:
 
         assert ok is True
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_remove_from_group(self, mock_request):
         mock_request.return_value = _response(200, {"ok": True})
         svc = SenderService("test-key")

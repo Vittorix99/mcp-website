@@ -13,6 +13,13 @@ from config.location_config import (
     LOCATION_MAX_RETRIES,
     LOCATION_MIN_INTERVAL,
 )
+from dto.location_api import (
+    AdminEventLocationResponseDTO,
+    GetEventLocationQueryDTO,
+    MemberEventLocationResponseDTO,
+    ToggleLocationPublishedRequestDTO,
+    UpdateEventLocationRequestDTO,
+)
 from dto.participant_api import (
     LocationActionResponseDTO,
     LocationBulkActionResponseDTO,
@@ -28,7 +35,9 @@ from interfaces.repositories import (
 )
 from mappers.participant_mappers import mark_participant_location_sent
 from models import Event, EventParticipant, LocationJob
+from models.event_location import EventLocation
 from repositories import EventRepository, ParticipantRepository
+from repositories.event_location_repository import EventLocationRepository
 from repositories.job_repository import LOCATION_JOBS_COLLECTION, LocationJobRepository
 from services.communications.mail_service import EmailMessage, MailService, mail_service
 from utils.templates_mail import build_location_email_payload
@@ -99,17 +108,23 @@ class LocationService:
         participant_repository: Optional[ParticipantRepositoryProtocol] = None,
         job_repository: Optional[JobRepositoryProtocol[LocationJob]] = None,
         mail_service_instance: Optional[MailService] = None,
+        location_event_repository: Optional[EventLocationRepository] = None,
     ) -> None:
         self.event_repository = event_repository or EventRepository()
         self.participant_repository = participant_repository or ParticipantRepository()
         self.job_repository = job_repository or LocationJobRepository()
         self.mail_service = mail_service_instance or mail_service
+        self.location_event_repository = location_event_repository or EventLocationRepository()
 
     def _load_event_model(self, event_id: str) -> Event:
         event_model = self.event_repository.get_model(event_id)
         if not event_model:
             raise NotFoundError(f"Event {event_id} not found")
         return event_model
+
+    def _load_location(self, event_id: str) -> EventLocation:
+        location = self.location_event_repository.get(event_id)
+        return location or EventLocation()
 
     def _pending_participants(self, event_id: str) -> List[EventParticipant]:
         return [
@@ -159,6 +174,64 @@ class LocationService:
             return value.replace(tzinfo=timezone.utc)
         return value
 
+    # ── Admin location management ──────────────────────────────────────────────
+
+    def get_admin_location(self, dto: GetEventLocationQueryDTO) -> AdminEventLocationResponseDTO:
+        self._load_event_model(dto.event_id)
+        location = self._load_location(dto.event_id)
+        return AdminEventLocationResponseDTO(
+            label=location.label,
+            maps_url=location.maps_url,
+            maps_embed_url=location.maps_embed_url,
+            address=location.address,
+            message=location.message,
+            published=location.published,
+        )
+
+    def update_location(self, dto: UpdateEventLocationRequestDTO) -> AdminEventLocationResponseDTO:
+        self._load_event_model(dto.event_id)
+        location = EventLocation(
+            label=dto.label,
+            maps_url=dto.maps_url,
+            maps_embed_url=dto.maps_embed_url,
+            address=dto.address,
+            message=dto.message,
+        )
+        self.location_event_repository.upsert_all(dto.event_id, location)
+        logger.info("update_location: saved for event %s", dto.event_id)
+        existing = self._load_location(dto.event_id)
+        return AdminEventLocationResponseDTO(
+            label=dto.label,
+            maps_url=dto.maps_url,
+            maps_embed_url=dto.maps_embed_url,
+            address=dto.address,
+            message=dto.message,
+            published=existing.published,
+        )
+
+    def set_location_published(self, dto: ToggleLocationPublishedRequestDTO) -> None:
+        self._load_event_model(dto.event_id)
+        self.location_event_repository.set_published(dto.event_id, dto.published)
+        logger.info("set_location_published: event %s published=%s", dto.event_id, dto.published)
+
+    # ── Member location access ─────────────────────────────────────────────────
+
+    def get_member_location(self, event_id: str) -> MemberEventLocationResponseDTO:
+        event_model = self._load_event_model(event_id)
+        location = self._load_location(event_id)
+        if not location.published:
+            raise NotFoundError("Location not available")
+        return MemberEventLocationResponseDTO(
+            label=location.label,
+            maps_url=location.maps_url,
+            maps_embed_url=location.maps_embed_url,
+            address=location.address,
+            message=location.message,
+            hint=event_model.location_hint or "",
+        )
+
+    # ── Email sending ──────────────────────────────────────────────────────────
+
     def send_location(self, dto: SendLocationRequestDTO) -> LocationActionResponseDTO:
         event_model = self._load_event_model(dto.event_id)
 
@@ -169,13 +242,20 @@ class LocationService:
         if not participant.email:
             raise ValidationError("Missing participant email")
 
+        stored_location = self._load_location(dto.event_id)
+        label = stored_location.label or ""
+        address = dto.address or stored_location.address or ""
+        link = dto.link or stored_location.maps_url or ""
+        message = dto.message or stored_location.message or None
+
         name = participant.name or "Partecipante"
         subject, text_content, html_content = build_location_email_payload(
             name,
             event_model,
-            dto.address,
-            dto.link,
-            dto.message,
+            label,
+            address,
+            link,
+            message,
         )
 
         sent = self.mail_service.send(
@@ -191,6 +271,13 @@ class LocationService:
             raise ExternalServiceError("Errore invio email")
 
         self._mark_location_sent(dto.event_id, participant)
+
+        try:
+            if address or link:
+                self.location_event_repository.merge_address(dto.event_id, address, link)
+        except Exception as exc:
+            logger.warning("send_location: event_locations write failed: %s", redact_sensitive(str(exc)))
+
         return LocationActionResponseDTO(message="Location inviata con successo")
 
     def start_send_location_job(
@@ -198,6 +285,11 @@ class LocationService:
         dto: SendLocationToAllRequestDTO,
     ) -> LocationJobResponseDTO:
         event_model = self._load_event_model(dto.event_id)
+
+        stored_location = self._load_location(dto.event_id)
+        address = dto.address or stored_location.address or ""
+        link = dto.link or stored_location.maps_url or ""
+        message = dto.message or stored_location.message or None
 
         remaining = sum(
             1
@@ -218,15 +310,20 @@ class LocationService:
                 self.job_repository.update(
                     doc_id,
                     {
-                        "address": dto.address,
-                        "link": dto.link,
-                        "message": dto.message,
+                        "address": address,
+                        "link": link,
+                        "message": message,
                         "total": remaining,
                         "error": None,
                         "updated_at": now,
                         "last_kicked_at": now,
                     },
                 )
+                try:
+                    if address or link:
+                        self.location_event_repository.merge_address(event_id, address, link)
+                except Exception as exc:
+                    logger.warning("start_send_location_job: event_locations write failed: %s", redact_sensitive(str(exc)))
                 return LocationJobResponseDTO(
                     message="Job queued",
                     job_id=doc_id,
@@ -258,9 +355,9 @@ class LocationService:
         job = LocationJob(
             event_id=event_id,
             status="queued",
-            address=dto.address,
-            link=dto.link,
-            message=dto.message,
+            address=address,
+            link=link,
+            message=message,
             total=remaining,
             sent=0,
             failed=0,
@@ -269,6 +366,12 @@ class LocationService:
             updated_at=now,
         )
         job_id = self.job_repository.create_from_model(job)
+
+        try:
+            if address or link:
+                self.location_event_repository.merge_address(event_id, address, link)
+        except Exception as exc:
+            logger.warning("start_send_location_job: event_locations write failed: %s", redact_sensitive(str(exc)))
 
         return LocationJobResponseDTO(
             message="Job queued",
@@ -303,6 +406,9 @@ class LocationService:
             event_model = self._load_event_model(job.event_id)
             logger.info("[LocationService] Job per evento %s: %s", job.event_id, event_model.title)
 
+            stored_location = self._load_location(job.event_id)
+            job_label = stored_location.label or ""
+
             participants = self._pending_participants(job.event_id)
             total = len(participants)
             if job.total != total:
@@ -323,6 +429,7 @@ class LocationService:
                     subject, text, html = build_location_email_payload(
                         name,
                         event_model,
+                        job_label,
                         job.address,
                         job.link,
                         job.message,
@@ -371,6 +478,12 @@ class LocationService:
     ) -> LocationBulkActionResponseDTO:
         event_model = self._load_event_model(dto.event_id)
 
+        stored_location = self._load_location(dto.event_id)
+        label = stored_location.label or ""
+        address = dto.address or stored_location.address or ""
+        link = dto.link or stored_location.maps_url or ""
+        message = dto.message or stored_location.message or None
+
         success_count = 0
         fail_count = 0
         for participant in self._pending_participants(dto.event_id):
@@ -383,9 +496,10 @@ class LocationService:
             subject, text_content, html_content = build_location_email_payload(
                 name,
                 event_model,
-                dto.address,
-                dto.link,
-                dto.message,
+                label,
+                address,
+                link,
+                message,
             )
             sent = self.mail_service.send(
                 EmailMessage(

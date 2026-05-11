@@ -130,34 +130,74 @@ export const Navigation = () => {
           </Link>
 
           {!user && (
-            <button
-              className="site-nav-auth"
-              type="button"
-              onClick={() => setLoginOpen(true)}
+            <>
+              <Link
+                href="/login"
+                style={{
+                  marginLeft: "8px", padding: "10px 16px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  borderRadius: "2px",
+                  fontFamily: HN, fontSize: "9px", letterSpacing: "0.22em", textTransform: "uppercase",
+                  color: "rgba(245,243,239,0.62)", textDecoration: "none",
+                  display: "inline-block", transition: "all 0.2s",
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = "#F5F3EF"
+                  e.currentTarget.style.borderColor = "rgba(224,120,0,0.35)"
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = "rgba(245,243,239,0.62)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"
+                }}
+              >
+                Area soci
+              </Link>
+              <button
+                type="button"
+                aria-label="Login staff"
+                onClick={() => setLoginOpen(true)}
+                style={{
+                  marginLeft: "0", padding: "10px 12px",
+                  background: "none",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "2px",
+                  cursor: "pointer",
+                  fontFamily: HN, fontSize: "9px", letterSpacing: "0.18em", textTransform: "uppercase",
+                  color: "rgba(245,243,239,0.36)",
+                  display: "inline-block", transition: "all 0.2s",
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = "#F5F3EF"
+                  e.currentTarget.style.borderColor = "rgba(224,120,0,0.28)"
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = "rgba(245,243,239,0.36)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
+                }}
+              >
+                Staff
+              </button>
+            </>
+          )}
+
+          {user && !isAdmin && (
+            <Link
+              href="/dashboard"
               style={{
                 marginLeft: "8px", padding: "10px 16px",
                 background: "rgba(255,255,255,0.04)",
                 border: "1px solid rgba(255,255,255,0.14)",
                 borderRadius: "2px",
-                cursor: "pointer",
                 fontFamily: HN, fontSize: "9px", letterSpacing: "0.22em", textTransform: "uppercase",
-                color: "rgba(245,243,239,0.62)",
+                color: "rgba(245,243,239,0.62)", textDecoration: "none",
                 display: "inline-block",
               }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = "#F5F3EF"
-                e.currentTarget.style.borderColor = "rgba(224,120,0,0.35)"
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = "rgba(245,243,239,0.62)"
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"
-              }}
             >
-              Login
-            </button>
+              Area soci
+            </Link>
           )}
 
-          {/* Admin link — solo se loggato come admin */}
           {user && isAdmin && (
             <Link
               className="site-nav-auth"
@@ -244,7 +284,7 @@ export const Navigation = () => {
 
           {user ? (
             <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-              {isAdmin && (
+              {isAdmin ? (
                 <Link
                   href={routes.admin.dashboard}
                   onClick={() => setMenuOpen(false)}
@@ -253,6 +293,15 @@ export const Navigation = () => {
                     color: "rgba(245,243,239,0.45)", textDecoration: "none",
                   }}
                 >Admin Panel</Link>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    fontFamily: HN, fontSize: "11px", letterSpacing: "0.22em", textTransform: "uppercase",
+                    color: "rgba(245,243,239,0.45)", textDecoration: "none",
+                  }}
+                >Area soci</Link>
               )}
               <button
                 onClick={handleLogout}
@@ -264,14 +313,24 @@ export const Navigation = () => {
               >Logout</button>
             </div>
           ) : (
-            <button
-              onClick={() => { setMenuOpen(false); setLoginOpen(true) }}
-              style={{
-                marginTop: "16px", background: "none", border: "none", cursor: "pointer",
-                fontFamily: HN, fontSize: "10px", letterSpacing: "0.22em", textTransform: "uppercase",
-                color: "rgba(245,243,239,0.25)",
-              }}
-            >Login</button>
+            <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  fontFamily: HN, fontSize: "11px", letterSpacing: "0.22em", textTransform: "uppercase",
+                  color: "rgba(245,243,239,0.55)", textDecoration: "none",
+                }}
+              >Area soci</Link>
+              <button
+                onClick={() => { setMenuOpen(false); setLoginOpen(true) }}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontFamily: HN, fontSize: "9px", letterSpacing: "0.18em", textTransform: "uppercase",
+                  color: "rgba(245,243,239,0.2)",
+                }}
+              >Staff</button>
+            </div>
           )}
         </div>
       )}

@@ -83,7 +83,7 @@ graph TB
     end
 
     subgraph Firestore["🗄️ FIRESTORE"]
-        FSDocs["events · memberships · participants<br/>purchases · orders · jobs<br/>newsletter_signups · contact_messages<br/>scan_tokens · entrance_scans · error_logs"]
+        FSDocs["events · event_locations · memberships · participants<br/>purchases · orders · jobs<br/>newsletter_signups · contact_messages<br/>scan_tokens · entrance_scans · error_logs"]
     end
 
     subgraph External["🔌 SERVIZI ESTERNI"]
@@ -162,6 +162,7 @@ erDiagram
     events ||--o{ purchases : "acquisti per evento (ref_id)"
     events ||--o{ scan_tokens : "token QR"
     events ||--o{ entrance_scans : "scansioni"
+    events ||--o| event_locations : "location (id = event id)"
 
     memberships ||--o{ participants_event : "linkato via membership_id"
     memberships ||--o{ purchases : "acquisti socio"
@@ -183,8 +184,8 @@ erDiagram
         datetime date
         string startTime
         string endTime
-        string location
-        string locationHint
+        string locationHint "public teaser"
+        string locationLabel "cached from event_locations"
         float price
         float fee
         int maxParticipants
@@ -193,6 +194,16 @@ erDiagram
         bool over21Only
         bool onlyFemales
         bool allowDuplicates
+    }
+
+    event_locations {
+        string id PK "= event id"
+        string label "venue name"
+        string address
+        string maps_url
+        string maps_embed_url
+        string message "organizer note"
+        bool published
     }
 
     memberships {
@@ -296,6 +307,12 @@ graph LR
         P6[UC-06 Contact Form]
     end
 
+    subgraph Member["🪪 AREA SOCI"]
+        M1[UC-21 Member Login Magic Link]
+        M2[UC-22 Member Profile & Dashboard]
+        M3[UC-23 Member Get Location]
+    end
+
     subgraph Admin["🔐 ADMIN"]
         A1[UC-07 Login]
         A2[UC-08 Event CRUD]
@@ -304,6 +321,7 @@ graph LR
         A5[UC-11 Membership Mgmt]
         A6[UC-12 Merge Memberships]
         A7[UC-13 Wallet Pass]
+        A8[UC-24 Location Mgmt]
     end
 
     subgraph Entrance["📱 ENTRANCE QR"]
@@ -633,7 +651,7 @@ sequenceDiagram
 
     A->>API: POST /admin_create_event<br/>@require_admin
     API->>ES: create_event(dto, admin_uid)
-    ES->>ES: validate(title, date, location, ...)
+    ES->>ES: validate(title, date, locationHint, ...)
     ES->>ER: create_from_model(event, slug_seed)
     ER->>ER: genera slug univoco
     ER->>FS: events.add({...})
@@ -716,8 +734,9 @@ sequenceDiagram
     participant TR as Trigger<br/>process_send_location_job
     participant MS as MailerSend
 
-    A->>API: POST /send_location_to_all<br/>{eventId, address, link, message}
+    A->>API: POST /send_location_to_all<br/>{eventId, link, message}
     API->>LS: start_send_location_job(...)
+    LS->>FS: event_locations/{eventId} (load label, address, maps_url)
     LS->>FS: count participants (location_sent=false)
     LS->>FS: jobs/{job_id} create<br/>(status=queued, total=N)
     LS-->>API: {jobId, total}
@@ -726,10 +745,11 @@ sequenceDiagram
     Note over FS,TR: Firestore trigger on doc create
     FS-)TR: process_send_location_job(job)
     TR->>LS: _worker_send_location(job_id)
+    LS->>FS: event_locations/{eventId} (load label once)
     LS->>FS: stream participants(event, location_sent=false)
 
     loop per ogni partecipante
-        LS->>MS: send_location_email()
+        LS->>MS: send_location_email(label, address, link, message)
         alt Success
             MS-->>LS: 200
             LS->>FS: participant.location_sent=true
@@ -749,7 +769,44 @@ sequenceDiagram
 - `LOCATION_MAX_DELAY = 30.0` s
 - `LOCATION_MIN_INTERVAL = 0.8` s (throttling)
 
-**Collections**: `jobs` (write + updates), `events` (read), `participants_event` (read + `location_sent` update).
+**Collections**: `jobs` (write + updates), `events` (read), `event_locations` (read), `participants_event` (read + `location_sent` update).
+
+---
+
+### UC-24: Gestione Location Evento (Admin)
+
+**Attore**: admin che configura e pubblica la location di un evento.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Admin
+    participant API as location_api (admin)
+    participant LS as LocationService
+    participant FS as Firestore
+
+    A->>API: GET /admin_get_event_location?event_id=X
+    API->>LS: get_admin_location(dto)
+    LS->>FS: event_locations/{event_id}
+    FS-->>LS: document (or empty)
+    LS-->>API: AdminLocationResponseDTO
+    API-->>A: 200 JSON
+
+    A->>API: PUT /admin_update_event_location<br/>{event_id, label, address, maps_url, message}
+    API->>LS: update_location(dto)
+    LS->>FS: event_locations/{event_id}.set(merge=true)
+    LS->>FS: events/{event_id}.locationLabel = label
+    LS-->>API: AdminLocationResponseDTO
+    API-->>A: 200 JSON
+
+    A->>API: PATCH /admin_toggle_location_published<br/>{event_id, published: true}
+    API->>LS: set_location_published(dto)
+    LS->>FS: event_locations/{event_id}.update({published: true})
+    LS-->>API: {success, published}
+    API-->>A: 200 JSON
+```
+
+**Collections**: `event_locations` (read/write), `events` (write — `locationLabel` denorm).
 
 ---
 
@@ -1068,6 +1125,114 @@ sequenceDiagram
 
 ---
 
+## 8b. Area Soci (Member API)
+
+### UC-21: Autenticazione Membro — Magic Link
+
+**Attore**: socio che accede all'area riservata tramite link via email (passwordless).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as Socio
+    participant FE as Next.js /login
+    participant FA as Firebase Auth
+    participant VE as /login/verify
+    participant MW as middleware.js
+
+    U->>FE: inserisce email → "Invia link"
+    FE->>FA: sendSignInLinkToEmail(email, actionCodeSettings)
+    FA-->>U: email con magic link
+    U->>VE: click link → signInWithEmailLink()
+    VE->>FA: signInWithEmailLink(email, url)
+    FA-->>VE: idToken
+    VE->>VE: set cookie mcp_auth_token = idToken
+    VE->>U: redirect → /dashboard
+
+    U->>MW: GET /dashboard/*
+    MW->>MW: verifica cookie mcp_auth_token
+    alt cookie assente
+        MW-->>U: redirect /login
+    else cookie presente
+        MW-->>U: page served
+    end
+```
+
+**Note**:
+- Admin usa flusso separato: `LoginModal` con email+password (`signInWithEmailAndPassword`).
+- `mcp_auth_token` cookie è letto dal frontend per le chiamate `memberFetch` (`auth.currentUser.getIdToken()`).
+- Firebase console: abilitare "Email link (passwordless sign-in)" in Authentication → Sign-in methods.
+
+---
+
+### UC-22: Dashboard Socio (Profilo, Storico, Preferenze)
+
+**Attore**: socio autenticato tramite magic link.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as Socio
+    participant FE as /dashboard
+    participant API as api/member/*
+    participant FS as Firestore
+
+    U->>FE: apre /dashboard
+    FE->>API: GET /member_get_me (Bearer idToken)
+    API->>API: @member_endpoint → verifica idToken
+    API->>FS: memberships.where(email == token.email).limit(1)
+    FS-->>API: membership doc
+    API-->>FE: {name, subscription_valid, end_date, renewals, card_url, wallet_url, ...}
+
+    FE->>API: GET /member_get_events
+    API->>FS: per ogni attended_event_id → get event doc
+    API-->>FE: [{id, title, date, location_hint, image}]
+
+    FE->>API: GET /member_get_purchases
+    API->>FS: per ogni purchase_id → get purchase doc → get event title
+    API-->>FE: [{id, type, amount_total, currency, timestamp, event_title}]
+
+    U->>FE: modifica newsletter_consent → "Salva"
+    FE->>API: PATCH /member_patch_preferences {newsletter_consent}
+    API->>FS: memberships/{id}.update({newsletter_consent})
+    API->>API: Sender.net sync (best-effort)
+    API-->>FE: {success: true}
+```
+
+**Collections**: `memberships` (read/write), `events` (read), `purchases` (read).
+
+---
+
+### UC-23: Socio Consulta Location Evento
+
+**Attore**: socio autenticato che consulta la location di un evento al quale è iscritto.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as Socio
+    participant FE as /events/[slug]/guide
+    participant API as api/member/location_api
+    participant FS as Firestore
+
+    U->>FE: apre pagina guida evento
+    FE->>API: GET /member_get_event_location?event_id=X
+    API->>API: @member_endpoint → verifica idToken
+    API->>FS: event_locations/{event_id}
+    alt published = false
+        API-->>FE: 404 Not Found
+        FE->>U: location non ancora disponibile
+    else published = true
+        API-->>FE: {label, address, maps_url, maps_embed_url, message}
+        FE->>U: mostra venue + mappa
+    end
+```
+
+**Collections**: `event_locations` (read).  
+**Protezione**: solo accessibile con idToken valido (decorator `@member_endpoint`); `published=false` ritorna 404.
+
+---
+
 ## 9. Integrazioni Esterne
 
 ### PayPal — Payment Processing
@@ -1268,21 +1433,22 @@ stateDiagram-v2
 
 Legenda: **R**=read · **W**=write · **D**=delete · **T**=triggers
 
-| Collection | UC-01 | UC-02 | UC-03 | UC-04 | UC-05 | UC-06 | UC-08 | UC-09 | UC-10 | UC-11 | UC-12 | UC-14 | UC-15 | UC-16 | UC-17 | UC-19 | UC-20 |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| `events` | R | R | R | R |  |  | RWD | R | R |  |  | R | R | R |  |  |  |
-| `memberships` |  | R | R | RW |  |  |  | RW |  | RWD | RWD |  | R |  | RW | W |  |
-| `participants_event` |  | R | R | W |  |  | D | RWD | RW |  | W |  | RW | RW |  |  |  |
-| `purchases` |  |  |  | W |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `orders` |  |  | W | RD |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| `jobs` |  |  |  |  |  |  |  |  | RW |  |  |  |  |  |  |  |  |
-| `newsletter_signups` |  |  |  |  | RW |  |  |  |  |  |  |  |  | W |  |  | W |
-| `newsletter_consents` |  |  |  |  |  |  |  |  |  |  |  |  |  | W |  |  | W |
-| `contact_messages` |  |  |  |  |  | W |  |  |  |  |  |  |  |  |  |  |  |
-| `scan_tokens` |  |  |  |  |  |  |  |  |  |  |  | W | R |  |  |  |  |
-| `entrance_scans` |  |  |  |  |  |  |  |  |  |  |  |  | RW |  |  |  |  |
-| `membership_settings` |  |  | R | R |  |  |  |  |  | RW |  |  |  |  | R |  |  |
-| `error_logs` |  |  | W | W | W | W | W | W | W | W | W | W | W | W | W | W |  |
+| Collection | UC-01 | UC-02 | UC-03 | UC-04 | UC-05 | UC-06 | UC-08 | UC-09 | UC-10 | UC-11 | UC-12 | UC-14 | UC-15 | UC-16 | UC-17 | UC-19 | UC-20 | UC-22 | UC-23 | UC-24 |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `events` | R | R | R | R |  |  | RWD | R | R |  |  | R | R | R |  |  |  | R |  | W |
+| `event_locations` |  |  |  |  |  |  |  |  | R |  |  |  |  |  |  |  |  |  | R | RW |
+| `memberships` |  | R | R | RW |  |  |  | RW |  | RWD | RWD |  | R |  | RW | W |  | RW |  |  |
+| `participants_event` |  | R | R | W |  |  | D | RWD | RW |  | W |  | RW | RW |  |  |  |  |  |  |
+| `purchases` |  |  |  | W |  |  |  |  |  |  |  |  |  |  |  |  |  | R |  |  |
+| `orders` |  |  | W | RD |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `jobs` |  |  |  |  |  |  |  |  | RW |  |  |  |  |  |  |  |  |  |  |  |
+| `newsletter_signups` |  |  |  |  | RW |  |  |  |  |  |  |  |  | W |  |  | W |  |  |  |
+| `newsletter_consents` |  |  |  |  |  |  |  |  |  |  |  |  |  | W |  |  | W |  |  |  |
+| `contact_messages` |  |  |  |  |  | W |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `scan_tokens` |  |  |  |  |  |  |  |  |  |  |  | W | R |  |  |  |  |  |  |  |
+| `entrance_scans` |  |  |  |  |  |  |  |  |  |  |  |  | RW |  |  |  |  |  |  |  |
+| `membership_settings` |  |  | R | R |  |  |  |  |  | RW |  |  |  |  | R |  |  |  |  |  |
+| `error_logs` |  |  | W | W | W | W | W | W | W | W | W | W | W | W | W | W |  |  |  |  |
 
 ---
 
@@ -1303,4 +1469,4 @@ Legenda: **R**=read · **W**=write · **D**=delete · **T**=triggers
 
 ---
 
-*Documentazione derivata dall'analisi completa del codice — aggiornata al 2026-04-22.*
+*Documentazione derivata dall'analisi completa del codice — aggiornata al 2026-05-09.*

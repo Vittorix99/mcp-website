@@ -8,7 +8,7 @@ import { endpoints } from "@/config/endpoints"
  * @param {string} key - Es. "payment_blocked"
  */
 export async function getSetting(key) {
-  const url = `${endpoints.admin.getSetting}?key=${key}`
+  const url = `${endpoints.getSetting}?key=${encodeURIComponent(key)}`
   return safePublicFetch(url, 'GET')
 }
 
@@ -16,7 +16,7 @@ export async function getSetting(key) {
  * Ottieni tutte le settings dal backend.
  */
 export async function getAllSettings() {
-  return safeFetch(endpoints.admin.getSetting, 'GET')
+  return safeFetch(endpoints.admin.getSettings, 'GET')
 }
 
 /**

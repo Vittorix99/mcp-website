@@ -9,6 +9,7 @@ class LocationEmailPayload(EmailTemplateBasePayload):
     event_date: str
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+    label: Optional[str] = None
     address: Optional[str] = None
     link: Optional[str] = None
     organizer_message: Optional[str] = None

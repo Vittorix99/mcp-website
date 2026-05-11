@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from .base import FirestoreModel
 from .enums import EventPurchaseAccessType, EventStatus
@@ -14,8 +14,8 @@ class Event(FirestoreModel):
     date: str = ""
     start_time: Optional[str] = field(default=None, metadata={"firestore_name": "startTime"})
     end_time: Optional[str] = field(default=None, metadata={"firestore_name": "endTime"})
-    location: Optional[str] = None
     location_hint: Optional[str] = field(default=None, metadata={"firestore_name": "locationHint"})
+    location_label: Optional[str] = field(default=None, metadata={"firestore_name": "locationLabel"})
     price: Optional[float] = None
     fee: Optional[float] = None
     max_participants: Optional[int] = field(default=None, metadata={"firestore_name": "maxParticipants"})

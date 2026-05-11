@@ -62,6 +62,11 @@ export async function getGenderDistribution(eventId) {
   return safeFetch(`${endpoints.admin.getGenderDistribution}?event_id=${encodeURIComponent(eventId)}`, "GET")
 }
 
+export async function getAgeDistribution(eventId) {
+  if (!eventId) return { error: "eventId mancante" }
+  return safeFetch(`${endpoints.admin.getAgeDistribution}?event_id=${encodeURIComponent(eventId)}`, "GET")
+}
+
 export async function getMembershipTrend(year) {
   const url = year
     ? `${endpoints.admin.getMembershipTrend}?year=${encodeURIComponent(year)}`

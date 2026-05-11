@@ -9,3 +9,6 @@ class OmaggioEmailPayload(EmailTemplateBasePayload):
     event_date: str
     event_location: str
     entry_time: Optional[str] = None
+    location_label: Optional[str] = None
+    location_address: Optional[str] = None
+    location_url: Optional[str] = None

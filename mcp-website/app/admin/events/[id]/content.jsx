@@ -68,6 +68,8 @@ import { EventStats } from "@/components/admin/events/EventStats"
 import { exportParticipantsToExcel } from "@/lib/excel" // ✅ NUOVO IMPORT
 import { resolvePurchaseMode } from "@/config/events-utils"
 import { getMembershipPrice, getMemberships } from "@/services/admin/memberships"
+import { endpoints } from "@/config/endpoints"
+import { safeFetch } from "@/lib/fetch"
 
 const ADMIN_THEME = {
   "--color-black": "#0a0a0a",
@@ -207,8 +209,6 @@ export default function EventContent({ id: eventId }) {
   const [isLocationModalOpen, setLocationModalOpen] = useState(false)
   const [locationTargetName, setLocationTargetName] = useState("")
   const [selectedParticipantId, setSelectedParticipantId] = useState(null)
-  const [address, setAddress] = useState("")
-  const [link, setLink] = useState("")
   const [message, setMessage] = useState("")
   const [showJobProgress, setShowJobProgress] = useState(false)
   // Pagination
@@ -231,6 +231,23 @@ export default function EventContent({ id: eventId }) {
   const currentMembershipYear = useMemo(() => new Date().getFullYear().toString(), [])
   const [currentYearMemberships, setCurrentYearMemberships] = useState([])
   const [membershipsLoading, setMembershipsLoading] = useState(false)
+
+  // Event Guide state
+  const [guidePublished, setGuidePublished] = useState(false)
+  const [guideSections, setGuideSections] = useState([])
+  const [guideSaving, setGuideSaving] = useState(false)
+  const [guideToast, setGuideToast] = useState("")
+  const [guideTogglingPublished, setGuideTogglingPublished] = useState(false)
+  const [guideDragOver, setGuideDragOver] = useState(null)
+  const [guideLoading, setGuideLoading] = useState(false)
+
+  // Location (Posizione) state
+  const [locationData, setLocationData] = useState({ label: "", maps_url: "", maps_embed_url: "", address: "", message: "" })
+  const [locationPublished, setLocationPublished] = useState(false)
+  const [locationSaving, setLocationSaving] = useState(false)
+  const [locationTogglingPublished, setLocationTogglingPublished] = useState(false)
+  const [locationToast, setLocationToast] = useState("")
+  const [locationLoading, setLocationLoading] = useState(false)
 
   useEffect(() => {
     loadAll()
@@ -341,6 +358,42 @@ export default function EventContent({ id: eventId }) {
       setImageUrl(null)
     }
   }, [targetEvent])
+
+  useEffect(() => {
+    if (!eventId) return
+    let isMounted = true
+    setGuideLoading(true)
+    safeFetch(`${endpoints.admin.events.getGuide}?event_id=${eventId}`, "GET")
+      .then((data) => {
+        if (!isMounted || data?.error) return
+        setGuidePublished(!!data.published)
+        setGuideSections(Array.isArray(data.sections) ? data.sections : [])
+      })
+      .catch(() => {})
+      .finally(() => { if (isMounted) setGuideLoading(false) })
+    return () => { isMounted = false }
+  }, [eventId])
+
+  useEffect(() => {
+    if (!eventId) return
+    let isMounted = true
+    setLocationLoading(true)
+    safeFetch(`${endpoints.admin.events.getLocation}?event_id=${eventId}`, "GET")
+      .then((data) => {
+        if (!isMounted || data?.error) return
+        setLocationData({
+          label: data.label || "",
+          maps_url: data.maps_url || "",
+          maps_embed_url: data.maps_embed_url || "",
+          address: data.address || "",
+          message: data.message || "",
+        })
+        setLocationPublished(!!data.published)
+      })
+      .catch(() => {})
+      .finally(() => { if (isMounted) setLocationLoading(false) })
+    return () => { isMounted = false }
+  }, [eventId])
 
   // reset page when filters/search change or dataset changes
   useEffect(() => {
@@ -739,15 +792,21 @@ export default function EventContent({ id: eventId }) {
     setSelectedParticipantId(p.id)
   }
 
-  const handleSendLocation = async ({ address, link, message }) => {
+  const handleSendLocation = async ({ message }) => {
     if (locationTargetName) {
-      await sendLocation(selectedParticipantId, { address, link, message })
+      await sendLocation(selectedParticipantId, { message })
     } else {
       setJobProgressDismissed(false)
       setShowJobProgress(true)
-      await sendLocationToAll({ address, link, message })
+      await sendLocationToAll({ message })
     }
     setLocationModalOpen(false)
+  }
+
+  const handleSendLocationToAllFromTab = async () => {
+    setJobProgressDismissed(false)
+    setShowJobProgress(true)
+    await sendLocationToAll({ message: locationData.message || undefined })
   }
 
   // Mostra di nuovo la barra di avanzamento a fine job se non è stata chiusa definitivamente
@@ -885,6 +944,8 @@ export default function EventContent({ id: eventId }) {
               <TabsTrigger value="omaggi">Omaggi</TabsTrigger>
               <TabsTrigger value="statistiche">Statistiche</TabsTrigger>
               <TabsTrigger value="ingresso">In the event</TabsTrigger>
+              <TabsTrigger value="posizione">Posizione</TabsTrigger>
+              <TabsTrigger value="guide">Event Guide</TabsTrigger>
             </TabsList>
 
             <TabsContent value="statistiche">
@@ -1342,6 +1403,298 @@ export default function EventContent({ id: eventId }) {
               </div>
               <QuickAddDialog open={checkinQuickOpen} onOpenChange={setCheckinQuickOpen} onSubmit={checkinQuickAdd} />
             </TabsContent>
+
+            {/* ── Posizione ── */}
+            <TabsContent value="posizione" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Posizione evento</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {locationLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="animate-spin h-6 w-6" /></div>
+                  ) : (
+                    <>
+                      {/* Published toggle */}
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id="location-published"
+                          checked={locationPublished}
+                          disabled={locationTogglingPublished}
+                          onChange={async (e) => {
+                            const next = e.target.checked
+                            setLocationTogglingPublished(true)
+                            const res = await safeFetch(endpoints.admin.events.toggleLocationPublished, "PATCH", {
+                              event_id: eventId,
+                              published: next,
+                            })
+                            setLocationTogglingPublished(false)
+                            if (!res?.error) setLocationPublished(next)
+                          }}
+                          style={{ width: 18, height: 18, accentColor: "#e8820c" }}
+                        />
+                        <label htmlFor="location-published" className="text-sm cursor-pointer">
+                          Location pubblicata (visibile ai membri)
+                        </label>
+                        {locationTogglingPublished && <Loader2 className="h-4 w-4 animate-spin text-orange-400" />}
+                      </div>
+
+                      {/* Fields */}
+                      <div className="space-y-3">
+                        <p className="text-xs uppercase tracking-widest text-orange-400 font-bold">Dati venue</p>
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1 block">Label venue (es. "Echi Club — Palermo")</Label>
+                          <Input
+                            value={locationData.label}
+                            onChange={(e) => setLocationData((l) => ({ ...l, label: e.target.value }))}
+                            placeholder="Nome venue — Città"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1 block">Indirizzo preciso</Label>
+                          <Input
+                            value={locationData.address}
+                            onChange={(e) => setLocationData((l) => ({ ...l, address: e.target.value }))}
+                            placeholder="Via Roma 1, Palermo"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1 block">Google Maps URL</Label>
+                          <Input
+                            value={locationData.maps_url}
+                            onChange={(e) => setLocationData((l) => ({ ...l, maps_url: e.target.value }))}
+                            placeholder="https://maps.google.com/?q=..."
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1 block">Google Maps Embed URL</Label>
+                          <Input
+                            value={locationData.maps_embed_url}
+                            onChange={(e) => setLocationData((l) => ({ ...l, maps_embed_url: e.target.value }))}
+                            placeholder="https://maps.google.com/maps?q=...&output=embed"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1 block">Messaggio email (opzionale — usato nell&apos;invio)</Label>
+                          <textarea
+                            value={locationData.message}
+                            onChange={(e) => setLocationData((l) => ({ ...l, message: e.target.value }))}
+                            rows={3}
+                            placeholder="Messaggio personalizzato per i partecipanti..."
+                            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Save button */}
+                      <div className="flex items-center gap-3 flex-wrap pt-1">
+                        <Button
+                          disabled={locationSaving}
+                          onClick={async () => {
+                            setLocationSaving(true)
+                            setLocationToast("")
+                            const res = await safeFetch(endpoints.admin.events.updateLocation, "PUT", {
+                              event_id: eventId,
+                              ...locationData,
+                            })
+                            setLocationSaving(false)
+                            if (res?.error) {
+                              setLocationToast(`Errore: ${res.error}`)
+                            } else {
+                              setLocationToast("Posizione salvata.")
+                              if (res) setLocationPublished(!!res.published)
+                            }
+                            setTimeout(() => setLocationToast(""), 3000)
+                          }}
+                        >
+                          {locationSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio…</> : "Salva posizione"}
+                        </Button>
+                        {locationToast && <span className="text-sm text-orange-400">{locationToast}</span>}
+                      </div>
+
+                      {/* Send to all */}
+                      <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-900/50 space-y-3">
+                        <p className="text-xs uppercase tracking-widest text-orange-400 font-bold">Invio email location</p>
+                        <p className="text-xs text-gray-400">
+                          Invia la location a tutti i partecipanti che non l&apos;hanno ancora ricevuta.
+                          Usa l&apos;indirizzo e il messaggio salvati sopra.
+                        </p>
+                        <Button
+                          onClick={handleSendLocationToAllFromTab}
+                          disabled={isJobActive || !locationData.address}
+                        >
+                          {isJobActive
+                            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Invio in corso…</>
+                            : <><Send className="mr-2 h-4 w-4" /> Invia a tutti</>}
+                        </Button>
+                        {!locationData.address && (
+                          <p className="text-xs text-yellow-400">Salva prima l&apos;indirizzo preciso per poter inviare.</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── Event Guide ── */}
+            <TabsContent value="guide" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event Guide</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Published toggle */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="guide-published"
+                      checked={guidePublished}
+                      disabled={guideTogglingPublished}
+                      onChange={async (e) => {
+                        const next = e.target.checked
+                        setGuideTogglingPublished(true)
+                        const res = await safeFetch(endpoints.admin.events.toggleGuidePublished, "PATCH", {
+                          event_id: eventId,
+                          published: next,
+                        })
+                        setGuideTogglingPublished(false)
+                        if (!res?.error) {
+                          setGuidePublished(next)
+                        }
+                      }}
+                      style={{ width: 18, height: 18, accentColor: "#e8820c" }}
+                    />
+                    <label htmlFor="guide-published" className="text-sm cursor-pointer">
+                      Guide pubblicata
+                    </label>
+                  </div>
+
+                  {/* Sections */}
+                  <div className="space-y-3">
+                    <p className="text-xs uppercase tracking-widest text-orange-400 font-bold">Sezioni</p>
+                    {guideSections.map((section, idx) => (
+                      <div
+                        key={section.id}
+                        draggable
+                        onDragStart={() => setGuideDragOver(idx)}
+                        onDragOver={(e) => { e.preventDefault(); setGuideDragOver(idx) }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          setGuideSections((prev) => {
+                            const from = prev.findIndex((s) => s.id === prev[guideDragOver]?.id)
+                            if (from === -1 || from === idx) return prev
+                            const next = [...prev]
+                            const [moved] = next.splice(from, 1)
+                            next.splice(idx, 0, moved)
+                            return next.map((s, i) => ({ ...s, order: i }))
+                          })
+                          setGuideDragOver(null)
+                        }}
+                        className="bg-gray-900 border border-gray-700 rounded p-3 space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 cursor-grab select-none">⠿</span>
+                          <select
+                            value={section.type}
+                            onChange={(e) => setGuideSections((prev) => prev.map((s, i) => i === idx ? { ...s, type: e.target.value } : s))}
+                            className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm flex-shrink-0"
+                          >
+                            <option value="text">Testo</option>
+                            <option value="how_to_reach">Come arrivare</option>
+                            <option value="info">Info</option>
+                            <option value="warning">Avviso</option>
+                            <option value="checklist">Checklist</option>
+                          </select>
+                          <div className="flex items-center gap-1 ml-auto">
+                            <label className="text-xs text-gray-400 flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={section.visible !== false}
+                                onChange={(e) => setGuideSections((prev) => prev.map((s, i) => i === idx ? { ...s, visible: e.target.checked } : s))}
+                                style={{ accentColor: "#e8820c" }}
+                              />
+                              Visibile
+                            </label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-400 hover:text-red-300 ml-2 h-7 px-2"
+                              onClick={() => setGuideSections((prev) => prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, order: i })))}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <Input
+                          value={section.title}
+                          onChange={(e) => setGuideSections((prev) => prev.map((s, i) => i === idx ? { ...s, title: e.target.value } : s))}
+                          placeholder="Titolo sezione"
+                          className="text-sm"
+                        />
+                        <textarea
+                          value={section.content}
+                          onChange={(e) => setGuideSections((prev) => prev.map((s, i) => i === idx ? { ...s, content: e.target.value } : s))}
+                          placeholder="Contenuto…"
+                          rows={3}
+                          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm resize-y"
+                        />
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+                        setGuideSections((prev) => [
+                          ...prev,
+                          { id: newId, type: "text", title: "", content: "", order: prev.length, visible: true },
+                        ])
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Aggiungi sezione
+                    </Button>
+                  </div>
+
+                  {/* Save + preview */}
+                  <div className="flex items-center gap-3 flex-wrap pt-2">
+                    <Button
+                      disabled={guideSaving}
+                      onClick={async () => {
+                        setGuideSaving(true)
+                        setGuideToast("")
+                        const res = await safeFetch(endpoints.admin.events.updateGuide, "PUT", {
+                          event_id: eventId,
+                          guide: {
+                            published: guidePublished,
+                            sections: guideSections,
+                          },
+                        })
+                        setGuideSaving(false)
+                        setGuideToast(res?.error ? `Errore: ${res.error}` : "Guide salvata.")
+                        setTimeout(() => setGuideToast(""), 3000)
+                      }}
+                    >
+                      {guideSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio…</> : "Salva guide"}
+                    </Button>
+                    {guidePublished && event?.slug && (
+                      <a
+                        href={`/events/${event.slug}/guide`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-orange-400 hover:underline"
+                      >
+                        Anteprima →
+                      </a>
+                    )}
+                    {guideToast && (
+                      <span className="text-sm text-orange-400">{guideToast}</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </motion.div>
 
@@ -1398,10 +1751,8 @@ export default function EventContent({ id: eventId }) {
           isOpen={isLocationModalOpen}
           onClose={() => setLocationModalOpen(false)}
           targetName={locationTargetName}
-          address={address}
-          setAddress={setAddress}
-          link={link}
-          setLink={setLink}
+          storedAddress={locationData.address}
+          storedMapsUrl={locationData.maps_url}
           message={message}
           setMessage={setMessage}
           onSubmit={handleSendLocation}

@@ -35,18 +35,12 @@ export function EventModal({
 
   const renderFields = () => (
     <>
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="title">Titolo</Label>
-          <Input id="title" name="title" value={form.title || ""} onChange={onInput} required />
-        </div>
-        <div>
-          <Label htmlFor="location">Luogo</Label>
-          <Input id="location" name="location" value={form.location || ""} onChange={onInput} required />
-        </div>
+      <div>
+        <Label htmlFor="title">Titolo</Label>
+        <Input id="title" name="title" value={form.title || ""} onChange={onInput} required />
       </div>
       <div>
-        <Label htmlFor="locationHint">Indicazione pubblica (location_hint)</Label>
+        <Label htmlFor="locationHint">Indicazione pubblica</Label>
         <Input
           id="locationHint"
           name="locationHint"

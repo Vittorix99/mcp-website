@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from dto.purchase import CreatePurchaseRequestDTO, PurchaseActionResponseDTO, PurchaseDTO
+from dto.purchase import CreatePurchaseRequestDTO, PurchaseActionResponseDTO, PurchaseDTO, UpdatePurchaseStatusRequestDTO
 from errors.service_errors import NotFoundError
 from interfaces.repositories import PurchaseRepositoryProtocol
 from mappers.purchase_mappers import create_purchase_dto_to_model, purchase_to_response
@@ -41,6 +41,13 @@ class PurchasesService:
         purchase_id = self.purchase_repository.create_from_model(purchase)
         self.logger.info("New purchase saved: %s", purchase_id)
         return PurchaseActionResponseDTO(message="Purchase created", id=purchase_id)
+
+    def update_status(self, dto: UpdatePurchaseStatusRequestDTO) -> PurchaseActionResponseDTO:
+        if not self.purchase_repository.get_model(dto.purchase_id):
+            raise NotFoundError("Purchase not found")
+        self.purchase_repository.update_status(dto.purchase_id, dto.status)
+        self.logger.info("Purchase status updated: %s -> %s", dto.purchase_id, dto.status)
+        return PurchaseActionResponseDTO(message="Status updated", id=dto.purchase_id)
 
     def delete(self, purchase_id: str) -> PurchaseActionResponseDTO:
         deleted = self.purchase_repository.delete(purchase_id)

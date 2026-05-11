@@ -44,7 +44,6 @@ def _event_payload(**overrides):
         "date": date_value,
         "startTime": "21:00",
         "endTime": "23:00",
-        "location": "Integration Hall",
         "locationHint": "Ingresso principale",
         "price": 10.0,
         "fee": 1.0,
@@ -99,13 +98,18 @@ def minor_participant_payload(unique_email):
 
 @pytest.fixture
 def member_record(unique_email, membership_repository):
+    now = datetime.now(timezone.utc)
+    year = now.year
     membership = Membership(
         name="Mario",
         surname="Rossi",
         email=unique_email,
         phone="+390000000000",
         birthdate="01-01-1990",
+        start_date=now.isoformat(),
+        end_date=f"31-12-{year}",
         subscription_valid=True,
+        membership_years=[year],
     )
     membership_id = membership_repository.create_from_model(membership)
     yield membership_id

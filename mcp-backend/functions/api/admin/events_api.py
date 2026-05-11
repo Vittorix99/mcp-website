@@ -1,15 +1,27 @@
 import logging
+
 from flask import jsonify
 from pydantic import ValidationError as PydanticValidationError
 
 from api.decorators import admin_endpoint
-from dto.event_api import CreateEventRequestDTO, EventDeleteRequestDTO, EventLookupQueryDTO, UpdateEventRequestDTO
+from dto.event_api import (
+    CreateEventRequestDTO,
+    EventDeleteRequestDTO,
+    EventGuideQueryDTO,
+    EventLookupQueryDTO,
+    ToggleGuidePublishedRequestDTO,
+    UpdateEventGuideRequestDTO,
+    UpdateEventRequestDTO,
+)
+from errors.service_errors import NotFoundError
 from services.events.events_service import EventsService
+from services.events.guide_service import GuideService
 from utils.http_responses import handle_pydantic_error, handle_service_error
 from utils.safe_logging import redact_sensitive
 
 logger = logging.getLogger("AdminEventsAPI")
 events_service = EventsService()
+guide_service = GuideService()
 
 
 @admin_endpoint(methods=("POST",))
@@ -89,4 +101,49 @@ def admin_get_event_by_id(req):
         return handle_pydantic_error(err)
     except Exception as err:
         logger.error("[admin_get_event_by_id] %s", redact_sensitive(str(err)))
+        return handle_service_error(err)
+
+
+@admin_endpoint(methods=("GET",))
+def admin_get_event_guide(req):
+    try:
+        dto = EventGuideQueryDTO.model_validate(dict(req.args or {}))
+        result = guide_service.get_admin_guide(dto.event_id)
+        return jsonify(result), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except NotFoundError as err:
+        return jsonify({"error": str(err)}), 404
+    except Exception as err:
+        logger.error("[admin_get_event_guide] %s", redact_sensitive(str(err)))
+        return handle_service_error(err)
+
+
+@admin_endpoint(methods=("PUT",))
+def admin_update_event_guide(req):
+    try:
+        dto = UpdateEventGuideRequestDTO.model_validate(req.get_json(silent=True) or {})
+        guide_service.upsert_guide(dto)
+        return jsonify({"success": True}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except NotFoundError as err:
+        return jsonify({"error": str(err)}), 404
+    except Exception as err:
+        logger.error("[admin_update_event_guide] %s", redact_sensitive(str(err)))
+        return handle_service_error(err)
+
+
+@admin_endpoint(methods=("PATCH",))
+def admin_toggle_guide_published(req):
+    try:
+        dto = ToggleGuidePublishedRequestDTO.model_validate(req.get_json(silent=True) or {})
+        guide_service.set_published(dto.event_id, dto.published)
+        return jsonify({"success": True, "published": dto.published}), 200
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except NotFoundError as err:
+        return jsonify({"error": str(err)}), 404
+    except Exception as err:
+        logger.error("[admin_toggle_guide_published] %s", redact_sensitive(str(err)))
         return handle_service_error(err)

@@ -78,7 +78,8 @@ export function useAdminParticipants(eventId) {
 const create = useCallback(async (data) => {
   setLoading(true);
   try {
-    const payload = { ...data, event_id: eventId };
+    const { membershipId, ...rest } = data;
+    const payload = { ...rest, event_id: eventId };
     const res = await createParticipantService(payload);
     if (res?.error) setError(res.error);
     else await loadAll();
@@ -92,8 +93,9 @@ const create = useCallback(async (data) => {
 const update = useCallback(async (id, data) => {
   setLoading(true);
   try {
+    const { membershipId, ...rest } = data;
     const payload = {
-      ...data,
+      ...rest,
       event_id: eventId,
     };
     const res = await updateParticipantService(id, payload); // ✅ PASSA id come PRIMO ARG
@@ -119,8 +121,8 @@ const update = useCallback(async (id, data) => {
     }
   }, [loadAll, setError, eventId]);
 
-  const sendLocation = useCallback(async (participantId, { address, link }) => {
-    console.debug(DBG, "sendLocation:start", { participantId, address, link });
+  const sendLocation = useCallback(async (participantId, { message } = {}) => {
+    console.debug(DBG, "sendLocation:start", { participantId });
     if (!eventId || !participantId) {
       setError("Missing eventId or participantId");
       return;
@@ -130,8 +132,7 @@ const update = useCallback(async (id, data) => {
       const res = await sendLocationToParticipant({
         eventId,
         participantId,
-        address,
-        link,
+        message,
       });
       console.debug(DBG, "sendLocation:response", res);
       if (res?.error) setError(res.error);
@@ -146,14 +147,14 @@ const update = useCallback(async (id, data) => {
     }
   }, [eventId, loadAll, setError]);
 
-  const sendLocationToAll = useCallback(async ({ address, link, message }) => {
-    console.debug(DBG, "sendLocationToAll:start", { address, link, message, eventId });
+  const sendLocationToAll = useCallback(async ({ message } = {}) => {
+    console.debug(DBG, "sendLocationToAll:start", { message, eventId });
     if (!eventId) {
       setError("Missing eventId");
       return;
     }
     try {
-      const res = await startSendLocationJobService({ eventId, address, link, message });
+      const res = await startSendLocationJobService({ eventId, message });
       console.debug(DBG, "sendLocationToAll:jobCreated", res);
       if (res?.error) {
         setError(res.error);

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 
 from google.cloud.firestore_v1 import FieldFilter
@@ -44,14 +45,24 @@ class RadioEpisodeRepository(BaseRepository[RadioEpisode]):
     def get_latest_published(self) -> Optional[RadioEpisode]:
         snapshots = (
             self.collection.where(filter=FieldFilter("isPublished", "==", True))
-            .order_by("publishedAt", direction="DESCENDING")
-            .limit(1)
             .stream()
         )
-        results = list(snapshots)
-        if not results:
+        episodes = [self._model_from_snapshot(snap) for snap in snapshots]
+        if not episodes:
             return None
-        return self._model_from_snapshot(results[0])
+
+        def published_sort_key(episode: RadioEpisode) -> float:
+            published_at = episode.published_at
+            if hasattr(published_at, "timestamp"):
+                return float(published_at.timestamp())
+            if isinstance(published_at, str):
+                try:
+                    return datetime.fromisoformat(published_at.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    return 0.0
+            return 0.0
+
+        return max(episodes, key=published_sort_key)
 
     def get_by_season(self, season_id: str, published_only: bool = False) -> List[RadioEpisode]:
         query = self.collection.where(filter=FieldFilter("seasonId", "==", season_id))

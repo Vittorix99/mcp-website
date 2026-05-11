@@ -25,6 +25,8 @@ import { MembershipModal } from "@/components/admin/memberships/MembershipsModal
 import { useError } from "@/contexts/errorContext"
 import { getMembershipsReport } from "@/services/admin/memberships"
 import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
+import { safeFetch } from "@/lib/fetch"
+import { endpoints } from "@/config/endpoints"
 
 const ADMIN_THEME = {
   "--color-black": "#0a0a0a",
@@ -98,6 +100,13 @@ export default function MembershipsPage() {
   const [sortBy, setSortBy] = useState(stored.sortBy || "name_asc")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(stored.pageSize || 25)
+
+  // Account provisioning state
+  const [provisioningAll, setProvisioningAll] = useState(false)
+  const [provisioningResult, setProvisioningResult] = useState(null)
+  const [provisioningSingleId, setProvisioningSingleId] = useState("")
+  const [provisioningSingle, setProvisioningSingle] = useState(false)
+  const [provisioningSingleResult, setProvisioningSingleResult] = useState(null)
 
 
   useEffect(() => {
@@ -1104,6 +1113,86 @@ export default function MembershipsPage() {
           })}
           onCancelMerge={() => setMergeConflict(null)}
         />
+
+        {/* ── Gestione Account (Firebase Auth Provisioning) ── */}
+        <Card className="mt-6 border-dashed border-gray-700">
+          <CardHeader>
+            <h3 className="text-sm font-bold uppercase tracking-widest" style={{ color: ADMIN_THEME["--color-orange"], fontFamily: TITLE_FONT }}>
+              Gestione Account
+            </h3>
+            <p className="text-xs text-gray-500">Crea account Firebase Auth per i soci senza accesso attivo.</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Batch provisioning */}
+            <div className="space-y-2">
+              <Button
+                disabled={provisioningAll}
+                variant="outline"
+                onClick={async () => {
+                  setProvisioningAll(true)
+                  setProvisioningResult(null)
+                  const res = await safeFetch(endpoints.admin.members.provisionAll, "POST")
+                  setProvisioningAll(false)
+                  setProvisioningResult(res)
+                }}
+              >
+                {provisioningAll ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Provisioning in corso…</>
+                ) : (
+                  "Provisiona account per tutti i soci"
+                )}
+              </Button>
+              {provisioningResult && !provisioningResult.error && (
+                <p className="text-xs text-gray-300">
+                  Creati: <strong>{provisioningResult.provisioned}</strong>
+                  {" · "}Già esistenti: <strong>{provisioningResult.already_existing}</strong>
+                  {" · "}Senza email: <strong>{provisioningResult.skipped_no_email}</strong>
+                  {" · "}Errori: <strong>{provisioningResult.errors}</strong>
+                </p>
+              )}
+              {provisioningResult?.error && (
+                <p className="text-xs text-red-400">{provisioningResult.error}</p>
+              )}
+            </div>
+
+            {/* Single member provisioning */}
+            <div className="space-y-2">
+              <p className="text-xs text-gray-400 font-semibold">Provisiona singolo socio</p>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  placeholder="ID membership"
+                  value={provisioningSingleId}
+                  onChange={(e) => setProvisioningSingleId(e.target.value)}
+                  className="max-w-xs text-sm"
+                />
+                <Button
+                  variant="outline"
+                  disabled={provisioningSingle || !provisioningSingleId.trim()}
+                  onClick={async () => {
+                    setProvisioningSingle(true)
+                    setProvisioningSingleResult(null)
+                    const res = await safeFetch(endpoints.admin.members.provisionSingle, "POST", {
+                      membership_id: provisioningSingleId.trim(),
+                    })
+                    setProvisioningSingle(false)
+                    setProvisioningSingleResult(res)
+                  }}
+                >
+                  {provisioningSingle ? <Loader2 className="h-4 w-4 animate-spin" /> : "Provisiona"}
+                </Button>
+              </div>
+              {provisioningSingleResult && !provisioningSingleResult.error && (
+                <p className="text-xs text-gray-300">
+                  UID: <code className="text-orange-400">{provisioningSingleResult.uid}</code>
+                  {" · "}{provisioningSingleResult.message}
+                </p>
+              )}
+              {provisioningSingleResult?.error && (
+                <p className="text-xs text-red-400">{provisioningSingleResult.error}</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
     </TooltipProvider>
   )

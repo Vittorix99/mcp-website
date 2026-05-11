@@ -72,7 +72,6 @@ class TicketService:
             "date": event.date,
             "startTime": event.start_time,
             "endTime": event.end_time,
-            "location": event.location,
             "locationHint": event.location_hint,
             "image": event.image,
             "type": event.purchase_mode.value if event.purchase_mode else None,

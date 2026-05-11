@@ -8,6 +8,41 @@ from domain.event_rules import normalize_event_date_string
 from models import EventPurchaseAccessType, EventStatus
 
 
+# ── Guide DTOs ─────────────────────────────────────────────────────────────────
+
+class GuideSectionDTO(BaseModel):
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True, populate_by_name=True)
+    id: Optional[str] = None
+    type: str = "text"
+    title: str = ""
+    content: str = ""
+    order: int = 0
+    visible: bool = True
+
+
+class GuidePayloadDTO(BaseModel):
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True, populate_by_name=True)
+    published: bool = False
+    sections: List[GuideSectionDTO] = Field(default_factory=list)
+
+
+class UpdateEventGuideRequestDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, populate_by_name=True)
+    event_id: str = Field(min_length=1)
+    guide: GuidePayloadDTO
+
+
+class ToggleGuidePublishedRequestDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, populate_by_name=True)
+    event_id: str = Field(min_length=1)
+    published: bool
+
+
+class EventGuideQueryDTO(BaseModel):
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True, populate_by_name=True)
+    event_id: str = Field(min_length=1)
+
+
 def _blank_to_none(value: Any):
     if isinstance(value, str) and not value.strip():
         return None
@@ -53,7 +88,6 @@ class EventDeleteRequestDTO(EventApiBaseDTO):
 
 class CreateEventRequestDTO(EventApiBaseDTO):
     title: str = Field(min_length=1)
-    location: str = Field(min_length=1)
     location_hint: str = Field(min_length=1, alias="locationHint")
     date: str = Field(min_length=1)
     start_time: str = Field(min_length=1, alias="startTime")
@@ -96,7 +130,6 @@ class CreateEventRequestDTO(EventApiBaseDTO):
 class UpdateEventRequestDTO(EventApiBaseDTO):
     id: str = Field(min_length=1)
     title: Optional[str] = None
-    location: Optional[str] = None
     location_hint: Optional[str] = Field(default=None, alias="locationHint")
     date: Optional[str] = None
     start_time: Optional[str] = Field(default=None, alias="startTime")
@@ -121,7 +154,6 @@ class UpdateEventRequestDTO(EventApiBaseDTO):
 
     @field_validator(
         "title",
-        "location",
         "location_hint",
         "date",
         "start_time",
@@ -179,7 +211,6 @@ class AdminEventResponseDTO(EventApiBaseDTO):
     start_time: Optional[str] = Field(default=None, serialization_alias="startTime")
     end_time: Optional[str] = Field(default=None, serialization_alias="endTime")
     location_hint: Optional[str] = Field(default=None, serialization_alias="locationHint")
-    location: Optional[str] = None
     price: Optional[float] = None
     fee: Optional[float] = None
     max_participants: Optional[int] = Field(default=None, serialization_alias="maxParticipants")

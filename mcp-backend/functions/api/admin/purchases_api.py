@@ -6,6 +6,7 @@ from dto.purchase import (
     CreatePurchaseRequestDTO,
     PurchaseIdRequestDTO,
     PurchaseLookupQueryDTO,
+    UpdatePurchaseStatusRequestDTO,
 )
 from services.payments.purchases_service import PurchasesService
 from utils.http_responses import handle_pydantic_error, handle_service_error
@@ -26,7 +27,8 @@ def get_all_purchases(req):
 @admin_endpoint(methods=("GET",))
 def get_purchase(req):
     try:
-        dto = PurchaseLookupQueryDTO.model_validate(req.args.to_dict())
+        args = req.args.to_dict() if hasattr(req.args, "to_dict") else dict(req.args or {})
+        dto = PurchaseLookupQueryDTO.model_validate(args)
         payload = purchases_service.get_by_id(dto.id, slug=dto.slug)
         return jsonify(payload.to_payload()), 200
     except PydanticValidationError as err:
@@ -41,6 +43,18 @@ def create_purchase(req):
         dto = CreatePurchaseRequestDTO.model_validate(req.get_json(silent=True) or {})
         payload = purchases_service.create(dto)
         return jsonify(payload.to_payload()), 201
+    except PydanticValidationError as err:
+        return handle_pydantic_error(err)
+    except Exception as err:
+        return handle_service_error(err)
+
+
+@admin_endpoint(methods=("POST",))
+def update_purchase_status(req):
+    try:
+        dto = UpdatePurchaseStatusRequestDTO.model_validate(req.get_json(silent=True) or {})
+        payload = purchases_service.update_status(dto)
+        return jsonify(payload.to_payload()), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:

@@ -30,6 +30,8 @@ class Membership(FirestoreModel):
     membership_fee: Optional[float] = field(default=None, metadata={"firestore_name": "membership_fee"})
     wallet_pass_id: Optional[str] = field(default=None, metadata={"firestore_name": "wallet_pass_id"})
     wallet_url: Optional[str] = field(default=None, metadata={"firestore_name": "wallet_url"})
+    uid: Optional[str] = field(default=None, metadata={"firestore_name": "uid"})
+    newsletter_consent: bool = field(default=True, metadata={"firestore_name": "newsletter_consent"})
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
 from dto.analytics_api import (
+    AgeBandDTO,
+    AgeDistributionResponseDTO,
     AudienceBreakdownItemDTO,
     AudienceRetentionResponseDTO,
     DailySalesDTO,
@@ -30,7 +32,7 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import PurchaseTypes
+from models import PurchaseStatus, PurchaseTypes
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
@@ -372,6 +374,73 @@ class AnalyticsService:
             unknown_pct=pct(unknown),
         )
 
+    _AGE_BANDS = (
+        ("18-20", 18, 20),
+        ("21-24", 21, 24),
+        ("25-29", 25, 29),
+        ("30-34", 30, 34),
+        ("35+",   35, 200),
+    )
+
+    def get_age_distribution(self, event_id: str) -> AgeDistributionResponseDTO:
+        event = self.event_repository.get_model(event_id)
+        if not event:
+            raise NotFoundError(f"Evento non trovato: {event_id}")
+
+        participants = self.participant_repository.list(event_id)
+        counts: Dict[str, int] = {band: 0 for band, _, _ in self._AGE_BANDS}
+        counts["unknown"] = 0
+
+        for p in participants:
+            age = self._age_from_birthdate(getattr(p, "birthdate", None))
+            if age is None:
+                counts["unknown"] += 1
+                continue
+            matched = False
+            for band, start, end in self._AGE_BANDS:
+                if start <= age <= end:
+                    counts[band] += 1
+                    matched = True
+                    break
+            if not matched:
+                counts["unknown"] += 1
+
+        total = len(participants)
+        dominant = max(counts, key=lambda k: counts[k]) if total > 0 else "unknown"
+
+        def pct(n: int) -> float:
+            return round(n / total * 100, 1) if total > 0 else 0.0
+
+        bands = [
+            AgeBandDTO(band=band, count=counts[band], pct=pct(counts[band]))
+            for band, _, _ in self._AGE_BANDS
+        ]
+        bands.append(AgeBandDTO(band="unknown", count=counts["unknown"], pct=pct(counts["unknown"])))
+
+        return AgeDistributionResponseDTO(event_id=event_id, total=total, dominant=dominant, bands=bands)
+
+    def _age_from_birthdate(self, value: Any) -> Optional[int]:
+        from datetime import date as date_type
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            birth = value.date()
+        elif isinstance(value, date_type):
+            birth = value
+        elif isinstance(value, str):
+            birth = self._parse_date_like(value)
+            if not birth:
+                return None
+        else:
+            return None
+        if not birth:
+            return None
+        today = datetime.now(ROMA_TZ).date()
+        age = today.year - birth.year
+        if (today.month, today.day) < (birth.month, birth.day):
+            age -= 1
+        return age if 0 <= age <= 120 else None
+
     def get_membership_trend(self, year: int) -> MembershipTrendResponseDTO:
         all_memberships = list(self.membership_repository.stream())
         total_active = sum(
@@ -495,9 +564,9 @@ class AnalyticsService:
             return False
         if self._safe_int(getattr(purchase, "participants_count", 0)) <= 0:
             return False
-        status = str(getattr(purchase, "status", "") or "").lower()
-        capture = str(getattr(purchase, "capture_status", "") or "").lower()
-        bad = {"failed", "cancelled", "canceled", "voided", "refunded", "declined", "error"}
+        status = str(getattr(purchase, "status", "") or "").upper()
+        capture = str(getattr(purchase, "capture_status", "") or "").upper()
+        bad = PurchaseStatus.invalid_statuses()
         return status not in bad and capture not in bad
 
     def _map_tiers(self, rows: List[Dict]) -> Dict[Optional[str], str]:
