@@ -6,6 +6,8 @@ import { auth } from "@/config/firebase"
 import {
   getCurrentMemberRedirect,
   persistMemberSession,
+  persistVerifiedMemberSession,
+  redirectNeedsServerSession,
   replaceWithMemberRedirect,
 } from "@/lib/member-session"
 function isValidEmail(email) {
@@ -27,10 +29,17 @@ export default function LoginPage() {
       if (!user) return
       try {
         const redirect = getCurrentMemberRedirect()
-        await persistMemberSession(user)
+        if (redirectNeedsServerSession(redirect)) {
+          await persistVerifiedMemberSession(user)
+        } else {
+          persistMemberSession(user).catch((err) => {
+            console.warn("persistMemberSession optional error:", err)
+          })
+        }
         replaceWithMemberRedirect(redirect)
       } catch (err) {
         console.error("persistMemberSession error:", err)
+        setError("Accesso completato, ma non riesco a salvare la sessione. Controlla che i cookie siano abilitati e riprova.")
       }
     })
     return () => unsubscribe()

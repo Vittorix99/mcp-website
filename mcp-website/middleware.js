@@ -5,9 +5,7 @@ const MCP_AUTH_TOKEN_KEY = "mcp_auth_token"
 export function middleware(request) {
   const { pathname } = request.nextUrl
 
-  const requiresAuth =
-    pathname.startsWith("/dashboard") ||
-    /^\/events\/[^/]+\/guide(\/|$)/.test(pathname)
+  const requiresAuth = /^\/events\/[^/]+\/guide(\/|$)/.test(pathname)
 
   if (requiresAuth) {
     const token = request.cookies.get(MCP_AUTH_TOKEN_KEY)?.value
@@ -22,5 +20,5 @@ export function middleware(request) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/events/:slug/guide"],
+  matcher: ["/events/:slug/guide"],
 }

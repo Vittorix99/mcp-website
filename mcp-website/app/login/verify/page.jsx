@@ -1,35 +1,129 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth"
 import { auth } from "@/config/firebase"
 import {
   getCurrentMemberRedirect,
   persistMemberSession,
+  persistVerifiedMemberSession,
+  redirectNeedsServerSession,
   replaceWithMemberRedirect,
 } from "@/lib/member-session"
 import Link from "next/link"
 
 const MCP_SIGNIN_EMAIL_KEY = "mcp_signin_email"
+const MCP_SIGNIN_OOB_PROCESSING_KEY = "mcp_signin_oob_processing"
+const OOB_PROCESSING_WINDOW_MS = 15000
 
 const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
 
+function getOobCode(href) {
+  try {
+    return new URL(href).searchParams.get("oobCode") || ""
+  } catch {
+    return ""
+  }
+}
+
+function claimOobCode(href) {
+  if (typeof window === "undefined") return true
+
+  const code = getOobCode(href)
+  if (!code) return true
+
+  const now = Date.now()
+  let current = null
+  try {
+    current = JSON.parse(sessionStorage.getItem(MCP_SIGNIN_OOB_PROCESSING_KEY) || "null")
+  } catch {
+    current = null
+  }
+
+  if (
+    current?.code === code &&
+    now - Number(current?.timestamp || 0) < OOB_PROCESSING_WINDOW_MS
+  ) {
+    return false
+  }
+
+  sessionStorage.setItem(
+    MCP_SIGNIN_OOB_PROCESSING_KEY,
+    JSON.stringify({ code, timestamp: now })
+  )
+  return true
+}
+
+function releaseOobCode(href) {
+  if (typeof window === "undefined") return
+
+  const code = getOobCode(href)
+  if (!code) return
+
+  try {
+    const current = JSON.parse(sessionStorage.getItem(MCP_SIGNIN_OOB_PROCESSING_KEY) || "null")
+    if (current?.code === code) {
+      sessionStorage.removeItem(MCP_SIGNIN_OOB_PROCESSING_KEY)
+    }
+  } catch {
+    sessionStorage.removeItem(MCP_SIGNIN_OOB_PROCESSING_KEY)
+  }
+}
+
 export default function LoginVerifyPage() {
+  const completingRef = useRef(false)
   const [redirect, setRedirect] = useState("/dashboard")
   const [status, setStatus] = useState("loading")
   const [emailInput, setEmailInput] = useState("")
   const [error, setError] = useState("")
 
   const completeSignIn = useCallback(async (email, href, targetRedirect = "/dashboard") => {
+    if (completingRef.current || !claimOobCode(href)) return
+    completingRef.current = true
+
     try {
       const result = await signInWithEmailLink(auth, email, href)
-      await persistMemberSession(result.user)
+      if (redirectNeedsServerSession(targetRedirect)) {
+        await persistVerifiedMemberSession(result.user)
+      } else {
+        persistMemberSession(result.user).catch((err) => {
+          console.warn("persistMemberSession optional error:", err)
+        })
+      }
       localStorage.removeItem(MCP_SIGNIN_EMAIL_KEY)
       replaceWithMemberRedirect(targetRedirect)
     } catch (err) {
       console.error("signInWithEmailLink error:", err)
+      if (err?.code === "auth/invalid-action-code" && auth.currentUser) {
+        if (redirectNeedsServerSession(targetRedirect)) {
+          try {
+            await persistVerifiedMemberSession(auth.currentUser)
+          } catch (sessionErr) {
+            console.error("persistMemberSession after consumed link error:", sessionErr)
+            setStatus("error")
+            setError("Accesso completato, ma non riesco a salvare la sessione. Controlla che i cookie siano abilitati e riprova.")
+            completingRef.current = false
+            releaseOobCode(href)
+            return
+          }
+        } else {
+          persistMemberSession(auth.currentUser).catch((sessionErr) => {
+            console.warn("persistMemberSession optional error:", sessionErr)
+          })
+        }
+        localStorage.removeItem(MCP_SIGNIN_EMAIL_KEY)
+        replaceWithMemberRedirect(targetRedirect)
+        return
+      }
+
       setStatus("error")
-      setError("Link non valido o scaduto. Richiedi un nuovo link.")
+      if (err?.message === "Member session cookie was not stored") {
+        setError("Accesso completato, ma non riesco a salvare la sessione. Controlla che i cookie siano abilitati e riprova.")
+      } else {
+        setError("Link non valido o scaduto. Richiedi un nuovo link.")
+      }
+      completingRef.current = false
+      releaseOobCode(href)
     }
   }, [])
 

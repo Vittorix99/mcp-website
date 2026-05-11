@@ -24,6 +24,11 @@ export function getCurrentMemberRedirect(fallback = DEFAULT_MEMBER_REDIRECT) {
   return getSafeMemberRedirect(params.get("redirect"), fallback)
 }
 
+export function redirectNeedsServerSession(redirect) {
+  const target = getSafeMemberRedirect(redirect)
+  return /^\/events\/[^/]+\/guide(\/|$)/.test(target)
+}
+
 export async function persistMemberSession(user) {
   if (!user) throw new Error("Missing Firebase user")
 
@@ -33,6 +38,7 @@ export async function persistMemberSession(user) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
     cache: "no-store",
+    credentials: "same-origin",
   })
 
   if (!response.ok) {
@@ -40,13 +46,35 @@ export async function persistMemberSession(user) {
   }
 }
 
+export async function verifyMemberSessionCookie() {
+  const check = await fetch("/api/auth/session", {
+    method: "GET",
+    cache: "no-store",
+    credentials: "same-origin",
+  })
+  const payload = await check.json().catch(() => null)
+
+  if (!check.ok || !payload?.authenticated) {
+    throw new Error("Member session cookie was not stored")
+  }
+}
+
+export async function persistVerifiedMemberSession(user) {
+  await persistMemberSession(user)
+  await verifyMemberSessionCookie()
+}
+
 export async function clearMemberSession() {
   await fetch("/api/auth/session", {
     method: "DELETE",
     cache: "no-store",
+    credentials: "same-origin",
   })
 }
 
 export function replaceWithMemberRedirect(redirect) {
-  window.location.replace(getSafeMemberRedirect(redirect))
+  const target = getSafeMemberRedirect(redirect)
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (current === target) return
+  window.location.replace(target)
 }
