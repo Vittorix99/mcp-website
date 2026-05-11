@@ -45,6 +45,9 @@ class ParticipantCreateRequestDTO(ParticipantEventRequestDTO):
     price: Optional[float] = None
     payment_method: Optional[str] = Field(default=None, validation_alias=AliasChoices("payment_method", "paymentMethod"))
     purchase_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("purchase_id", "purchaseId"))
+    discount_code_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("discount_code_id", "discountCodeId"))
+    discount_code: Optional[str] = Field(default=None, validation_alias=AliasChoices("discount_code", "discountCode"))
+    price_original: Optional[float] = Field(default=None, validation_alias=AliasChoices("price_original", "priceOriginal"))
     riduzione: Optional[bool] = None
     gender: Optional[str] = None
     gender_probability: Optional[float] = Field(default=None, validation_alias=AliasChoices("gender_probability", "genderProbability"))
@@ -57,6 +60,8 @@ class ParticipantCreateRequestDTO(ParticipantEventRequestDTO):
         "membership_id",
         "payment_method",
         "purchase_id",
+        "discount_code_id",
+        "discount_code",
         "gender",
         mode="before",
     )
@@ -181,6 +186,9 @@ class ParticipantResponseDTO(ParticipantApiBaseDTO):
     price: Optional[float] = None
     payment_method: Optional[str] = None
     purchase_id: Optional[str] = None
+    discount_code_id: Optional[str] = Field(default=None, serialization_alias="discountCodeId")
+    discount_code: Optional[str] = Field(default=None, serialization_alias="discountCode")
+    price_original: Optional[float] = Field(default=None, serialization_alias="priceOriginal")
     riduzione: bool = False
     created_at: Optional[Any] = Field(default=None, serialization_alias="createdAt")
 

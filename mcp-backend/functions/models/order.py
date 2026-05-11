@@ -38,8 +38,11 @@ class EventOrder(Order):
         default=EventPurchaseAccessType.PUBLIC,
         metadata={"firestore_name": "purchaseMode", "enum": EventPurchaseAccessType},
     )
+    discount_code_id: Optional[str] = field(default=None, metadata={"firestore_name": "discountCodeId"})
+    discount_code: Optional[str] = field(default=None, metadata={"firestore_name": "discountCode"})
+    discount_amount: Optional[float] = field(default=None, metadata={"firestore_name": "discountAmount"})
+    original_price: Optional[float] = field(default=None, metadata={"firestore_name": "originalPrice"})
     membership_lookup: Dict[str, Dict[str, Any]] = field(
         default_factory=dict, metadata={"firestore_name": "membershipLookup"}
     )
     event_meta: Dict[str, Any] = field(default_factory=dict, metadata={"firestore_name": "eventMeta"})
-

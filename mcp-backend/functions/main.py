@@ -29,6 +29,7 @@ from api.public.contact_api import contact_us
 from api.public.newsletter_api import newsletter_signup
 from api.public.sender_webhook_api import sender_webhook
 from api.public.event_payment_api import create_order_event, capture_order_event
+from api.public.discount_code_public_api import validate_discount_code
 from api.public.events_api import get_event_by_id, get_next_event, get_all_events
 from api.public.events_tickets_api import check_participants
 from api.public.radio_public_api import (
@@ -61,6 +62,14 @@ from api.admin.events_api import (
     admin_delete_event,
     admin_get_all_events,
     admin_get_event_by_id
+)
+
+from api.admin.discount_code_api import (
+    admin_create_discount_code,
+    admin_list_discount_codes,
+    admin_get_discount_code,
+    admin_update_discount_code,
+    admin_disable_discount_code,
 )
 
 # === API Admin: Participants ===

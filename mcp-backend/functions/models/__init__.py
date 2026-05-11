@@ -2,8 +2,9 @@ from .base import FirestoreModel
 from .admin_user import AdminUser
 from .entrance_scan import EntranceScan
 from .contact_message import ContactMessage
-from .enums import EventPurchaseAccessType, EventStatus, PaymentMethod, PurchaseTypes
+from .enums import DiscountType, EventPurchaseAccessType, EventStatus, PaymentMethod, PurchaseTypes
 from .event import Event
+from .discount_code import DiscountCode
 from .event_participant import EventParticipant
 from .event_purchase import EventPurchase
 from .job import Job
@@ -22,6 +23,8 @@ __all__ = [
     "FirestoreModel",
     "AdminUser",
     "EntranceScan",
+    "DiscountCode",
+    "DiscountType",
     "EventPurchaseAccessType",
     "EventStatus",
     "PaymentMethod",

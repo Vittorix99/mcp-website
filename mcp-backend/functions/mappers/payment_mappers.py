@@ -22,6 +22,10 @@ def create_event_order_model(
     membership_fee: Optional[float],
     purchase_mode: EventPurchaseAccessType,
     membership_lookup: Dict[str, Dict[str, Any]],
+    discount_code_id: Optional[str] = None,
+    discount_code: Optional[str] = None,
+    discount_amount: Optional[float] = None,
+    original_price: Optional[float] = None,
 ) -> EventOrder:
     return EventOrder(
         order_id=order_id,
@@ -38,5 +42,9 @@ def create_event_order_model(
         membership_targets=checkout_participants_to_payload(membership_targets),
         membership_fee=membership_fee,
         purchase_mode=purchase_mode,
+        discount_code_id=discount_code_id,
+        discount_code=discount_code,
+        discount_amount=discount_amount,
+        original_price=original_price,
         membership_lookup=membership_lookup,
     )

@@ -31,6 +31,8 @@ export const routes = {
     dashboard: '/admin',
     events: '/admin/events',
     eventDetails: (id) => `/admin/events/${id}`,
+    eventDiscountCodes: (id) => `/admin/events/${id}/discount-codes`,
+    discountCodeDetails: (id) => `/admin/discount-codes/${id}`,
 
     memberships: '/admin/memberships',
     membershipDetails: (id) => `/admin/memberships/${id}`,

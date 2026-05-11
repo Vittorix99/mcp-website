@@ -79,6 +79,16 @@ class PreOrderCartItemDTO(PaymentApiBaseDTO):
         validation_alias=AliasChoices("eventMeta", "event_meta"),
         serialization_alias="eventMeta",
     )
+    discount_code: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("discountCode", "discount_code"),
+        serialization_alias="discountCode",
+    )
+
+    @field_validator("discount_code", mode="before")
+    @classmethod
+    def normalize_discount_code(cls, value):
+        return _blank_to_none(value)
 
     def to_payload(self) -> Dict[str, Any]:
         return self.model_dump(by_alias=True, exclude_none=True)

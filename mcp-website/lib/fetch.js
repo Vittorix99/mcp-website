@@ -40,13 +40,14 @@ export async function safeFetch(url, method = 'GET', body = null) {
   }
 
 }
-export async function safePublicFetch(url, method = 'GET', body = null) {
+export async function safePublicFetch(url, method = 'GET', body = null, fetchOptions = {}) {
   try {
     const headers = {}
 
     const options = {
       method,
       headers,
+      ...fetchOptions,
     }
 
     if (body !== null) {

@@ -36,5 +36,8 @@ class EventParticipant(FirestoreModel):
         metadata={"firestore_name": "payment_method", "enum": PaymentMethod},
     )
     purchase_id: Optional[str] = field(default=None, metadata={"firestore_name": "purchase_id"})
+    discount_code_id: Optional[str] = field(default=None, metadata={"firestore_name": "discountCodeId"})
+    discount_code: Optional[str] = field(default=None, metadata={"firestore_name": "discountCode"})
+    price_original: Optional[float] = field(default=None, metadata={"firestore_name": "priceOriginal"})
     riduzione: bool = field(default=False, metadata={"firestore_name": "riduzione"})
     created_at: Optional[Any] = field(default=None, metadata={"firestore_name": "createdAt"})

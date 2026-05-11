@@ -14,6 +14,12 @@ class EventPurchaseAccessType(str, Enum):
     ON_REQUEST = "ON_REQUEST"
 
 
+class DiscountType(str, Enum):
+    PERCENTAGE = "PERCENTAGE"
+    FIXED = "FIXED"
+    FIXED_PRICE = "FIXED_PRICE"
+
+
 
 class EventStatus(str, Enum):
     COMING_SOON = "coming_soon"
