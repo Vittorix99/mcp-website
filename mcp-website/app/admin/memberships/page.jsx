@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Loader2, Download, Eye, Ticket, Trash2, Edit, MoreVertical, Wallet, SlidersHorizontal, AlertTriangle } from "lucide-react"
 import { motion } from "framer-motion"
-import * as XLSX from "xlsx"
+import { downloadAsExcel } from "@/lib/excel"
 import {routes} from "@/config/routes"
 
 import { Button } from "@/components/ui/button"
@@ -142,7 +142,7 @@ export default function MembershipsPage() {
     window.localStorage.setItem(filtersKey, JSON.stringify(payload))
   }, [search, showOnlyNotSent, statusFilter, sortBy, selectedEventId, pageSize])
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     const filteredData = filtered.map((m) => ({
       Nome: m.name,
       Cognome: m.surname,
@@ -150,10 +150,9 @@ export default function MembershipsPage() {
       "Inviata tessera": m.membership_sent ? "Sì" : "No",
       "Valida fino a": m.end_date,
     }))
-    const ws = XLSX.utils.json_to_sheet(filteredData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Membri")
-    XLSX.writeFile(wb, `membri_${Date.now()}.xlsx`)
+    await downloadAsExcel(`membri_${Date.now()}.xlsx`, [
+      { name: "Membri", rows: filteredData },
+    ])
   }
 
   const exportEventExcel = async () => {
@@ -188,19 +187,16 @@ export default function MembershipsPage() {
         },
       ]
 
-      const wb = XLSX.utils.book_new()
-      const wsSummary = XLSX.utils.json_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(wb, wsSummary, "Riepilogo")
-      const wsReport = XLSX.utils.json_to_sheet(reportData)
-      XLSX.utils.book_append_sheet(wb, wsReport, "Associati")
-
       const rawTitle = eventOptionsMap[selectedEventId] || selectedEventId
       const safeTitle = rawTitle
         .toString()
         .replace(/\s+/g, "_")
         .replace(/[^a-zA-Z0-9_-]/g, "")
       const filename = `associati_evento_${safeTitle}.xlsx`
-      XLSX.writeFile(wb, filename)
+      await downloadAsExcel(filename, [
+        { name: "Riepilogo", rows: summaryData },
+        { name: "Associati", rows: reportData },
+      ])
     } catch (e) {
       console.error("exportEventExcel error", e)
       setError("Errore esportazione report evento.")
@@ -241,7 +237,7 @@ export default function MembershipsPage() {
     return closest
   }
 
-  const exportManualMembers = () => {
+  const exportManualMembers = async () => {
     const manualMembers = memberships.filter((m) => !m.purchase_id)
     if (!manualMembers.length) {
       setError("Nessun membro onorario da esportare.")
@@ -262,10 +258,9 @@ export default function MembershipsPage() {
       }
     })
 
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Membri onorari")
-    XLSX.writeFile(wb, "membri_onorari.xlsx")
+    await downloadAsExcel("membri_onorari.xlsx", [
+      { name: "Membri onorari", rows },
+    ])
   }
 
   const yearOptions = useMemo(() => {

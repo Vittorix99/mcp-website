@@ -677,12 +677,12 @@ export default function EventContent({ id: eventId }) {
   }
 
   // ✅ Nuova versione export
-  const exportToExcel = () => {
-    exportParticipantsToExcel(sorted, event?.title, eventId)
+  const exportToExcel = async () => {
+    await exportParticipantsToExcel(sorted, event?.title, eventId)
   }
 
-  const exportOmaggioToExcel = () => {
-    exportParticipantsToExcel(sortedOmaggi, event?.title ? `${event.title} - Omaggi` : "Omaggi", eventId)
+  const exportOmaggioToExcel = async () => {
+    await exportParticipantsToExcel(sortedOmaggi, event?.title ? `${event.title} - Omaggi` : "Omaggi", eventId)
   }
 
   const downloadTxt = (list, filename) => {

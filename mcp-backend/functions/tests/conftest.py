@@ -8,13 +8,24 @@ from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from services.core import auth_service
-
 _env_path = Path(__file__).resolve().parents[1] / ".env"
 _integration_env_path = Path(__file__).resolve().parents[1] / ".env.integration"
 load_dotenv(dotenv_path=_env_path, override=False)
 if _integration_env_path.exists():
     load_dotenv(dotenv_path=_integration_env_path, override=True)
+
+
+def _configure_firestore_emulator_host() -> None:
+    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+        return
+
+    port = int(os.environ.get("FIRESTORE_EMULATOR_PORT", "8080"))
+    os.environ["FIRESTORE_EMULATOR_HOST"] = f"127.0.0.1:{port}"
+
+
+_configure_firestore_emulator_host()
+
+from services.core import auth_service
 
 
 @pytest.fixture(autouse=True)

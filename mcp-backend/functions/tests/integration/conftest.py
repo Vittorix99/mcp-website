@@ -6,10 +6,6 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from api.admin import members_api, messages_api, purchases_api
-from services.communications.mail_service import get_mail_config
-from config.firebase_config import bucket as storage_bucket
-
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 _FUNCTIONS_DIR = Path(__file__).resolve().parents[2]
 _INTEGRATION_ENV = _FUNCTIONS_DIR / ".env.integration"
@@ -17,6 +13,22 @@ _INTEGRATION_ENV = _FUNCTIONS_DIR / ".env.integration"
 if _INTEGRATION_ENV.exists():
     # Keep explicit shell-provided values as precedence.
     load_dotenv(_INTEGRATION_ENV, override=False)
+
+
+def _configure_firestore_emulator_host() -> None:
+    """Auto-attach local integration tests to the Firestore emulator when it is running."""
+    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+        return
+
+    port = int(os.environ.get("FIRESTORE_EMULATOR_PORT", "8080"))
+    os.environ["FIRESTORE_EMULATOR_HOST"] = f"127.0.0.1:{port}"
+
+
+_configure_firestore_emulator_host()
+
+from api.admin import members_api, messages_api, purchases_api
+from services.communications.mail_service import get_mail_config
+from config.firebase_config import bucket as storage_bucket
 
 _PLACEHOLDER_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6Xb9oAAAAAASUVORK5CYII="

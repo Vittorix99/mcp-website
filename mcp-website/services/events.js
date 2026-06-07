@@ -2,7 +2,7 @@ import { safePublicFetch } from "@/lib/fetch"
 import { endpoints } from "@/config/endpoints"
 
 export async function getNextEvent() {
-  const res = await safePublicFetch(endpoints.getNextEvent, "GET", null, { cache: "no-store" })
+  const res = await safePublicFetch(endpoints.getNextEvent, "GET", null, { next: { revalidate: 60 } })
   if (!res.success) {
     return { success: false, error: res.error, events: [] }
   }

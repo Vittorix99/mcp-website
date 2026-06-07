@@ -68,6 +68,13 @@ class CheckoutParticipantDTO(PaymentApiBaseDTO):
 
 
 class PreOrderCartItemDTO(PaymentApiBaseDTO):
+    model_config = ConfigDict(
+        extra="ignore",
+        populate_by_name=True,
+        str_strip_whitespace=True,
+        use_enum_values=True,
+    )
+
     event_id: str = Field(
         min_length=1,
         validation_alias=AliasChoices("eventId", "event_id"),

@@ -1,25 +1,41 @@
-import * as XLSX from "xlsx";
+async function downloadAsExcel(filename, sheets) {
+  const { default: ExcelJS } = await import("exceljs")
+  const wb = new ExcelJS.Workbook()
 
-/**
- * Export participants to Excel with custom headers and total aggregation.
- * @param {Array} participants - Lista dei partecipanti.
- * @param {string} eventTitle - Titolo evento per il nome file.
- * @param {string} eventId - ID evento per il nome file.
- */
+  for (const { name, rows, headers } of sheets) {
+    const ws = wb.addWorksheet(name)
+    const firstRow = rows.find(r => Object.keys(r).length > 0)
+    const cols = headers || (firstRow ? Object.keys(firstRow) : [])
+    if (cols.length) {
+      ws.columns = cols.map(h => ({ header: h, key: h, width: 20 }))
+    }
+    ws.addRows(rows)
+  }
 
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
-export function exportParticipantsToExcel(participants, eventTitle, eventId) {
+export { downloadAsExcel }
+
+export async function exportParticipantsToExcel(participants, eventTitle, eventId) {
   const rows = participants.map(p => {
     const purchaseDate = p.createdAt
       ? new Date(p.createdAt).toLocaleDateString("it-IT")
-      : "";
+      : ""
 
     const genderCode = (() => {
-      const g = (p.gender || "").toLowerCase().trim();
-      return g === "male" ? "M"
-           : g === "female" ? "F"
-           : "N/A";
-    })();
+      const g = (p.gender || "").toLowerCase().trim()
+      return g === "male" ? "M" : g === "female" ? "F" : "N/A"
+    })()
 
     return {
       Nome: p.name || "",
@@ -31,30 +47,30 @@ export function exportParticipantsToExcel(participants, eventTitle, eventId) {
       Omaggio: Number(p.price) === 0 ? "Sì" : "No",
       "Membership ID": p.membershipId || "",
       "Data acquisto": purchaseDate,
-    };
-  });
+    }
+  })
 
   const total = participants
     .reduce((sum, p) => sum + (Number(p.price) || 0), 0)
-    .toFixed(2);
-  const omaggiCount = participants.filter(p => Number(p.price) === 0).length;
+    .toFixed(2)
+  const omaggiCount = participants.filter(p => Number(p.price) === 0).length
 
   rows.push(
     {},
-    { Nome: "Totale incassato (€)", Genere: "", "Prezzo pagato": total },
-    { Nome: "Totale omaggi", Genere: "", Omaggio: omaggiCount.toString() }
-  );
+    { Nome: "Totale incassato (€)", "Prezzo pagato": total },
+    { Nome: "Totale omaggi", Omaggio: omaggiCount.toString() }
+  )
 
-  const ws = XLSX.utils.json_to_sheet(rows, {
-    header: [
-      "Nome", "Cognome", "Email", "Telefono", "Genere",
-      "Prezzo pagato", "Omaggio", "Membership ID", "Data acquisto"
-    ]
-  });
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Partecipanti");
-  XLSX.writeFile(wb, `partecipanti_${slugify(eventTitle)}_${eventId}.xlsx`);
+  await downloadAsExcel(`partecipanti_${slugify(eventTitle)}_${eventId}.xlsx`, [
+    {
+      name: "Partecipanti",
+      rows,
+      headers: [
+        "Nome", "Cognome", "Email", "Telefono", "Genere",
+        "Prezzo pagato", "Omaggio", "Membership ID", "Data acquisto",
+      ],
+    },
+  ])
 }
 
 function slugify(text) {
@@ -62,7 +78,7 @@ function slugify(text) {
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '_')
-    .replace(/[^\w\-]+/g, '')
-    .replace(/\-\-+/g, '_');
+    .replace(/\s+/g, "_")
+    .replace(/[^\w\-]+/g, "")
+    .replace(/--+/g, "_")
 }
