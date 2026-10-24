@@ -2,6 +2,10 @@
 
 Documentazione first-party del progetto, centralizzata per evitare file sparsi nella codebase.
 
+## Process
+
+- [Development Methodology](./process/DEVELOPMENT_METHODOLOGY.md)
+
 ## Backend
 
 - [Backend Docs](./backend/BACKEND_DOCS.md)
