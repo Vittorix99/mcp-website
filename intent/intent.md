@@ -1,7 +1,8 @@
 # MCP-WEB-PROJECT Structural Refactoring Intent
 
-**Status:** proposed — awaiting human acceptance
+**Status:** accepted — Design authorized
 **Date:** 2026-10-24
+**Accepted:** 2026-10-24, explicit project-owner approval recorded in the working session
 
 ## Problem
 
@@ -50,6 +51,8 @@ Create an evidence-based, staged restructuring program that first makes the curr
 
 See `docs/architecture/CURRENT_STATE_ASSESSMENT_2026-10-24.md` and `docs/architecture/API_CONTRACT_INVENTORY_2026-10-24.md`.
 
-## Open decisions
+## Gate decision
 
-The product owner must accept or reject this intent and answer the prioritized questions in the current-state assessment before Design begins.
+The product owner accepted this intent and explicitly authorized WS1 Design on 2026-10-24. This approval authorizes design work only; implementation still requires an approved WS1 specification and implementation plan.
+
+The prioritized questions in the current-state assessment remain tracked as design inputs. Where an answer is not required to define a safe, non-destructive design, it may remain open until the relevant implementation or architecture gate.
