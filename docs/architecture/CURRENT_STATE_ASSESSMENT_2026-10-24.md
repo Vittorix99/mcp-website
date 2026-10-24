@@ -12,7 +12,7 @@
 - **[A] Unresolved assumption** — supplied context or a plausible condition that still needs evidence.
 - **[R] Recommendation** — proposed next action, not an approved decision.
 
-The repository was dirty when inspected. This assessment describes the working tree, including existing uncommitted changes. It does not attribute those changes to any person and does not treat the existing roadmap documents as approved architecture.
+The repository was dirty when inspected. This assessment describes the working tree as observed at audit time, including then-existing uncommitted changes. It does not attribute those changes to any person. Superseded uncommitted roadmap documents were removed during the subsequent pre-design cleanup and were never treated as approved architecture.
 
 ## 1. Executive conclusion
 
@@ -122,7 +122,7 @@ flowchart LR
 |---|---|---|---|
 | [V] | PayPal | Create/capture event orders. | Exact string `sandbox` selects sandbox; every other value selects production. Local integration env currently selects production. Capture is followed by non-atomic Firestore provisioning. |
 | [V] | MailerSend | Transactional email. | Configured globally at import; real integration tests exist and can use a live key. No default local fake adapter. |
-| [V] | Sender.net | Marketing contacts, groups, campaigns, transactional sends, webhook. | Broad API surface and sync side effects. Existing roadmap says “remove Sender,” but that is not part of the supplied requirements and remains an open product decision. |
+| [V] | Sender.net | Marketing contacts, groups, campaigns, transactional sends, webhook. | Broad API surface and sync side effects. A superseded roadmap said “remove Sender,” but that is not part of the supplied requirements and remains an open product decision. |
 | [V] | Pass2U | Membership wallet passes. | Live adapter is reachable from membership flows/triggers; local fake is not the default architecture. |
 | [V] | SoundCloud | Radio metadata/token. | OAuth token is cached in the general `settings` collection. |
 | [V] | Genderize.io | Participant gender enrichment in a Firestore trigger. | Trigger performs a network call; timeout/retry/consent semantics need explicit review. |
@@ -245,9 +245,9 @@ erDiagram
 
 ### Documentation and dead code
 
-- **[V]** `CLAUDE.md` describes Next.js 13 while the installed application is Next.js 15.5.19; the file is ignored and not versioned.
+- **[V]** At audit time, an ignored and unversioned `CLAUDE.md` described Next.js 13 while the installed application was Next.js 15.5.19. The obsolete file was removed during the subsequent pre-design cleanup.
 - **[V]** `ENTITIES.md` references a missing `migrate_locations.py` script.
-- **[V]** Existing untracked restructuring plans include an admin redesign, Google Drive/Sheets work, and a Cloudflare R2 direction. Those conflict with the present non-goals or pre-decide later choices and must not be treated as approved scope.
+- **[V]** At audit time, superseded untracked restructuring plans included an admin redesign, Google Drive/Sheets work, and a Cloudflare R2 direction. They conflicted with the present non-goals or pre-decided later choices, were never approved scope, and were removed during pre-design cleanup.
 - **[V]** Frontend pages of 1,000–1,800 lines and duplicate/legacy service modules indicate hidden coupling and high change cost.
 
 ## 8. Runtime checks and baseline limitations
