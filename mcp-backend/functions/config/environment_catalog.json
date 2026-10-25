@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "environments": {
+    "local": {
+      "project_id": "demo-mcp-local",
+      "storage_bucket": "demo-mcp-local.appspot.com",
+      "backend_url": "http://127.0.0.1:5001",
+      "allowed_origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+      "credential_mode": "emulator",
+      "emulators": {"firestore": "127.0.0.1:8080", "auth": "127.0.0.1:9099", "storage": "127.0.0.1:9199", "pubsub": "127.0.0.1:8085"},
+      "providers": {"paypal": "fake", "mail": "fake", "sender": "disabled", "pass2u": "fake", "gender": "fake", "soundcloud": "fake"}
+    },
+    "test": {
+      "project_id": "demo-mcp-test",
+      "storage_bucket": "demo-mcp-test.appspot.com",
+      "backend_url": "http://127.0.0.1:5001",
+      "allowed_origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+      "credential_mode": "emulator",
+      "emulators": {"firestore": "127.0.0.1:8080", "auth": "127.0.0.1:9099", "storage": "127.0.0.1:9199", "pubsub": "127.0.0.1:8085"},
+      "providers": {"paypal": "fake", "mail": "fake", "sender": "disabled", "pass2u": "fake", "gender": "fake", "soundcloud": "fake"}
+    },
+    "staging": {
+      "project_id": "mcp-website-dev-39539",
+      "storage_bucket": "mcp-website-dev-39539.appspot.com",
+      "backend_url": "https://us-central1-mcp-website-dev-39539.cloudfunctions.net",
+      "allowed_origins": ["https://mcp-website-dev-39539.web.app"],
+      "credential_mode": "adc",
+      "emulators": {},
+      "providers": {"paypal": "sandbox", "mail": "disabled", "sender": "disabled", "pass2u": "disabled", "gender": "fake", "soundcloud": "fake"}
+    },
+    "production": {
+      "project_id": "mcp-website-2a1ad",
+      "storage_bucket": "mcp-website-2a1ad.appspot.com",
+      "backend_url": "https://us-central1-mcp-website-2a1ad.cloudfunctions.net",
+      "allowed_origins": ["https://mcp-website-2a1ad.web.app"],
+      "credential_mode": "adc",
+      "emulators": {},
+      "providers": {"paypal": "live", "mail": "live", "sender": "disabled", "pass2u": "live", "gender": "disabled", "soundcloud": "live"}
+    }
+  }
+}
