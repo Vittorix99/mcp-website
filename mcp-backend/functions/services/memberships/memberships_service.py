@@ -43,7 +43,7 @@ from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
 from repositories.participant_repository import ParticipantRepository
 from repositories.purchase_repository import PurchaseRepository
-from services.memberships.pass2u_service import Pass2UService
+from services.memberships.pass2u_service import build_pass2u_service
 from services.memberships.renewal_command import RenewMembershipCommand
 from services.events.documents_service import DocumentsService
 from services.communications.mail_service import EmailMessage, MailService, mail_service
@@ -79,7 +79,7 @@ class MembershipsService:
         self.participant_repository = participant_repository or ParticipantRepository()
         self.event_repository = event_repository or EventRepository()
         self.documents_service = documents_service or DocumentsService()
-        self.pass2u_service = pass2u_service or Pass2UService()
+        self.pass2u_service = pass2u_service or build_pass2u_service()
         self.mail_service = mail_service_instance or mail_service
 
     @property

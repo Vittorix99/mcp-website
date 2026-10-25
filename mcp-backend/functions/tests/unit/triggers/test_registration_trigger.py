@@ -3,10 +3,15 @@ import types
 import pytest
 
 from triggers import registration_trigger
+from services.gender import gender_service as gender_module
+
+_GENDER_TEST_CONFIG = {"api_key": None}
 
 
 @pytest.fixture(autouse=True)
 def _stub_sender_side_effects(monkeypatch):
+    monkeypatch.setitem(_GENDER_TEST_CONFIG, "api_key", None)
+    monkeypatch.setattr(registration_trigger, "build_gender_lookup", lambda: gender_module.HttpGenderLookup(api_key=_GENDER_TEST_CONFIG["api_key"]))
     monkeypatch.setattr(registration_trigger, "sync_participant_to_sender", lambda *args, **kwargs: None)
     monkeypatch.setattr(registration_trigger, "sync_membership_to_sender", lambda *args, **kwargs: None)
     monkeypatch.setattr(registration_trigger, "log_external_error", lambda *args, **kwargs: None)
@@ -103,8 +108,8 @@ def test_on_participant_created_updates_gender_and_sends_ticket(monkeypatch):
         called["ticket"] = (pid, send)
         return {"success": True}
 
-    monkeypatch.setattr(registration_trigger, "GENDER_API_KEY", "test-key-123")
-    monkeypatch.setattr(registration_trigger.requests, "get", _fake_get)
+    monkeypatch.setitem(_GENDER_TEST_CONFIG, "api_key", "test-key-123")
+    monkeypatch.setattr(gender_module.requests, "get", _fake_get)
     monkeypatch.setattr(registration_trigger.ticket_service, "process_new_ticket", _fake_process)
     monkeypatch.setattr(
         registration_trigger.ticket_service,
@@ -147,7 +152,7 @@ def test_on_participant_created_newsletter_sync_and_skip_ticket(monkeypatch):
         _fake_process,
     )
     monkeypatch.setattr(
-        registration_trigger.requests,
+        gender_module.requests,
         "get",
         lambda *args, **kwargs: pytest.fail("Gender API should not be called for Andrea"),
     )
@@ -187,8 +192,8 @@ def test_gender_api_passes_apikey_when_configured(monkeypatch):
 
         return _Resp()
 
-    monkeypatch.setattr(registration_trigger, "GENDER_API_KEY", "test-gender-api-key")
-    monkeypatch.setattr(registration_trigger.requests, "get", _fake_get)
+    monkeypatch.setitem(_GENDER_TEST_CONFIG, "api_key", "test-gender-api-key")
+    monkeypatch.setattr(gender_module.requests, "get", _fake_get)
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
@@ -231,8 +236,8 @@ def test_gender_api_omits_apikey_when_not_configured(monkeypatch):
 
         return _Resp()
 
-    monkeypatch.setattr(registration_trigger, "GENDER_API_KEY", None)
-    monkeypatch.setattr(registration_trigger.requests, "get", _fake_get)
+    monkeypatch.setitem(_GENDER_TEST_CONFIG, "api_key", None)
+    monkeypatch.setattr(gender_module.requests, "get", _fake_get)
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
@@ -274,8 +279,8 @@ def test_participant_from_purchase_gets_gender_set(monkeypatch):
 
         return _Resp()
 
-    monkeypatch.setattr(registration_trigger, "GENDER_API_KEY", "test-gender-api-key")
-    monkeypatch.setattr(registration_trigger.requests, "get", _fake_get)
+    monkeypatch.setitem(_GENDER_TEST_CONFIG, "api_key", "test-gender-api-key")
+    monkeypatch.setattr(gender_module.requests, "get", _fake_get)
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
@@ -322,8 +327,8 @@ def test_participant_from_purchase_gender_api_failure_does_not_block_ticket(monk
     def _failing_get(url, params=None, **_kwargs):
         raise RuntimeError("genderize.io timeout")
 
-    monkeypatch.setattr(registration_trigger, "GENDER_API_KEY", "test-gender-api-key")
-    monkeypatch.setattr(registration_trigger.requests, "get", _failing_get)
+    monkeypatch.setitem(_GENDER_TEST_CONFIG, "api_key", "test-gender-api-key")
+    monkeypatch.setattr(gender_module.requests, "get", _failing_get)
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
@@ -373,7 +378,7 @@ def test_on_membership_created_generates_card_and_sends_email(monkeypatch):
                 wallet_url="https://www.pass2u.net/d/pass-1",
             )
 
-    monkeypatch.setattr(registration_trigger, "Pass2UService", _DummyPass2UService)
+    monkeypatch.setattr(registration_trigger, "build_pass2u_service", _DummyPass2UService)
     monkeypatch.setattr(registration_trigger.mail_service, "send", _fake_send)
 
     registration_trigger.on_membership_created.__wrapped__(event)
@@ -407,7 +412,7 @@ def test_on_membership_created_does_not_send_email_when_send_flag_false(monkeypa
             called["wallet"] = True
             return types.SimpleNamespace(pass_id="pass-2", wallet_url="https://www.pass2u.net/d/pass-2")
 
-    monkeypatch.setattr(registration_trigger, "Pass2UService", _DummyPass2UService)
+    monkeypatch.setattr(registration_trigger, "build_pass2u_service", _DummyPass2UService)
 
     monkeypatch.setattr(
         registration_trigger.mail_service,
@@ -439,7 +444,7 @@ def test_on_membership_created_accepts_string_send_flag(monkeypatch):
         def create_membership_pass(self, *_args, **_kwargs):
             return types.SimpleNamespace(pass_id="pass-3", wallet_url="https://www.pass2u.net/d/pass-3")
 
-    monkeypatch.setattr(registration_trigger, "Pass2UService", _DummyPass2UService)
+    monkeypatch.setattr(registration_trigger, "build_pass2u_service", _DummyPass2UService)
 
     called = {"email": False}
     monkeypatch.setattr(

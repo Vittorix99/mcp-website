@@ -13,7 +13,8 @@ from dto.radio.radio_episode_dto import (
 from errors.service_errors import ValidationError
 from mappers.radio import create_episode_dto_to_model, episode_to_response_dto
 from repositories.radio import RadioEpisodeRepository, RadioSeasonRepository
-from services.soundcloud import SoundCloudService
+from interfaces.services import SoundCloudServiceProtocol
+from services.soundcloud.soundcloud_service import build_soundcloud_service
 
 _MAX_VIDEO_URLS = 3
 
@@ -23,11 +24,11 @@ class RadioEpisodeService:
         self,
         episode_repository: Optional[RadioEpisodeRepository] = None,
         season_repository: Optional[RadioSeasonRepository] = None,
-        soundcloud_service: Optional[SoundCloudService] = None,
+        soundcloud_service: Optional[SoundCloudServiceProtocol] = None,
     ):
         self.episode_repository = episode_repository or RadioEpisodeRepository()
         self.season_repository = season_repository or RadioSeasonRepository()
-        self.soundcloud_service = soundcloud_service or SoundCloudService()
+        self.soundcloud_service = soundcloud_service or build_soundcloud_service()
 
     def _validate_video_urls(self, video_urls: List[str]) -> None:
         if len(video_urls) > _MAX_VIDEO_URLS:

@@ -4,9 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Protocol, Set, Tuple, Union
 
-import requests
-
-from config.external_services import GENDER_API_URL
+from services.gender.gender_service import build_gender_lookup
 from domain.membership_rules import membership_matches_year
 from interfaces.repositories import MembershipRepositoryProtocol, ParticipantRepositoryProtocol
 from models import Event, Membership
@@ -55,15 +53,11 @@ def _get_gender_cached(name: str):
     if key in _GENDER_CACHE:
         return _GENDER_CACHE[key]
     try:
-        resp = requests.get(GENDER_API_URL, params={"name": key}, timeout=5)
-        resp.raise_for_status()
-        data = resp.json() or {}
-        gender = data.get("gender") or "N/A"
-        prob = float(data.get("probability", 0.0) or 0.0)
+        gender, prob = build_gender_lookup().lookup(key)
         _GENDER_CACHE[key] = (gender, round(prob, 2))
         return _GENDER_CACHE[key]
-    except Exception as e:
-        logger.warning("Gender lookup failed for %s: %s", key, e)
+    except Exception:
+        logger.warning("Non-critical gender enrichment unavailable")
         _GENDER_CACHE[key] = ("N/A", 0.0)
         return _GENDER_CACHE[key]
 
