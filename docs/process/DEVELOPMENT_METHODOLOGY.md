@@ -6,6 +6,8 @@
 
 **Ultimo aggiornamento:** 24 ottobre 2026
 
+**Stato operativo Core WS1 (25 ottobre 2026):** suite unit offline completa verde, 667 test superati. La verifica finale e la review WS1 sono ancora in sospeso. Staging è in attesa e la produzione è rinviata; non è attivo alcun deploy. Il proprietario Vittorio Di Giorgio rinvia gli interventi sulle restrizioni della chiave Firebase.
+
 ## 1. Scopo
 
 Questa metodologia definisce come il progetto trasforma una richiesta in software verificato, revisionato, rilasciato e mantenuto.

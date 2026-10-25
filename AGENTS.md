@@ -36,6 +36,17 @@
   This explicit project choice takes precedence over skill defaults that
   recommend a different or more expensive reviewer model.
 
+## Owner-operated external checks
+
+- To reduce model usage, hand straightforward dashboard checks and account
+  administration to the owner instead of navigating external UIs by default.
+- Give concise instructions, the exact resource to inspect, and the non-secret
+  result needed. Never ask the owner to paste tokens, private keys, or secrets.
+- Continue independent code work while awaiting results when approval gates
+  allow it. Record owner-reported results as such, not independently verified.
+- Retain Sol for security analysis and Luna for bounded implementation. This
+  preference does not authorize credential revocation or other cloud mutations.
+
 ## Scope
 
 This is an agent workflow policy, not an application runtime router. Model

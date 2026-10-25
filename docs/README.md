@@ -7,6 +7,17 @@ Documentazione first-party del progetto, centralizzata per evitare file sparsi n
 - [Development Methodology](./process/DEVELOPMENT_METHODOLOGY.md)
 - [WS1 Environment and Provider Safety Design](./superpowers/specs/2026-10-24-ws1-environment-provider-safety-design.md)
 - [Core WS1 Implementation Plan](./superpowers/plans/2026-10-25-core-ws1-environment-provider-safety.md)
+- [GitHub Actions: guida operativa](./process/GITHUB_ACTIONS_GUIDE.md)
+- [Modello workflow staging inattivo](./operations/workflow-templates/staging.yml)
+- [Modello workflow production inattivo](./operations/workflow-templates/production.yml)
+
+## Operations
+
+Core WS1 è in corso: i controlli completi e la revisione finale restano aperti.
+
+- [Catalogo ambienti e risorse](./operations/ENVIRONMENT_RESOURCE_CATALOG.md)
+- [Transizione credenziali ADC/WIF](./operations/CREDENTIAL_TRANSITION.md)
+- [Segreti nella cronologia: decisione aperta](./operations/SECURITY_HISTORY_REMEDIATION.md)
 
 ## Backend
 
