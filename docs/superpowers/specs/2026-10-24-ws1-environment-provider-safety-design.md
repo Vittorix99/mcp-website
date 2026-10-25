@@ -2,11 +2,13 @@
 
 **Project:** MCP-WEB-PROJECT
 
-**Status:** proposed — awaiting Gate 2 approval
+**Status:** approved — implementation planning authorized
 
 **Created:** 2026-10-24
 
 **Last updated:** 2026-10-25
+
+**Approved:** 2026-10-25, explicit project-owner approval recorded in the working session
 
 **Parent intent:** `intent/intent.md`
 
@@ -501,4 +503,4 @@ An independent builder review was performed on 2026-10-25. Its material findings
 
 ## 22. Gate 2
 
-Approval of this document authorizes creation of the detailed WS1 implementation plan. It does not authorize code changes, credential revocation, Firebase deployment, staging-data cleanup, or production operations.
+The project owner approved this design on 2026-10-25. The decision authorizes creation of the detailed Core WS1 implementation plan. It does not authorize code changes, credential revocation, Firebase deployment, staging-data cleanup, or production operations.
