@@ -148,7 +148,7 @@ def _make_service():
     return service
 
 
-def test_paypal_client_is_lazy_when_credentials_are_missing(monkeypatch):
+def test_default_paypal_gateway_is_offline_without_credentials(monkeypatch):
     for key in (
         "PAYPAL_CLIENT_ID",
         "PAYPAL_CLIENT_SECRET",
@@ -160,8 +160,8 @@ def test_paypal_client_is_lazy_when_credentials_are_missing(monkeypatch):
     service = _make_service()
     service.orders_controller = None
 
-    with pytest.raises(ExternalServiceError, match="Missing PayPal credentials"):
-        service._get_orders_controller()
+    from services.payments.paypal_gateway import FakePayPalGateway
+    assert isinstance(service._get_paypal_gateway(), FakePayPalGateway)
 
 
 def _participant(name="Mario"):

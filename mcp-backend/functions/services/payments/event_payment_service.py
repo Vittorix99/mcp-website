@@ -6,10 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from google.cloud import firestore
 from paypalserversdk.api_helper import ApiHelper
-from paypalserversdk.configuration import Environment
 from paypalserversdk.controllers.orders_controller import OrdersController
 from paypalserversdk.exceptions.api_exception import ApiException
-from paypalserversdk.http.auth.o_auth_2 import ClientCredentialsAuthCredentials
 from paypalserversdk.models.amount_with_breakdown import AmountWithBreakdown
 from paypalserversdk.models.checkout_payment_intent import CheckoutPaymentIntent
 from paypalserversdk.models.order_request import OrderRequest
@@ -60,6 +58,7 @@ from repositories.purchase_repository import PurchaseRepository
 from services.core.error_logs_service import log_external_error
 from services.memberships.renewal_command import RenewMembershipCommand
 from services.payments.discount_code_service import DiscountCodeService
+from services.payments.paypal_gateway import PayPalGateway, SdkPayPalGateway, build_paypal_gateway
 from utils.events_utils import calculate_end_of_year, ensure_event_is_active, normalize_email, normalize_phone
 from utils.safe_logging import redact_sensitive
 
@@ -88,8 +87,10 @@ class EventPaymentService:
         paypal_client: Optional[PaypalServersdkClient] = None,
         discount_code_repository: Optional[DiscountCodeRepository] = None,
         discount_code_service: Optional[DiscountCodeService] = None,
+        paypal_gateway: Optional[PayPalGateway] = None,
     ):
         self.paypal_client = paypal_client
+        self.paypal_gateway = paypal_gateway
         self.orders_controller: Optional[OrdersController] = paypal_client.orders if paypal_client else None
         self.debug = os.getenv("EVENT_PAYMENT_DEBUG", "true").lower() in {"1", "true", "yes"}
         self.event_repository = event_repository or EventRepository()
@@ -115,26 +116,15 @@ class EventPaymentService:
             )
         self.memberships_service = memberships_service
 
-    def _build_paypal_client(self) -> PaypalServersdkClient:
-        is_sandbox = os.getenv("PAYPAL_ENV") == "sandbox"
-        client_id = os.getenv("PAYPAL_CLIENT_ID") if is_sandbox else os.getenv("PAYPAL_LIVE_CLIENT_ID")
-        client_secret = os.getenv("PAYPAL_CLIENT_SECRET") if is_sandbox else os.getenv("PAYPAL_LIVE_CLIENT_SECRET")
-        if not client_id or not client_secret:
-            raise ExternalServiceError("Missing PayPal credentials")
-
-        return PaypalServersdkClient(
-            client_credentials_auth_credentials=ClientCredentialsAuthCredentials(
-                o_auth_client_id=client_id,
-                o_auth_client_secret=client_secret,
-            ),
-            environment=Environment.SANDBOX if is_sandbox else Environment.PRODUCTION,
-        )
-
-    def _get_orders_controller(self) -> OrdersController:
-        if self.orders_controller is None:
-            self.paypal_client = self.paypal_client or self._build_paypal_client()
-            self.orders_controller = self.paypal_client.orders
-        return self.orders_controller
+    def _get_paypal_gateway(self) -> PayPalGateway:
+        gateway = getattr(self, "paypal_gateway", None)
+        if gateway is None:
+            controller = getattr(self, "orders_controller", None)
+            # Temporary compatibility seam for existing explicitly injected SDK
+            # doubles. Normal construction always uses validated runtime policy.
+            gateway = SdkPayPalGateway(orders_controller=controller) if controller is not None else build_paypal_gateway()
+            self.paypal_gateway = gateway
+        return gateway
 
     def _get_membership_fee(self, year: Optional[int] = None) -> Optional[float]:
         target_year = str(year or datetime.now(timezone.utc).year)
@@ -271,7 +261,7 @@ class EventPaymentService:
             ],
         )
         try:
-            order = self._get_orders_controller().orders_create({"body": order_request})
+            order = self._get_paypal_gateway().create_order(order_request)
         except ApiException as exc:
             status = getattr(exc, "response_code", None)
             log_external_error(
@@ -293,12 +283,12 @@ class EventPaymentService:
                 source="services.payments.event_payment_service.create_order_event",
                 message="Failed to create PayPal order",
                 status_code=order.status_code,
-                payload=str(order.body),
+                payload=str(order.payload),
                 context={"event_id": event_id},
             )
             raise ExternalServiceError("Failed to create PayPal order")
 
-        body = json.loads(ApiHelper.json_serialize(order.body))
+        body = order.payload
         order_info = PayPalOrderCreateResponse.from_payload(body)
         if not order_info.order_id:
             raise ExternalServiceError("Missing PayPal order id")
@@ -526,13 +516,7 @@ class EventPaymentService:
 
     def capture_paypal_order(self, order_id):
         try:
-            order = self._get_orders_controller().orders_capture(
-                {
-                    "id": order_id,
-                    "prefer": "return=representation",
-                    "paypal_request_id": f"mcp-capture-{order_id}",
-                }
-            )
+            order = self._get_paypal_gateway().capture_order(order_id)
         except ApiException as exc:
             status = getattr(exc, "response_code", None)
             log_external_error(
@@ -554,14 +538,13 @@ class EventPaymentService:
                 source="services.payments.event_payment_service.capture_paypal_order",
                 message=f"Failed to capture order (status: {order.status_code})",
                 status_code=order.status_code,
-                payload=str(order.body),
+                payload=str(order.payload),
                 context={"order_id": order_id},
             )
             raise ExternalServiceError(
                 f"Failed to capture order (status: {order.status_code})"
             )
-        result = json.loads(ApiHelper.json_serialize(order.body))
-        return result
+        return order.payload
 
     def validate_capture_payload(self, order_info: PayPalOrderInfo) -> None:
         if order_info.status != "COMPLETED":
