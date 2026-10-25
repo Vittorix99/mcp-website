@@ -20,7 +20,8 @@ from config.runtime_settings import (
     ("production", "mcp-website-2a1ad", CredentialMode.ADC),
 ])
 def test_valid_environment_selects_its_resources(environment, project, credential):
-    settings = load_runtime_settings({"MCP_ENV": environment})
+    from tests.config_fixtures import cloud_environment
+    settings = load_runtime_settings(cloud_environment(environment) if environment in {"staging", "production"} else {"MCP_ENV": environment})
     assert settings.firebase.project_id == project
     assert settings.firebase.credential_mode == credential
 

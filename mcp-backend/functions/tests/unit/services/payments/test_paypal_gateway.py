@@ -8,6 +8,7 @@ from paypalserversdk.models.purchase_unit_request import PurchaseUnitRequest
 
 from config.runtime_settings import RuntimeConfigurationError, load_runtime_settings
 from services.payments.paypal_gateway import FakePayPalGateway, build_paypal_gateway
+from tests.config_fixtures import cloud_environment
 
 
 def _request():
@@ -40,7 +41,8 @@ def test_fake_capture_of_unknown_order_cannot_look_successful():
 
 @pytest.mark.parametrize("environment", ["staging", "production"])
 def test_cloud_gateway_requires_credentials_without_echoing_values(environment):
-    settings = load_runtime_settings({"MCP_ENV": environment, "PAYPAL_CLIENT_ID": "SENTINEL_ID"})
+    settings = load_runtime_settings({**cloud_environment(environment), "PAYPAL_CLIENT_ID": "SENTINEL_ID"})
+    settings = settings.model_copy(update={"providers": settings.providers.model_copy(update={"paypal_client_secret": None})})
     with pytest.raises(RuntimeConfigurationError) as error:
         build_paypal_gateway(settings)
     assert "SENTINEL_ID" not in str(error.value)
@@ -55,7 +57,7 @@ def test_sdk_environment_is_selected_only_from_validated_mode(environment, want,
             configured.append(kwargs)
             self.orders = object()
     monkeypatch.setattr(module, "PaypalServersdkClient", Client)
-    settings = load_runtime_settings({"MCP_ENV": environment,
+    settings = load_runtime_settings({**cloud_environment(environment),
         "PAYPAL_CLIENT_ID": "SENTINEL_ID", "PAYPAL_CLIENT_SECRET": "SENTINEL_SECRET"})
     build_paypal_gateway(settings)
     expected = module.Environment.SANDBOX if environment == "staging" else module.Environment.PRODUCTION

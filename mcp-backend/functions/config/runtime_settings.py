@@ -241,6 +241,20 @@ def load_runtime_settings(environ: Mapping[str, str] | None = None) -> RuntimeSe
         for field, key in (("paypal_client_id", "PAYPAL_LIVE_CLIENT_ID"), ("paypal_client_secret", "PAYPAL_LIVE_CLIENT_SECRET")):
             if env.get(key):
                 secrets[field] = SecretStr(env[key])
+    required = {
+        "paypal": ("paypal_client_id", "paypal_client_secret"),
+        "mail": ("mail_api_key",),
+        "pass2u": ("pass2u_api_key",),
+        "soundcloud": ("soundcloud_client_id", "soundcloud_client_secret"),
+    }
+    for provider, fields in required.items():
+        if modes[provider] in {ProviderMode.SANDBOX, ProviderMode.STAGING, ProviderMode.LIVE}:
+            for field in fields:
+                value = secrets[field]
+                if value is None or not value.get_secret_value().strip():
+                    _reject(secret_names[field])
+    if modes["mail"] in {ProviderMode.STAGING, ProviderMode.LIVE} and not env.get("MAILERSEND_FROM_EMAIL", "").strip():
+        _reject("MAILERSEND_FROM_EMAIL")
     try:
         return RuntimeSettings(
             environment=environment,

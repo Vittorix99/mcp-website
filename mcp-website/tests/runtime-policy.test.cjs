@@ -5,8 +5,47 @@ const { validatePublicRuntime, findForbiddenPublicKeys } = require('../config/ru
 
 test('all four environments select their own resources', () => {
   for (const environment of ['local', 'test', 'staging', 'production']) {
-    const config = validatePublicRuntime({ NEXT_PUBLIC_ENV: environment }, catalog)
+    const config = validatePublicRuntime({ NEXT_PUBLIC_ENV: environment,
+      NEXT_PUBLIC_PAYPAL_CLIENT_ID:'fake-sandbox-public-client',
+      NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID:'fake-live-public-client' }, catalog)
     assert.equal(config.firebase.projectId, catalog.environments[environment].project_id)
+  }
+})
+
+test('cloud PayPal requires the selected client ID and never accepts sandbox demo IDs', () => {
+  for (const env of [
+    {NEXT_PUBLIC_ENV:'production',NEXT_PUBLIC_PAYPAL_CLIENT_ID:'sb'},
+    {NEXT_PUBLIC_ENV:'production',NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID:'sb'},
+    {NEXT_PUBLIC_ENV:'production',NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID:'   '},
+    {NEXT_PUBLIC_ENV:'staging',NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID:'fake-live-client'},
+    {NEXT_PUBLIC_ENV:'test',NEXT_PUBLIC_PAYPAL_ENV:'sandbox'},
+  ]) assert.throws(() => validatePublicRuntime(env,catalog))
+})
+
+test('canonical PayPal mode and selected public client ID reach browser config', async () => {
+  const {publicRuntimeEnvironment} = require('../config/runtime-policy.cjs')
+  const {readFileSync} = require('node:fs')
+  const source = readFileSync(require.resolve('../config/paypal.js'),'utf8')
+  for (const [environment,mode,clientId] of [
+    ['production','production','fake-live-client'],
+    ['staging','sandbox','fake-sandbox-client'],
+    ['test','fake',null],
+  ]) {
+    const config = validatePublicRuntime({NEXT_PUBLIC_ENV:environment,
+      NEXT_PUBLIC_PAYPAL_CLIENT_ID:'fake-sandbox-client',NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID:'fake-live-client'},catalog)
+    assert.equal(config.paypal.mode,mode)
+    const selected = publicRuntimeEnvironment(config)
+    const saved = {...process.env}
+    try {
+      for (const key of Object.keys(process.env)) if (key.startsWith('NEXT_PUBLIC_')) delete process.env[key]
+      Object.assign(process.env,selected)
+      const mod = await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64')+'#'+environment)
+      assert.equal(mod.isFakePayment,mode === 'fake')
+      assert.equal(mod.initialOptions?.['client-id'] ?? null,clientId)
+    } finally {
+      for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key]
+      Object.assign(process.env,saved)
+    }
   }
 })
 

@@ -1,10 +1,16 @@
-const isProd = process.env.NEXT_PUBLIC_PAYPAL_ENV === "production"
+const mode = process.env.NEXT_PUBLIC_PAYPAL_ENV
+const environment = process.env.NEXT_PUBLIC_ENV
+export const isFakePayment = mode === "fake"
+const offline = environment === "local" || environment === "test"
+const expectedMode = offline ? "fake" : environment === "staging" ? "sandbox" : environment === "production" ? "production" : null
+if (!expectedMode || mode !== expectedMode) throw new Error("Invalid PayPal browser mode")
+const isProd = mode === "production"
+const clientId = isProd ? process.env.NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID
+if (!offline && (!clientId?.trim() || clientId.trim() === "sb")) throw new Error("Missing or invalid PayPal browser client ID")
 
 // Base SDK options: solo pulsanti PayPal + Apple Pay
 const options = {
-  "client-id": isProd
-    ? process.env.NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID
-    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID,
+  "client-id": clientId,
 
   currency: "EUR",
   intent: "capture",
@@ -43,4 +49,4 @@ if (isProd && process.env.NEXT_PUBLIC_PAYPAL_MERCHANT_ID) {
   options["merchant-id"] = process.env.NEXT_PUBLIC_PAYPAL_MERCHANT_ID
 }
 
-export const initialOptions = options
+export const initialOptions = isFakePayment ? null : options

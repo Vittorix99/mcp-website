@@ -47,6 +47,7 @@ def test_cloud_startup_uses_application_default_credentials(firebase_module, mon
     monkeypatch.setattr(firebase_module.credentials, "ApplicationDefault", lambda: credential)
     for key in ("FIRESTORE_EMULATOR_HOST", "FIREBASE_AUTH_EMULATOR_HOST", "STORAGE_EMULATOR_HOST", "PUBSUB_EMULATOR_HOST"):
         monkeypatch.delenv(key, raising=False)
-    db, bucket = firebase_module.initialize_firebase(load_runtime_settings({"MCP_ENV": "staging"}))
+    from tests.config_fixtures import cloud_environment
+    db, bucket = firebase_module.initialize_firebase(load_runtime_settings(cloud_environment("staging")))
     assert db == ("db", "mcp-website-dev-39539")
     assert calls[0][0] is credential

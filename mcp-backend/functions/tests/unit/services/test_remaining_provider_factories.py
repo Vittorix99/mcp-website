@@ -1,6 +1,7 @@
 import pytest
 
 from config.runtime_settings import load_runtime_settings
+from tests.config_fixtures import cloud_environment
 from errors.service_errors import SoundCloudTrackNotFoundError
 
 
@@ -14,7 +15,7 @@ def test_gender_fixture_is_deterministic_and_never_uses_http():
 
 def test_disabled_gender_does_not_infer_personal_attributes():
     from services.gender.gender_service import build_gender_lookup
-    provider = build_gender_lookup(load_runtime_settings({"MCP_ENV": "production", "GENDER_MODE": "disabled"}))
+    provider = build_gender_lookup(load_runtime_settings({**cloud_environment("production"), "GENDER_MODE": "disabled"}))
     assert provider.lookup("Giulia") == ("N/A", 0.0)
 
 

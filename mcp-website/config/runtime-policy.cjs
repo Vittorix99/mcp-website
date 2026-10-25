@@ -50,13 +50,15 @@ function validatePublicRuntime(environ, catalog) {
     if (offline) emulators[name] = host(value,key)
     else if (value) fail(key)
   }
-  const paypalMode = environ.NEXT_PUBLIC_PAYPAL_ENV
-  if (paypalMode && (offline ? !['fake','sandbox'].includes(paypalMode) :
-      environment === 'staging' ? paypalMode !== 'sandbox' : paypalMode !== 'production')) fail('NEXT_PUBLIC_PAYPAL_ENV')
+  const paypalMode = offline ? 'fake' : environment === 'staging' ? 'sandbox' : 'production'
+  if (environ.NEXT_PUBLIC_PAYPAL_ENV !== undefined && environ.NEXT_PUBLIC_PAYPAL_ENV !== paypalMode) fail('NEXT_PUBLIC_PAYPAL_ENV')
+  const paypalClientKey = environment === 'production' ? 'NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID' : 'NEXT_PUBLIC_PAYPAL_CLIENT_ID'
+  const paypalClientId = offline ? '' : (environ[paypalClientKey] || '').trim()
+  if (!offline && (!paypalClientId || paypalClientId === 'sb')) fail(paypalClientKey)
   const authDomain = environ.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || `${selected.project_id}.firebaseapp.com`
   if (authDomain !== `${selected.project_id}.firebaseapp.com`) fail('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN')
   return {
-    environment, backendUrl, emulators,
+    environment, backendUrl, emulators, paypal: {mode:paypalMode, clientId:paypalClientId},
     firebase: {
       projectId: selected.project_id, storageBucket: selected.storage_bucket, authDomain,
       apiKey: environ.NEXT_PUBLIC_FIREBASE_API_KEY || (offline ? 'demo-api-key' : ''),
@@ -70,6 +72,9 @@ function validatePublicRuntime(environ, catalog) {
 function publicRuntimeEnvironment(config) {
   return {
     NEXT_PUBLIC_ENV: config.environment,
+    NEXT_PUBLIC_PAYPAL_ENV: config.paypal.mode,
+    NEXT_PUBLIC_PAYPAL_CLIENT_ID: config.paypal.mode === 'sandbox' ? config.paypal.clientId : '',
+    NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID: config.paypal.mode === 'production' ? config.paypal.clientId : '',
     NEXT_PUBLIC_BASE_URL: config.backendUrl,
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: config.firebase.projectId,
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: config.firebase.storageBucket,
