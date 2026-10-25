@@ -92,6 +92,7 @@ and credential revocation retain their separate gates.
 - Modify: `.gitignore`
 - Create: `scripts/bootstrap-dev.sh`
 - Create: `scripts/tests/test_toolchain_contract.py`
+- Create: `mcp-website/.eslintrc.json`
 - Modify: `mcp-website/package.json:5-14`
 - Modify: `mcp-website/package-lock.json`
 
@@ -99,21 +100,21 @@ and credential revocation retain their separate gates.
 - Consumes: the approved Node.js 20 and Python 3.11 design constraints.
 - Produces: `.venv/bin/python`, locked Python requirements, local `firebase` CLI through the frontend package, and stable `test:config`, `lint`, and build script names used by later tasks/CI.
 
-- [ ] **Step 1: Write the failing toolchain contract test**
+- [x] **Step 1: Write the failing toolchain contract test**
 
 Create a stdlib `unittest` module with tests named `test_python_version_is_311`, `test_node_version_is_20`, `test_requirements_are_generated_from_inputs`, and `test_bootstrap_does_not_reference_service_account_files`. Assert exact version-file contents and that bootstrap uses `.venv` plus lock files; this test must run before project dependencies exist.
 
-- [ ] **Step 2: Run the test and confirm the contract is absent**
+- [x] **Step 2: Run the test and confirm the contract is absent**
 
 Run: `python3 scripts/tests/test_toolchain_contract.py`
 
 Expected: FAIL because `.python-version`, `.nvmrc`, input files, and bootstrap script do not exist.
 
-- [ ] **Step 3: Add version files and dependency inputs**
+- [x] **Step 3: Add version files and dependency inputs**
 
 Set `.python-version` to `3.11` and `.nvmrc` to `20`. Move current direct Python requirements into `requirements.in`; add `-r requirements.in`, `pytest==8.3.2`, and `pip-tools>=7.4,<8` to `requirements-dev.in`.
 
-- [ ] **Step 4: Compile reproducible Python lock files**
+- [x] **Step 4: Compile reproducible Python lock files**
 
 Create a temporary Python 3.11 virtualenv, install the bounded `pip-tools`, and run:
 
@@ -124,15 +125,23 @@ python -m piptools compile --generate-hashes --output-file requirements-dev.txt 
 
 Expected: both output files contain exact transitive versions and hashes.
 
-- [ ] **Step 5: Add the clean-machine bootstrap**
+- [x] **Step 5: Add the clean-machine bootstrap**
 
 Create `scripts/bootstrap-dev.sh` to verify Python 3.11 and Node 20, create `.venv`, install `requirements-dev.txt` with hashes, run `npm ci` in `mcp-website`, and never read service-account JSON. Add `.venv/` to `.gitignore`.
 
-- [ ] **Step 6: Make frontend scripts deterministic**
+- [x] **Step 6: Make frontend scripts deterministic**
 
 In `package.json`, add `firebase-tools` version `14.26.0` as an exact dev dependency, add `test:config` using `node --test tests/runtime-policy.test.cjs`, and replace interactive `next lint` with `eslint .`. Keep `build:next` as the raw `next build` command; Task 7 will define safe wrapper scripts.
 
-- [ ] **Step 7: Verify the toolchain contract**
+Execution clarification: add `.eslintrc.json` using the existing Next ESLint
+preset. Pin the Firebase CLI's `cloud-sql-connector` to `1.10.0` and
+`universal-analytics` to `0.5.3`; unconstrained newer transitive releases
+require Node 22. Compile locks with `--allow-unsafe` so tooling dependencies
+including pip/setuptools are also pinned and hashed. Bootstrap behavioral
+tests run against controlled executable fixtures rather than source-text
+assertions. These changes preserve the approved runtime and tool contracts.
+
+- [x] **Step 7: Verify the toolchain contract**
 
 Run:
 
