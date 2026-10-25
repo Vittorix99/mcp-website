@@ -81,6 +81,12 @@ def test_provider_key_does_not_enable_provider():
     assert settings.providers.sender == ProviderMode.DISABLED
 
 
+@pytest.mark.parametrize("environment", ["local", "test", "staging", "production"])
+def test_suspended_sender_cannot_be_reactivated_by_environment(environment):
+    with pytest.raises(RuntimeConfigurationError, match="SENDER_MODE"):
+        load_runtime_settings({"MCP_ENV": environment, "SENDER_MODE": "live", "SENDER_API_KEY": "sentinel"})
+
+
 @pytest.mark.parametrize("key", ["FIRESTORE_EMULATOR_HOST", "FIREBASE_AUTH_EMULATOR_HOST", "STORAGE_EMULATOR_HOST", "PUBSUB_EMULATOR_HOST"])
 def test_explicit_missing_emulator_host_is_rejected(key):
     with pytest.raises(RuntimeConfigurationError):

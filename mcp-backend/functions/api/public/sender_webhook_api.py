@@ -4,7 +4,8 @@ import logging
 from flask import jsonify
 
 from api.decorators import public_endpoint
-from config.external_services import SENDER_ENABLED, SENDER_WEBHOOK_SECRET
+from config.external_services import SENDER_WEBHOOK_SECRET
+from services.sender.sender_sync import sender_is_enabled
 from repositories.newsletter_repository import NewsletterRepository
 from utils.safe_logging import mask_email, redact_sensitive
 
@@ -23,7 +24,7 @@ def sender_webhook(req):
     Receives webhook events from Sender (sender.net).
     Always returns 200 so Sender does not retry indefinitely.
     """
-    if not SENDER_ENABLED:
+    if not sender_is_enabled():
         logger.info("[SenderWebhook] Sender disabled, ignoring webhook")
         return jsonify({"received": True, "ignored": "sender_disabled"}), 200
 

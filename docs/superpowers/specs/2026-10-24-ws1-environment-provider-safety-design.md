@@ -504,3 +504,13 @@ An independent builder review was performed on 2026-10-25. Its material findings
 ## 22. Gate 2
 
 The project owner approved this design on 2026-10-25. The decision authorizes creation of the detailed Core WS1 implementation plan. It does not authorize code changes, credential revocation, Firebase deployment, staging-data cleanup, or production operations.
+
+## 23. Approved execution clarification — Sender suspended
+
+During Core WS1 execution on 2026-10-25 the owner confirmed Sender is unpaid
+and disconnected until a future business need. Sender is therefore disabled
+in every environment, including production. Runtime overrides requesting an
+active Sender mode are rejected; API keys and the legacy SENDER_ENABLED flag
+cannot activate it. The adapter is retained with explicit injected test routes
+for offline regression coverage. Future reactivation requires a separate
+owner-approved change, provider ownership and account configuration.

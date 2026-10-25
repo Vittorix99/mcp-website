@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from api.public import sender_webhook_api
+from clients.sender_client import SenderRoutes
 from services.sender.sender_service import SenderService
 from tests.utils import DummyRequest, unwrap_response
 
@@ -23,7 +24,7 @@ class TestCreateCampaignIntegration:
     @patch("clients.sender_client.requests.request")
     def test_full_create_flow(self, mock_request):
         mock_request.return_value = _response(201, {"data": {"id": "camp-1"}})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         result = svc.create_campaign(
             title="Camp",
@@ -56,7 +57,7 @@ class TestSendCampaignIntegration:
     @patch("clients.sender_client.requests.request")
     def test_send_success_200(self, mock_request):
         mock_request.return_value = _response(200, {"sent": True})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok, err = svc.send_campaign("camp-1")
 
@@ -67,7 +68,7 @@ class TestSendCampaignIntegration:
     def test_send_unsubscribe_error(self, mock_request):
         payload = {"error": [{"title": "Unsubscribe link", "details": "Insert <a href=..."}]}
         mock_request.return_value = _response(422, payload)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok, err = svc.send_campaign("camp-1")
 
@@ -78,7 +79,7 @@ class TestSendCampaignIntegration:
     def test_send_dmarc_error(self, mock_request):
         payload = {"error": [{"title": "DMARC record", "details": "domain not set up"}]}
         mock_request.return_value = _response(422, payload)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok, err = svc.send_campaign("camp-1")
 
@@ -94,7 +95,7 @@ class TestSendCampaignIntegration:
             ]
         }
         mock_request.return_value = _response(422, payload)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok, err = svc.send_campaign("camp-1")
 
@@ -108,7 +109,7 @@ class TestScheduleCampaignIntegration:
     @patch("clients.sender_client.requests.request")
     def test_schedule_iso_to_sender_format(self, mock_request):
         mock_request.return_value = _response(200, {"scheduled": True})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok, err = svc.schedule_campaign("camp-1", "2025-12-01T18:30:00Z")
 
@@ -120,7 +121,7 @@ class TestScheduleCampaignIntegration:
     @patch("clients.sender_client.requests.request")
     def test_schedule_failure_422(self, mock_request):
         mock_request.return_value = _response(422, {"error": [{"title": "Invalid time", "details": "past"}]})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok, err = svc.schedule_campaign("camp-1", "2025-12-01T18:30:00Z")
 
@@ -134,7 +135,7 @@ class TestUpsertSubscriberIntegration:
     @patch("clients.sender_client.requests.request")
     def test_upsert_new_subscriber(self, mock_request):
         mock_request.return_value = _response(200, {"data": {"id": "sub-1"}})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         result = svc.upsert_subscriber("x@test.com", groups=["g1"])
 
@@ -143,7 +144,7 @@ class TestUpsertSubscriberIntegration:
     @patch("clients.sender_client.requests.request")
     def test_upsert_existing_subscriber_200(self, mock_request):
         mock_request.return_value = _response(200, {"data": {"id": "sub-1", "updated": True}})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         result = svc.upsert_subscriber("x@test.com")
 
@@ -152,7 +153,7 @@ class TestUpsertSubscriberIntegration:
     @patch("clients.sender_client.requests.request")
     def test_add_to_group(self, mock_request):
         mock_request.return_value = _response(200, {"ok": True})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok = svc.add_to_group("x@test.com", "g1")
 
@@ -161,7 +162,7 @@ class TestUpsertSubscriberIntegration:
     @patch("clients.sender_client.requests.request")
     def test_remove_from_group(self, mock_request):
         mock_request.return_value = _response(200, {"ok": True})
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=SenderRoutes)
 
         ok = svc.remove_from_group("x@test.com", "g1")
 
@@ -187,7 +188,7 @@ class TestWebhookIntegration:
 
         monkeypatch.setattr(newsletter_repo_module, "db", fake_db)
         monkeypatch.setattr(sender_webhook_api, "SENDER_WEBHOOK_SECRET", None)
-        monkeypatch.setattr(sender_webhook_api, "SENDER_ENABLED", True)
+        monkeypatch.setattr(sender_webhook_api, "sender_is_enabled", lambda: True)
 
         req = DummyRequest(
             method="POST",

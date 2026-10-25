@@ -10,7 +10,7 @@ from tests.utils import DummyRequest, unwrap_response
 def _disable_webhook_secret_by_default(monkeypatch):
     # Keep tests deterministic even if .env config sets SENDER_WEBHOOK_SECRET.
     monkeypatch.setattr(sender_webhook_api, "SENDER_WEBHOOK_SECRET", None)
-    monkeypatch.setattr(sender_webhook_api, "SENDER_ENABLED", True)
+    monkeypatch.setattr(sender_webhook_api, "sender_is_enabled", lambda: True)
 
 
 class TestSenderWebhook:
@@ -23,7 +23,7 @@ class TestSenderWebhook:
 
     @patch("api.public.sender_webhook_api.NewsletterRepository")
     def test_disabled_sender_ignores_webhook(self, MockRepo, monkeypatch):
-        monkeypatch.setattr(sender_webhook_api, "SENDER_ENABLED", False)
+        monkeypatch.setattr(sender_webhook_api, "sender_is_enabled", lambda: False)
         req = DummyRequest(
             method="POST",
             json={"event": "subscriber.unsubscribed", "data": {"email": "x@test.com"}},

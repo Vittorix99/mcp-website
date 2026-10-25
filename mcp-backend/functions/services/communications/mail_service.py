@@ -4,6 +4,9 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Tuple
+from copy import deepcopy
+
+from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_runtime_settings
 
 from clients.mailersend_client import (
     MailerSendClient,
@@ -103,9 +106,22 @@ class MailService(ABC):
 
 
 class MailerSendMailService(MailService):
+    def __init__(self, config: Optional[MailConfig] = None, allowed_recipients=None):
+        self.config = config
+        self.allowed_recipients = allowed_recipients
+
     def send(self, email: EmailMessage) -> bool:
+        if self.allowed_recipients is not None:
+            recipient = email.to_email.strip().lower()
+            single_recipient = recipient.count("@") == 1 and not any(char in recipient for char in ",;\r\n")
+            allowed = single_recipient and any(
+                recipient == entry or (entry.startswith("@") and recipient.endswith(entry))
+                for entry in self.allowed_recipients)
+            if not allowed:
+                logger.warning("Email recipient denied by staging allowlist")
+                return False
         try:
-            config = get_mail_config()
+            config = self.config or get_mail_config()
         except Exception as exc:
             logger.error("Unable to load MailerSend configuration: %s", redact_sensitive(str(exc)))
             log_external_error(
@@ -197,6 +213,37 @@ class MailerSendMailService(MailService):
 
 GmailMailService = MailerSendMailService
 
+
+class FakeMailService(MailService):
+    def __init__(self):
+        self.sent_messages = []
+
+    def send(self, email: EmailMessage) -> bool:
+        self.sent_messages.append(deepcopy(email))
+        return True
+
+
+class DisabledMailService(MailService):
+    def send(self, email: EmailMessage) -> bool:
+        return False
+
+
+def build_mail_service(settings=None) -> MailService:
+    settings = settings or get_runtime_settings()
+    provider = settings.providers
+    if provider.mail == ProviderMode.FAKE:
+        return FakeMailService()
+    if provider.mail == ProviderMode.DISABLED:
+        return DisabledMailService()
+    if provider.mail not in {ProviderMode.STAGING, ProviderMode.LIVE}:
+        raise RuntimeConfigurationError("Unsupported mail mode")
+    if not provider.mail_api_key or not provider.mail_from_email:
+        raise RuntimeConfigurationError("Mail requires MAILERSEND_API_KEY and MAILERSEND_FROM_EMAIL")
+    config = MailConfig(api_key=provider.mail_api_key.get_secret_value(),
+                        from_email=provider.mail_from_email, from_name=provider.mail_from_name)
+    allowlist = provider.mail_allowed_recipients if provider.mail == ProviderMode.STAGING else None
+    return MailerSendMailService(config, allowed_recipients=allowlist)
+
 _mail_service: Optional[MailService] = None
 _mail_config_logged = False
 
@@ -224,7 +271,7 @@ def _log_mail_config_once() -> None:
 
 def init_mail_service(service: Optional[MailService] = None) -> MailService:
     global _mail_service
-    _mail_service = service or MailerSendMailService()
+    _mail_service = service if service is not None else build_mail_service()
     _log_mail_config_once()
     return _mail_service
 
@@ -235,4 +282,9 @@ def get_mail_service() -> MailService:
     return _mail_service
 
 
-mail_service = get_mail_service()
+class MailServiceProxy(MailService):
+    def send(self, email: EmailMessage) -> bool:
+        return get_mail_service().send(email)
+
+
+mail_service = MailServiceProxy()

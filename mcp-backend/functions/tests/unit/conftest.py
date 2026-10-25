@@ -4,6 +4,7 @@ import pytest
 
 from api.admin import members_api, messages_api, purchases_api
 import services.sender.sender_service as sender_service_module
+from clients.sender_client import SenderRoutes
 from services.sender.sender_service import SenderService
 
 
@@ -36,7 +37,7 @@ def _patch_flask_request_proxies(monkeypatch):
 
 @pytest.fixture
 def sender_service():
-    return SenderService(api_key="test-key-123")
+    return SenderService(api_key="test-key-123", routes=SenderRoutes)
 
 
 @pytest.fixture

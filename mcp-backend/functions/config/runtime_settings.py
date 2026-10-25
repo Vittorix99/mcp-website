@@ -194,6 +194,8 @@ def load_runtime_settings(environ: Mapping[str, str] | None = None) -> RuntimeSe
             mode = ProviderMode(env.get(key, defaults["providers"][provider]))
         except (ValueError, TypeError):
             _reject(key)
+        if provider == "sender" and mode != ProviderMode.DISABLED:
+            _reject("SENDER_MODE (integration suspended by project owner)")
         allowed = {ProviderMode.FAKE, ProviderMode.DISABLED}
         if environment == RuntimeEnvironment.STAGING:
             allowed |= {ProviderMode.SANDBOX} if provider == "paypal" else {ProviderMode.STAGING}

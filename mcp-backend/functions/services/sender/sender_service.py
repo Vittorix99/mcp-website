@@ -1,13 +1,13 @@
 """
 Sender marketing service layer (sender.net).
-Business logic that orchestrates calls to SenderRoutes.
+Business logic that orchestrates calls to self._routes.
 
 Never raises externally — logs errors and returns None/False on failure.
 """
 import logging
 from typing import Any, Dict, List, Optional
 
-from config.external_services import SENDER_API_KEY, SENDER_ENABLED
+from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_runtime_settings
 from clients.sender_client import SenderRoutes, SenderApiResult
 from services.core.error_logs_service import log_external_error
 from utils.safe_logging import mask_email, redact_sensitive
@@ -35,14 +35,15 @@ def _format_sender_error(payload: Any, status_code: int) -> str:
 
 
 class SenderService:
-    def __init__(self, api_key: Optional[str] = None, enabled: Optional[bool] = None):
-        self._api_key = api_key or SENDER_API_KEY
-        # Passing an explicit key is an opt-in used by isolated tests and tools.
-        # Normal runtime instances obey SENDER_ENABLED even if a key is present.
-        if enabled is None:
-            self.enabled = True if api_key is not None else SENDER_ENABLED
-        else:
-            self.enabled = enabled
+    def __init__(self, api_key: Optional[str] = None, enabled: Optional[bool] = None, *, settings=None, routes=None):
+        settings = settings or get_runtime_settings()
+        selected_key = settings.providers.sender_api_key
+        self._api_key = api_key or (selected_key.get_secret_value() if selected_key else None)
+        self._routes = routes if routes is not None else SenderRoutes
+        policy_enabled = settings.providers.sender in {ProviderMode.STAGING, ProviderMode.LIVE}
+        self.enabled = (policy_enabled or routes is not None) and enabled is not False
+        if policy_enabled and not self._api_key and routes is None:
+            raise RuntimeConfigurationError("Sender requires SENDER_API_KEY for the selected mode")
 
     def _key(self) -> str:
         if not self.enabled:
@@ -106,7 +107,7 @@ class SenderService:
                 body["groups"] = groups
             if fields:
                 body["fields"] = fields
-            result = SenderRoutes.upsert_subscriber(self._key(), body)
+            result = self._routes.upsert_subscriber(self._key(), body)
             if self._ok(result, f"upsert_subscriber({mask_email(email)})"):
                 return result.payload if result.payload is not None else {}
             return None
@@ -116,7 +117,7 @@ class SenderService:
 
     def get_subscriber(self, email: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_subscriber(self._key(), email)
+            result = self._routes.get_subscriber(self._key(), email)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
@@ -124,7 +125,7 @@ class SenderService:
 
     def update_subscriber(self, email: str, data: Dict) -> Optional[Dict]:
         try:
-            result = SenderRoutes.update_subscriber(self._key(), email, data)
+            result = self._routes.update_subscriber(self._key(), email, data)
             if self._ok(result, f"update_subscriber({mask_email(email)})"):
                 return result.payload if result.payload is not None else {}
             return None
@@ -134,7 +135,7 @@ class SenderService:
 
     def delete_subscriber(self, email: str) -> bool:
         try:
-            result = SenderRoutes.delete_subscriber(self._key(), email)
+            result = self._routes.delete_subscriber(self._key(), email)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] delete_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
@@ -142,7 +143,7 @@ class SenderService:
 
     def add_to_group(self, email: str, group_id: str) -> bool:
         try:
-            result = SenderRoutes.add_to_group(self._key(), email, group_id)
+            result = self._routes.add_to_group(self._key(), email, group_id)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] add_to_group(%s, %s) exception: %s", mask_email(email), group_id, redact_sensitive(str(exc)))
@@ -150,7 +151,7 @@ class SenderService:
 
     def remove_from_group(self, email: str, group_id: str) -> bool:
         try:
-            result = SenderRoutes.remove_from_group(self._key(), email, group_id)
+            result = self._routes.remove_from_group(self._key(), email, group_id)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] remove_from_group(%s, %s) exception: %s", mask_email(email), group_id, redact_sensitive(str(exc)))
@@ -159,7 +160,7 @@ class SenderService:
     def list_subscribers(self, params: Optional[Dict] = None) -> Optional[Dict]:
         try:
             normalized = self._normalize_pagination(params)
-            result = SenderRoutes.list_subscribers(self._key(), params=normalized)
+            result = self._routes.list_subscribers(self._key(), params=normalized)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_subscribers exception: %s", redact_sensitive(str(exc)))
@@ -171,7 +172,7 @@ class SenderService:
 
     def list_groups(self) -> Optional[Dict]:
         try:
-            result = SenderRoutes.list_groups(self._key())
+            result = self._routes.list_groups(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_groups exception: %s", redact_sensitive(str(exc)))
@@ -179,7 +180,7 @@ class SenderService:
 
     def get_group(self, group_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_group(self._key(), group_id)
+            result = self._routes.get_group(self._key(), group_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_group(%s) exception: %s", group_id, redact_sensitive(str(exc)))
@@ -187,7 +188,7 @@ class SenderService:
 
     def create_group(self, title: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.create_group(self._key(), title)
+            result = self._routes.create_group(self._key(), title)
             if self._ok(result, f"create_group({title})"):
                 return result.payload
             return None
@@ -197,7 +198,7 @@ class SenderService:
 
     def rename_group(self, group_id: str, title: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.rename_group(self._key(), group_id, title)
+            result = self._routes.rename_group(self._key(), group_id, title)
             if self._ok(result, f"rename_group({group_id})"):
                 return result.payload
             return None
@@ -207,7 +208,7 @@ class SenderService:
 
     def delete_group(self, group_id: str) -> bool:
         try:
-            result = SenderRoutes.delete_group(self._key(), group_id)
+            result = self._routes.delete_group(self._key(), group_id)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] delete_group(%s) exception: %s", group_id, redact_sensitive(str(exc)))
@@ -216,7 +217,7 @@ class SenderService:
     def list_group_subscribers(self, group_id: str, params: Optional[Dict] = None) -> Optional[Dict]:
         try:
             normalized = self._normalize_pagination(params)
-            result = SenderRoutes.list_group_subscribers(self._key(), group_id, params=normalized)
+            result = self._routes.list_group_subscribers(self._key(), group_id, params=normalized)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_group_subscribers(%s) exception: %s", group_id, redact_sensitive(str(exc)))
@@ -228,7 +229,7 @@ class SenderService:
 
     def list_fields(self) -> Optional[Dict]:
         try:
-            result = SenderRoutes.list_fields(self._key())
+            result = self._routes.list_fields(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_fields exception: %s", redact_sensitive(str(exc)))
@@ -236,7 +237,7 @@ class SenderService:
 
     def create_field(self, title: str, field_type: str = "string") -> Optional[Dict]:
         try:
-            result = SenderRoutes.create_field(self._key(), title, field_type)
+            result = self._routes.create_field(self._key(), title, field_type)
             if self._ok(result, f"create_field({title})"):
                 return result.payload
             return None
@@ -246,7 +247,7 @@ class SenderService:
 
     def rename_field(self, field_id: str, title: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.rename_field(self._key(), field_id, title)
+            result = self._routes.rename_field(self._key(), field_id, title)
             if self._ok(result, f"rename_field({field_id})"):
                 return result.payload
             return None
@@ -256,7 +257,7 @@ class SenderService:
 
     def delete_field(self, field_id: str) -> bool:
         try:
-            result = SenderRoutes.delete_field(self._key(), field_id)
+            result = self._routes.delete_field(self._key(), field_id)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] delete_field(%s) exception: %s", field_id, redact_sensitive(str(exc)))
@@ -268,7 +269,7 @@ class SenderService:
 
     def list_segments(self) -> Optional[Dict]:
         try:
-            result = SenderRoutes.list_segments(self._key())
+            result = self._routes.list_segments(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_segments exception: %s", redact_sensitive(str(exc)))
@@ -276,7 +277,7 @@ class SenderService:
 
     def get_segment(self, segment_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_segment(self._key(), segment_id)
+            result = self._routes.get_segment(self._key(), segment_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_segment(%s) exception: %s", segment_id, redact_sensitive(str(exc)))
@@ -284,7 +285,7 @@ class SenderService:
 
     def list_segment_subscribers(self, segment_id: str, params: Optional[Dict] = None) -> Optional[Dict]:
         try:
-            result = SenderRoutes.list_segment_subscribers(self._key(), segment_id, params=params)
+            result = self._routes.list_segment_subscribers(self._key(), segment_id, params=params)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_segment_subscribers(%s) exception: %s", segment_id, redact_sensitive(str(exc)))
@@ -292,7 +293,7 @@ class SenderService:
 
     def delete_segment(self, segment_id: str) -> bool:
         try:
-            result = SenderRoutes.delete_segment(self._key(), segment_id)
+            result = self._routes.delete_segment(self._key(), segment_id)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] delete_segment(%s) exception: %s", segment_id, redact_sensitive(str(exc)))
@@ -300,7 +301,7 @@ class SenderService:
 
     def get_subscriber_events(self, identifier: str, actions: Optional[str] = None) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_subscriber_events(self._key(), identifier, actions=actions)
+            result = self._routes.get_subscriber_events(self._key(), identifier, actions=actions)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_subscriber_events(%s) exception: %s", mask_email(identifier), redact_sensitive(str(exc)))
@@ -312,7 +313,7 @@ class SenderService:
 
     def list_campaigns(self, params: Optional[Dict] = None) -> Optional[Dict]:
         try:
-            result = SenderRoutes.list_campaigns(self._key(), params=params)
+            result = self._routes.list_campaigns(self._key(), params=params)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_campaigns exception: %s", redact_sensitive(str(exc)))
@@ -320,7 +321,7 @@ class SenderService:
 
     def get_campaign(self, campaign_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_campaign(self._key(), campaign_id)
+            result = self._routes.get_campaign(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
@@ -347,7 +348,7 @@ class SenderService:
             }
             if groups:
                 body["groups"] = groups
-            result = SenderRoutes.create_campaign(self._key(), body)
+            result = self._routes.create_campaign(self._key(), body)
             if self._ok(result, f"create_campaign({title})"):
                 return result.payload
             return None
@@ -378,7 +379,7 @@ class SenderService:
                 body["content_type"] = "html"
             if groups is not None:
                 body["groups"] = groups
-            result = SenderRoutes.update_campaign(self._key(), campaign_id, body)
+            result = self._routes.update_campaign(self._key(), campaign_id, body)
             if self._ok(result, f"update_campaign({campaign_id})"):
                 return result.payload
             return None
@@ -389,7 +390,7 @@ class SenderService:
     def send_campaign(self, campaign_id: str) -> tuple:
         """Returns (ok: bool, error: str | None)."""
         try:
-            result = SenderRoutes.send_campaign(self._key(), campaign_id)
+            result = self._routes.send_campaign(self._key(), campaign_id)
             if result.ok:
                 return True, None
             error = _format_sender_error(result.payload, result.status_code)
@@ -405,7 +406,7 @@ class SenderService:
             from datetime import datetime, timezone
             dt = datetime.fromisoformat(scheduled_at_iso.replace("Z", "+00:00"))
             schedule_time = dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-            result = SenderRoutes.schedule_campaign(self._key(), campaign_id, schedule_time)
+            result = self._routes.schedule_campaign(self._key(), campaign_id, schedule_time)
             if result.ok:
                 return True, None
             error = _format_sender_error(result.payload, result.status_code)
@@ -417,7 +418,7 @@ class SenderService:
 
     def cancel_scheduled_campaign(self, campaign_id: str) -> bool:
         try:
-            result = SenderRoutes.cancel_scheduled_campaign(self._key(), campaign_id)
+            result = self._routes.cancel_scheduled_campaign(self._key(), campaign_id)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] cancel_scheduled_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
@@ -425,7 +426,7 @@ class SenderService:
 
     def delete_campaign(self, campaign_id: str) -> bool:
         try:
-            result = SenderRoutes.delete_campaign(self._key(), campaign_id)
+            result = self._routes.delete_campaign(self._key(), campaign_id)
             return result.ok
         except Exception as exc:
             logger.error("[Sender] delete_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
@@ -433,7 +434,7 @@ class SenderService:
 
     def copy_campaign(self, campaign_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.copy_campaign(self._key(), campaign_id)
+            result = self._routes.copy_campaign(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] copy_campaign(%s) exception: %s", campaign_id, redact_sensitive(str(exc)))
@@ -445,7 +446,7 @@ class SenderService:
 
     def get_campaign_opens(self, campaign_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_campaign_opens(self._key(), campaign_id)
+            result = self._routes.get_campaign_opens(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_campaign_opens exception: %s", redact_sensitive(str(exc)))
@@ -453,7 +454,7 @@ class SenderService:
 
     def get_campaign_clicks(self, campaign_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_campaign_clicks(self._key(), campaign_id)
+            result = self._routes.get_campaign_clicks(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_campaign_clicks exception: %s", redact_sensitive(str(exc)))
@@ -461,7 +462,7 @@ class SenderService:
 
     def get_campaign_unsubscribes(self, campaign_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_campaign_unsubscribes(self._key(), campaign_id)
+            result = self._routes.get_campaign_unsubscribes(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_campaign_unsubscribes exception: %s", redact_sensitive(str(exc)))
@@ -469,7 +470,7 @@ class SenderService:
 
     def get_campaign_bounces_hard(self, campaign_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_campaign_bounces_hard(self._key(), campaign_id)
+            result = self._routes.get_campaign_bounces_hard(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_campaign_bounces_hard exception: %s", redact_sensitive(str(exc)))
@@ -477,7 +478,7 @@ class SenderService:
 
     def get_campaign_bounces_soft(self, campaign_id: str) -> Optional[Dict]:
         try:
-            result = SenderRoutes.get_campaign_bounces_soft(self._key(), campaign_id)
+            result = self._routes.get_campaign_bounces_soft(self._key(), campaign_id)
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] get_campaign_bounces_soft exception: %s", redact_sensitive(str(exc)))
@@ -510,7 +511,7 @@ class SenderService:
                     {"filename": name, "url": url}
                     for name, url in attachments.items()
                 ]
-            result = SenderRoutes.send_transactional(self._key(), body)
+            result = self._routes.send_transactional(self._key(), body)
             if self._ok(result, f"send_transactional({mask_email(to_email)})"):
                 return result.payload
             return None
@@ -520,7 +521,7 @@ class SenderService:
 
     def list_transactional_campaigns(self) -> Optional[Dict]:
         try:
-            result = SenderRoutes.list_transactional_campaigns(self._key())
+            result = self._routes.list_transactional_campaigns(self._key())
             return result.payload if result.ok else None
         except Exception as exc:
             logger.error("[Sender] list_transactional_campaigns exception: %s", redact_sensitive(str(exc)))
@@ -543,7 +544,7 @@ class SenderService:
                 "editor": "html",
                 "content": content_html,
             }
-            result = SenderRoutes.create_transactional_campaign(self._key(), body)
+            result = self._routes.create_transactional_campaign(self._key(), body)
             if self._ok(result, f"create_transactional_campaign({title})"):
                 return result.payload
             return None
@@ -553,7 +554,7 @@ class SenderService:
 
     def delete_transactional_campaign(self, campaign_id: str) -> bool:
         try:
-            result = SenderRoutes.delete_transactional_campaign(self._key(), campaign_id)
+            result = self._routes.delete_transactional_campaign(self._key(), campaign_id)
             if self._ok(result, f"delete_transactional_campaign({campaign_id})"):
                 return True
             return False
@@ -575,7 +576,7 @@ class SenderService:
             body: Dict[str, Any] = {"to": recipient}
             if variables:
                 body["variables"] = variables
-            result = SenderRoutes.send_transactional_campaign(self._key(), campaign_id, body)
+            result = self._routes.send_transactional_campaign(self._key(), campaign_id, body)
             if self._ok(result, f"send_transactional_campaign({campaign_id}, {mask_email(to_email)})"):
                 return result.payload
             return None
@@ -597,7 +598,7 @@ class SenderService:
             body: Dict[str, Any] = {"email": email}
             if variables:
                 body["variables"] = variables
-            result = SenderRoutes.start_workflow(self._key(), workflow_id, body)
+            result = self._routes.start_workflow(self._key(), workflow_id, body)
             if self._ok(result, f"start_workflow({workflow_id}, {mask_email(email)})"):
                 return result.payload
             return None

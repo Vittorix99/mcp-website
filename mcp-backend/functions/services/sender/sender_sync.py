@@ -16,7 +16,6 @@ import logging
 from typing import List, Optional
 
 from config.external_services import (
-    SENDER_ENABLED,
     SENDER_GROUP_MEMBERS,
     SENDER_GROUP_TICKET_BUYERS,
 )
@@ -25,12 +24,17 @@ from models.membership import Membership
 from models.event_participant import EventParticipant
 from services.sender.sender_service import SenderService
 from utils.safe_logging import mask_email, redact_sensitive
+from config.runtime_settings import ProviderMode, get_runtime_settings
 
 logger = logging.getLogger("SenderSync")
 
 
+def sender_is_enabled() -> bool:
+    return get_runtime_settings().providers.sender in {ProviderMode.STAGING, ProviderMode.LIVE}
+
+
 def _skip_when_disabled(context: str) -> bool:
-    if SENDER_ENABLED:
+    if sender_is_enabled():
         return False
     logger.info("[SenderSync] %s: Sender disabled, skipping", context)
     return True

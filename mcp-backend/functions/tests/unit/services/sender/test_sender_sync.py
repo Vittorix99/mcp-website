@@ -17,11 +17,11 @@ from services.sender.sender_sync import (
 
 @pytest.fixture(autouse=True)
 def _enable_sender_for_sync_tests(monkeypatch):
-    monkeypatch.setattr(sender_sync, "SENDER_ENABLED", True)
+    monkeypatch.setattr(sender_sync, "sender_is_enabled", lambda: True)
 
 
 def test_all_syncs_are_noop_when_sender_is_disabled(monkeypatch):
-    monkeypatch.setattr(sender_sync, "SENDER_ENABLED", False)
+    monkeypatch.setattr(sender_sync, "sender_is_enabled", lambda: False)
     participant = EventParticipant(
         email="x@test.com",
         name="Mario",
