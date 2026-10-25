@@ -4,27 +4,10 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from dotenv import load_dotenv
 
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
-_FUNCTIONS_DIR = Path(__file__).resolve().parents[2]
-_INTEGRATION_ENV = _FUNCTIONS_DIR / ".env.integration"
-
-if _INTEGRATION_ENV.exists():
-    # Keep explicit shell-provided values as precedence.
-    load_dotenv(_INTEGRATION_ENV, override=False)
-
-
-def _configure_firestore_emulator_host() -> None:
-    """Auto-attach local integration tests to the Firestore emulator when it is running."""
-    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
-        return
-
-    port = int(os.environ.get("FIRESTORE_EMULATOR_PORT", "8080"))
-    os.environ["FIRESTORE_EMULATOR_HOST"] = f"127.0.0.1:{port}"
-
-
-_configure_firestore_emulator_host()
+# Environment is set explicitly by tests/conftest.py or the guarded emulator
+# command. Integration tests never discover or load local secret files.
 
 from api.admin import members_api, messages_api, purchases_api
 from services.communications.mail_service import get_mail_config
