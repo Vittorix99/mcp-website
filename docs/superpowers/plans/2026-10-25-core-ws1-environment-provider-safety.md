@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-24-ws1-environment-provider-safety-design.md`
 
+**Gate 3:** approved by the project owner on 2026-10-25. Execution was
+conditioned on reviewing and separately versioning the existing changes;
+that prerequisite is satisfied by `1cb06d12` and
+`docs/reviews/PRE_WS1_BASELINE.md`. Core WS1 execution is authorized in an
+isolated worktree. Sol coordinates and reviews; small mechanical tasks may
+be delegated to Luna under `AGENTS.md`. Merge, staging activation, deployment,
+and credential revocation retain their separate gates.
+
 ## Global Constraints
 
 - Accept only `local`, `test`, `staging`, and `production`; reject the legacy `prod` alias and the old implicit “anything non-prod means test” behavior once entry points migrate atomically.
@@ -941,4 +949,10 @@ git commit -m "docs: record Core WS1 verification"
 
 ### Execution precondition
 
-The plan is ready, but implementation must not begin in the current dirty worktree. At the execution gate, first identify whether the existing uncommitted Sender/PayPal/configuration changes are intended prerequisites, unrelated parallel work, or changes to be completed separately. Create the isolated worktree only after that decision; preserve all user changes in place.
+The existing Sender/PayPal/configuration changes were reviewed, corrected,
+verified in their focused scope, and committed separately as `1cb06d12`.
+They form the intended prerequisite baseline. Existing global test and lint
+limitations are recorded in the baseline review and must be resolved or
+explicitly accounted for before Core WS1 completion. Unrelated local exports,
+credentials, env files, Icon, and the skills lock remain in the original
+checkout. Implementation proceeds in the isolated worktree from this base.

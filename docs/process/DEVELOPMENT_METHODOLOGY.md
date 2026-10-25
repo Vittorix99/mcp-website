@@ -287,4 +287,11 @@ La discovery iniziale è documentata nei seguenti artefatti:
 - `docs/architecture/CURRENT_STATE_ASSESSMENT_2026-10-24.md`;
 - `docs/architecture/API_CONTRACT_INVENTORY_2026-10-24.md`.
 
-L'intent è stato approvato il 24 ottobre 2026 e il design di **WS1 — sicurezza di ambienti, credenziali e provider** è stato approvato il 25 ottobre 2026. Il prossimo artefatto è il piano di implementazione Core WS1; il codice resta bloccato fino all'approvazione del piano.
+L'intent è stato approvato il 24 ottobre 2026. Il design e il piano di
+**WS1 — sicurezza di ambienti, credenziali e provider** sono stati approvati
+il 25 ottobre 2026. La revisione delle modifiche preesistenti è registrata
+in `docs/reviews/PRE_WS1_BASELINE.md` e nel commit `1cb06d12`.
+La Build Core WS1 è autorizzata in worktree isolato, con Sol per coordinamento,
+ragionamento e review e Luna per task meccanici secondo `AGENTS.md`.
+Core WS1 è in esecuzione; integrazione, staging e produzione conservano i
+rispettivi gate e non sono dichiarati completati.
