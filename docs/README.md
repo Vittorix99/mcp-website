@@ -6,6 +6,7 @@ Documentazione first-party del progetto, centralizzata per evitare file sparsi n
 
 - [Development Methodology](./process/DEVELOPMENT_METHODOLOGY.md)
 - [WS1 Environment and Provider Safety Design](./superpowers/specs/2026-10-24-ws1-environment-provider-safety-design.md)
+- [Core WS1 Implementation Plan](./superpowers/plans/2026-10-25-core-ws1-environment-provider-safety.md)
 
 ## Backend
 
