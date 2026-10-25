@@ -178,6 +178,8 @@ def load_runtime_settings(environ: Mapping[str, str] | None = None) -> RuntimeSe
     hosts = {}
     for provider, key in _EMULATOR_KEYS.items():
         host = env.get(key, defaults["emulators"].get(provider))
+        if key == "STORAGE_EMULATOR_HOST" and host and host.startswith("http://"):
+            host = host.removeprefix("http://")
         if offline:
             _validate_host(host or "", key)
         elif host:

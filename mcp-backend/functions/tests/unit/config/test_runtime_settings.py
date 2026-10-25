@@ -93,6 +93,13 @@ def test_explicit_missing_emulator_host_is_rejected(key):
         load_runtime_settings({"MCP_ENV": "test", key: ""})
 
 
+def test_storage_emulator_accepts_cli_http_scheme_but_not_external_hosts():
+    settings = load_runtime_settings({"MCP_ENV":"test", "STORAGE_EMULATOR_HOST":"http://127.0.0.1:9199"})
+    assert settings.firebase.storage_emulator_host == "127.0.0.1:9199"
+    with pytest.raises(RuntimeConfigurationError):
+        load_runtime_settings({"MCP_ENV":"test", "STORAGE_EMULATOR_HOST":"http://storage.googleapis.com:443"})
+
+
 @pytest.mark.parametrize("host", ["firestore.googleapis.com:443", "localhost.evil.example:8080", "https://127.0.0.1:8080", "127.0.0.1", "127.0.0.1:99999"])
 def test_emulators_accept_only_loopback_host_and_valid_port(host):
     with pytest.raises(RuntimeConfigurationError):

@@ -33,7 +33,7 @@ def initialize_firebase(settings: RuntimeSettings):
     # SDKs consume these variables directly; propagate only validated settings.
     for key, host in hosts.items():
         if emulator:
-            os.environ[key] = host
+            os.environ[key] = "http://" + host if key == "STORAGE_EMULATOR_HOST" else host
         elif os.environ.get(key):
             raise RuntimeConfigurationError(f"Cloud Firebase cannot use {key}")
     os.environ["GCLOUD_PROJECT"] = firebase.project_id

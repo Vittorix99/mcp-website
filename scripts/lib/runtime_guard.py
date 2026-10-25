@@ -89,13 +89,15 @@ def main(argv=None):
         return _inside_emulators(env,"--seed" in flags)
     _ensure_cli_venv()
     firebase = str(ROOT / "mcp-website/node_modules/.bin/firebase")
+    cli_env = {**env, "MCP_ENABLE_DISCOVERY_BRIDGE":"1",
+               "NODE_OPTIONS":"--require="+json.dumps(str(ROOT / "scripts/firebase-emulator-bridge.cjs"))}
     common = ["--config",str(ROOT / "firebase.json"),"--only","functions,firestore,auth,storage,pubsub","--project",settings.firebase.project_id]
     if name == "test-emulators":
         inside = shlex.join([str(ROOT / ".venv/bin/python"),str(Path(__file__).resolve()),"test-emulators","--inside"])
-        return subprocess.run([firebase,"emulators:exec",*common,inside],cwd=ROOT,env=env).returncode
+        return subprocess.run([firebase,"emulators:exec",*common,inside],cwd=ROOT,env=cli_env).returncode
     children = []
     try:
-        children.append(subprocess.Popen([firebase,"emulators:start",*common],cwd=ROOT,env=env))
+        children.append(subprocess.Popen([firebase,"emulators:start",*common],cwd=ROOT,env=cli_env))
         if "--seed" in flags:
             import socket
             deadline = time.monotonic()+60
