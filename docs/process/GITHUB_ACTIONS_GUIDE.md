@@ -1,6 +1,6 @@
 # Guida operativa a GitHub Actions
 
-Questa guida spiega come leggere i controlli automatici del repository. La suite unit offline completa è verde: **667 test superati**. Il workflow `.github/workflows/pr.yml` è stato preparato, ma non pubblicato né eseguito; la verifica finale e la review di WS1 restano in sospeso.
+Questa guida spiega come leggere i controlli automatici del repository. La suite unit offline completa è verde: **684 test superati**. Il workflow `.github/workflows/pr.yml` è stato preparato, ma non pubblicato né eseguito; la verifica locale è completata e i tre rilievi della review indipendente sono corretti; resta la revisione del proprietario.
 
 ## Workflow, job e step
 

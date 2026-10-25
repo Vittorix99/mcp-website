@@ -6,7 +6,7 @@
 
 **Ultimo aggiornamento:** 24 ottobre 2026
 
-**Stato operativo Core WS1 (25 ottobre 2026):** suite unit offline completa verde, 667 test superati. La verifica finale e la review WS1 sono ancora in sospeso. Staging è in attesa e la produzione è rinviata; non è attivo alcun deploy. Il proprietario Vittorio Di Giorgio rinvia gli interventi sulle restrizioni della chiave Firebase.
+**Stato operativo Core WS1 (25 ottobre 2026):** suite unit offline completa verde, 684 test superati. La verifica locale è completata e i tre rilievi della review indipendente sono corretti; resta la revisione del proprietario. Staging è in attesa e la produzione è rinviata; non è attivo alcun deploy. Il proprietario Vittorio Di Giorgio rinvia gli interventi sulle restrizioni della chiave Firebase.
 
 ## 1. Scopo
 
@@ -295,5 +295,6 @@ il 25 ottobre 2026. La revisione delle modifiche preesistenti è registrata
 in `docs/reviews/PRE_WS1_BASELINE.md` e nel commit `1cb06d12`.
 La Build Core WS1 è autorizzata in worktree isolato, con Sol per coordinamento,
 ragionamento e review e Luna per task meccanici secondo `AGENTS.md`.
-Core WS1 è in esecuzione; integrazione, staging e produzione conservano i
+Core WS1 è implementato e verificato localmente; i tre rilievi della review
+indipendente sono corretti. Integrazione, staging e produzione conservano i
 rispettivi gate e non sono dichiarati completati.

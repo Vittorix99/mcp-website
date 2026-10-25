@@ -152,7 +152,7 @@ cd mcp-website && npm ci && npm exec firebase -- --version
 
 Expected: toolchain tests PASS, `npm ci` succeeds, and Firebase CLI reports the lockfile-pinned version.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add .python-version .nvmrc .gitignore scripts/bootstrap-dev.sh scripts/tests/test_toolchain_contract.py mcp-backend/functions/requirements.in mcp-backend/functions/requirements-dev.in mcp-backend/functions/requirements.txt mcp-backend/functions/requirements-dev.txt mcp-website/package.json mcp-website/package-lock.json
@@ -179,7 +179,7 @@ git commit -m "build: pin WS1 toolchains"
   - `clear_runtime_settings_cache() -> None` for tests;
   - `safe_runtime_summary(settings: RuntimeSettings) -> dict[str, object]`.
 
-- [ ] **Step 1: Write failing environment-matrix tests**
+- [x] **Step 1: Write failing environment-matrix tests**
 
 Add parameterized tests covering all four valid environments and these exact failures:
 
@@ -195,13 +195,13 @@ def test_safe_summary_contains_modes_but_no_secret_values(): ...
 
 Use sentinel secret values and assert that none appear in exception text or summaries.
 
-- [ ] **Step 2: Run the tests and confirm the module is missing**
+- [x] **Step 2: Run the tests and confirm the module is missing**
 
 Run: `cd mcp-backend/functions && ../../.venv/bin/python -m pytest tests/unit/config/test_runtime_settings.py -q`
 
 Expected: FAIL with import/module errors.
 
-- [ ] **Step 3: Add the non-secret environment catalog**
+- [x] **Step 3: Add the non-secret environment catalog**
 
 Create schema version `1` with exact entries for:
 
@@ -212,15 +212,15 @@ Create schema version `1` with exact entries for:
 
 The catalog contains identifiers and modes only—never keys, tokens, passwords, or personal data.
 
-- [ ] **Step 4: Implement the typed settings and validation API**
+- [x] **Step 4: Implement the typed settings and validation API**
 
 Use Pydantic models with `extra="forbid"` and frozen instances. `load_runtime_settings` merges catalog defaults with the injected mapping, then validates cross-field rules. Unknown environment/provider values and forbidden combinations raise a single redacted `RuntimeConfigurationError`.
 
-- [ ] **Step 5: Implement the safe summary and cache controls**
+- [x] **Step 5: Implement the safe summary and cache controls**
 
 Return environment, project ID, emulator/cloud booleans, provider modes, credential-presence booleans, and configuration-source category. Never return credential values or local credential paths.
 
-- [ ] **Step 6: Run focused and existing configuration tests**
+- [x] **Step 6: Run focused and existing configuration tests**
 
 Run:
 
@@ -231,7 +231,7 @@ cd mcp-backend/functions
 
 Expected: all selected tests PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add mcp-backend/functions/config/__init__.py mcp-backend/functions/config/environment_catalog.json mcp-backend/functions/config/runtime_settings.py mcp-backend/functions/tests/unit/config/test_runtime_settings.py
@@ -261,7 +261,7 @@ git commit -m "feat: add fail-closed runtime policy"
   - `initialize_firebase(settings: RuntimeSettings) -> tuple[firestore.Client, storage.Bucket | None]`;
   - module-compatible exports `db`, `bucket`, `cors`, and `region`.
 
-- [ ] **Step 1: Write failing loader/startup tests**
+- [x] **Step 1: Write failing loader/startup tests**
 
 Add tests named:
 
@@ -276,29 +276,29 @@ def test_startup_summary_is_redacted(): ...
 
 Patch Firebase constructors; assert validation happens before any constructor is called.
 
-- [ ] **Step 2: Run tests and confirm current implicit loading fails the contract**
+- [x] **Step 2: Run tests and confirm current implicit loading fails the contract**
 
 Run: `cd mcp-backend/functions && ../../.venv/bin/python -m pytest tests/unit/config/test_environment.py tests/unit/config/test_firebase_config_credentials.py tests/unit/config/test_startup_policy.py -q`
 
 Expected: FAIL because `.env.integration`/service-account fallbacks are still implicit.
 
-- [ ] **Step 3: Replace implicit dotenv selection**
+- [x] **Step 3: Replace implicit dotenv selection**
 
 Allow `MCP_ENV_FILE` only for `local` and `test`. Do not infer `.env` or `.env.integration`; do not override explicit process values; reject any env file in cloud/staging/production runtime. Document non-secret keys in `.env.example`.
 
-- [ ] **Step 4: Refactor Firebase initialization around validated settings**
+- [x] **Step 4: Refactor Firebase initialization around validated settings**
 
 Local/test initialize against demo IDs and emulator hosts without resolving JSON files. Staging/production use ADC. Remove `FIREBASE_SERVICE_ACCOUNT_JSON`, default `service_account.json`, path searching, and credential-path logging from runtime initialization.
 
-- [ ] **Step 5: Make `main.py` validate before importing provider/API modules**
+- [x] **Step 5: Make `main.py` validate before importing provider/API modules**
 
 Load the optional explicit env file, create/cache settings, emit the safe structured summary, initialize Firebase, then initialize services. Unknown/unsafe configuration must abort module discovery.
 
-- [ ] **Step 6: Make test bootstrap explicit before application imports**
+- [x] **Step 6: Make test bootstrap explicit before application imports**
 
 Set `MCP_ENV=test`, `GCLOUD_PROJECT=demo-mcp-test`, `STORAGE_BUCKET=demo-mcp-test.appspot.com`, and all required loopback emulator hosts in the top-level test bootstrap before importing APIs, repositories, or `firebase_config`. Remove implicit loading of `.env` and `.env.integration` from test conftest files.
 
-- [ ] **Step 7: Verify startup behavior**
+- [x] **Step 7: Verify startup behavior**
 
 Run:
 
@@ -309,7 +309,7 @@ cd mcp-backend/functions
 
 Expected: all selected tests PASS; no test requires a credential file.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add mcp-backend/functions/.env.example mcp-backend/functions/config/environment.py mcp-backend/functions/config/firebase_config.py mcp-backend/functions/main.py mcp-backend/functions/tests/conftest.py mcp-backend/functions/tests/unit/conftest.py mcp-backend/functions/tests/integration/conftest.py mcp-backend/functions/tests/unit/config/test_environment.py mcp-backend/functions/tests/unit/config/test_firebase_config_credentials.py mcp-backend/functions/tests/unit/config/test_startup_policy.py
@@ -336,25 +336,25 @@ git commit -m "feat: enforce runtime policy at startup"
   - `SdkPayPalGateway`, `FakePayPalGateway`, and `build_paypal_gateway(settings: RuntimeSettings) -> PayPalGateway`;
   - backward-compatible `paypal_client` injection only through a temporary SDK adapter used by existing tests.
 
-- [ ] **Step 1: Write failing gateway policy tests**
+- [x] **Step 1: Write failing gateway policy tests**
 
 Test that local/test return `FakePayPalGateway`, staging returns an SDK gateway configured for sandbox credentials only, production returns live only, and every missing/forbidden credential combination raises a redacted configuration error. Assert fake order IDs start with `FAKE-` and create/capture never call the SDK.
 
-- [ ] **Step 2: Run the gateway tests and confirm failure**
+- [x] **Step 2: Run the gateway tests and confirm failure**
 
 Run: `cd mcp-backend/functions && ../../.venv/bin/python -m pytest tests/unit/services/payments/test_paypal_gateway.py -q`
 
 Expected: FAIL because the gateway module does not exist.
 
-- [ ] **Step 3: Implement gateway protocol, SDK adapter, and deterministic fake**
+- [x] **Step 3: Implement gateway protocol, SDK adapter, and deterministic fake**
 
 The fake returns PayPal-compatible dictionaries for `CREATED` and `COMPLETED` without network access. The SDK adapter is the only code allowed to select `Environment.SANDBOX` or `Environment.PRODUCTION`.
 
-- [ ] **Step 4: Inject the gateway into `EventPaymentService`**
+- [x] **Step 4: Inject the gateway into `EventPaymentService`**
 
 Add `paypal_gateway: PayPalGateway | None = None`. Remove `_build_paypal_client` and direct `PAYPAL_ENV` reads. Preserve the existing public service methods and response DTOs.
 
-- [ ] **Step 5: Run payment unit tests**
+- [x] **Step 5: Run payment unit tests**
 
 Run:
 
@@ -365,7 +365,7 @@ cd mcp-backend/functions
 
 Expected: PASS; no default test reaches PayPal.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add mcp-backend/functions/services/payments/paypal_gateway.py mcp-backend/functions/services/payments/event_payment_service.py mcp-backend/functions/api/public/event_payment_api.py mcp-backend/functions/tests/unit/services/payments/test_paypal_gateway.py mcp-backend/functions/tests/unit/services/test_event_payment_service.py mcp-backend/functions/tests/integration/event_payment/api/test_event_payment_api.py mcp-backend/functions/tests/integration/event_payment/conftest.py mcp-backend/functions/tests/integration/event_payment/service/test_discount_code_event_flow.py mcp-backend/functions/tests/integration/event_payment/service/test_event_payment_service.py mcp-backend/functions/tests/integration/event_payment/service/test_membership_renewal_flow_integration.py
@@ -396,31 +396,31 @@ git commit -m "feat: make PayPal mode explicit"
   - `build_mail_service(settings: RuntimeSettings) -> MailService`;
   - `SenderService(..., settings: RuntimeSettings | None = None)` that cannot infer enablement from key presence.
 
-- [ ] **Step 1: Write failing construction/no-network tests**
+- [x] **Step 1: Write failing construction/no-network tests**
 
 Assert local/test mail returns `FakeMailService`; staging mail is disabled unless explicitly configured with an allowlist; Sender stays disabled even when a key exists unless mode permits it; monkeypatch `requests.sessions.Session.request` to raise and prove local/test calls remain offline.
 
-- [ ] **Step 2: Run focused tests and observe unsafe defaults**
+- [x] **Step 2: Run focused tests and observe unsafe defaults**
 
 Run: `cd mcp-backend/functions && ../../.venv/bin/python -m pytest tests/unit/services/test_mail_service.py tests/unit/services/sender/test_sender_service.py tests/unit/services/sender/test_sender_sync.py tests/unit/services/test_provider_network_defaults.py -q`
 
 Expected: FAIL because the live mail singleton and key-driven Sender behavior are still reachable.
 
-- [ ] **Step 3: Add the stable mail proxy and mode factory**
+- [x] **Step 3: Add the stable mail proxy and mode factory**
 
 The exported `mail_service` object must delegate every call to `get_mail_service()` so modules that imported it before `main.py` initialization still observe the selected fake/live implementation.
 
-- [ ] **Step 4: Enforce Sender mode independently of credentials**
+- [x] **Step 4: Enforce Sender mode independently of credentials**
 
 Replace module-level `SENDER_ENABLED` decisions with validated settings. Explicit test keys remain usable only when a test passes an explicit settings object or injected route; normal construction follows runtime policy.
 
-- [ ] **Step 5: Run communication/provider tests**
+- [x] **Step 5: Run communication/provider tests**
 
 Run the command from Step 2.
 
 Expected: all selected tests PASS and the no-network sentinel remains untouched.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add mcp-backend/functions/config/external_services.py mcp-backend/functions/main.py mcp-backend/functions/services/communications/mail_service.py mcp-backend/functions/services/communications/__init__.py mcp-backend/functions/services/sender/sender_service.py mcp-backend/functions/services/sender/sender_sync.py mcp-backend/functions/tests/unit/services/test_mail_service.py mcp-backend/functions/tests/unit/services/sender/test_sender_service.py mcp-backend/functions/tests/unit/services/sender/test_sender_sync.py mcp-backend/functions/tests/unit/services/test_provider_network_defaults.py
@@ -452,11 +452,11 @@ git commit -m "feat: isolate mail and Sender by environment"
   - `DeterministicGenderLookup`, `HttpGenderLookup`, and `build_gender_lookup(settings)`;
   - `FixtureSoundCloudService`, `SoundCloudServiceProtocol`, and `build_soundcloud_service(settings)`.
 
-- [ ] **Step 1: Write failing fake/provider tests**
+- [x] **Step 1: Write failing fake/provider tests**
 
 Cover deterministic Pass2U IDs and invalidation, gender fixtures without HTTP, SoundCloud fixture resolution, disabled staging behavior, and production-only real adapters. Add a no-network test that exercises all three local factories while `requests` is forbidden.
 
-- [ ] **Step 2: Run the selected tests and confirm real constructors remain reachable**
+- [x] **Step 2: Run the selected tests and confirm real constructors remain reachable**
 
 Run:
 
@@ -467,25 +467,25 @@ cd mcp-backend/functions
 
 Expected: FAIL on missing factories/fakes.
 
-- [ ] **Step 3: Implement Pass2U real/fake selection**
+- [x] **Step 3: Implement Pass2U real/fake selection**
 
 Keep the existing live service behavior unchanged. The fake creates deterministic local-only pass IDs and returns successful invalidation without using `Pass2URoutes`.
 
-- [ ] **Step 4: Extract the gender provider boundary**
+- [x] **Step 4: Extract the gender provider boundary**
 
 Remove direct `requests` calls from `participant_rules.py` and `registration_trigger.py`; both consume an injected or factory-selected `GenderLookupProtocol`. Preserve the current fallback of `("N/A", 0.0)` on non-critical failures.
 
-- [ ] **Step 5: Implement SoundCloud fixture/live selection**
+- [x] **Step 5: Implement SoundCloud fixture/live selection**
 
 The fixture returns deterministic track metadata and never reads/writes the Firestore token document. Production construction preserves the live service.
 
-- [ ] **Step 6: Run provider and affected service tests**
+- [x] **Step 6: Run provider and affected service tests**
 
 Run the command from Step 2 plus `tests/unit/services/test_memberships_service.py`.
 
 Expected: all selected tests PASS with no network calls.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add mcp-backend/functions/interfaces/services.py mcp-backend/functions/services/memberships/pass2u_service.py mcp-backend/functions/services/memberships/memberships_service.py mcp-backend/functions/services/memberships/merge_service.py mcp-backend/functions/services/gender/__init__.py mcp-backend/functions/services/gender/gender_service.py mcp-backend/functions/services/soundcloud/soundcloud_service.py mcp-backend/functions/services/radio/radio_episode_service.py mcp-backend/functions/domain/participant_rules.py mcp-backend/functions/triggers/registration_trigger.py mcp-backend/functions/tests/unit/services/test_pass2u_service.py mcp-backend/functions/tests/unit/services/test_memberships_service.py mcp-backend/functions/tests/unit/triggers/test_registration_trigger.py mcp-backend/functions/tests/unit/services/radio/test_soundcloud_service.py mcp-backend/functions/tests/unit/services/radio/test_radio_episode_service.py mcp-backend/functions/tests/unit/services/test_provider_network_defaults.py
@@ -518,33 +518,33 @@ git commit -m "feat: isolate remaining external providers"
   - `npm run build` for loopback-fixture PR builds;
   - `npm run build:release` for protected staging/production builds.
 
-- [ ] **Step 1: Write failing Node policy tests**
+- [x] **Step 1: Write failing Node policy tests**
 
 Use `node:test` and `node:assert/strict` to cover unknown environments, project/bucket mismatches, production localhost/emulator rejection, staging production-resource rejection, and names matching `NEXT_PUBLIC_*_(SECRET|PRIVATE_KEY|TOKEN|PASSWORD|CREDENTIAL)`.
 
-- [ ] **Step 2: Run tests and confirm the policy module is missing**
+- [x] **Step 2: Run tests and confirm the policy module is missing**
 
 Run: `cd mcp-website && npm run test:config`
 
 Expected: FAIL because `runtime-policy.cjs` does not exist.
 
-- [ ] **Step 3: Implement public-runtime validation and wire it into Next**
+- [x] **Step 3: Implement public-runtime validation and wire it into Next**
 
 `next.config.js` validates before returning configuration. `firebase.js` consumes only validated public fields. Error messages list forbidden key names but never values.
 
-- [ ] **Step 4: Add deterministic build fixtures**
+- [x] **Step 4: Add deterministic build fixtures**
 
 The fixture JSON explicitly defines responses for `get_all_events`, `get_next_event`, `get_membership_price_public`, `get_published_radio_episodes`, `get_latest_radio_episode`, and `get_radio_seasons`. The server binds to `127.0.0.1` on an ephemeral port, rejects unknown paths, and shuts down after the child build exits.
 
-- [ ] **Step 5: Add safe build wrappers**
+- [x] **Step 5: Add safe build wrappers**
 
 `build-safe.mjs` removes inherited environment values not allowed by the selected mode, rejects `.env.local` for release builds, and invokes either the fixture server or raw `next build`. Required backend fetch failures are fatal.
 
-- [ ] **Step 6: Handle existing forbidden local keys without exposing values**
+- [x] **Step 6: Handle existing forbidden local keys without exposing values**
 
 Run a key-name-only audit. If ignored local env files contain forbidden public keys, stop and request explicit authorization before removing those lines; never print or copy their values. Confirm application source does not consume the removed secret variables.
 
-- [ ] **Step 7: Verify policy and builds**
+- [x] **Step 7: Verify policy and builds**
 
 Run:
 
@@ -557,7 +557,7 @@ npm run build
 
 Expected: config tests PASS, lint is non-interactive, and the fixture-backed build exits 0 without external backend traffic.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add mcp-website/.env.example mcp-website/config/firebase.js mcp-website/config/runtime-policy.cjs mcp-website/tests mcp-website/scripts mcp-website/next.config.js mcp-website/package.json mcp-website/package-lock.json frontend-dev.sh frontend-build.sh
@@ -586,29 +586,29 @@ git commit -m "feat: validate frontend environment"
 - Consumes: canonical project IDs/catalog from Task 2.
 - Produces: one Firebase CLI root with explicit `staging` and `production` aliases, Python 3.11 Functions source, frontend source `mcp-website`, and the full emulator set.
 
-- [ ] **Step 1: Write failing manifest tests**
+- [x] **Step 1: Write failing manifest tests**
 
 Assert one `firebase.json`, no nested Firebase/rules/index files, no `default` production alias, exact staging/production mappings, Functions source `mcp-backend/functions`, runtime `python311`, hosting source `mcp-website`, and Auth/Functions/Firestore/PubSub/Storage emulators.
 
-- [ ] **Step 2: Run the tests and confirm duplicate/drift failures**
+- [x] **Step 2: Run the tests and confirm duplicate/drift failures**
 
 Run: `cd mcp-backend/functions && ../../.venv/bin/python -m pytest tests/unit/config/test_firebase_manifest.py -q`
 
 Expected: FAIL on duplicate files, alias policy, runtime, and hosting source.
 
-- [ ] **Step 3: Consolidate manifests and aliases**
+- [x] **Step 3: Consolidate manifests and aliases**
 
 Remove the invalid Functions `region` manifest property; keep region ownership in decorators/options. Require explicit `--project` in documented commands. Preserve root composite indexes.
 
-- [ ] **Step 4: Adopt and test the stricter Storage rules**
+- [x] **Step 4: Adopt and test the stricter Storage rules**
 
 Use the existing frontend rule intent as the canonical policy: admin-only writes for event/photos/assets, public reads for event/photo/logo/pattern paths, authenticated membership-card reads, admin-only ticket reads/writes, and no broad authenticated event writes. Task 10 pins these decisions with positive and negative client tests.
 
-- [ ] **Step 5: Add the standalone validator**
+- [x] **Step 5: Add the standalone validator**
 
 `scripts/validate-firebase-config.py` parses JSON, checks file uniqueness/paths/aliases, and exits non-zero without invoking Firebase or accessing the network.
 
-- [ ] **Step 6: Verify schema and manifest tests**
+- [x] **Step 6: Verify schema and manifest tests**
 
 Run:
 
@@ -620,7 +620,7 @@ cd ../../mcp-website && npm exec firebase -- emulators:exec --only firestore --p
 
 For the last command, confirm configuration parsing reaches emulator startup without the previous manifest schema warning, then terminate it cleanly.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add firebase.json .firebaserc firestore.rules firestore.indexes.json storage.rules scripts/validate-firebase-config.py mcp-backend/functions/tests/unit/config/test_firebase_manifest.py
@@ -651,25 +651,25 @@ git commit -m "chore: consolidate Firebase configuration"
   - unit and emulator test commands using `demo-mcp-test`;
   - compatibility wrappers that reject old `--env=prod`/`--prod-emulator` modes.
 
-- [ ] **Step 1: Write failing CLI guard tests**
+- [x] **Step 1: Write failing CLI guard tests**
 
 Test production project IDs, buckets, backend URLs, credential-file variables, missing emulator hosts, and legacy production flags. Assert errors mention key names/modes but not values.
 
-- [ ] **Step 2: Run tests and confirm current scripts permit unsafe modes**
+- [x] **Step 2: Run tests and confirm current scripts permit unsafe modes**
 
 Run: `cd mcp-backend/functions && ../../.venv/bin/python -m pytest tests/unit/config/test_runtime_guard_cli.py -q`
 
 Expected: FAIL because the guard does not exist and current scripts expose production modes.
 
-- [ ] **Step 3: Implement guarded local/unit/emulator commands**
+- [x] **Step 3: Implement guarded local/unit/emulator commands**
 
 `dev-local.sh` starts the full emulator set and frontend under `MCP_ENV=local`. `test-unit.sh` forces `MCP_ENV=test` and denies network/cloud variables. `test-emulators.sh` uses `firebase emulators:exec --project demo-mcp-test` and never imports data unless `--seed` is explicit.
 
-- [ ] **Step 4: Convert legacy scripts into safe compatibility wrappers**
+- [x] **Step 4: Convert legacy scripts into safe compatibility wrappers**
 
 Keep familiar filenames but forward only safe local/test options. Remove or reject production-emulator paths. Do not infer a project ID from service-account files.
 
-- [ ] **Step 5: Verify CLI guards and dry-run output**
+- [x] **Step 5: Verify CLI guards and dry-run output**
 
 Run:
 
@@ -682,7 +682,7 @@ scripts/test-emulators.sh --dry-run
 
 Expected: tests PASS; dry runs show demo IDs/emulator hosts and no credential path or production identifier.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/lib/runtime_guard.py scripts/dev-local.sh scripts/test-unit.sh scripts/test-emulators.sh emulator.sh frontend-dev.sh frontend-build.sh mcp-backend/functions/tests/unit/config/test_runtime_guard_cli.py README.md
@@ -705,31 +705,31 @@ git commit -m "chore: add safe local commands"
 - Consumes: the safe test command, canonical rules, full emulator topology, and fake providers.
 - Produces: one command that proves Functions discovery, Firestore/Auth/Storage client rules, one background trigger path, clean shutdown, and zero cloud/provider traffic.
 
-- [ ] **Step 1: Write failing Functions discovery and trigger tests**
+- [x] **Step 1: Write failing Functions discovery and trigger tests**
 
 `test_functions_discovery.py` imports `main` under `MCP_ENV=test` with complete emulator hosts and asserts representative exported functions exist. `test_trigger_wiring.py` writes a minimal `purchases/smoke-purchase` document with `ref_id="smoke-event"`, then polls the emulator for the analytics rebuild job enqueued by `on_purchase_written`.
 
-- [ ] **Step 2: Write the client smoke script**
+- [x] **Step 2: Write the client smoke script**
 
 Using installed Firebase client/Admin SDKs, create an emulator-only admin user with claims, sign in through Auth emulator, verify public Firestore read, admin Firestore write, approved Storage write/read, and non-admin rejection for an admin-only Storage path. Delete created fixtures before exit.
 
-- [ ] **Step 3: Run against no emulators and confirm fast failure**
+- [x] **Step 3: Run against no emulators and confirm fast failure**
 
 Run: `scripts/test-emulators.sh`
 
 Expected before implementation completion: FAIL with a specific missing-emulator or Functions-discovery error, never a cloud request.
 
-- [ ] **Step 4: Complete orchestration and run the smoke suite**
+- [x] **Step 4: Complete orchestration and run the smoke suite**
 
 Use `firebase emulators:exec --only functions,firestore,auth,storage,pubsub --project demo-mcp-test`. Run Python smoke tests and the Node client script inside the emulator lifecycle.
 
-- [ ] **Step 5: Verify repeatability**
+- [x] **Step 5: Verify repeatability**
 
 Run: `scripts/test-emulators.sh && scripts/test-emulators.sh`
 
 Expected: both runs PASS from a clean emulator state and shut down without retained test data.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add firebase.json scripts/test-emulators.sh mcp-website/scripts/emulator-smoke.mjs mcp-website/tests/fixtures/emulator-seed.json mcp-backend/functions/tests/smoke
@@ -753,21 +753,21 @@ git commit -m "test: add emulator smoke suite"
 - Consumes: Tasks 1–10 verification commands.
 - Produces: a PR workflow with no deploy permission, no cloud credential, concurrency cancellation, deterministic redacted secret scanning, offline unit/config checks, frontend verification, and emulator smoke tests.
 
-- [ ] **Step 1: Write failing CI-environment tests**
+- [x] **Step 1: Write failing CI-environment tests**
 
 Test that the CI guard rejects staging/production IDs, `GOOGLE_APPLICATION_CREDENTIALS`, raw service-account JSON variables, live provider modes, and missing demo IDs. Assert values are never printed.
 
-- [ ] **Step 2: Run tests and confirm the guard is missing**
+- [x] **Step 2: Run tests and confirm the guard is missing**
 
 Run: `cd mcp-backend/functions && ../../.venv/bin/python -m pytest tests/unit/config/test_ci_environment.py -q`
 
 Expected: FAIL because the guard does not exist.
 
-- [ ] **Step 3: Implement the CI guard and PR workflow**
+- [x] **Step 3: Implement the CI guard and PR workflow**
 
 Copy the deterministic stdlib-only scanner from the installed AI-Native SDLC skill into `scripts/security/scan_secrets.py` and verify its `--path`, `--staged`, and `--base/--head` modes. Grant workflow permissions `contents: read` only. Pin actions by full commit SHA: `actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`, `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`, and `actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444`. Use Node 20 and Python 3.11, dependency caches, `npm ci`, hashed Python locks, the redacted scanner, backend policy/offline tests, frontend config/lint/fixture-build, and the emulator smoke command. Do not define deploy jobs or environment secrets.
 
-- [ ] **Step 4: Run the workflow commands locally**
+- [x] **Step 4: Run the workflow commands locally**
 
 Run:
 
@@ -781,11 +781,11 @@ cd .. && scripts/test-emulators.sh
 
 Expected: every command exits 0 with demo IDs and no cloud/provider credentials.
 
-- [ ] **Step 5: Run redacted repository/history scanning**
+- [x] **Step 5: Run redacted repository/history scanning**
 
 Run the deterministic scanner against the working tree and PR diff. Then perform the one-time full-history audit with `gitleaks detect --source . --redact --no-banner`. If Gitleaks is unavailable, record that history audit as a blocked operational prerequisite rather than weakening the PR gate. If a real historical secret is detected, stop, report only the finding type/path/commit, and create a separate rotation/remediation decision—never paste the value or rewrite history automatically.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .github/workflows/pr.yml .secretsignore scripts/security/scan_secrets.py scripts/ci/assert-safe-environment.py scripts/test-unit.sh scripts/test-emulators.sh mcp-backend/functions/tests/unit/config/test_ci_environment.py
@@ -811,27 +811,27 @@ git commit -m "ci: add WS1 pull request gates"
 - Consumes: the implemented catalog, commands, CI workflow, and credential findings.
 - Produces: human-readable non-secret ownership/resource tables, an ADC/WIF transition and revocation gate, a user guide for GitHub Actions, and inactive deployment templates for future gates.
 
-- [ ] **Step 1: Create the non-secret resource catalog**
+- [x] **Step 1: Create the non-secret resource catalog**
 
 Record environment, Firebase project/bucket, allowed origins/backend URLs, provider mode/account identifier, data policy, and owner role. Mark unknown provider identifiers as `blocked before staging activation`, never with a secret placeholder.
 
-- [ ] **Step 2: Create the credential transition record**
+- [x] **Step 2: Create the credential transition record**
 
 For each local JSON/service identity, record project, purpose, observed code reference, proposed ADC/WIF replacement, accountable owner role, rotation prerequisite, revocation gate, and status. Do not include key IDs when they are not needed for ownership/revocation coordination.
 
-- [ ] **Step 3: Write the GitHub Actions user guide requested by the owner**
+- [x] **Step 3: Write the GitHub Actions user guide requested by the owner**
 
 Explain workflow triggers, PR checks, status/log navigation, safe reruns, artifacts, environment protection, future staging/production approvals, WIF at a conceptual level, failure escalation, and the fact that no deployment workflow is active in Core WS1.
 
-- [ ] **Step 4: Add inactive deployment workflow templates**
+- [x] **Step 4: Add inactive deployment workflow templates**
 
 Templates show required future jobs and gates but live under `docs/operations/workflow-templates/`, not `.github/workflows/`; therefore GitHub cannot execute them. They must use environment-scoped WIF and immutable artifact references when later activated.
 
-- [ ] **Step 5: Update documentation indexes and methodology status**
+- [x] **Step 5: Update documentation indexes and methodology status**
 
 Link all new artifacts from `docs/README.md`. Record Core WS1 as implemented only after Task 13 verification; staging remains pending and production deferred.
 
-- [ ] **Step 6: Verify documentation links and secret hygiene**
+- [x] **Step 6: Verify documentation links and secret hygiene**
 
 Implement `scripts/docs/check-links.py PATH...` to URL-decode and resolve repository-local Markdown targets while skipping HTTP(S), mailto, and anchor-only links. Run:
 
@@ -842,7 +842,7 @@ Implement `scripts/docs/check-links.py PATH...` to URL-decode and resolve reposi
 
 Expected: all local links resolve and no secret-shaped material is present.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add docs/README.md docs/process/DEVELOPMENT_METHODOLOGY.md docs/process/GITHUB_ACTIONS_GUIDE.md docs/operations/ENVIRONMENT_RESOURCE_CATALOG.md docs/operations/CREDENTIAL_TRANSITION.md docs/operations/workflow-templates/staging.yml docs/operations/workflow-templates/production.yml scripts/docs/check-links.py docs/superpowers/specs/2026-10-24-ws1-environment-provider-safety-design.md
@@ -861,7 +861,7 @@ git commit -m "docs: add WS1 operating runbooks"
 - Consumes: every task output and the Definition of Done in `docs/process/DEVELOPMENT_METHODOLOGY.md`.
 - Produces: a fresh, reproducible evidence record for human review; no staging or production action.
 
-- [ ] **Step 1: Verify repository policy and generated-file consistency**
+- [x] **Step 1: Verify repository policy and generated-file consistency**
 
 Run:
 
@@ -873,13 +873,13 @@ git diff --check
 
 Expected: all exit 0.
 
-- [ ] **Step 2: Run the complete offline backend unit suite**
+- [x] **Step 2: Run the complete offline backend unit suite**
 
 Run: `scripts/test-unit.sh`
 
 Expected: exit 0, no network calls, no emulator retries, and zero failures.
 
-- [ ] **Step 3: Run frontend verification**
+- [x] **Step 3: Run frontend verification**
 
 Run:
 
@@ -893,13 +893,13 @@ npm run build
 
 Expected: all commands exit 0; build traffic remains loopback-only.
 
-- [ ] **Step 4: Run the emulator suite twice**
+- [x] **Step 4: Run the emulator suite twice**
 
 Run: `cd .. && scripts/test-emulators.sh && scripts/test-emulators.sh`
 
 Expected: both runs exit 0 with clean startup/shutdown and disposable data.
 
-- [ ] **Step 5: Run secret scanning**
+- [x] **Step 5: Run secret scanning**
 
 Run:
 
@@ -911,19 +911,19 @@ gitleaks detect --source . --redact --no-banner
 
 Expected: no unresolved secret finding. A historical finding blocks completion and triggers a separate credential-remediation decision; history is not rewritten automatically.
 
-- [ ] **Step 6: Perform plan-versus-diff review**
+- [x] **Step 6: Perform plan-versus-diff review**
 
 Confirm every changed file belongs to a task, no API/schema/user-flow contract changed, duplicate Firebase files are gone, no deployment workflow is active, and staging/production operations remain unexecuted.
 
-- [ ] **Step 7: Request code review and resolve findings**
+- [x] **Step 7: Request code review and resolve findings**
 
 Use `requesting-code-review`; apply `receiving-code-review` to verified findings. Rerun every affected verification after corrections.
 
-- [ ] **Step 8: Write the evidence record**
+- [x] **Step 8: Write the evidence record**
 
 Record commands, exit codes, test counts, expected skips, environment/demo IDs, known limitations, staging status `pending authorization`, and production status `deferred`. Include no secrets or personal data.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add docs/reviews/WS1_CORE_VERIFICATION.md
@@ -965,3 +965,7 @@ limitations are recorded in the baseline review and must be resolved or
 explicitly accounted for before Core WS1 completion. Unrelated local exports,
 credentials, env files, Icon, and the skills lock remain in the original
 checkout. Implementation proceeds in the isolated worktree from this base.
+
+## Execution evidence — 25 October 2026
+
+Steps marked complete refer to local Core WS1 implementation and verification. See [verification](../../reviews/WS1_CORE_VERIFICATION.md) and [independent review/fixes](../../reviews/WS1_CORE_REVIEW.md). Historical Gitleaks findings were classified and handled through the separate credential decision, not suppressed or removed from history. Firebase key hardening was explicitly deferred by the owner; cloud activation and remote CI remain gated. No merge, push or deploy was executed.

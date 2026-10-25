@@ -142,6 +142,6 @@ cloud, senza dichiarare eliminata la cronologia o esclusi utilizzi passati.
 
 ## Lavoro preservato
 
-Controlli CI e scanner preparati ma Task 11 incompleto; documentazione operativa e helper link preparati ma Task 12 incompleto (mancano i template inattivi e il consolidamento finale). Test newsletter e comunicazioni aggiornati al contratto DTO esistente, senza modificare il codice applicativo. La suite completa resta da rieseguire e risolvere; nessuna dichiarazione di WS1 completato.
+Controlli CI, scanner, documentazione operativa e template inattivi implementati. Verifica locale finale: 684 test backend e 21 frontend passati, lint senza errori, build ed emulatori passati. Tre rilievi della review indipendente corretti in `9ece2609`; evidenze nel [rapporto Core WS1](../reviews/WS1_CORE_VERIFICATION.md). Staging, produzione e CI remota non sono dichiarati completati.
 
 Audit dipendenze separato: npm segnala 49 vulnerabilità (4 critical, 29 high, 14 moderate, 2 low); valutazione e aggiornamenti non ancora eseguiti. Nessun force-fix o upgrade maggiore automatico.

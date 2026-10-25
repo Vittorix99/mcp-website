@@ -1,6 +1,6 @@
 # Catalogo ambienti e risorse — Core WS1
 
-**Stato:** Core WS1 in corso; gate di test/CI ancora da chiudere. Nessuna attivazione staging o deployment è autorizzata da questo documento.
+**Stato:** Core WS1 verificato localmente; gate cloud e CI remota ancora da eseguire. Nessuna attivazione staging o deployment è autorizzata da questo documento.
 
 Questo catalogo riporta valori non segreti presenti nel catalogo runtime tracciato e nella policy frontend. Vittorio Di Giorgio ha confermato il 25 ottobre 2026 di essere l'unico sviluppatore e avere accesso a tutti i servizi: è il referente per completare l'inventario. Le indicazioni di owner mancante nelle tabelle restano richieste di associazione alle singole risorse, non di individuazione di un altro responsabile. Gli identificativi di account provider e le conferme operative non risultano verificabili dal repository: sono **blocked before staging activation**. Le configurazioni di staging e produzione sono riferimenti di policy, non prova di risorse verificate.
 
@@ -19,12 +19,12 @@ Gli host emulatori di `local` e `test` sono Firestore `127.0.0.1:8080`, Auth `12
 
 | Provider | local / test | staging | production | Account/identità e proprietario |
 |---|---|---|---|---|
-| PayPal | `fake` | `sandbox` | `live` | ID account non presente nei riferimenti tracciati: **blocked before staging activation**. Ruolo owner: **blocked before staging activation**. |
-| MailerSend (`mail`) | `fake` | `disabled` (invio staging richiede allowlist esplicita) | `live` | Account e mittente da confermare: **blocked before staging activation**. Ruolo owner: **blocked before staging activation**. |
+| PayPal | `fake` | `sandbox` | `live` | ID account non presente nei riferimenti tracciati: **blocked before staging activation**. Referente: Vittorio Di Giorgio. |
+| MailerSend (`mail`) | `fake` | `disabled` (invio staging richiede allowlist esplicita) | `live` | Account e mittente da confermare: **blocked before staging activation**. Referente: Vittorio Di Giorgio. |
 | Sender.net | `disabled` | `disabled` | `disabled` | Servizio non pagato e sospeso su conferma del proprietario; non riattivare. Eventuale futura proprietà: **blocked before staging activation**. |
-| Pass2U | `fake` | `disabled` | `live` | Account non presente nei riferimenti tracciati: **blocked before staging activation**. Ruolo owner: **blocked before staging activation**. |
+| Pass2U | `fake` | `disabled` | `live` | Account non presente nei riferimenti tracciati: **blocked before staging activation**. Referente: Vittorio Di Giorgio. |
 | Genderize.io (`gender`) | `fake` | `fake` | `disabled` | Identificativo account non richiesto dalla configurazione attuale; qualsiasi attivazione staging resta **blocked before staging activation**. |
-| SoundCloud | `fake` | `fake` | `live` | Account/identità non presenti nei riferimenti tracciati: **blocked before staging activation**. Ruolo owner: **blocked before staging activation**. |
+| SoundCloud | `fake` | `fake` | `live` | Account/identità non presenti nei riferimenti tracciati: **blocked before staging activation**. Referente: Vittorio Di Giorgio. |
 
 La sola presenza di una chiave non abilita un provider. Sender è disabilitato in tutti gli ambienti e il relativo codice rimane disponibile per test offline; la sospensione riguarda il servizio, non autorizza eliminazioni o revoche.
 
@@ -32,8 +32,8 @@ La sola presenza di una chiave non abilita un provider. Sender è disabilitato i
 
 | Voce | Stato |
 |---|---|
-| Ruolo responsabile dei progetti, bucket e origini staging | **blocked before staging activation** |
-| Ruolo responsabile degli account provider e mittente staging | **blocked before staging activation** |
+| Ruolo responsabile dei progetti, bucket e origini staging | Vittorio Di Giorgio, confermato dal proprietario |
+| Ruolo responsabile degli account provider e mittente staging | Vittorio Di Giorgio; identità e mittente da confermare |
 | Conferma di progetto, bucket, URL e origini effettivamente attivi | **blocked before staging activation** |
 | Inventario non segreto di account/identità provider | **blocked before staging activation** |
 | Inventario e policy di accesso/audit Doppler | Da completare prima dell'attivazione di workflow cloud; Doppler resta l'iniettore transitorio durante WS1 |

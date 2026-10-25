@@ -25,12 +25,14 @@ La sessione non espone un contatore affidabile di consumo per singolo agente.
 | Luna 6 | `purchase_contract_tests_luna`: migrazione test acquisti ai DTO attuali | medium | Concluso; revisionato da Sol, corretto il campo nel test del tipo non valido; suite completa verde |
 | Luna 6 | `event_fixture_repairs_luna`: fixture eventi, location e ticket | medium | Concluso; 37 test passati, diff revisionato da Sol; suite completa verde |
 | Luna 6 | `inactive_workflow_docs_luna`: template futuri inattivi e stato documentazione | low | Concluso; Sol ha corretto i project ID abbreviati, verificato YAML, blocchi di esecuzione e link; nessun deploy implementato o abilitato |
+| Sol 6.1 | `ws1_final_review_sol`: unica review indipendente dell'intero branch WS1 | high | Conclusa; 3 Important, nessun Critical/Minor. Sol coordinatore ha corretto tutti e tre con regressioni RED→GREEN; nessuna seconda review |
 
-Totale registrato: **15 incarichi a Luna e 1 review delegata a Sol**,
+Totale registrato: **15 incarichi a Luna e 2 review delegate a Sol**,
 oltre al lavoro del coordinatore Sol nella conversazione principale.
 
-Ultima verifica Sol: **667 test backend passati, zero fallimenti**. Restano
-frontend/CI/documentazione e review finale di WS1. Audit Gitleaks storico:
+Ultima verifica Sol: **684 test backend e 21 frontend passati, zero fallimenti**;
+build ed emulatori passati. Core locale pronto per revisione del proprietario;
+CI remota e deploy non eseguiti. Audit Gitleaks storico:
 12 segnalazioni classificate nel rapporto separato del worktree. Chiavi private
 disabilitata/assente verificate su IAM; MailerLite ritirato e progetto OAuth
 legacy non più esistente su conferma del proprietario. Il proprietario ha
