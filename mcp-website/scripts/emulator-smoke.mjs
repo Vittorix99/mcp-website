@@ -32,7 +32,7 @@ try {
     console.log('Synthetic local seed applied')
   } else {
     async function client(label,role) {
-      const user = await adminAuth.createUser({email:`ws1-${label}@example.test`,password:'Synthetic-only-123!'})
+      const user = await adminAuth.createUser({email:`ws1-${label}@example.test`,password:'Synthetic-only-123!'}) // NOSECRET: emulator-only fixed fixture
       users.push(user.uid)
       if (role) await adminAuth.setCustomUserClaims(user.uid,{admin:true})
       const app = initializeApp(config.firebase,`smoke-${label}`)
