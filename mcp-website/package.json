@@ -7,11 +7,12 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build ",
+    "build": "node scripts/build-safe.mjs",
+    "build:release": "node scripts/build-safe.mjs --release",
     "build:next": "next build",
     "start": "next start",
-    "lint": "eslint .",
-    "test:config": "node --test tests/runtime-policy.test.cjs",
+    "lint": "eslint --ext .js,.jsx,.cjs,.mjs .",
+    "test:config": "node --test tests/runtime-policy.test.cjs tests/build-network-guard.test.cjs tests/build-fixture-server.test.mjs",
     "export": "next export",
     "tunnel": "cloudflared tunnel --url http://localhost:3000"
   },

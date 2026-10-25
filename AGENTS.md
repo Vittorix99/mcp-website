@@ -14,6 +14,14 @@
 
 ## Delegation contract
 
+- Before every delegation, announce `[Luna]` or `[Sol]`, the bounded task,
+  selected reasoning effort, and why that model fits. When it returns, announce
+  the result and whether Sol accepted, corrected, or escalated the work.
+- Keep `docs/process/MODEL_USAGE_LOG.md` updated with actual dispatches,
+  status, and verification. Report task counts as task counts, never as token
+  or cost measurements. Token/cost fields stay unavailable unless supplied by
+  the host's actual usage telemetry.
+
 - The user authorizes this routing and small-task delegation for project work.
 - Give Luna a fresh context (`fork_turns: "none"`), explicit file ownership,
   the required behavior, constraints, and an appropriate verification command.
