@@ -5,6 +5,7 @@ Documentazione first-party del progetto, centralizzata per evitare file sparsi n
 ## Process
 
 - [Development Methodology](./process/DEVELOPMENT_METHODOLOGY.md)
+- [WS1 Environment and Provider Safety Design](./superpowers/specs/2026-10-24-ws1-environment-provider-safety-design.md)
 
 ## Backend
 

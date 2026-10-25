@@ -287,4 +287,4 @@ La discovery iniziale è documentata nei seguenti artefatti:
 - `docs/architecture/CURRENT_STATE_ASSESSMENT_2026-10-24.md`;
 - `docs/architecture/API_CONTRACT_INVENTORY_2026-10-24.md`.
 
-Il prossimo passaggio previsto è il design di **WS1 — sicurezza di ambienti, credenziali e provider**, dopo la registrazione dell'approvazione dell'intent.
+L'intent è stato approvato il 24 ottobre 2026. Il design di **WS1 — sicurezza di ambienti, credenziali e provider** è ora proposto e attende l'approvazione del Gate 2 prima della creazione del piano di implementazione.
