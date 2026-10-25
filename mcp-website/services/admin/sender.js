@@ -15,6 +15,12 @@ const buildUrl = (base, params = {}) => {
   return query ? `${base}?${query}` : base
 }
 
+const requireSenderSuccess = async (request) => {
+  const result = await request
+  if (result?.error) throw new Error(result.error)
+  return result
+}
+
 // ---- Subscribers ----
 
 export const listSenderSubscribers = (params = {}) =>
@@ -24,13 +30,13 @@ export const getSenderSubscriber = (email) =>
   safeFetch(buildUrl(endpoints.admin.sender.subscribers, { email }), "GET")
 
 export const upsertSenderSubscriber = (payload) =>
-  safeFetch(endpoints.admin.sender.subscribers, "POST", payload)
+  requireSenderSuccess(safeFetch(endpoints.admin.sender.subscribers, "POST", payload))
 
 export const updateSenderSubscriber = (payload) =>
-  safeFetch(endpoints.admin.sender.subscribers, "PUT", payload)
+  requireSenderSuccess(safeFetch(endpoints.admin.sender.subscribers, "PUT", payload))
 
 export const deleteSenderSubscriber = (email) =>
-  safeFetch(buildUrl(endpoints.admin.sender.subscribers, { email }), "DELETE")
+  requireSenderSuccess(safeFetch(endpoints.admin.sender.subscribers, "DELETE", { email }))
 
 export const addSenderSubscriberToGroup = (email, groupId) =>
   safeFetch(endpoints.admin.sender.subscriberGroups, "POST", { email, group_id: groupId })
@@ -124,15 +130,17 @@ export const listSenderTransactionalCampaigns = () =>
   safeFetch(endpoints.admin.sender.transactional, "GET")
 
 export const createSenderTransactionalCampaign = (payload) =>
-  safeFetch(endpoints.admin.sender.transactional, "POST", payload)
+  requireSenderSuccess(safeFetch(endpoints.admin.sender.transactional, "POST", payload))
 
 export const deleteSenderTransactionalCampaign = (campaignId) =>
-  safeFetch(buildUrl(endpoints.admin.sender.transactional, { id: campaignId }), "DELETE")
+  requireSenderSuccess(safeFetch(endpoints.admin.sender.transactional, "DELETE", { id: campaignId }))
 
 export const sendSenderTransactionalCampaign = (campaignId, { to_email, to_name, variables }) =>
-  safeFetch(endpoints.admin.sender.transactionalSend, "POST", {
-    id: campaignId,
-    to_email,
-    to_name,
-    variables,
-  })
+  requireSenderSuccess(
+    safeFetch(endpoints.admin.sender.transactionalSend, "POST", {
+      id: campaignId,
+      to_email,
+      to_name,
+      variables,
+    })
+  )

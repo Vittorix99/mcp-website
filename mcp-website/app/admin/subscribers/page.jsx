@@ -311,7 +311,7 @@ export default function SubscribersPage() {
       closeSubDialog()
     } catch (err) {
       console.error(err)
-      setError("Errore nel salvataggio del subscriber.")
+      setError(err?.message || "Errore nel salvataggio del subscriber.")
     } finally {
       setSubSaving(false)
     }
@@ -325,7 +325,7 @@ export default function SubscribersPage() {
       setSubscribers((prev) => prev.filter((s) => s.email !== email))
     } catch (err) {
       console.error(err)
-      setError("Errore nell'eliminazione del subscriber.")
+      setError(err?.message || "Errore nell'eliminazione del subscriber.")
     }
   }
 

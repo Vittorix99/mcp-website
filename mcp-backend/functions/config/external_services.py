@@ -1,16 +1,25 @@
 import os
 
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
 # External API endpoints used across services
 GMAIL_TOKEN_URL = os.environ.get("GMAIL_TOKEN_URL", "https://oauth2.googleapis.com/token")
 
 SOUNDCLOUD_CLIENT_ID = os.environ.get("SOUNDCLOUD_CLIENT_ID")
 SOUNDCLOUD_CLIENT_SECRET = os.environ.get("SOUNDCLOUD_CLIENT_SECRET")
 GENDER_API_URL = os.environ.get("GENDER_API_URL", "https://api.genderize.io")
+GENDER_API_KEY = os.environ.get("GENDER_API_KEY")
 
 
 PASS2U_API_KEY = os.environ.get("PASS2U_API_KEY")
 PASS2U_BASE_URL = "https://api.pass2u.net/v2"
 
+SENDER_ENABLED = _env_flag("SENDER_ENABLED", default=False)
 SENDER_API_KEY = os.environ.get("SENDER_API_KEY")
 SENDER_BASE_URL = "https://api.sender.net/v2"
 SENDER_GROUP_NEWSLETTER = os.environ.get("SENDER_GROUP_NEWSLETTER")
@@ -25,8 +34,10 @@ __all__ = [
     "SOUNDCLOUD_CLIENT_ID",
     "SOUNDCLOUD_CLIENT_SECRET",
     "GENDER_API_URL",
+    "GENDER_API_KEY",
     "PASS2U_API_KEY",
     "PASS2U_BASE_URL",
+    "SENDER_ENABLED",
     "SENDER_API_KEY",
     "SENDER_BASE_URL",
     "SENDER_GROUP_NEWSLETTER",

@@ -4,7 +4,7 @@ import requests
 import firebase_admin.auth as fb_auth
 from firebase_functions.firestore_fn import on_document_created, Event, DocumentSnapshot
 
-from config.external_services import GENDER_API_URL
+from config.external_services import GENDER_API_URL, GENDER_API_KEY
 from config.firebase_config import region, db
 from models import EventParticipant, Membership as MembershipModel
 from services.communications.mail_service import EmailMessage, mail_service
@@ -56,7 +56,10 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
             probability = 1.0
         elif name:
             try:
-                response = requests.get(GENDER_API_URL, params={"name": name})
+                params = {"name": name}
+                if GENDER_API_KEY:
+                    params["apikey"] = GENDER_API_KEY
+                response = requests.get(GENDER_API_URL, params=params)
                 response.raise_for_status()
                 gender_info = response.json()
                 gender = gender_info.get("gender") or "N/A"

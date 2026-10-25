@@ -25,7 +25,7 @@ from dto.preorder import (
     OrderCaptureResponseDTO,
     PreOrderDTO,
 )
-from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError
 from interfaces.repositories import (
     EventRepositoryProtocol,
     MembershipRepositoryProtocol,
@@ -336,7 +336,11 @@ class EventPaymentService:
         if not stored_order:
             raise NotFoundError("Order not found")
 
-        if stored_order.captured and stored_order.purchase_id:
+        if (
+            stored_order.captured
+            and stored_order.purchase_id
+            and stored_order.order_status == "COMPLETED"
+        ):
             self._debug(
                 "Order %s already processed, returning existing purchase %s",
                 order_id,
@@ -347,23 +351,42 @@ class EventPaymentService:
                 payment_method=stored_order.payment_method or "unknown",
             )
 
+        if stored_order.captured:
+            error = ConflictError(
+                "Payment already captured, but order provisioning is incomplete"
+            )
+            error.payload = {
+                "code": "ORDER_PROVISIONING_INCOMPLETE",
+                "order_id": order_id,
+                "purchase_id": stored_order.purchase_id,
+            }
+            raise error
+
+        event_id = stored_order.event_id
+        if not event_id:
+            raise ValidationError("Missing event_id in stored order")
+
+        # La validità dell'evento deve essere verificata prima della chiamata
+        # irreversibile a PayPal.
+        try:
+            ensure_event_is_active(self._resolve_event_model(event_id, None))
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
         order_data = self.capture_paypal_order(order_id)
         order_info = PayPalOrderInfo.from_payload(order_data)
         try:
             self.validate_capture_payload(order_info)
-            self._validate_capture_amount(order_info, stored_order)
         except ValidationError:
             self._debug("Capture validation failed for %s", order_id)
             self._update_order_status(order_id, order_info.status or "UNKNOWN")
             raise
 
+        # PayPal has completed an irreversible capture at this point. Persist
+        # that fact before any local validation or provisioning can fail, so a
+        # retry cannot issue a second capture request.
         self.order_repository.mark_captured(order_id, order_info.payment_method or "unknown")
-
-        event_id = stored_order.event_id
-        if not event_id:
-            raise ValidationError("Missing event_id in stored order")
-        # Anche se l'ordine PayPal era stato creato prima, non catturiamo pagamenti dopo fine evento.
-        ensure_event_is_active(self._resolve_event_model(event_id, None))
+        self._validate_capture_amount(order_info, stored_order)
 
         if stored_order.discount_code_id:
             self.discount_code_repository.claim_usage(stored_order.discount_code_id)
@@ -419,8 +442,8 @@ class EventPaymentService:
             discount_code=stored_order.discount_code,
         )
 
-        self.order_repository.delete(order_id)
-        self._debug("Order %s processed and removed from staging", order_id)
+        self.order_repository.update_status(order_id, "COMPLETED")
+        self._debug("Order %s processed and retained as terminal record", order_id)
 
         return order_capture_to_response(
             purchase_id=purchase_id,
@@ -504,7 +527,11 @@ class EventPaymentService:
     def capture_paypal_order(self, order_id):
         try:
             order = self._get_orders_controller().orders_capture(
-                {"id": order_id, "prefer": "return=representation"}
+                {
+                    "id": order_id,
+                    "prefer": "return=representation",
+                    "paypal_request_id": f"mcp-capture-{order_id}",
+                }
             )
         except ApiException as exc:
             status = getattr(exc, "response_code", None)

@@ -5,7 +5,17 @@ from errors.service_errors import ConflictError, ExternalServiceError, Forbidden
 
 
 def handle_pydantic_error(err: PydanticValidationError):
-    return jsonify({"error": "Invalid request data", "details": err.errors(include_context=False)}), 400
+    details = []
+    for item in err.errors(include_context=False):
+        location = ".".join(str(part) for part in item.get("loc", ()))
+        details.append(
+            {
+                "field": location,
+                "message": item.get("msg", "Invalid value"),
+                "type": item.get("type", "validation_error"),
+            }
+        )
+    return jsonify({"error": "Invalid request data", "details": details}), 400
 
 
 def handle_service_error(err: Exception):

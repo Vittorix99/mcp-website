@@ -1,3 +1,5 @@
+import sys
+import types as _types
 from pathlib import Path
 
 
@@ -17,7 +19,22 @@ def _load_functions_without_init():
         "load_environment": lambda: None,
     }
 
-    exec(compile(source, str(path), "exec"), namespace)
+    # Prevent `from config.environment import load_environment` inside the exec'd
+    # source from replacing our no-op stub with the real function.  The real
+    # load_environment calls load_dotenv(override=True) when FIRESTORE_EMULATOR_HOST
+    # is set, which would silently restore GOOGLE_APPLICATION_CREDENTIALS from the
+    # .env.integration file and break credential-path tests.
+    _fake_env_mod = _types.ModuleType("config.environment")
+    _fake_env_mod.load_environment = lambda *_a, **_kw: None
+    _saved = sys.modules.get("config.environment")
+    sys.modules["config.environment"] = _fake_env_mod
+    try:
+        exec(compile(source, str(path), "exec"), namespace)
+    finally:
+        if _saved is None:
+            sys.modules.pop("config.environment", None)
+        else:
+            sys.modules["config.environment"] = _saved
 
     class _Credentials:
         @staticmethod

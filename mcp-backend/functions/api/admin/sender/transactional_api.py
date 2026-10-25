@@ -4,20 +4,40 @@ from flask import jsonify
 from pydantic import ValidationError as PydanticValidationError
 
 from api.decorators import admin_endpoint
-from dto.sender_api import CreateTransactionalCampaignRequestDTO, SendTransactionalCampaignRequestDTO
+from dto.sender_api import (
+    CampaignIdRequestDTO,
+    CreateTransactionalCampaignRequestDTO,
+    SendTransactionalCampaignRequestDTO,
+)
+from errors.service_errors import ExternalServiceError
 from utils.http_responses import handle_pydantic_error, handle_service_error
 from .helpers import get_sender_service
 
 logger = logging.getLogger("AdminSenderTransactionalAPI")
 
 
-@admin_endpoint(methods=("GET", "POST"))
+@admin_endpoint(methods=("GET", "POST", "DELETE"))
 def admin_sender_transactional(req):
     sender_service = get_sender_service()
 
     if req.method == "GET":
         try:
-            return jsonify(sender_service.list_transactional_campaigns() or {}), 200
+            result = sender_service.list_transactional_campaigns()
+            if result is None:
+                raise ExternalServiceError("Sender non ha restituito le campagne transazionali")
+            return jsonify(result), 200
+        except Exception as err:
+            return handle_service_error(err)
+
+    if req.method == "DELETE":
+        try:
+            data = {**(req.get_json(silent=True) or {}), **dict(req.args or {})}
+            dto = CampaignIdRequestDTO.model_validate(data)
+            if not sender_service.delete_transactional_campaign(dto.id):
+                raise ExternalServiceError("Sender non ha eliminato la campagna transazionale")
+            return jsonify({"deleted": True}), 200
+        except PydanticValidationError as err:
+            return handle_pydantic_error(err)
         except Exception as err:
             return handle_service_error(err)
 
@@ -30,7 +50,9 @@ def admin_sender_transactional(req):
             from_email=str(dto.from_email),
             content_html=dto.content_html,
         )
-        return jsonify(result or {}), 200
+        if result is None:
+            raise ExternalServiceError("Sender non ha creato la campagna transazionale")
+        return jsonify(result), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
@@ -48,7 +70,9 @@ def admin_sender_transactional_send(req):
             to_name=dto.to_name,
             variables=dto.variables,
         )
-        return jsonify(result or {"sent": True}), 200
+        if result is None:
+            raise ExternalServiceError("Sender non ha inviato la campagna transazionale")
+        return jsonify(result), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:

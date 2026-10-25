@@ -187,6 +187,7 @@ class TestWebhookIntegration:
 
         monkeypatch.setattr(newsletter_repo_module, "db", fake_db)
         monkeypatch.setattr(sender_webhook_api, "SENDER_WEBHOOK_SECRET", None)
+        monkeypatch.setattr(sender_webhook_api, "SENDER_ENABLED", True)
 
         req = DummyRequest(
             method="POST",

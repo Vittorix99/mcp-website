@@ -22,8 +22,18 @@ class TestSenderServiceInit:
 
     def test_api_key_from_env(self, monkeypatch):
         monkeypatch.setattr(sender_service_module, "SENDER_API_KEY", "envkey")
-        svc = SenderService()
+        svc = SenderService(enabled=True)
         assert svc._key() == "envkey"
+
+    def test_disabled_service_never_calls_sender_routes(self, monkeypatch):
+        monkeypatch.setattr(
+            sender_service_module.SenderRoutes,
+            "list_groups",
+            lambda api_key: pytest.fail("Sender route must not be called while disabled"),
+        )
+        svc = SenderService(api_key="configured-key", enabled=False)
+
+        assert svc.list_groups() is None
 
 
 class TestFormatSenderError:

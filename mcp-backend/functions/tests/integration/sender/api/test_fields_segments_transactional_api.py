@@ -73,7 +73,7 @@ def test_segments_get_delete_and_subscribers_integration(mock_request, sender_re
 
 @patch("clients.sender_client.requests.request")
 def test_transactional_list_create_send_integration(mock_request, sender_response_factory):
-    """Transactional APIs list/create/send with expected Sender routes and bodies."""
+    """Transactional APIs use the current Sender routes and payloads."""
     mock_request.side_effect = [
         sender_response_factory(200, {"data": [{"id": "tc-1"}]}),
         sender_response_factory(200, {"data": {"id": "tc-2"}}),
@@ -118,24 +118,33 @@ def test_transactional_list_create_send_integration(mock_request, sender_respons
     assert send_resp == {"sent": True}
 
     calls = mock_request.call_args_list
-    assert calls[0].kwargs["url"].endswith("/transactional-campaigns")
+    assert calls[0].kwargs["url"].endswith("/transactional")
     assert calls[1].kwargs["json"] == {
         "title": "Event Followup",
         "subject": "Lineup out now",
-        "from": {"name": "MCP", "email": "info@test.com"},
-        "content": {"html": "<p>Lineup</p>"},
+        "from": "MCP",
+        "reply_to": "info@test.com",
+        "editor": "html",
+        "content": "<p>Lineup</p>",
     }
-    assert calls[2].kwargs["url"].endswith("/transactional-campaigns/tc-2/send")
+    assert calls[2].kwargs["url"].endswith("/message/tc-2/send")
     assert calls[2].kwargs["json"] == {
-        "to": [{"email": "x@test.com", "name": "Mario"}],
+        "to": {"email": "x@test.com", "name": "Mario"},
         "variables": {"event_title": "EP12"},
     }
 
 
-def test_transactional_delete_not_supported():
-    """DELETE transactional campaigns is not an allowed endpoint method."""
+@patch("clients.sender_client.requests.request")
+def test_transactional_delete_integration(mock_request, sender_response_factory):
+    """DELETE forwards the campaign id using Sender's ids query parameter."""
+    mock_request.return_value = sender_response_factory(200, {"success": True, "message": "Deleted"})
+
     req = DummyRequest(method="DELETE", json={"id": "tc-2"})
     resp, status = unwrap_response(transactional_api.admin_sender_transactional(req))
 
-    assert status == 405
-    assert resp == {"error": "Invalid method"}
+    assert status == 200
+    assert resp == {"deleted": True}
+    call = mock_request.call_args.kwargs
+    assert call["method"] == "DELETE"
+    assert call["url"].endswith("/transactional")
+    assert call["params"] == {"ids": "[tc-2]"}

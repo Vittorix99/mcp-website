@@ -8,7 +8,7 @@ from pydantic import ValidationError as PydanticValidationError
 from dto import CheckoutParticipantDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
 from models import Event, EventOrder, EventPurchaseAccessType, Membership, MembershipRef, PurchaseTypes
 from services.payments.event_payment_service import EventPaymentService
-from errors.service_errors import ExternalServiceError, NotFoundError, ValidationError
+from errors.service_errors import ConflictError, ExternalServiceError, NotFoundError, ValidationError
 from domain.participant_rules import ParticipantCheckResult
 
 
@@ -16,11 +16,13 @@ class _DummyOrdersController:
     def __init__(self, create_response=None, capture_response=None):
         self._create_response = create_response
         self._capture_response = capture_response
+        self.capture_requests = []
 
     def orders_create(self, payload):
         return self._create_response
 
     def orders_capture(self, payload):
+        self.capture_requests.append(dict(payload))
         return self._capture_response
 
 
@@ -29,6 +31,8 @@ class _DummyOrderRepo:
         self.saved = []
         self.deleted = []
         self.status_updates = []
+        self.captured_updates = []
+        self.purchase_updates = []
         self.order_data = order_data
 
     def save(self, order_id, order):
@@ -51,10 +55,12 @@ class _DummyOrderRepo:
         self.status_updates.append((order_id, status))
 
     def mark_captured(self, order_id, payment_method):
-        pass
+        self.captured_updates.append((order_id, payment_method))
+        self.status_updates.append((order_id, "PAYMENT_CAPTURED"))
 
     def set_purchase_id(self, order_id, purchase_id):
-        pass
+        self.purchase_updates.append((order_id, purchase_id))
+        self.status_updates.append((order_id, "PURCHASE_CREATED"))
 
 
 class _DummyEventRepo:
@@ -408,6 +414,10 @@ def test_capture_order_event_missing_order_id():
 def test_capture_order_event_updates_status_on_validation_error(monkeypatch):
     """Updates order status if capture validation fails."""
     service = _make_service()
+    future_date = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%d-%m-%Y")
+    service.event_repository = _DummyEventRepo(
+        model=Event(title="Test", date=future_date, start_time="20:00", end_time="23:00")
+    )
     service.order_repository = _DummyOrderRepo(
         order_data=EventOrder(
             order_id="order-1",
@@ -424,6 +434,49 @@ def test_capture_order_event_updates_status_on_validation_error(monkeypatch):
     assert service.order_repository.status_updates
 
 
+def test_capture_amount_mismatch_records_capture_before_raising(monkeypatch):
+    """A completed provider capture must be persisted before local amount validation."""
+    service = _make_service()
+    future_date = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%d-%m-%Y")
+    service.event_repository = _DummyEventRepo(
+        model=Event(title="Test", date=future_date, start_time="20:00", end_time="23:00")
+    )
+    service.order_repository = _DummyOrderRepo(
+        order_data=EventOrder(
+            order_id="order-1",
+            event_id="evt-1",
+            total=99.0,
+            participants=[_participant().to_payload()],
+        )
+    )
+    monkeypatch.setattr(service, "capture_paypal_order", lambda order_id: _order_payload())
+
+    with pytest.raises(ValidationError, match="does not match expected amount"):
+        service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
+
+    assert service.order_repository.captured_updates == [("order-1", "paypal")]
+
+
+def test_capture_paypal_order_uses_stable_idempotency_key(monkeypatch):
+    """Retries for one order must reuse the same PayPal-Request-Id."""
+    response = SimpleNamespace(status_code=200, body=_order_payload())
+    service = _make_service()
+    controller = _DummyOrdersController(capture_response=response)
+    service.orders_controller = controller
+    monkeypatch.setattr(
+        "services.payments.event_payment_service.ApiHelper.json_serialize",
+        lambda body: json.dumps(body),
+    )
+
+    service.capture_paypal_order("order-1")
+    service.capture_paypal_order("order-1")
+
+    assert [request["paypal_request_id"] for request in controller.capture_requests] == [
+        "mcp-capture-order-1",
+        "mcp-capture-order-1",
+    ]
+
+
 def test_capture_order_event_order_not_found(monkeypatch):
     """Raises when the staged order cannot be found."""
     service = _make_service()
@@ -431,6 +484,76 @@ def test_capture_order_event_order_not_found(monkeypatch):
     monkeypatch.setattr(service, "capture_paypal_order", lambda order_id: _order_payload())
     with pytest.raises(NotFoundError):
         service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
+
+
+def test_capture_order_event_rejects_inactive_event_before_paypal(monkeypatch):
+    """An expired event must be rejected before the irreversible PayPal capture."""
+    service = _make_service()
+    service.event_repository = _DummyEventRepo(
+        model=Event(title="Expired", date="01-01-2020", start_time="20:00", end_time="23:00")
+    )
+    service.order_repository = _DummyOrderRepo(
+        order_data=EventOrder(order_id="order-1", event_id="evt-1", total=10.0)
+    )
+    capture_calls = []
+    monkeypatch.setattr(service, "capture_paypal_order", lambda order_id: capture_calls.append(order_id))
+
+    with pytest.raises(ValidationError):
+        service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
+
+    assert capture_calls == []
+    assert service.order_repository.captured_updates == []
+
+
+def test_capture_order_event_completed_retry_is_idempotent(monkeypatch):
+    """A completed terminal order returns the existing purchase without PayPal calls."""
+    service = _make_service()
+    service.order_repository = _DummyOrderRepo(
+        order_data=EventOrder(
+            order_id="order-1",
+            event_id="evt-1",
+            captured=True,
+            purchase_id="pur-1",
+            payment_method="paypal",
+            order_status="COMPLETED",
+        )
+    )
+    monkeypatch.setattr(
+        service,
+        "capture_paypal_order",
+        lambda order_id: pytest.fail("PayPal capture must not be called on retry"),
+    )
+
+    result = service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
+
+    assert result.purchase_id == "pur-1"
+    assert result.payment_method == "paypal"
+
+
+def test_capture_order_event_partial_capture_fails_without_recapturing(monkeypatch):
+    """A partial provisioning state is explicit and never triggers a second capture."""
+    service = _make_service()
+    service.order_repository = _DummyOrderRepo(
+        order_data=EventOrder(
+            order_id="order-1",
+            event_id="evt-1",
+            captured=True,
+            purchase_id="pur-1",
+            payment_method="paypal",
+            order_status="PURCHASE_CREATED",
+        )
+    )
+    monkeypatch.setattr(
+        service,
+        "capture_paypal_order",
+        lambda order_id: pytest.fail("PayPal capture must not be called for partial orders"),
+    )
+
+    with pytest.raises(ConflictError) as exc_info:
+        service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
+
+    assert exc_info.value.payload["code"] == "ORDER_PROVISIONING_INCOMPLETE"
+    assert exc_info.value.payload["purchase_id"] == "pur-1"
 
 
 def test_capture_order_event_happy_path(monkeypatch):
@@ -482,4 +605,5 @@ def test_capture_order_event_happy_path(monkeypatch):
     assert result.purchase_id == "pur-1"
     assert handled.get("called") is True
     assert service.purchase_repository.updated
-    assert service.order_repository.deleted == ["order-1"]
+    assert service.order_repository.deleted == []
+    assert service.order_repository.status_updates[-1] == ("order-1", "COMPLETED")

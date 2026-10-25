@@ -16,6 +16,7 @@ import logging
 from typing import List, Optional
 
 from config.external_services import (
+    SENDER_ENABLED,
     SENDER_GROUP_MEMBERS,
     SENDER_GROUP_TICKET_BUYERS,
 )
@@ -26,6 +27,13 @@ from services.sender.sender_service import SenderService
 from utils.safe_logging import mask_email, redact_sensitive
 
 logger = logging.getLogger("SenderSync")
+
+
+def _skip_when_disabled(context: str) -> bool:
+    if SENDER_ENABLED:
+        return False
+    logger.info("[SenderSync] %s: Sender disabled, skipping", context)
+    return True
 
 
 def _find_or_create_group(svc: SenderService, title: str) -> Optional[str]:
@@ -45,6 +53,8 @@ def _find_or_create_group(svc: SenderService, title: str) -> Optional[str]:
 
 def _upsert(dto: SenderSubscriberDTO, group_ids: List[Optional[str]], context: str) -> None:
     """Internal helper — upserts a subscriber and assigns them to one or more groups."""
+    if _skip_when_disabled(context):
+        return
     if not dto.email:
         logger.warning("[SenderSync] %s: missing email, skipping", context)
         return
@@ -64,6 +74,8 @@ def sync_membership_to_sender(membership_id: str, membership: Membership) -> Non
     Syncs to the "Memberships" group (find-or-create), falling back to
     SENDER_GROUP_MEMBERS env var if the dynamic lookup fails.
     """
+    if _skip_when_disabled("sync_membership_to_sender"):
+        return
     dto = SenderSubscriberDTO.from_membership(membership_id, membership)
     try:
         svc = SenderService()
@@ -86,6 +98,8 @@ def sync_participant_to_sender(
     Also syncs to "Participant-{event_title}" if event_title is provided,
     falling back to SENDER_GROUP_TICKET_BUYERS env var.
     """
+    if _skip_when_disabled("sync_participant_to_sender"):
+        return
     if not participant.newsletter_consent:
         logger.debug("[SenderSync] sync_participant_to_sender: no consent for %s, skipping", mask_email(participant.email))
         return
@@ -110,6 +124,8 @@ def sync_newsletter_signup_to_sender(email: str, name: Optional[str] = None) -> 
     Called when a public newsletter signup is submitted.
     Syncs to the "Newsletter" group (find-or-create).
     """
+    if _skip_when_disabled("sync_newsletter_signup_to_sender"):
+        return
     dto = SenderSubscriberDTO.from_newsletter_signup(email, name)
     try:
         svc = SenderService()
@@ -126,6 +142,8 @@ def unsubscribe_from_sender(email: str) -> None:
     Preserves history, campaign stats and bounce data.
     This is the correct action for a normal opt-out / unsubscribe request.
     """
+    if _skip_when_disabled("unsubscribe_from_sender"):
+        return
     email = (email or "").strip().lower()
     if not email:
         return
@@ -142,6 +160,8 @@ def delete_subscriber_from_sender(email: str) -> None:
     Use ONLY for GDPR right-to-erasure requests — this destroys all history.
     For normal opt-outs, use unsubscribe_from_sender() instead.
     """
+    if _skip_when_disabled("delete_subscriber_from_sender"):
+        return
     email = (email or "").strip().lower()
     if not email:
         return

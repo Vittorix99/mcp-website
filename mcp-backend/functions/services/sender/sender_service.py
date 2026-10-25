@@ -7,7 +7,7 @@ Never raises externally — logs errors and returns None/False on failure.
 import logging
 from typing import Any, Dict, List, Optional
 
-from config.external_services import SENDER_API_KEY
+from config.external_services import SENDER_API_KEY, SENDER_ENABLED
 from clients.sender_client import SenderRoutes, SenderApiResult
 from services.core.error_logs_service import log_external_error
 from utils.safe_logging import mask_email, redact_sensitive
@@ -35,10 +35,18 @@ def _format_sender_error(payload: Any, status_code: int) -> str:
 
 
 class SenderService:
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, enabled: Optional[bool] = None):
         self._api_key = api_key or SENDER_API_KEY
+        # Passing an explicit key is an opt-in used by isolated tests and tools.
+        # Normal runtime instances obey SENDER_ENABLED even if a key is present.
+        if enabled is None:
+            self.enabled = True if api_key is not None else SENDER_ENABLED
+        else:
+            self.enabled = enabled
 
     def _key(self) -> str:
+        if not self.enabled:
+            raise RuntimeError("Sender integration disabled (SENDER_ENABLED=false)")
         if not self._api_key:
             raise RuntimeError("SENDER_API_KEY non configurata")
         return self._api_key
@@ -100,7 +108,7 @@ class SenderService:
                 body["fields"] = fields
             result = SenderRoutes.upsert_subscriber(self._key(), body)
             if self._ok(result, f"upsert_subscriber({mask_email(email)})"):
-                return result.payload
+                return result.payload if result.payload is not None else {}
             return None
         except Exception as exc:
             logger.error("[Sender] upsert_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
@@ -118,7 +126,7 @@ class SenderService:
         try:
             result = SenderRoutes.update_subscriber(self._key(), email, data)
             if self._ok(result, f"update_subscriber({mask_email(email)})"):
-                return result.payload
+                return result.payload if result.payload is not None else {}
             return None
         except Exception as exc:
             logger.error("[Sender] update_subscriber(%s) exception: %s", mask_email(email), redact_sensitive(str(exc)))
@@ -530,8 +538,10 @@ class SenderService:
             body = {
                 "title": title,
                 "subject": subject,
-                "from": {"name": from_name, "email": from_email},
-                "content": {"html": content_html},
+                "from": from_name,
+                "reply_to": from_email,
+                "editor": "html",
+                "content": content_html,
             }
             result = SenderRoutes.create_transactional_campaign(self._key(), body)
             if self._ok(result, f"create_transactional_campaign({title})"):
@@ -541,6 +551,16 @@ class SenderService:
             logger.error("[Sender] create_transactional_campaign exception: %s", redact_sensitive(str(exc)))
             return None
 
+    def delete_transactional_campaign(self, campaign_id: str) -> bool:
+        try:
+            result = SenderRoutes.delete_transactional_campaign(self._key(), campaign_id)
+            if self._ok(result, f"delete_transactional_campaign({campaign_id})"):
+                return True
+            return False
+        except Exception as exc:
+            logger.error("[Sender] delete_transactional_campaign exception: %s", redact_sensitive(str(exc)))
+            return False
+
     def send_transactional_campaign(
         self,
         campaign_id: str,
@@ -549,7 +569,10 @@ class SenderService:
         variables: Optional[Dict] = None,
     ) -> Optional[Dict]:
         try:
-            body: Dict[str, Any] = {"to": [{"email": to_email, "name": to_name}]}
+            recipient: Dict[str, str] = {"email": to_email}
+            if to_name:
+                recipient["name"] = to_name
+            body: Dict[str, Any] = {"to": recipient}
             if variables:
                 body["variables"] = variables
             result = SenderRoutes.send_transactional_campaign(self._key(), campaign_id, body)
