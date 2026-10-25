@@ -34,7 +34,7 @@ class TestSenderServiceInit:
             "list_groups",
             lambda api_key: pytest.fail("Sender route must not be called while disabled"),
         )
-        svc = SenderService(api_key="configured-key", enabled=False)
+        svc = SenderService(api_key="fake-configured-key", enabled=False)
 
         assert svc.list_groups() is None
 

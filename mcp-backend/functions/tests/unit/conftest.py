@@ -37,7 +37,7 @@ def _patch_flask_request_proxies(monkeypatch):
 
 @pytest.fixture
 def sender_service():
-    return SenderService(api_key="test-key-123", routes=SenderRoutes)
+    return SenderService(api_key="fake-test-key-123", routes=SenderRoutes)
 
 
 @pytest.fixture

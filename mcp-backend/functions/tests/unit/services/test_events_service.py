@@ -66,7 +66,6 @@ def test_create_event_happy_path():
         title="Test Event",
         date="13-02-2026",
         start_time="20:00",
-        location="Milano",
         location_hint="Ingresso A",
         price=10,
         fee=1,
@@ -89,7 +88,6 @@ def test_create_event_rejects_invalid_date():
             title="Test",
             date="2026-99-99",
             start_time="20:00",
-            location="Milano",
             location_hint="Ingresso A",
         )
 
@@ -193,7 +191,7 @@ def test_list_upcoming_events_filters_and_sorts():
     assert len(payload) == 1
 
 
-def test_get_next_public_event_returns_future_events():
+def test_get_next_public_event_returns_only_the_next_event():
     service = _make_service()
     now = datetime.datetime.now(EVENT_TIMEZONE)
     today = now.date()
@@ -211,7 +209,7 @@ def test_get_next_public_event_returns_future_events():
 
     payload = service.get_next_public_event()
 
-    assert [event.title for event in payload] == ["Today", "Tomorrow"]
+    assert [event.title for event in payload] == ["Today"]
 
 
 def test_list_upcoming_events_excludes_manually_ended_events():
