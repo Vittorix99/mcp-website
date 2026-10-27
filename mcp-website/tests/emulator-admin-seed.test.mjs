@@ -29,7 +29,7 @@ test('seed creates a login-enabled local admin and reruns restore the same accou
   assert.equal(admin.disabled,false)
   assert.equal(admin.emailVerified,true)
   assert.deepEqual(admin.customClaims,{admin:true})
-  admin.password = 'changed-password'
+  admin.password = 'changed-password' // NOSECRET: synthetic in-memory test fixture, never a real credential
   admin.disabled = true
   admin.customClaims = {}
   await seedAdmin(auth,localEnv)
