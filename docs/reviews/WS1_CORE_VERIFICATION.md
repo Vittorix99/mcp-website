@@ -71,6 +71,16 @@ corretta con regressione RED→GREEN. Suite rieseguite: 685 test backend e
 WeasyPrint/HarfBuzz. Il proprietario conferma login e accesso alla dashboard;
 questa prova browser è owner-reported. CI remota ancora non eseguita.
 
+## Prima esecuzione GitHub Actions — 2026-10-27
+
+La PR #1 ha avviato [Core WS1 checks, run 1](https://github.com/Vittorix99/mcp-website/actions/runs/40584476687).
+Checkout fallito prima dei test: gitlink storico `.claude/worktrees/reverent-rubin`
+senza una voce `.gitmodules`, presente anche nel branch base. Riproduzione locale:
+`git submodule foreach --recursive true`, exit 128. Rimosso il solo gitlink
+dall'indice, preservando la directory locale; `.claude` è già ignorata.
+Lo stesso comando ora termina con exit 0. La suite CI resta da rieseguire
+con il commit correttivo: i test remoti del primo tentativo non sono partiti.
+
 ## Revisione e gate
 
 Revisione indipendente Sol high sul range `719da2f1..6f0be3ef`: nessun Critical o Minor, tre Important. Tutti corretti in `9ece2609`, con regressioni RED→GREEN e suite finale verde. Il [rapporto di review](WS1_CORE_REVIEW.md) mantiene il verdetto originale e le evidenze delle correzioni; nessuna seconda review è stata simulata o delegata. Staging: **pending authorization**. Produzione: **deferred**.
