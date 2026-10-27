@@ -12,7 +12,7 @@
     "build:next": "next build",
     "start": "next start",
     "lint": "eslint --ext .js,.jsx,.cjs,.mjs .",
-    "test:config": "node --test tests/runtime-policy.test.cjs tests/build-network-guard.test.cjs tests/build-fixture-server.test.mjs tests/firebase-discovery-bridge.test.cjs tests/paypal-section.test.cjs",
+    "test:config": "node --test tests/runtime-policy.test.cjs tests/build-network-guard.test.cjs tests/build-fixture-server.test.mjs tests/firebase-discovery-bridge.test.cjs tests/paypal-section.test.cjs tests/emulator-admin-seed.test.mjs",
     "export": "next export",
     "tunnel": "cloudflared tunnel --url http://localhost:3000"
   },

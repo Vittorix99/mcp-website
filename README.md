@@ -22,8 +22,14 @@ conflicting path is reported rather than overwritten.
 Local development uses `demo-mcp-local`; tests use `demo-mcp-test`. All five
 Firebase emulators bind to loopback. Provider calls use fakes, and Sender is
 suspended in every environment. No export is imported automatically.
-`scripts/dev-local.sh --seed` is reserved for the checked-in synthetic seed;
-existing Firebase exports are never accepted by these commands.
+Existing Firebase exports are never accepted by these commands.
+`scripts/dev-local.sh --seed` loads the checked-in synthetic seed;
+it also creates the local Auth admin `admin@test.it` with password `admin123`
+and the `admin: true` claim. Firebase requires at least six password characters.
+Use this command at each startup when you want test data. Reapplying the seed
+restores the same admin account and password without creating duplicates.
+These public credentials work only in `demo-mcp-local` on the Auth emulator;
+the seed refuses cloud projects. They are discarded when the emulators stop.
 
 Default frontend builds use a deterministic loopback fixture server. Release
 builds require explicit approved staging/production public configuration and

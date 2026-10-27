@@ -44,3 +44,45 @@ def test_legacy_production_flags_are_rejected():
     result = subprocess.run([sys.executable,str(ROOT / "scripts/lib/runtime_guard.py"),"dev-local","--env=prod"],
                             text=True,capture_output=True,cwd=ROOT)
     assert result.returncode != 0
+
+
+def test_local_seed_waits_for_auth_as_well_as_firestore(monkeypatch):
+    import socket
+    import time
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    guard = _guard()
+    settings = SimpleNamespace(firebase=SimpleNamespace(project_id="demo-mcp-local"))
+    monkeypatch.setattr(guard, "command_environment", lambda *_: (settings, {}))
+    monkeypatch.setattr(guard, "_ensure_cli_venv", lambda: None)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+    attempts = {8080: 0, 9099: 0}
+
+    def connect(address, **_kwargs):
+        port = address[1]
+        attempts[port] += 1
+        if port == 9099 and attempts[port] == 1:
+            raise ConnectionRefusedError("Auth is still starting")
+        return nullcontext()
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+
+    class Child:
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+        def wait(self, **_kwargs):
+            return 0
+
+    monkeypatch.setattr(guard.subprocess, "Popen", lambda *_args, **_kwargs: Child())
+
+    def seed(_env, seed=False):
+        assert seed
+        assert attempts[9099] == 2, "Seed must wait until Auth accepts connections"
+        return 0
+
+    monkeypatch.setattr(guard, "_inside_emulators", seed)
+    assert guard.main(["dev-local", "--seed"]) == 0

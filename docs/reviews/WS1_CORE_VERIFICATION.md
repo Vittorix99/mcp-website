@@ -60,6 +60,17 @@ provider reali e il deploy di staging/produzione non sono stati eseguiti.
   Il bypass dotenv del build usa un flag interno della versione Next bloccata;
   un upgrade richiede la stessa rivalutazione.
 
+## Aggiornamento seed locale — 2026-10-27
+
+`scripts/dev-local.sh --seed` crea o ripristina `admin@test.it` con password
+pubblica di prova `admin123` e claim `admin: true`, solo in `demo-mcp-local`
+sull'emulatore Auth loopback. L'avvio attende Firestore e Auth prima del seed.
+Review indipendente Sol high: una segnalazione Important sull'attesa di Auth,
+corretta con regressione RED→GREEN. Suite rieseguite: 685 test backend e
+24 frontend passati; lint mirato senza errori. Rimane il warning preesistente
+WeasyPrint/HarfBuzz. Il proprietario conferma login e accesso alla dashboard;
+questa prova browser è owner-reported. CI remota ancora non eseguita.
+
 ## Revisione e gate
 
 Revisione indipendente Sol high sul range `719da2f1..6f0be3ef`: nessun Critical o Minor, tre Important. Tutti corretti in `9ece2609`, con regressioni RED→GREEN e suite finale verde. Il [rapporto di review](WS1_CORE_REVIEW.md) mantiene il verdetto originale e le evidenze delle correzioni; nessuna seconda review è stata simulata o delegata. Staging: **pending authorization**. Produzione: **deferred**.

@@ -8,6 +8,7 @@ import {getStorage,connectStorageEmulator,ref,uploadBytes,getBytes,deleteObject}
 import {initializeApp as initializeAdminApp,deleteApp as deleteAdminApp} from 'firebase-admin/app'
 import {getAuth as getAdminAuth} from 'firebase-admin/auth'
 import {getFirestore as getAdminFirestore} from 'firebase-admin/firestore'
+import {seedLocalAdmin} from './emulator-admin-seed.mjs'
 
 const require = createRequire(import.meta.url)
 const {validatePublicRuntime} = require('../config/runtime-policy.cjs')
@@ -29,7 +30,9 @@ try {
   await adminDb.doc(`events/${seed.event_id}`).set(seed.event)
   await adminDb.doc('membership_settings/price').set(seed.membership_settings)
   if (process.argv.includes('--seed-only')) {
+    await seedLocalAdmin(adminAuth)
     console.log('Synthetic local seed applied')
+    console.log('Local admin ready: admin@test.it / admin123 (emulator only)')
   } else {
     async function client(label,role) {
       const user = await adminAuth.createUser({email:`ws1-${label}@example.test`,password:'Synthetic-only-123!'}) // NOSECRET: emulator-only fixed fixture

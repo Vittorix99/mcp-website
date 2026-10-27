@@ -103,12 +103,14 @@ def main(argv=None):
             deadline = time.monotonic()+60
             while time.monotonic() < deadline:
                 try:
-                    with socket.create_connection(("127.0.0.1",8080),timeout=.2):
-                        break
+                    for port in (8080,9099):
+                        with socket.create_connection(("127.0.0.1",port),timeout=.2):
+                            pass
+                    break
                 except OSError:
                     time.sleep(.2)
             else:
-                raise ValueError("Firestore emulator did not become ready for synthetic seed")
+                raise ValueError("Firestore and Auth emulators did not become ready for synthetic seed")
             if _inside_emulators(env,seed=True):
                 raise ValueError("Synthetic seed failed")
         children.append(subprocess.Popen([str(ROOT / "frontend-dev.sh")],cwd=ROOT,env=env))

@@ -3,7 +3,9 @@
 Data della ripresa: 2026-10-25. Branch di esecuzione:
 `core-ws1-environment-safety`, worktree `.worktrees/core-ws1`.
 
-Il coordinatore della conversazione usa **GPT-6.1 Sol**. Questo registro
+Il coordinatore delle sessioni su ChatGPT/Codex usa **GPT-6.1 Sol**; su Claude
+Code si usa lo schema Opus/Sonnet/Haiku di `AGENTS.md`. Le righe sotto sono
+tutte di sessioni ChatGPT/Codex; le nuove righe indicano la piattaforma. Questo registro
 conta incarichi effettivamente delegati, non token, chiamate interne o costi.
 La sessione non espone un contatore affidabile di consumo per singolo agente.
 
@@ -26,12 +28,14 @@ La sessione non espone un contatore affidabile di consumo per singolo agente.
 | Luna 6 | `event_fixture_repairs_luna`: fixture eventi, location e ticket | medium | Concluso; 37 test passati, diff revisionato da Sol; suite completa verde |
 | Luna 6 | `inactive_workflow_docs_luna`: template futuri inattivi e stato documentazione | low | Concluso; Sol ha corretto i project ID abbreviati, verificato YAML, blocchi di esecuzione e link; nessun deploy implementato o abilitato |
 | Sol 6.1 | `ws1_final_review_sol`: unica review indipendente dell'intero branch WS1 | high | Conclusa; 3 Important, nessun Critical/Minor. Sol coordinatore ha corretto tutti e tre con regressioni RED→GREEN; nessuna seconda review |
+| Sol 6.1 (Codex) | `local_seed_review_sol`: review circoscritta del seed Auth locale richiesto dal proprietario | high | Conclusa; 1 Important sull'attesa di Auth all'avvio, accettato e corretto dal coordinatore con regressione RED→GREEN. Verifica finale: 685 test backend e 24 frontend passati; lint mirato pulito. Login e accesso admin confermati dal proprietario il 2026-10-27, non verificati indipendentemente nel browser |
 
-Totale registrato: **15 incarichi a Luna e 2 review delegate a Sol**,
+Totale registrato: **15 incarichi a Luna e 3 review delegate a Sol**,
 oltre al lavoro del coordinatore Sol nella conversazione principale.
 
-Ultima verifica Sol: **684 test backend e 21 frontend passati, zero fallimenti**;
-build ed emulatori passati. Core locale pronto per revisione del proprietario;
+Ultima verifica delle suite Sol: **685 test backend e 24 frontend passati, zero fallimenti**;
+build ed emulatori passati nella verifica Core precedente al seed. Login locale
+confermato dal proprietario il 2026-10-27. Core locale pronto per revisione del proprietario;
 CI remota e deploy non eseguiti. Audit Gitleaks storico:
 12 segnalazioni classificate nel rapporto separato del worktree. Chiavi private
 disabilitata/assente verificate su IAM; MailerLite ritirato e progetto OAuth
