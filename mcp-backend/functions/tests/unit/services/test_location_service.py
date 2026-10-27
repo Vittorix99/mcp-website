@@ -1,4 +1,4 @@
-from models import Event, EventParticipant, LocationJob
+from models import Event, EventLocation, EventParticipant, LocationJob
 from dto.participant_api import SendLocationToAllRequestDTO
 from repositories.job_repository import LOCATION_JOBS_COLLECTION
 from services.events import location_service as location_module
@@ -23,6 +23,35 @@ class _ParticipantRepo:
 
     def update_from_model(self, event_id, participant_id, participant):
         self.updated.append((event_id, participant_id, participant))
+
+
+class _EventLocationRepo:
+    def __init__(self, locations=None):
+        self.locations = dict(locations or {})
+
+    def get(self, event_id):
+        return self.locations.get(event_id)
+
+    def upsert_all(self, event_id, location):
+        self.locations[event_id] = location
+
+    def set_published(self, event_id, published):
+        location = self.get(event_id) or EventLocation()
+        location.published = published
+        self.locations[event_id] = location
+
+    def merge_public_fields(self, event_id, location):
+        existing = self.get(event_id) or EventLocation()
+        existing.label = location.label
+        existing.maps_url = location.maps_url
+        existing.maps_embed_url = location.maps_embed_url
+        self.locations[event_id] = existing
+
+    def merge_address(self, event_id, address, maps_url):
+        existing = self.get(event_id) or EventLocation()
+        existing.address = address
+        existing.maps_url = maps_url
+        self.locations[event_id] = existing
 
 
 class _LocationJobRepo:
@@ -66,6 +95,7 @@ def test_start_send_location_job_creates_location_job_payload():
         participant_repository=_ParticipantRepo(participants),
         job_repository=job_repo,
         mail_service_instance=_MailService(),
+        location_event_repository=_EventLocationRepo(),
     )
 
     result = service.start_send_location_job(
@@ -102,6 +132,7 @@ def test_start_send_location_job_kicks_existing_queued_location_job():
         participant_repository=_ParticipantRepo(participants),
         job_repository=job_repo,
         mail_service_instance=_MailService(),
+        location_event_repository=_EventLocationRepo(),
     )
 
     result = service.start_send_location_job(
@@ -140,11 +171,15 @@ def test_worker_send_location_processes_location_job(monkeypatch):
     monkeypatch.setattr(location_module, "build_location_email_payload", lambda *args, **kwargs: ("subject", "text", "html"))
     monkeypatch.setattr(location_module, "_send_with_retry", lambda *args, **kwargs: True)
 
+    location_repo = _EventLocationRepo(
+        {"event-1": EventLocation(address="Via Roma", maps_url="https://maps.example")}
+    )
     service = LocationService(
         event_repository=_EventRepo(),
         participant_repository=participant_repo,
         job_repository=job_repo,
         mail_service_instance=_MailService(),
+        location_event_repository=location_repo,
     )
 
     service._worker_send_location("location-job-1")

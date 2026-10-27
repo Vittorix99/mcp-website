@@ -1,59 +1,53 @@
-from pathlib import Path
+import importlib
+from types import SimpleNamespace
+
+import pytest
+from google.auth.credentials import AnonymousCredentials
+
+from config.runtime_settings import load_runtime_settings
 
 
-def _load_functions_without_init():
-    path = Path(__file__).resolve().parents[3] / "config" / "firebase_config.py"
-    source = path.read_text(encoding="utf-8")
-    source = source.split("if not firebase_admin._apps:", 1)[0]
-    namespace = {
-        "__file__": str(path),
-        "json": __import__("json"),
-        "os": __import__("os"),
-        "firebase_admin": object(),
-        "credentials": None,
-        "firestore": object(),
-        "storage": object(),
-        "options": object(),
-        "load_environment": lambda: None,
-    }
-
-    exec(compile(source, str(path), "exec"), namespace)
-
-    class _Credentials:
-        @staticmethod
-        def Certificate(payload):
-            return ("certificate", payload)
-
-        @staticmethod
-        def ApplicationDefault():
-            return "application_default"
-
-    namespace["credentials"] = _Credentials
-    return namespace
+@pytest.fixture
+def firebase_module(monkeypatch):
+    monkeypatch.setenv("MCP_ENV", "test")
+    for key in ("GOOGLE_APPLICATION_CREDENTIALS", "FIREBASE_SERVICE_ACCOUNT_JSON", "GCLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT", "STORAGE_BUCKET", "FIREBASE_CONFIG"):
+        monkeypatch.delenv(key, raising=False)
+    from config.runtime_settings import clear_runtime_settings_cache
+    clear_runtime_settings_cache()
+    return importlib.import_module("config.firebase_config")
 
 
-def test_cloud_runtime_ignores_missing_local_google_application_credentials(monkeypatch):
-    monkeypatch.setenv("K_SERVICE", "admin_rebuild_analytics")
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "./missing_service_account.json")
+def _fake_constructors(module, monkeypatch):
+    initialized = []
+    monkeypatch.setattr(module.firebase_admin, "_apps", {})
+    def initialize(credential, options):
+        initialized.append((credential, options))
+        return SimpleNamespace(project_id=options["projectId"])
+    monkeypatch.setattr(module.firebase_admin, "initialize_app", initialize)
+    monkeypatch.setattr(module.firestore, "client", lambda app: ("db", app.project_id))
+    monkeypatch.setattr(module.storage, "bucket", lambda name, app: ("bucket", name))
+    return initialized
 
-    module = _load_functions_without_init()
 
-    assert module["_load_credentials"]() == "application_default"
-    assert "GOOGLE_APPLICATION_CREDENTIALS" not in __import__("os").environ
+def test_emulator_startup_does_not_read_service_account_json(firebase_module, monkeypatch):
+    calls = _fake_constructors(firebase_module, monkeypatch)
+    monkeypatch.setattr(firebase_module.credentials, "Certificate", lambda *args: pytest.fail("JSON credential read"))
+    monkeypatch.setattr(firebase_module.credentials, "ApplicationDefault", lambda: pytest.fail("ADC attempted locally"))
+    settings = load_runtime_settings({"MCP_ENV": "test"})
+    db, bucket = firebase_module.initialize_firebase(settings)
+    assert db == ("db", "demo-mcp-test")
+    assert bucket == ("bucket", "demo-mcp-test.appspot.com")
+    assert isinstance(calls[0][0].get_credential(), AnonymousCredentials)
+    assert calls[0][1]["projectId"] == "demo-mcp-test"
 
 
-def test_local_missing_google_application_credentials_error_is_sanitized(monkeypatch):
-    monkeypatch.delenv("K_SERVICE", raising=False)
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "./missing_service_account.json")
-
-    module = _load_functions_without_init()
-
-    try:
-        module["_load_credentials"]()
-    except FileNotFoundError as exc:
-        message = str(exc)
-    else:
-        raise AssertionError("Expected FileNotFoundError")
-
-    assert "missing_service_account.json" not in message
-    assert "GOOGLE_APPLICATION_CREDENTIALS" not in message
+def test_cloud_startup_uses_application_default_credentials(firebase_module, monkeypatch):
+    calls = _fake_constructors(firebase_module, monkeypatch)
+    credential = object()
+    monkeypatch.setattr(firebase_module.credentials, "ApplicationDefault", lambda: credential)
+    for key in ("FIRESTORE_EMULATOR_HOST", "FIREBASE_AUTH_EMULATOR_HOST", "STORAGE_EMULATOR_HOST", "PUBSUB_EMULATOR_HOST"):
+        monkeypatch.delenv(key, raising=False)
+    from tests.config_fixtures import cloud_environment
+    db, bucket = firebase_module.initialize_firebase(load_runtime_settings(cloud_environment("staging")))
+    assert db == ("db", "mcp-website-dev-39539")
+    assert calls[0][0] is credential

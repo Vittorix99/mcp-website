@@ -5,6 +5,7 @@ import Link from "next/link"
 import { getAllEvents } from "@/services/events"
 import { routes, getRoute } from "@/config/routes"
 import { useReveal } from "@/hooks/useReveal"
+import { EVENT_STATUSES } from "@/config/events-utils"
 
 const ACC = "#E07800"
 const HN = "var(--font-helvetica), Helvetica, Arial, sans-serif"
@@ -34,8 +35,8 @@ function EventRow({ ev, index }) {
   const today = new Date()
   const eventDate = parseEventDate(ev.date)
   const isPast = eventDate < today
-  const isActive = ev.status === "active" || (!isPast && ev.status !== "soon")
-  const isSoon = ev.status === "soon"
+  const isSoon = ev.status === EVENT_STATUSES.COMING_SOON
+  const isActive = !isSoon && (ev.status === EVENT_STATUSES.ACTIVE || !isPast)
 
   return (
     <div

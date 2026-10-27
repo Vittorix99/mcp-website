@@ -28,7 +28,11 @@ class OrderRepository(BaseRepository[EventOrder]):
         self.collection.document(order_id).update({
             "captured": True,
             "payment_method": payment_method,
+            "orderStatus": "PAYMENT_CAPTURED",
         })
 
     def set_purchase_id(self, order_id: str, purchase_id: str) -> None:
-        self.collection.document(order_id).update({"purchase_id": purchase_id})
+        self.collection.document(order_id).update({
+            "purchase_id": purchase_id,
+            "orderStatus": "PURCHASE_CREATED",
+        })

@@ -4,71 +4,73 @@ import repositories.newsletter_repository as newsletter_repository_module
 from repositories.newsletter_repository import NewsletterRepository
 
 
-class TestUnsubscribeByEmail:
-    """Unit tests for NewsletterRepository.unsubscribe_by_email."""
+def _build_repo(signup_docs=(), consent_docs=(), monkeypatch=None):
+    signup_collection = MagicMock()
+    consent_collection = MagicMock()
+    participants_collection = MagicMock()
+    signup_collection.where.return_value.stream.return_value = signup_docs
+    consent_collection.where.return_value.stream.return_value = consent_docs
 
-    def _build_repo(self, signup_docs, consent_docs, monkeypatch):
-        signup_collection = MagicMock()
-        consent_collection = MagicMock()
+    fake_db = MagicMock()
+    collections = {
+        "newsletter_signups": signup_collection,
+        "newsletter_consents": consent_collection,
+        "newsletter_participants": participants_collection,
+    }
+    fake_db.collection.side_effect = lambda name: collections[name]
+    monkeypatch.setattr(newsletter_repository_module, "db", fake_db)
 
-        signup_collection.where.return_value.stream.return_value = signup_docs
-        consent_collection.where.return_value.stream.return_value = consent_docs
+    return NewsletterRepository(), signup_collection, consent_collection
 
-        fake_db = MagicMock()
 
-        def _collection(name):
-            if name == "newsletter_signups":
-                return signup_collection
-            if name == "newsletter_consents":
-                return consent_collection
-            raise AssertionError(f"Unexpected collection: {name}")
+def _assert_email_filter(collection, email):
+    collection.where.assert_called_once()
+    kwargs = collection.where.call_args.kwargs
+    assert set(kwargs) == {"filter"}
+    filter_ = kwargs["filter"]
+    assert filter_.field_path == "email"
+    assert filter_.op_string == "=="
+    assert filter_.value == email
 
-        fake_db.collection.side_effect = _collection
-        monkeypatch.setattr(newsletter_repository_module, "db", fake_db)
 
-        repo = NewsletterRepository()
-        return repo, signup_collection, consent_collection
+def test_unsubscribe_marks_matching_signups_inactive(monkeypatch):
+    signup = MagicMock()
+    repo, signup_collection, _ = _build_repo([signup], monkeypatch=monkeypatch)
 
-    def test_marks_signups_inactive(self, monkeypatch):
-        s1, s2 = MagicMock(), MagicMock()
-        repo, signup_collection, _ = self._build_repo([s1, s2], [], monkeypatch)
+    repo.unsubscribe_by_email("x@example.com")
 
-        repo.unsubscribe_by_email("x@t.com")
+    signup.reference.update.assert_called_once_with({"active": False})
+    _assert_email_filter(signup_collection, "x@example.com")
 
-        s1.reference.update.assert_called_once_with({"active": False})
-        s2.reference.update.assert_called_once_with({"active": False})
-        signup_collection.where.assert_called_once_with("email", "==", "x@t.com")
 
-    def test_marks_consents_inactive(self, monkeypatch):
-        c1 = MagicMock()
-        repo, _, consent_collection = self._build_repo([], [c1], monkeypatch)
+def test_unsubscribe_marks_matching_consents_inactive(monkeypatch):
+    consent = MagicMock()
+    repo, _, consent_collection = _build_repo(consent_docs=[consent], monkeypatch=monkeypatch)
 
-        repo.unsubscribe_by_email("x@t.com")
+    repo.unsubscribe_by_email("x@example.com")
 
-        c1.reference.update.assert_called_once_with({"active": False})
-        consent_collection.where.assert_called_once_with("email", "==", "x@t.com")
+    consent.reference.update.assert_called_once_with({"active": False})
+    _assert_email_filter(consent_collection, "x@example.com")
 
-    def test_no_matching_docs_no_error(self, monkeypatch):
-        repo, _, _ = self._build_repo([], [], monkeypatch)
 
-        repo.unsubscribe_by_email("x@t.com")
+def test_unsubscribe_with_no_matches_is_a_noop(monkeypatch):
+    repo, signup_collection, consent_collection = _build_repo(monkeypatch=monkeypatch)
 
-    def test_both_collections_updated(self, monkeypatch):
-        s1 = MagicMock()
-        c1 = MagicMock()
-        repo, signup_collection, consent_collection = self._build_repo([s1], [c1], monkeypatch)
+    repo.unsubscribe_by_email("x@example.com")
 
-        repo.unsubscribe_by_email("x@t.com")
+    _assert_email_filter(signup_collection, "x@example.com")
+    _assert_email_filter(consent_collection, "x@example.com")
 
-        s1.reference.update.assert_called_once_with({"active": False})
-        c1.reference.update.assert_called_once_with({"active": False})
-        signup_collection.where.assert_called_once_with("email", "==", "x@t.com")
-        consent_collection.where.assert_called_once_with("email", "==", "x@t.com")
 
-    def test_email_query_correct(self, monkeypatch):
-        repo, signup_collection, consent_collection = self._build_repo([], [], monkeypatch)
+def test_unsubscribe_updates_both_collections(monkeypatch):
+    signup, consent = MagicMock(), MagicMock()
+    repo, signup_collection, consent_collection = _build_repo(
+        signup_docs=[signup], consent_docs=[consent], monkeypatch=monkeypatch
+    )
 
-        repo.unsubscribe_by_email("query@test.com")
+    repo.unsubscribe_by_email("query@example.com")
 
-        signup_collection.where.assert_called_once_with("email", "==", "query@test.com")
-        consent_collection.where.assert_called_once_with("email", "==", "query@test.com")
+    signup.reference.update.assert_called_once_with({"active": False})
+    consent.reference.update.assert_called_once_with({"active": False})
+    _assert_email_filter(signup_collection, "query@example.com")
+    _assert_email_filter(consent_collection, "query@example.com")

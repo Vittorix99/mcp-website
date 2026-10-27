@@ -156,6 +156,11 @@ class Pass2UServiceProtocol(Protocol):
         ...
 
 
+class SoundCloudServiceProtocol(Protocol):
+    def resolve_track(self, soundcloud_url: str) -> Dict[str, Any]:
+        ...
+
+
 class MembershipsServiceProtocol(Protocol):
     def get_all(self, year: int | None = None) -> list[MembershipResponseDTO]:
         ...

@@ -4,6 +4,7 @@ import pytest
 
 import services.sender.sender_service as sender_service_module
 from clients.sender_client import SenderApiResult
+from config.runtime_settings import load_runtime_settings
 from services.sender.sender_service import SenderService, _format_sender_error
 
 
@@ -17,13 +18,25 @@ class TestSenderServiceInit:
             svc._key()
 
     def test_api_key_from_constructor(self):
-        svc = SenderService("mykey")
+        svc = SenderService("mykey", routes=sender_service_module.SenderRoutes)
         assert svc._key() == "mykey"
 
-    def test_api_key_from_env(self, monkeypatch):
-        monkeypatch.setattr(sender_service_module, "SENDER_API_KEY", "envkey")
-        svc = SenderService()
+    def test_api_key_from_env(self):
+        settings = load_runtime_settings(
+            {"MCP_ENV": "test", "SENDER_API_KEY": "envkey"}
+        )
+        svc = SenderService(settings=settings, routes=sender_service_module.SenderRoutes)
         assert svc._key() == "envkey"
+
+    def test_disabled_service_never_calls_sender_routes(self, monkeypatch):
+        monkeypatch.setattr(
+            sender_service_module.SenderRoutes,
+            "list_groups",
+            lambda api_key: pytest.fail("Sender route must not be called while disabled"),
+        )
+        svc = SenderService(api_key="fake-configured-key", enabled=False)
+
+        assert svc.list_groups() is None
 
 
 class TestFormatSenderError:
@@ -62,7 +75,7 @@ class TestUpsertSubscriber:
             "upsert_subscriber",
             lambda api_key, body: SenderApiResult(200, {"data": {"id": "sub-1"}}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         result = svc.upsert_subscriber("x@test.com")
 
@@ -74,7 +87,7 @@ class TestUpsertSubscriber:
             "upsert_subscriber",
             lambda api_key, body: SenderApiResult(422, {"error": "bad"}, "bad"),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.upsert_subscriber("x@test.com") is None
 
@@ -87,7 +100,7 @@ class TestUpsertSubscriber:
             return SenderApiResult(200, {"ok": True})
 
         monkeypatch.setattr(sender_service_module.SenderRoutes, "upsert_subscriber", _fake)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         svc.upsert_subscriber("x@test.com", groups=["g1"])
 
@@ -100,7 +113,7 @@ class TestUpsertSubscriber:
             raise Exception("network")
 
         monkeypatch.setattr(sender_service_module.SenderRoutes, "upsert_subscriber", _boom)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.upsert_subscriber("x@test.com") is None
 
@@ -114,7 +127,7 @@ class TestSendCampaign:
             "send_campaign",
             lambda api_key, campaign_id: SenderApiResult(200, {"sent": True}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.send_campaign("camp-123")
 
@@ -128,7 +141,7 @@ class TestSendCampaign:
             "send_campaign",
             lambda api_key, campaign_id: SenderApiResult(422, payload),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.send_campaign("camp-123")
 
@@ -142,7 +155,7 @@ class TestSendCampaign:
             "send_campaign",
             lambda api_key, campaign_id: SenderApiResult(403, payload),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.send_campaign("camp-123")
 
@@ -154,7 +167,7 @@ class TestSendCampaign:
             raise Exception("kaboom")
 
         monkeypatch.setattr(sender_service_module.SenderRoutes, "send_campaign", _boom)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.send_campaign("camp-123")
 
@@ -173,7 +186,7 @@ class TestScheduleCampaign:
             return SenderApiResult(200, {"scheduled": True})
 
         monkeypatch.setattr(sender_service_module.SenderRoutes, "schedule_campaign", _fake)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.schedule_campaign("camp-123", "2025-06-15T20:00:00Z")
 
@@ -189,7 +202,7 @@ class TestScheduleCampaign:
             return SenderApiResult(200, {"scheduled": True})
 
         monkeypatch.setattr(sender_service_module.SenderRoutes, "schedule_campaign", _fake)
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.schedule_campaign("camp-123", "2025-06-15T22:00:00+02:00")
 
@@ -198,7 +211,7 @@ class TestScheduleCampaign:
         assert captured["schedule_time"] == "2025-06-15 20:00:00"
 
     def test_invalid_iso_returns_false_error(self):
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.schedule_campaign("camp-123", "not-a-date")
 
@@ -212,7 +225,7 @@ class TestScheduleCampaign:
             "schedule_campaign",
             lambda api_key, campaign_id, schedule_time: SenderApiResult(422, payload),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         ok, err = svc.schedule_campaign("camp-123", "2025-06-15T20:00:00Z")
 
@@ -229,7 +242,7 @@ class TestGetCampaignStats:
             "get_campaign_opens",
             lambda api_key, campaign_id: SenderApiResult(200, {"data": [1]}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.get_campaign_opens("camp-1") == {"data": [1]}
 
@@ -239,7 +252,7 @@ class TestGetCampaignStats:
             "get_campaign_clicks",
             lambda api_key, campaign_id: SenderApiResult(500, {"error": "boom"}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.get_campaign_clicks("camp-1") is None
 
@@ -249,7 +262,7 @@ class TestGetCampaignStats:
             "get_campaign_opens",
             lambda api_key, campaign_id: SenderApiResult(404, {"error": "not found"}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.get_campaign_opens("camp-1") is None
 
@@ -263,7 +276,7 @@ class TestDeleteCampaign:
             "delete_campaign",
             lambda api_key, campaign_id: SenderApiResult(200, {"deleted": True}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.delete_campaign("camp-1") is True
 
@@ -273,7 +286,7 @@ class TestDeleteCampaign:
             "delete_campaign",
             lambda api_key, campaign_id: SenderApiResult(422, {"error": "bad"}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.delete_campaign("camp-1") is False
 
@@ -287,7 +300,7 @@ class TestGroupHelpers:
             "list_groups",
             lambda api_key: SenderApiResult(200, {"data": [{"id": "1", "title": "Newsletter"}]}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         payload = svc.list_groups()
 
@@ -299,6 +312,6 @@ class TestGroupHelpers:
             "create_group",
             lambda api_key, title: SenderApiResult(500, {"error": "boom"}),
         )
-        svc = SenderService("test-key")
+        svc = SenderService("test-key", routes=sender_service_module.SenderRoutes)
 
         assert svc.create_group("Newsletter") is None

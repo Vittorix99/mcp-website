@@ -4,7 +4,26 @@ import pytest
 
 from api.admin import members_api, messages_api, purchases_api
 import services.sender.sender_service as sender_service_module
+from clients.sender_client import SenderRoutes
 from services.sender.sender_service import SenderService
+
+
+@pytest.fixture(autouse=True)
+def _deny_unit_network(monkeypatch):
+    """Unit tests inject external I/O; an absent fake must fail immediately."""
+    import socket
+    import urllib.request
+    import requests
+    from google.cloud.firestore_v1.client import Client
+
+    def forbidden(*args, **kwargs):
+        raise RuntimeError("Network is disabled in unit tests; inject the dependency")
+
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    monkeypatch.setattr(urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(requests.sessions.Session, "request", forbidden)
+    monkeypatch.setattr(Client, "_firestore_api", property(forbidden))
 
 
 @pytest.fixture(autouse=True)
@@ -18,7 +37,7 @@ def _patch_flask_request_proxies(monkeypatch):
 
 @pytest.fixture
 def sender_service():
-    return SenderService(api_key="test-key-123")
+    return SenderService(api_key="fake-test-key-123", routes=SenderRoutes)
 
 
 @pytest.fixture

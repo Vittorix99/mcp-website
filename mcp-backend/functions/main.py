@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import json
 
 # === Path setup (solo se necessario per import locali) ===
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -11,20 +12,21 @@ logging.basicConfig(level=getattr(logging, _log_level_name, logging.INFO))
 logger = logging.getLogger("main")
 
 # === Environment loading ===
-from config import load_environment
+from config import load_environment, get_runtime_settings
+from config.runtime_settings import safe_runtime_summary
 
 load_environment()
-_mcp_env = os.environ.get("MCP_ENV", "test")
-logger.info("Environment loaded: mode=%s cloud_runtime=%s", _mcp_env, bool(os.environ.get("K_SERVICE")))
-
-# === Mail Service init ===
-from services.communications.mail_service import init_mail_service
-
-init_mail_service()
+runtime_settings = get_runtime_settings()
+logger.info("Runtime configuration: %s", json.dumps(safe_runtime_summary(runtime_settings)))
 
 # === Firebase Config ===
 from firebase_admin import credentials, firestore, auth
 from config.firebase_config import db, bucket, cors
+
+# === Mail Service init (after runtime validation and Firebase initialization) ===
+from services.communications.mail_service import init_mail_service
+
+init_mail_service()
 
 # === API Pubbliche ===
 from api.public.contact_api import contact_us

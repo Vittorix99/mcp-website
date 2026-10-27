@@ -8,7 +8,7 @@ from services.payments.event_payment_service import EventPaymentService
 from utils.http_responses import handle_pydantic_error, handle_service_error
 
 
-event_payment_service = EventPaymentService()
+event_payment_service = EventPaymentService.instance()
 
 
 @public_endpoint(methods=("POST",))

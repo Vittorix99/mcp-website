@@ -95,7 +95,7 @@ function CreateSubscriberModal({ groups, onClose, onCreated }) {
         groups: form.groups.length ? form.groups : undefined,
       })
       onCreated(); onClose()
-    } catch { setError("Errore durante la creazione.") }
+    } catch (error) { setError(error?.message || "Errore durante la creazione.") }
     finally { setLoading(false) }
   }
 

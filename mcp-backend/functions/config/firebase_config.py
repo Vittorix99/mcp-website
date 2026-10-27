@@ -1,114 +1,62 @@
-import json
-import logging
+"""Firebase clients created only after complete runtime-policy validation."""
+
 import os
 
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
 from firebase_functions import options
+from google.auth.credentials import AnonymousCredentials
 
 from config.environment import load_environment
+from config.runtime_settings import (
+    CredentialMode, RuntimeConfigurationError, RuntimeSettings, get_runtime_settings,
+)
 
-load_environment()
 
-logger = logging.getLogger("firebase_config")
 region = "us-central1"
 
-_explicit_cred = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-_raw_cred = _explicit_cred or "service_account.json"
-_base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_functions_dir = os.path.abspath(os.path.join(_base_dir, ".."))
-_repo_root = os.path.abspath(os.path.join(_base_dir, "..", ".."))
+
+class _EmulatorCredential(credentials.Base):
+    def get_credential(self):
+        return AnonymousCredentials()
 
 
-def _resolve_cred_path(path: str) -> str:
-    if not path:
-        return path
-    if os.path.isabs(path):
-        return path
-    candidates = [
-        os.path.abspath(path),
-        os.path.abspath(os.path.join(_base_dir, path)),
-        os.path.abspath(os.path.join(_functions_dir, path)),
-        os.path.abspath(os.path.join(_repo_root, path)),
-    ]
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-    # Fall back to a deterministic location to improve error messages
-    return os.path.abspath(os.path.join(_base_dir, path))
+def initialize_firebase(settings: RuntimeSettings):
+    firebase = settings.firebase
+    emulator = firebase.credential_mode == CredentialMode.EMULATOR
+    hosts = {
+        "FIRESTORE_EMULATOR_HOST": firebase.firestore_emulator_host,
+        "FIREBASE_AUTH_EMULATOR_HOST": firebase.auth_emulator_host,
+        "STORAGE_EMULATOR_HOST": firebase.storage_emulator_host,
+        "PUBSUB_EMULATOR_HOST": firebase.pubsub_emulator_host,
+    }
+    # SDKs consume these variables directly; propagate only validated settings.
+    for key, host in hosts.items():
+        if emulator:
+            os.environ[key] = "http://" + host if key == "STORAGE_EMULATOR_HOST" else host
+        elif os.environ.get(key):
+            raise RuntimeConfigurationError(f"Cloud Firebase cannot use {key}")
+    os.environ["GCLOUD_PROJECT"] = firebase.project_id
+    os.environ["GOOGLE_CLOUD_PROJECT"] = firebase.project_id
+    if firebase_admin._apps:
+        app = firebase_admin.get_app()
+        if app.project_id != firebase.project_id:
+            raise RuntimeConfigurationError("Existing Firebase app project does not match runtime policy")
+    else:
+        credential = _EmulatorCredential() if emulator else credentials.ApplicationDefault()
+        app = firebase_admin.initialize_app(credential, {
+            "projectId": firebase.project_id,
+            "storageBucket": firebase.storage_bucket,
+        })
+    return firestore.client(app=app), storage.bucket(firebase.storage_bucket, app=app)
 
 
-_cred_path = _resolve_cred_path(_raw_cred)
-
-
-def _is_cloud_runtime() -> bool:
-    return bool(os.environ.get("K_SERVICE"))
-
-
-def _load_credentials():
-    """Return a firebase_admin credential, supporting both service accounts and ADC files."""
-    service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if service_account_json:
-        payload = json.loads(service_account_json)
-        return credentials.Certificate(payload)
-
-    # Prefer explicit service-account JSON path/file
-    if _cred_path:
-        if not os.path.exists(_cred_path):
-            if _explicit_cred:
-                if _is_cloud_runtime():
-                    # Cloud Functions/Run should use runtime ADC. A local
-                    # service-account path may still be present from legacy env
-                    # config, but that file is intentionally not deployed.
-                    os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-                else:
-                    raise FileNotFoundError("Configured Google application credentials file was not found.")
-        else:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _cred_path
-            try:
-                with open(_cred_path, "r", encoding="utf-8") as handle:
-                    payload = json.load(handle)
-                if payload.get("type") == "service_account":
-                    return credentials.Certificate(payload)
-            except ValueError:
-                pass  # Fall back to Application Default
-
-    # Fallback: try Application Default Credentials (e.g. gcloud user credentials)
-    return credentials.ApplicationDefault()
-
-
-if not firebase_admin._apps:
-    cred = _load_credentials()
-    storage_bucket = os.environ.get("STORAGE_BUCKET")
-    project_id = os.environ.get("GCLOUD_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT")
-    if not project_id:
-        raw_config = os.environ.get("FIREBASE_CONFIG")
-        if raw_config:
-            try:
-                project_id = json.loads(raw_config).get("projectId")
-            except (TypeError, ValueError):
-                project_id = None
-    init_opts = {}
-    if storage_bucket:
-        init_opts["storageBucket"] = storage_bucket
-    if project_id:
-        init_opts["projectId"] = project_id
-    firebase_admin.initialize_app(cred, init_opts)
-else:
-    cred = None
-
-db = firestore.client()
-bucket = storage.bucket() if os.environ.get("STORAGE_BUCKET") else None
-
-if os.environ.get("FIRESTORE_EMULATOR_HOST"):
-    logger.info("Firestore emulator enabled")
-else:
-    cred_label = "application_default" if _is_cloud_runtime() else "local_file"
-    logger.info("Firestore cloud client initialized: auth=%s project=%s", cred_label, db.project)
+load_environment()
+db, bucket = initialize_firebase(get_runtime_settings())
 
 cors = options.CorsOptions(
     cors_origins="*",
     cors_methods=["get", "post", "put", "delete", "options"],
 )
 
-__all__ = ["db", "bucket", "cors", "region"]
+__all__ = ["db", "bucket", "cors", "region", "initialize_firebase"]

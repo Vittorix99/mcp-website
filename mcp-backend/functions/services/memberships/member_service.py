@@ -180,7 +180,7 @@ class MemberService:
         membership.newsletter_consent = newsletter_consent
         self.membership_repository.update_from_model(membership.id, membership)
 
-        if email and SENDER_GROUP_MEMBERS:
+        if email and SENDER_GROUP_MEMBERS and self.sender_service.enabled:
             try:
                 if newsletter_consent:
                     self.sender_service.upsert_subscriber(

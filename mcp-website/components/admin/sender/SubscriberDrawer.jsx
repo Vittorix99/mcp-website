@@ -57,6 +57,7 @@ export default function SubscriberDrawer({ subscriber, onClose, onDeleted, onUpd
     subscriber_status: emailStatus,
   })
   const [saving, setSaving] = useState(false)
+  const [mutationError, setMutationError] = useState("")
   const [assignGroupId, setAssignGroupId] = useState("")
   const [assignLoading, setAssignLoading] = useState(false)
   const [groupsLoading, setGroupsLoading] = useState(true)
@@ -90,6 +91,7 @@ export default function SubscriberDrawer({ subscriber, onClose, onDeleted, onUpd
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
+    setMutationError("")
     try {
       await updateSenderSubscriber({
         email,
@@ -99,6 +101,8 @@ export default function SubscriberDrawer({ subscriber, onClose, onDeleted, onUpd
         subscriber_status: editForm.subscriber_status || undefined,
       })
       onUpdated?.({ ...subscriber, ...editForm })
+    } catch (error) {
+      setMutationError(error?.message || "Errore durante l'aggiornamento del subscriber.")
     } finally {
       setSaving(false)
     }
@@ -106,8 +110,13 @@ export default function SubscriberDrawer({ subscriber, onClose, onDeleted, onUpd
 
   async function handleDelete() {
     if (!confirm(`Eliminare ${email} da Sender?`)) return
-    await deleteSenderSubscriber(email)
-    onDeleted?.()
+    setMutationError("")
+    try {
+      await deleteSenderSubscriber(email)
+      onDeleted?.()
+    } catch (error) {
+      setMutationError(error?.message || "Errore durante l'eliminazione del subscriber.")
+    }
   }
 
   async function handleAssignGroup() {
@@ -203,6 +212,7 @@ export default function SubscriberDrawer({ subscriber, onClose, onDeleted, onUpd
         {/* Info tab */}
         <TabsContent value="info">
           <form onSubmit={handleSave} className="space-y-3">
+            {mutationError && <p className="text-red-400 text-sm">{mutationError}</p>}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs text-neutral-400">Nome</Label>

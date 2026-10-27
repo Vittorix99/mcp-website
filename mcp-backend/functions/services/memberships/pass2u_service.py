@@ -1,8 +1,15 @@
+import hashlib
 import logging
 from typing import Optional
 
 from config.external_services import PASS2U_API_KEY
 from config.firebase_config import db
+from config.runtime_settings import (
+    ProviderMode,
+    RuntimeConfigurationError,
+    RuntimeSettings,
+    get_runtime_settings,
+)
 from models import Membership, MembershipPass, MembershipPassResult
 from clients.pass2u_client import Pass2URoutes
 from services.core.error_logs_service import log_external_error
@@ -10,6 +17,9 @@ from utils.events_utils import to_iso8601_datetime
 
 
 class Pass2UService:
+    def __init__(self, api_key: str | None = None):
+        self._api_key = api_key
+
     def _get_model_id(self) -> str:
         """
         Legge il model_id attivo da Firestore:
@@ -36,7 +46,7 @@ class Pass2UService:
         """
         try:
             model_id = self._get_model_id()
-            api_key = PASS2U_API_KEY
+            api_key = self._api_key if self._api_key is not None else PASS2U_API_KEY
             if not api_key:
                 raise RuntimeError("PASS2U_API_KEY non configurata")
 
@@ -121,7 +131,7 @@ class Pass2UService:
         Non solleva mai eccezioni verso l'esterno.
         """
         try:
-            api_key = PASS2U_API_KEY
+            api_key = self._api_key if self._api_key is not None else PASS2U_API_KEY
             if not api_key:
                 raise RuntimeError("PASS2U_API_KEY non configurata")
             result = Pass2URoutes.invalidate_pass(
@@ -165,3 +175,49 @@ class Pass2UService:
                 context={"pass_id": pass_id},
             )
             return False
+
+
+class FakePass2UService:
+    """Deterministic local Pass2U substitute that never accesses external state."""
+
+    def create_membership_pass(
+        self, membership_id: str, membership: Membership
+    ) -> MembershipPassResult:
+        del membership
+        pass_id = "FAKE-" + hashlib.sha256(membership_id.encode()).hexdigest()[:16]
+        wallet_url = f"http://127.0.0.1:3000/local-wallet/{membership_id}"
+        return MembershipPassResult(
+            pass_id=pass_id,
+            wallet_url=wallet_url,
+            apple_wallet_url=wallet_url,
+            google_wallet_url=wallet_url,
+        )
+
+    def invalidate_membership_pass(self, pass_id: str) -> bool:
+        return pass_id.startswith("FAKE-")
+
+
+class DisabledPass2UService:
+    """No-op Pass2U implementation for environments where the provider is off."""
+
+    def create_membership_pass(
+        self, membership_id: str, membership: Membership
+    ) -> None:
+        return None
+
+    def invalidate_membership_pass(self, pass_id: str) -> bool:
+        return False
+
+
+def build_pass2u_service(settings: RuntimeSettings | None = None):
+    settings = settings or get_runtime_settings()
+    provider = settings.providers
+    if provider.pass2u == ProviderMode.FAKE:
+        return FakePass2UService()
+    if provider.pass2u == ProviderMode.DISABLED:
+        return DisabledPass2UService()
+    if provider.pass2u in {ProviderMode.LIVE, ProviderMode.STAGING}:
+        if provider.pass2u_api_key is None:
+            raise RuntimeConfigurationError("Missing required runtime setting: PASS2U_API_KEY")
+        return Pass2UService(api_key=provider.pass2u_api_key.get_secret_value())
+    raise RuntimeConfigurationError("Unsupported runtime setting: PASS2U_MODE")

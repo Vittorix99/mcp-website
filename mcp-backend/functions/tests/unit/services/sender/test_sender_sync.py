@@ -1,5 +1,8 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from services.sender import sender_sync
 from models.event_participant import EventParticipant
 from models.membership import Membership
 from services.sender.sender_sync import (
@@ -10,6 +13,31 @@ from services.sender.sender_sync import (
     sync_participant_to_sender,
     unsubscribe_from_sender,
 )
+
+
+@pytest.fixture(autouse=True)
+def _enable_sender_for_sync_tests(monkeypatch):
+    monkeypatch.setattr(sender_sync, "sender_is_enabled", lambda: True)
+
+
+def test_all_syncs_are_noop_when_sender_is_disabled(monkeypatch):
+    monkeypatch.setattr(sender_sync, "sender_is_enabled", lambda: False)
+    participant = EventParticipant(
+        email="x@test.com",
+        name="Mario",
+        surname="Rossi",
+        newsletter_consent=True,
+    )
+    membership = Membership(email="member@test.com", name="Mario", surname="Rossi")
+
+    with patch("services.sender.sender_sync.SenderService") as mock_service:
+        sync_participant_to_sender("p1", participant, "event-1", "Summer")
+        sync_membership_to_sender("m1", membership)
+        sync_newsletter_signup_to_sender("news@test.com", "Mario")
+        unsubscribe_from_sender("x@test.com")
+        delete_subscriber_from_sender("x@test.com")
+
+    mock_service.assert_not_called()
 
 
 class TestSyncParticipantToSender:
