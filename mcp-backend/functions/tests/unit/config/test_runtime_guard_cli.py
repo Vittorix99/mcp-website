@@ -46,6 +46,23 @@ def test_legacy_production_flags_are_rejected():
     assert result.returncode != 0
 
 
+def test_emulator_cli_enables_framework_support_without_saved_user_settings(monkeypatch):
+    from types import SimpleNamespace
+
+    guard = _guard()
+    monkeypatch.setattr(guard.os, "environ", {})
+    monkeypatch.setattr(guard, "_ensure_cli_venv", lambda: None)
+
+    def run(command, *, cwd, env):
+        assert command[1] == "emulators:exec"
+        assert env.get("FIREBASE_CLI_EXPERIMENTS") == "webframeworks"
+        assert env["GCLOUD_PROJECT"] == "demo-mcp-test"
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(guard.subprocess, "run", run)
+    assert guard.main(["test-emulators"]) == 0
+
+
 def test_local_seed_waits_for_auth_as_well_as_firestore(monkeypatch):
     import socket
     import time

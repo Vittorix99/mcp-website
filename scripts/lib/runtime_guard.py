@@ -90,6 +90,7 @@ def main(argv=None):
     _ensure_cli_venv()
     firebase = str(ROOT / "mcp-website/node_modules/.bin/firebase")
     cli_env = {**env, "MCP_ENABLE_DISCOVERY_BRIDGE":"1",
+               "FIREBASE_CLI_EXPERIMENTS":"webframeworks",
                "NODE_OPTIONS":"--require="+json.dumps(str(ROOT / "scripts/firebase-emulator-bridge.cjs"))}
     common = ["--config",str(ROOT / "firebase.json"),"--only","functions,firestore,auth,storage,pubsub","--project",settings.firebase.project_id]
     if name == "test-emulators":

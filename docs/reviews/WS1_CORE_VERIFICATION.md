@@ -81,6 +81,19 @@ dall'indice, preservando la directory locale; `.claude` è già ignorata.
 Lo stesso comando ora termina con exit 0. La suite CI resta da rieseguire
 con il commit correttivo: i test remoti del primo tentativo non sono partiti.
 
+## Terza esecuzione GitHub Actions — 2026-10-27
+
+[Run 3](https://github.com/Vittorix99/mcp-website/actions/runs/40585904541):
+checkout, installazione, identità CI, scansione segreti, configurazione Firebase,
+suite unit e test/lint/build frontend passati. Ultimo step bloccato prima
+delle prove: Firebase CLI richiede l'esperimento `webframeworks` anche con
+Hosting escluso da `--only`, perché il manifest contiene `hosting.source`.
+Lo script ora passa `FIREBASE_CLI_EXPERIMENTS=webframeworks` al solo processo
+CLI per gli emulatori, senza modificare preferenze globali o configurazioni cloud.
+Regressione RED→GREEN senza impostazioni personali; suite backend locale:
+686 passati, un warning WeasyPrint/HarfBuzz preesistente. Esito emulatori
+remoti ancora da verificare dopo il push della correzione.
+
 ## Revisione e gate
 
 Revisione indipendente Sol high sul range `719da2f1..6f0be3ef`: nessun Critical o Minor, tre Important. Tutti corretti in `9ece2609`, con regressioni RED→GREEN e suite finale verde. Il [rapporto di review](WS1_CORE_REVIEW.md) mantiene il verdetto originale e le evidenze delle correzioni; nessuna seconda review è stata simulata o delegata. Staging: **pending authorization**. Produzione: **deferred**.
