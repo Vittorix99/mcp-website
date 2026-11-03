@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional, Type
 
 from clients._mailersend_sdk import EmailBuilder, MailerSendClient
+from utils.http_observability import timed_dependency
 from services.core.error_logs_service import log_external_error
 from utils.safe_logging import mask_email, redact_sensitive
 
@@ -47,6 +48,18 @@ class MailerSendRoutes:
 
     @classmethod
     def send_email(
+        cls,
+        request: MailerSendRequest,
+        api_key: str,
+        client_cls: Type = MailerSendClient,
+        builder_cls: Type = EmailBuilder,
+    ) -> MailerSendSendResult:
+        return timed_dependency("mailersend", "send_email",
+            lambda: cls._send_email(request, api_key, client_cls, builder_cls),
+            lambda r: (r.status_code, "success" if r.success else "error"))
+
+    @classmethod
+    def _send_email(
         cls,
         request: MailerSendRequest,
         api_key: str,
