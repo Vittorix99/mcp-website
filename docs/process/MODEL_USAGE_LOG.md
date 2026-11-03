@@ -67,3 +67,13 @@ Conteggio WS2: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
 | Codex / Luna 6 | `obsolete_api_cleanup_luna`: rimozione meccanica di quattro riferimenti e due servizi frontend senza consumatori | low | Interrotto dal limite di utilizzo dopo test RED e modifiche ai file. Il coordinatore ha revisionato e completato il diff: 40 test frontend passati, gate 126 riferimenti/128 export/zero eccezioni/zero errori; lint mirato e scanner passati. Build passata. Diff accettato con correzione del commento sulle eccezioni; nessun nuovo tentativo delegato. |
 
 Conteggio di questo intervento: 1 incarico Luna, 0 review delegate Sol; review del diff al coordinatore. Token e costi non disponibili.
+
+## WS3 — osservabilità HTTP
+
+Esecuzione nativa, nessuna delega di implementazione.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `ws3_observability_review_sol`: unica review finale su privacy, contratti HTTP e autenticazione | high | Conclusa pulita, nessun rilievo. Il revisore ha rieseguito 23 test backend mirati e 9 test del verificatore HTTP. Coordinatore: 709 backend e 42 frontend passati. Proprietario: smoke Firebase PASS, exit 0. Nessuna seconda review. |
+
+Conteggio WS3: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.

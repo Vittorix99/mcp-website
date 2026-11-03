@@ -3,12 +3,17 @@ import assert from 'node:assert/strict'
 export async function verifyEventReadContracts({base,eventId,adminToken,memberToken}) {
   assert.equal(base,'http://127.0.0.1:5001/demo-mcp-test/us-central1','Event contracts require the loopback demo-mcp-test Functions emulator')
   const label = message => `Event contract: ${message}`
+  const requestIds = new Set()
   async function request(endpoint,status,{token,method = 'GET',denied = false} = {}) {
     const response = await fetch(`${base}/${endpoint}`,{
       method,headers:token ? {Authorization:`Bearer ${token}`} : {},
       redirect:'error',signal:AbortSignal.timeout(15000),
     })
     assert.equal(response.status,status,label(`${method} ${endpoint} status`))
+    const requestId = response.headers.get('x-request-id') || ''
+    assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId),label('missing or invalid request ID'))
+    assert.ok(!requestIds.has(requestId),label('repeated request ID'))
+    requestIds.add(requestId)
     if (denied) {
       const body = await response.text()
       // Legacy require_admin emits these plain-text errors; JSON must contain only an error string.

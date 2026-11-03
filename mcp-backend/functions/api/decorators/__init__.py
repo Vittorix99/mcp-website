@@ -9,6 +9,7 @@ from flask import jsonify
 
 from config.firebase_config import cors, region
 from services.core.auth_service import require_admin
+from utils.http_observability import observe_http_request
 from .active_event import require_active_event
 
 
@@ -17,6 +18,7 @@ def public_endpoint(*, methods: Iterable[str]):
 
     def decorator(handler: Callable):
         @https_fn.on_request(cors=cors, region=region)
+        @observe_http_request
         @wraps(handler)
         def wrapped(req, *args, **kwargs):
             if req.method.upper() not in allowed_methods:
@@ -33,6 +35,7 @@ def admin_endpoint(*, methods: Iterable[str]):
 
     def decorator(handler: Callable):
         @https_fn.on_request(cors=cors, region=region)
+        @observe_http_request
         @require_admin
         @wraps(handler)
         def wrapped(req, *args, **kwargs):
@@ -56,6 +59,7 @@ def member_endpoint(*, methods: Iterable[str]):
 
     def decorator(handler: Callable):
         @https_fn.on_request(cors=cors, region=region)
+        @observe_http_request
         @wraps(handler)
         def wrapped(req, *args, **kwargs):
             if req.method.upper() not in allowed_methods:
