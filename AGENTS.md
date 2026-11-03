@@ -53,3 +53,21 @@ This is an agent workflow policy, not an application runtime router. Model
 selection for the primary conversation is controlled by the host application;
 an agent must not claim that this file switches the active conversation model.
 The project approval gates and authorized work remain in effect.
+
+## Lean development workflow
+
+Owner-approved rules. These override conflicting process-document and skill
+workflow defaults; explicit user permissions and production gates still apply.
+
+- Small, bounded, reversible tasks: implement directly, run focused checks,
+  and commit. No separate design, plan, report, or repeated approval.
+- Large workstreams: one concise plan, one approval, one final review.
+- Delegate to Luna for substantial bounded batches; handle tiny edits inline.
+- Run relevant tests locally and the full suite in CI. Risky or cross-cutting
+  changes require broader local verification before delivery.
+- Read only necessary file ranges and log summaries. Reuse still-valid evidence;
+  reread or retest when changes invalidate it.
+- Update existing documentation rather than creating duplicate reports.
+- Keep replies and progress updates concise; avoid repeated recaps.
+- Security, authentication, payments, credentials, and migrations retain
+  rigorous validation, error handling, review, and applicable approval gates.
