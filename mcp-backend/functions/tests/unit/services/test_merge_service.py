@@ -12,6 +12,19 @@ class _DummyMembershipRepo:
         self.models = {}
         self.deleted = []
         self.updated_calls = []
+        self.merging_calls = []
+
+    def set_merging(self, membership_id, value):
+        self.merging_calls.append((membership_id, value))
+
+    def update_from_model(self, membership_id, model):
+        self.models[membership_id] = model
+
+    def clear_wallet(self, membership_id):
+        self.update_fields(membership_id, {"wallet_pass_id": None, "wallet_url": None})
+
+    def set_wallet(self, membership_id, pass_id, wallet_url):
+        self.update_fields(membership_id, {"wallet_pass_id": pass_id, "wallet_url": wallet_url})
 
     def get(self, membership_id):
         return self.models.get(membership_id)
@@ -45,7 +58,8 @@ class _DummyParticipantRepo:
 
     def update_membership_reference(self, old_membership_id, new_membership_id):
         self.calls.append((old_membership_id, new_membership_id))
-        return self.updated
+        updated, self.updated = self.updated, 0
+        return updated
 
 
 def _membership(**kwargs):
@@ -111,12 +125,13 @@ def test_merge_combines_memberships_and_relinks_participants(monkeypatch):
             created.append((membership_id, membership.email))
             return SimpleNamespace(pass_id="new-pass", wallet_url="https://wallet.new")
 
-    monkeypatch.setattr("services.memberships.pass2u_service.Pass2UService", _Pass2UStub)
+    service.pass2u_service = _Pass2UStub()
 
     result = service.merge("source-1", "target-1")
 
     assert result["participants_updated"] == 3
-    assert participant_repo.calls == [("source-1", "target-1")]
+    assert participant_repo.calls == [("source-1", "target-1"), ("source-1", "target-1")]
+    assert membership_repo.merging_calls == [("source-1", True)]
     assert invalidated == ["old-pass"]
     assert created == [("target-1", "target@example.com")]
     assert "source-1" in membership_repo.deleted

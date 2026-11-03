@@ -1,181 +1,109 @@
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
+
 from api.public import event_payment_api
+from dto.preorder import EventOrderCreateResponseDTO, OrderCaptureResponseDTO
 from errors.service_errors import ExternalServiceError, NotFoundError, ServiceError, ValidationError
 from tests.utils import DummyRequest, unwrap_response
 
 
-def _unwrap(func):
-    handler = func
+def _create_logic():
+    # Isolate DTO/service mapping; method guards use the exported endpoint.
+    handler = event_payment_api.create_order_event
     while hasattr(handler, "__wrapped__"):
         handler = handler.__wrapped__
     return handler
 
 
-def test_create_order_event_invalid_method():
-    """Rejects non-POST methods for create order."""
-    handler = _unwrap(event_payment_api.create_order_event)
-    req = DummyRequest(method="GET")
-    resp, status = unwrap_response(handler(req))
+def _order_request():
+    req = DummyRequest(method="POST", json={"cart": [{
+        "eventId": "evt-1", "participants": [{
+            "name": "Mario", "surname": "Rossi", "email": "mario@example.com",
+            "phone": "+393331234567", "birthdate": "01-01-1990",
+        }],
+    }]})
+    req.event_data = {"title": "Test"}
+    req.event_id = "evt-1"
+    return req
+
+
+@pytest.mark.parametrize("endpoint", ["create_order_event", "capture_order_event"])
+def test_payment_endpoint_rejects_invalid_method(endpoint):
+    _, status = unwrap_response(getattr(event_payment_api, endpoint)(DummyRequest(method="GET")))
     assert status == 405
 
 
-def test_create_order_event_missing_body():
-    """Returns 400 when request body is missing."""
-    handler = _unwrap(event_payment_api.create_order_event)
-    req = DummyRequest(method="POST", json=None)
-    resp, status = unwrap_response(handler(req))
+@pytest.mark.parametrize("payload", [None, {}, {"cart": []}])
+def test_create_order_rejects_invalid_body_before_service(monkeypatch, payload):
+    create = Mock()
+    monkeypatch.setattr(event_payment_api, "event_payment_service", SimpleNamespace(create_order_event=create))
+    response, status = unwrap_response(_create_logic()(DummyRequest(method="POST", json=payload)))
     assert status == 400
-    assert resp["error"] == "Missing request body"
+    assert response["error"] == "Invalid request data"
+    assert response["details"]
+    create.assert_not_called()
 
 
 def test_create_order_event_happy_path(monkeypatch):
-    """Creates a PayPal order when payload is valid."""
-    handler = _unwrap(event_payment_api.create_order_event)
-    monkeypatch.setattr(
-        event_payment_api,
-        "create_order_event_service",
-        lambda order_dto, event_dto: {"id": "order-1"},
-    )
-    req = DummyRequest(
-        method="POST",
-        json={
-            "cart": [
-                {
-                    "eventId": "evt-1",
-                    "participants": [
-                        {
-                            "name": "Mario",
-                            "surname": "Rossi",
-                            "email": "mario@example.com",
-                            "phone": "+390000000000",
-                            "birthdate": "01-01-1990",
-                        }
-                    ],
-                }
-            ]
-        },
-    )
-    req.event_payload = {
-        "cart": [
-            {
-                "eventId": "evt-1",
-                "participants": [
-                    {
-                        "name": "Mario",
-                        "surname": "Rossi",
-                        "email": "mario@example.com",
-                        "phone": "+390000000000",
-                        "birthdate": "01-01-1990",
-                    }
-                ],
-            }
-        ]
-    }
-    req.event_data = {"title": "Test"}
-    req.event_id = "evt-1"
-    resp, status = unwrap_response(handler(req))
+    create = Mock(return_value=EventOrderCreateResponseDTO(id="order-1", status="CREATED"))
+    monkeypatch.setattr(event_payment_api, "event_payment_service", SimpleNamespace(create_order_event=create))
+    response, status = unwrap_response(_create_logic()(_order_request()))
     assert status == 201
-    assert resp["id"] == "order-1"
+    assert response == {"id": "order-1", "status": "CREATED", "links": []}
+    create.assert_called_once()
+    order, event = create.call_args.args
+    assert order.cart[0].event_id == "evt-1"
+    assert order.cart[0].participants[0].email == "mario@example.com"
+    assert event.id == "evt-1"
+    assert event.title == "Test"
 
 
-def test_create_order_event_validation_error(monkeypatch):
-    """Maps validation errors with details to 400 response."""
-    handler = _unwrap(event_payment_api.create_order_event)
-    err = ValidationError("validation_error")
-    err.details = ["bad"]
-    monkeypatch.setattr(
-        event_payment_api,
-        "create_order_event_service",
-        lambda order_dto, event_dto: (_ for _ in ()).throw(err),
-    )
-    req = DummyRequest(method="POST", json={"cart": []})
-    req.event_payload = {"cart": []}
-    resp, status = unwrap_response(handler(req))
+@pytest.mark.parametrize("error, expected_status", [
+    (ValidationError("validation_error"), 400),
+    (NotFoundError("missing"), 404),
+    (ExternalServiceError("upstream failed"), 502),
+    (ServiceError("service failed"), 500),
+])
+def test_create_order_maps_service_errors(monkeypatch, error, expected_status):
+    if isinstance(error, ValidationError):
+        error.details = ["bad"]
+    create = Mock(side_effect=error)
+    monkeypatch.setattr(event_payment_api, "event_payment_service", SimpleNamespace(create_order_event=create))
+    response, status = unwrap_response(_create_logic()(_order_request()))
+    assert status == expected_status
+    assert response["error"] == str(error)
+    if isinstance(error, ValidationError):
+        assert response["messages"] == ["bad"]
+    create.assert_called_once()
+
+
+def test_capture_order_event_missing_body(monkeypatch):
+    capture = Mock()
+    monkeypatch.setattr(event_payment_api, "event_payment_service", SimpleNamespace(capture_order_event=capture))
+    response, status = unwrap_response(event_payment_api.capture_order_event(DummyRequest(method="POST", json=None)))
     assert status == 400
-    assert resp["error"] == "validation_error"
-    assert resp["messages"] == ["bad"]
-
-
-def test_create_order_event_not_found(monkeypatch):
-    """Maps not found errors to 404 response."""
-    handler = _unwrap(event_payment_api.create_order_event)
-    monkeypatch.setattr(
-        event_payment_api,
-        "create_order_event_service",
-        lambda order_dto, event_dto: (_ for _ in ()).throw(NotFoundError("missing")),
-    )
-    req = DummyRequest(method="POST", json={"cart": []})
-    req.event_payload = {"cart": []}
-    resp, status = unwrap_response(handler(req))
-    assert status == 404
-    assert resp["error"] == "missing"
-
-
-def test_create_order_event_external_error(monkeypatch):
-    """Maps upstream errors to 502 response."""
-    handler = _unwrap(event_payment_api.create_order_event)
-    monkeypatch.setattr(
-        event_payment_api,
-        "create_order_event_service",
-        lambda order_dto, event_dto: (_ for _ in ()).throw(ExternalServiceError("boom")),
-    )
-    req = DummyRequest(method="POST", json={"cart": []})
-    req.event_payload = {"cart": []}
-    resp, status = unwrap_response(handler(req))
-    assert status == 502
-    assert resp["error"] == "boom"
-
-
-def test_create_order_event_service_error(monkeypatch):
-    """Maps generic service errors to 500 response."""
-    handler = _unwrap(event_payment_api.create_order_event)
-    monkeypatch.setattr(
-        event_payment_api,
-        "create_order_event_service",
-        lambda order_dto, event_dto: (_ for _ in ()).throw(ServiceError("boom")),
-    )
-    req = DummyRequest(method="POST", json={"cart": []})
-    req.event_payload = {"cart": []}
-    resp, status = unwrap_response(handler(req))
-    assert status == 500
-    assert resp["error"] == "boom"
-
-
-def test_capture_order_event_missing_body():
-    """Returns 400 when capture body is missing."""
-    req = DummyRequest(method="POST", json=None)
-    resp, status = unwrap_response(event_payment_api.capture_order_event(req))
-    assert status == 400
-    assert resp["error"] == "Missing request body"
-
-
-def test_capture_order_event_invalid_method():
-    """Rejects non-POST methods for capture."""
-    req = DummyRequest(method="GET")
-    resp, status = unwrap_response(event_payment_api.capture_order_event(req))
-    assert status == 405
+    assert response["error"] == "Invalid request data"
+    capture.assert_not_called()
 
 
 def test_capture_order_event_happy_path(monkeypatch):
-    """Returns 200 when capture succeeds."""
-    monkeypatch.setattr(
-        event_payment_api,
-        "capture_order_event_service",
-        lambda capture_dto: {"ok": True},
-    )
-    req = DummyRequest(method="POST", json={"order_id": "order-1"})
-    resp, status = unwrap_response(event_payment_api.capture_order_event(req))
+    capture = Mock(return_value=OrderCaptureResponseDTO(message="captured", purchase_id="purchase-1"))
+    monkeypatch.setattr(event_payment_api, "event_payment_service", SimpleNamespace(capture_order_event=capture))
+    response, status = unwrap_response(event_payment_api.capture_order_event(
+        DummyRequest(method="POST", json={"order_id": "order-1"})))
     assert status == 200
-    assert resp["ok"] is True
+    assert response == {"message": "captured", "purchase_id": "purchase-1"}
+    capture.assert_called_once()
+    assert capture.call_args.args[0].order_id == "order-1"
 
 
 def test_capture_order_event_validation_error(monkeypatch):
-    """Maps validation errors on capture to 400 response."""
-    monkeypatch.setattr(
-        event_payment_api,
-        "capture_order_event_service",
-        lambda capture_dto: (_ for _ in ()).throw(ValidationError("bad")),
-    )
-    req = DummyRequest(method="POST", json={"order_id": "order-1"})
-    resp, status = unwrap_response(event_payment_api.capture_order_event(req))
+    capture = Mock(side_effect=ValidationError("bad"))
+    monkeypatch.setattr(event_payment_api, "event_payment_service", SimpleNamespace(capture_order_event=capture))
+    response, status = unwrap_response(event_payment_api.capture_order_event(
+        DummyRequest(method="POST", json={"order_id": "order-1"})))
     assert status == 400
-    assert resp["error"] == "bad"
+    assert response["error"] == "bad"
+    capture.assert_called_once()

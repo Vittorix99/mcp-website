@@ -99,4 +99,6 @@ __pycache__/
 
 # Misc
 .DS_Store
+.worktrees/
+.venv/
 mcp-backend/functions/scripts

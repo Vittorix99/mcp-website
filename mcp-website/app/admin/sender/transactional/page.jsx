@@ -59,8 +59,8 @@ function CreateModal({ onClose, onCreated }) {
       await createSenderTransactionalCampaign(form)
       onCreated()
       onClose()
-    } catch {
-      setError("Errore durante la creazione.")
+    } catch (error) {
+      setError(error?.message || "Errore durante la creazione.")
     } finally {
       setLoading(false)
     }
@@ -170,8 +170,8 @@ function SendTestModal({ campaign, onClose }) {
         variables,
       })
       setSent(true)
-    } catch {
-      setError("Errore durante l'invio.")
+    } catch (error) {
+      setError(error?.message || "Errore durante l'invio.")
     } finally {
       setLoading(false)
     }
@@ -239,6 +239,7 @@ export default function SenderTransactionalPage() {
     setError(null)
     try {
       const res = await listSenderTransactionalCampaigns()
+      if (res?.error) throw new Error(res.error)
       const data = res?.data ?? res ?? []
       setCampaigns(Array.isArray(data) ? data : [])
     } catch {
@@ -252,8 +253,13 @@ export default function SenderTransactionalPage() {
 
   async function handleDelete(c) {
     if (!confirm(`Eliminare "${c.title}"?`)) return
-    await deleteSenderTransactionalCampaign(c.id)
-    load()
+    setError(null)
+    try {
+      await deleteSenderTransactionalCampaign(c.id)
+      await load()
+    } catch (error) {
+      setError(error?.message || "Errore durante l'eliminazione.")
+    }
   }
 
   return (
@@ -316,7 +322,7 @@ export default function SenderTransactionalPage() {
                       <TableCell className="text-white font-medium">{c.title}</TableCell>
                       <TableCell className="text-neutral-300 text-sm">{c.subject}</TableCell>
                       <TableCell className="text-neutral-400 text-sm">
-                        {c.from?.name ?? c.from_name ?? "—"}
+                        {typeof c.from === "string" ? c.from : c.from?.name ?? c.from_name ?? "—"}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">

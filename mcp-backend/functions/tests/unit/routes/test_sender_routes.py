@@ -37,7 +37,7 @@ class TestSenderApiResult:
 class TestUpsertSubscriber:
     """Unit tests for subscriber routes."""
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_success(self, mock_request):
         mock_request.return_value = _response(200, {"data": {"id": "sub-1"}})
 
@@ -47,8 +47,9 @@ class TestUpsertSubscriber:
         assert result.payload == {"data": {"id": "sub-1"}}
         assert result.ok is True
 
-    @patch("routes.sender_routes.requests.request")
-    def test_401_unauthorized(self, mock_request):
+    @patch("clients.sender_client.log_external_error")
+    @patch("clients.sender_client.requests.request")
+    def test_401_unauthorized(self, mock_request, mock_log_external_error):
         mock_request.return_value = _response(401, {"error": "Unauthorized"})
 
         result = SenderRoutes.upsert_subscriber("bad-key", {"email": "x@test.com"})
@@ -56,17 +57,25 @@ class TestUpsertSubscriber:
         assert result.status_code == 401
         assert result.ok is False
         assert result.error_message == "Unauthorized"
+        mock_log_external_error.assert_called_once()
+        assert mock_log_external_error.call_args.kwargs["status_code"] == 401
+        assert mock_log_external_error.call_args.kwargs["message"] == "Unauthorized"
 
-    @patch("routes.sender_routes.requests.request", side_effect=requests.Timeout("timeout"))
-    def test_request_timeout(self, _mock_request):
+    @patch("clients.sender_client.log_external_error")
+    @patch("clients.sender_client.requests.request", side_effect=requests.Timeout("timeout"))
+    def test_request_timeout(self, mock_request, mock_log_external_error):
         with pytest.raises(requests.Timeout):
             SenderRoutes.upsert_subscriber("test-key", {"email": "x@test.com"})
+        mock_request.assert_called_once()
+        mock_log_external_error.assert_called_once()
+        assert mock_log_external_error.call_args.kwargs["status_code"] == 0
+        assert mock_log_external_error.call_args.kwargs["message"] == "timeout"
 
 
 class TestCampaignRoutes:
     """Unit tests for campaign routes and URLs."""
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_send_campaign_post_correct_url(self, mock_request):
         mock_request.return_value = _response(200, {"sent": True})
 
@@ -76,7 +85,7 @@ class TestCampaignRoutes:
         assert kwargs["method"] == "POST"
         assert kwargs["url"].endswith("/campaigns/camp-123/send")
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_schedule_campaign_body(self, mock_request):
         mock_request.return_value = _response(200, {"scheduled": True})
 
@@ -88,7 +97,7 @@ class TestCampaignRoutes:
         assert kwargs["json"] == {"schedule_time": "2025-06-15 20:00:00"}
         assert "scheduled_at" not in kwargs["json"]
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_get_campaign_stats_opens(self, mock_request):
         mock_request.return_value = _response(200, {"data": []})
 
@@ -98,7 +107,7 @@ class TestCampaignRoutes:
         assert kwargs["method"] == "GET"
         assert kwargs["url"].endswith("/campaigns/camp-123/opens")
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_get_campaign_stats_clicks(self, mock_request):
         mock_request.return_value = _response(200, {"data": []})
 
@@ -107,7 +116,7 @@ class TestCampaignRoutes:
         kwargs = mock_request.call_args.kwargs
         assert kwargs["url"].endswith("/campaigns/camp-123/clicks")
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_get_campaign_stats_hard_bounces(self, mock_request):
         mock_request.return_value = _response(200, {"data": []})
 
@@ -116,7 +125,7 @@ class TestCampaignRoutes:
         kwargs = mock_request.call_args.kwargs
         assert kwargs["url"].endswith("/campaigns/camp-123/hard_bounces")
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_copy_campaign_url(self, mock_request):
         mock_request.return_value = _response(200, {"copied": True})
 
@@ -126,7 +135,7 @@ class TestCampaignRoutes:
         assert kwargs["method"] == "POST"
         assert kwargs["url"].endswith("/campaigns/camp-123/copy")
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_delete_campaign_query_param(self, mock_request):
         mock_request.return_value = _response(200, {"deleted": True})
 
@@ -141,7 +150,7 @@ class TestCampaignRoutes:
 class TestGroupRoutes:
     """Unit tests for group subscriber routes."""
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_add_to_group_url(self, mock_request):
         mock_request.return_value = _response(200, {"ok": True})
 
@@ -151,7 +160,7 @@ class TestGroupRoutes:
         assert kwargs["method"] == "POST"
         assert kwargs["url"].endswith("/subscribers/groups/group-1")
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_remove_from_group_url(self, mock_request):
         mock_request.return_value = _response(200, {"ok": True})
 
@@ -161,7 +170,7 @@ class TestGroupRoutes:
         assert kwargs["method"] == "DELETE"
         assert kwargs["url"].endswith("/subscribers/groups/group-1")
 
-    @patch("routes.sender_routes.requests.request")
+    @patch("clients.sender_client.requests.request")
     def test_list_group_subscribers(self, mock_request):
         mock_request.return_value = _response(200, {"data": []})
 

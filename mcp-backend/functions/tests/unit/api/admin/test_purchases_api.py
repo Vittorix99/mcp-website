@@ -1,124 +1,139 @@
 import types
 
+from dto.purchase import PurchaseActionResponseDTO, PurchaseDTO
 from api.admin import purchases_api
 from errors.service_errors import NotFoundError, ValidationError
+from models import PurchaseTypes
 from tests.utils import DummyRequest, unwrap_response
 
 
+def _create_body(**overrides):
+    body = {
+        "payer_name": "Mario",
+        "payer_surname": "Rossi",
+        "payer_email": "mario@example.com",
+        "amount_total": "10.00",
+        "currency": "EUR",
+        "transaction_id": "tx-1",
+        "order_id": "order-1",
+        "timestamp": "2026-02-13T10:00:00Z",
+    }
+    body.update(overrides)
+    return body
+
+
 def test_get_all_purchases_invalid_method():
-    """Rejects invalid method for listing purchases."""
-    req = DummyRequest(method="POST")
-    resp, status = unwrap_response(purchases_api.get_all_purchases(req))
+    resp, status = unwrap_response(purchases_api.get_all_purchases(DummyRequest(method="POST")))
     assert status == 405
 
 
 def test_get_all_purchases_happy_path(monkeypatch):
-    """Returns all purchases."""
-    monkeypatch.setattr(
-        purchases_api,
-        "purchases_service",
-        types.SimpleNamespace(get_all=lambda: [{"id": "pur-1"}]),
+    purchase = PurchaseDTO(
+        id="pur-1", payer_name="Mario", payer_surname="Rossi", payer_email="mario@example.com",
+        amount_total="10.00", currency="EUR", transaction_id="tx-1", order_id="order-1",
+        status="COMPLETED", purchase_type=PurchaseTypes.EVENT,
     )
-    req = DummyRequest(method="GET")
-    resp, status = unwrap_response(purchases_api.get_all_purchases(req))
+    monkeypatch.setattr(purchases_api, "purchases_service", types.SimpleNamespace(get_all=lambda: [purchase]))
+    resp, status = unwrap_response(purchases_api.get_all_purchases(DummyRequest(method="GET")))
     assert status == 200
-    assert resp == [{"id": "pur-1"}]
+    assert resp[0]["id"] == "pur-1"
 
 
 def test_get_purchase_missing_params():
-    """Returns 400 when id/slug are missing."""
-    req = DummyRequest(method="GET", args={})
-    resp, status = unwrap_response(purchases_api.get_purchase(req))
+    resp, status = unwrap_response(purchases_api.get_purchase(DummyRequest(method="GET", args={})))
     assert status == 400
-    assert resp["error"] == "Missing purchase_id or slug"
+    assert resp["error"] == "Invalid request data"
+
 
 def test_get_purchase_invalid_method():
-    """Rejects invalid method for get purchase."""
-    req = DummyRequest(method="POST", args={"id": "pur-1"})
-    resp, status = unwrap_response(purchases_api.get_purchase(req))
+    resp, status = unwrap_response(purchases_api.get_purchase(DummyRequest(method="POST", args={"id": "pur-1"})))
     assert status == 405
 
 
 def test_get_purchase_happy_path(monkeypatch):
-    """Returns purchase by id."""
-    monkeypatch.setattr(
-        purchases_api,
-        "purchases_service",
-        types.SimpleNamespace(get_by_id=lambda purchase_id, slug=None: {"id": purchase_id}),
+    purchase = PurchaseDTO(
+        id="pur-1", payer_name="Mario", payer_surname="Rossi", payer_email="mario@example.com",
+        amount_total="10.00", currency="EUR", transaction_id="tx-1", order_id="order-1",
+        status="COMPLETED", purchase_type=PurchaseTypes.EVENT,
     )
-    req = DummyRequest(method="GET", args={"id": "pur-1"})
-    resp, status = unwrap_response(purchases_api.get_purchase(req))
+    monkeypatch.setattr(
+        purchases_api, "purchases_service",
+        types.SimpleNamespace(get_by_id=lambda purchase_id, slug=None: purchase),
+    )
+    resp, status = unwrap_response(purchases_api.get_purchase(DummyRequest(method="GET", args={"id": "pur-1"})))
     assert status == 200
     assert resp["id"] == "pur-1"
 
 
-def test_create_purchase_missing_body(monkeypatch):
-    """Returns 400 when body is missing."""
-    monkeypatch.setattr(purchases_api.request, "get_json", lambda: None)
-    req = DummyRequest(method="POST")
-    resp, status = unwrap_response(purchases_api.create_purchase(req))
+def test_create_purchase_missing_body():
+    resp, status = unwrap_response(purchases_api.create_purchase(DummyRequest(method="POST")))
     assert status == 400
-    assert resp["error"] == "Missing JSON body"
+    assert resp["error"] == "Invalid request data"
 
 
 def test_create_purchase_validation_error(monkeypatch):
-    """Maps validation errors to 400."""
     monkeypatch.setattr(
-        purchases_api,
-        "purchases_service",
+        purchases_api, "purchases_service",
         types.SimpleNamespace(create=lambda dto: (_ for _ in ()).throw(ValidationError("bad"))),
     )
-    monkeypatch.setattr(purchases_api.request, "get_json", lambda: {"payer_name": "Mario"})
-    req = DummyRequest(method="POST")
-    resp, status = unwrap_response(purchases_api.create_purchase(req))
+    resp, status = unwrap_response(
+        purchases_api.create_purchase(DummyRequest(method="POST", json=_create_body()))
+    )
     assert status == 400
     assert resp["error"] == "bad"
 
+
 def test_create_purchase_happy_path(monkeypatch):
-    """Creates purchase successfully."""
-    monkeypatch.setattr(
-        purchases_api,
-        "purchases_service",
-        types.SimpleNamespace(create=lambda dto: {"id": "pur-1"}),
+    captured = {}
+
+    def create(dto):
+        captured["dto"] = dto
+        return PurchaseActionResponseDTO(message="Purchase created", id="pur-1")
+
+    monkeypatch.setattr(purchases_api, "purchases_service", types.SimpleNamespace(create=create))
+    resp, status = unwrap_response(
+        purchases_api.create_purchase(DummyRequest(method="POST", json=_create_body()))
     )
-    monkeypatch.setattr(purchases_api.request, "get_json", lambda: {"payer_name": "Mario"})
-    req = DummyRequest(method="POST")
-    resp, status = unwrap_response(purchases_api.create_purchase(req))
     assert status == 201
-    assert resp["id"] == "pur-1"
+    assert resp == {"message": "Purchase created", "id": "pur-1"}
+    assert captured["dto"].purchase_type == "event"
 
 
-def test_delete_purchase_missing_id(monkeypatch):
-    """Returns 400 when purchase_id is missing."""
-    monkeypatch.setattr(purchases_api.request, "get_json", lambda: {})
-    req = DummyRequest(method="DELETE")
-    resp, status = unwrap_response(purchases_api.delete_purchase(req))
+def test_create_purchase_rejects_invalid_type():
+    resp, status = unwrap_response(
+        purchases_api.create_purchase(
+            DummyRequest(method="POST", json=_create_body(purchase_type="invalid-type"))
+        )
+    )
     assert status == 400
-    assert resp["error"] == "Missing purchase_id"
+    assert resp["error"] == "Invalid request data"
+
+
+def test_delete_purchase_missing_id():
+    resp, status = unwrap_response(purchases_api.delete_purchase(DummyRequest(method="DELETE", json={})))
+    assert status == 400
+    assert resp["error"] == "Invalid request data"
 
 
 def test_delete_purchase_not_found(monkeypatch):
-    """Maps not found errors to 404."""
     monkeypatch.setattr(
-        purchases_api,
-        "purchases_service",
+        purchases_api, "purchases_service",
         types.SimpleNamespace(delete=lambda pid: (_ for _ in ()).throw(NotFoundError("missing"))),
     )
-    monkeypatch.setattr(purchases_api.request, "get_json", lambda: {"purchase_id": "pur-1"})
-    req = DummyRequest(method="DELETE")
-    resp, status = unwrap_response(purchases_api.delete_purchase(req))
+    resp, status = unwrap_response(
+        purchases_api.delete_purchase(DummyRequest(method="DELETE", json={"purchase_id": "pur-1"}))
+    )
     assert status == 404
     assert resp["error"] == "missing"
 
+
 def test_delete_purchase_happy_path(monkeypatch):
-    """Deletes purchase successfully."""
     monkeypatch.setattr(
-        purchases_api,
-        "purchases_service",
-        types.SimpleNamespace(delete=lambda pid: {"id": pid}),
+        purchases_api, "purchases_service",
+        types.SimpleNamespace(delete=lambda pid: PurchaseActionResponseDTO(message="Purchase deleted", id=pid)),
     )
-    monkeypatch.setattr(purchases_api.request, "get_json", lambda: {"purchase_id": "pur-1"})
-    req = DummyRequest(method="DELETE")
-    resp, status = unwrap_response(purchases_api.delete_purchase(req))
+    resp, status = unwrap_response(
+        purchases_api.delete_purchase(DummyRequest(method="DELETE", json={"purchase_id": "pur-1"}))
+    )
     assert status == 200
-    assert resp["id"] == "pur-1"
+    assert resp == {"message": "Purchase deleted", "id": "pur-1"}

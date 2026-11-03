@@ -10,7 +10,7 @@ import ParticipantsInfoPanel from "@/components/pages/events/ParticipantsInfoPan
 import { PayPalSection } from "@/components/pages/events/PayPalSection"
 import ParticipantsModal from "@/components/pages/events/modals/ParticipantsModal"
 import { SelectParticipants } from "@/components/pages/events/SelectParticipants"
-import { resolvePurchaseMode, PURCHASE_MODES } from "@/config/events-utils"
+import { resolvePurchaseMode, PURCHASE_MODES, EVENT_STATUSES } from "@/config/events-utils"
 import { validateDiscountCode } from "@/services/discountCodes"
 
 const ACC = "#E07800"
@@ -20,7 +20,8 @@ const CH = "var(--font-charter), Georgia, serif"
 const splitLines = (txt = "") =>
   String(txt).replace(/\\n/g, "\n").split("\n").filter((l) => l.trim().length)
 
-const isEventEnded = (event) => (event?.status || "active") === "ended"
+const isEventEnded = (event) => (event?.status || EVENT_STATUSES.ACTIVE) === EVENT_STATUSES.ENDED
+const isEventComingSoon = (event) => (event?.status || EVENT_STATUSES.ACTIVE) === EVENT_STATUSES.COMING_SOON
 
 const MODE_COPY = {
   [PURCHASE_MODES.PUBLIC]: "L'evento è aperto a tutti i soci e alle nuove richieste di tesseramento.",
@@ -49,6 +50,7 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
 
   const purchaseMode = resolvePurchaseMode(event)
   const isEnded = isEventEnded(event)
+  const isComingSoon = isEventComingSoon(event)
   const paymentBlocked = Boolean(settings?.payment_blocked)
   const iban = settings?.company_iban || ""
   const intestatario = settings?.company_intestatario || ""
@@ -155,7 +157,7 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
         </div>
 
         {/* Mode info */}
-        {MODE_COPY[purchaseMode] && !isEnded && (
+        {MODE_COPY[purchaseMode] && !isEnded && !isComingSoon && (
           <p style={{
             fontFamily: CH, fontSize: "15px", fontStyle: "italic",
             lineHeight: 1.75, color: "rgba(245,243,239,0.45)",
@@ -181,7 +183,7 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
         >Statuto dell'associazione ↗</a>
 
         {/* Price display */}
-        {!isEnded && !isOnRequest && (
+        {!isEnded && !isComingSoon && !isOnRequest && (
           <PriceBlock event={event} membershipPrice={membershipPrice} membershipIncluded={membershipIncluded} quantity={quantity} />
         )}
 
@@ -189,7 +191,19 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
         <div style={{ height: "1px", background: "rgba(245,243,239,0.06)", marginBottom: "40px" }} />
 
         {/* States */}
-        {isEnded ? (
+        {isComingSoon ? (
+          <div style={{ textAlign: "center", padding: "40px 0" }}>
+            <p style={{
+              fontFamily: HN, fontSize: "9px", fontWeight: 700,
+              letterSpacing: "0.3em", textTransform: "uppercase",
+              color: ACC, marginBottom: "12px",
+            }}>Coming Soon</p>
+            <p style={{
+              fontFamily: CH, fontSize: "16px", fontStyle: "italic",
+              color: "rgba(245,243,239,0.4)", margin: 0,
+            }}>Le iscrizioni per questo evento non sono ancora aperte.</p>
+          </div>
+        ) : isEnded ? (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
             <p style={{
               fontFamily: CH, fontSize: "16px", fontStyle: "italic",
@@ -297,7 +311,7 @@ export default function EventPurchaseContent({ id, event, settings, membershipPr
         )}
       </div>
 
-      {!paymentBlocked && !isOnRequest && (
+      {!paymentBlocked && !isOnRequest && !isComingSoon && !isEnded && (
         <ParticipantsModal
           open={modalOpen}
           onOpenChange={setModalOpen}

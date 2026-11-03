@@ -7,9 +7,12 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build ",
+    "build": "node scripts/build-safe.mjs",
+    "build:release": "node scripts/build-safe.mjs --release",
+    "build:next": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint --ext .js,.jsx,.cjs,.mjs .",
+    "test:config": "node --test tests/runtime-policy.test.cjs tests/build-network-guard.test.cjs tests/build-fixture-server.test.mjs tests/firebase-discovery-bridge.test.cjs tests/paypal-section.test.cjs tests/emulator-admin-seed.test.mjs",
     "export": "next export",
     "tunnel": "cloudflared tunnel --url http://localhost:3000"
   },
@@ -61,10 +64,17 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2"
   },
+  "overrides": {
+    "firebase-tools": {
+      "@google-cloud/cloud-sql-connector": "1.10.0",
+      "universal-analytics": "0.5.3"
+    }
+  },
   "devDependencies": {
     "@types/react": "19.2.14",
     "eslint": "^8",
     "eslint-config-next": "15.0.3",
+    "firebase-tools": "14.26.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1"
   }

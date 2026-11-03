@@ -42,8 +42,8 @@ class _Endpoints:
     CAMPAIGN_BOUNCES_SOFT = "/campaigns/{campaign_id}/soft_bounces"
     # Transactional
     TRANSACTIONAL_SEND = "/message/send"
-    TRANSACTIONAL_CAMPAIGNS = "/transactional-campaigns"
-    TRANSACTIONAL_CAMPAIGN_SEND = "/transactional-campaigns/{campaign_id}/send"
+    TRANSACTIONAL_CAMPAIGNS = "/transactional"
+    TRANSACTIONAL_CAMPAIGN_SEND = "/message/{campaign_id}/send"
     # Workflows
     WORKFLOW_START = "/workflows/{workflow_id}/start"
 
@@ -351,6 +351,16 @@ class SenderRoutes:
     @classmethod
     def create_transactional_campaign(cls, api_key: str, body: dict, timeout: int = 10) -> SenderApiResult:
         return cls._call("POST", _Endpoints.TRANSACTIONAL_CAMPAIGNS, api_key, body=body, timeout=timeout)
+
+    @classmethod
+    def delete_transactional_campaign(cls, api_key: str, campaign_id: str, timeout: int = 10) -> SenderApiResult:
+        return cls._call(
+            "DELETE",
+            _Endpoints.TRANSACTIONAL_CAMPAIGNS,
+            api_key,
+            params={"ids": f"[{campaign_id}]"},
+            timeout=timeout,
+        )
 
     @classmethod
     def send_transactional_campaign(cls, api_key: str, campaign_id: str, body: dict, timeout: int = 10) -> SenderApiResult:

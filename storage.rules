@@ -5,12 +5,12 @@ service firebase.storage {
     // Regole per cartella events/
     match /events/{file} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.admin == true;
     }
 
     // Regole per cartella tickets/
     match /tickets/{filePath=**} {
-      allow read: if request.auth != null; // oppure 'if true' se vuoi accesso pubblico
+      allow read: if request.auth != null && request.auth.token.admin == true;
       allow write: if request.auth != null && request.auth.token.admin == true;
     }
     // Regole per cartella memberships/cards/
@@ -26,6 +26,16 @@ service firebase.storage {
     }
 
     match /patterns/{filePath=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    match /foto/{eventFolder}/{file} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    match /foto/showcase/{file} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.token.admin == true;
     }

@@ -1,36 +1,50 @@
 import types
 
+from dto.newsletter_api import (
+    NewsletterActionResponseDTO,
+    NewsletterConsentResponseDTO,
+    NewsletterConsentsListResponseDTO,
+    NewsletterSignupEnvelopeResponseDTO,
+    NewsletterSignupResponseDTO,
+    NewsletterSignupsListResponseDTO,
+)
 from api.admin import newsletter_api
 from tests.utils import DummyRequest, unwrap_response
 
 
 def test_admin_get_newsletter_signups_invalid_method():
-    """Rejects invalid method."""
     req = DummyRequest(method="POST")
     resp, status = unwrap_response(newsletter_api.admin_get_newsletter_signups(req))
     assert status == 405
-    assert resp["error"] == "Invalid request method"
+    assert resp["error"] == "Invalid method"
 
 
 def test_admin_get_newsletter_signups_by_id(monkeypatch):
-    """Fetches signup by id."""
+    captured = {}
+
+    def get_by_id(signup_id):
+        captured["id"] = signup_id
+        return NewsletterSignupEnvelopeResponseDTO(
+            signup=NewsletterSignupResponseDTO(id=signup_id, email="user@example.com")
+        )
+
     monkeypatch.setattr(
         newsletter_api,
         "newsletter_service",
-        types.SimpleNamespace(get_by_id=lambda signup_id: ({"signup": {"id": signup_id}}, 200)),
+        types.SimpleNamespace(get_signup_by_id=get_by_id),
     )
     req = DummyRequest(method="GET", args={"id": "signup-1"})
     resp, status = unwrap_response(newsletter_api.admin_get_newsletter_signups(req))
     assert status == 200
+    assert captured["id"] == "signup-1"
     assert resp["signup"]["id"] == "signup-1"
 
 
 def test_admin_get_newsletter_signups_all(monkeypatch):
-    """Fetches all signups."""
     monkeypatch.setattr(
         newsletter_api,
         "newsletter_service",
-        types.SimpleNamespace(get_all=lambda: ({"signups": []}, 200)),
+        types.SimpleNamespace(get_all_signups=lambda: NewsletterSignupsListResponseDTO(signups=[])),
     )
     req = DummyRequest(method="GET", args={})
     resp, status = unwrap_response(newsletter_api.admin_get_newsletter_signups(req))
@@ -38,56 +52,78 @@ def test_admin_get_newsletter_signups_all(monkeypatch):
     assert resp == {"signups": []}
 
 
-def test_admin_update_newsletter_signup_missing_id():
-    """Returns 400 when id is missing."""
-    req = DummyRequest(method="PUT", json={"active": False})
-    resp, status = unwrap_response(newsletter_api.admin_update_newsletter_signup(req))
+def test_admin_update_newsletter_signup_invalid_data_does_not_call_service(monkeypatch):
+    called = False
+
+    def update(_dto):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(newsletter_api, "newsletter_service", types.SimpleNamespace(update_signup=update))
+    resp, status = unwrap_response(
+        newsletter_api.admin_update_newsletter_signup(DummyRequest(method="PUT", json={"active": False}))
+    )
     assert status == 400
-    assert resp["error"] == "Missing signup ID"
+    assert resp["error"] == "Invalid request data"
+    assert called is False
 
 
 def test_admin_update_newsletter_signup_happy_path(monkeypatch):
-    """Updates signup via service."""
-    monkeypatch.setattr(
-        newsletter_api,
-        "newsletter_service",
-        types.SimpleNamespace(update=lambda signup_id, data: ({"message": "ok"}, 200)),
-    )
+    captured = {}
+
+    def update(dto):
+        captured["dto"] = dto
+        return NewsletterActionResponseDTO(message="ok")
+
+    monkeypatch.setattr(newsletter_api, "newsletter_service", types.SimpleNamespace(update_signup=update))
     req = DummyRequest(method="PUT", json={"id": "signup-1", "active": False})
     resp, status = unwrap_response(newsletter_api.admin_update_newsletter_signup(req))
     assert status == 200
     assert resp["message"] == "ok"
+    assert captured["dto"].id == "signup-1"
+    assert captured["dto"].active is False
 
 
-def test_admin_delete_newsletter_signup_missing_id():
-    """Returns 400 when id is missing."""
-    req = DummyRequest(method="DELETE", args={})
-    resp, status = unwrap_response(newsletter_api.admin_delete_newsletter_signup(req))
+def test_admin_delete_newsletter_signup_invalid_data_does_not_call_service(monkeypatch):
+    called = False
+
+    def delete(_signup_id):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(newsletter_api, "newsletter_service", types.SimpleNamespace(delete_signup=delete))
+    resp, status = unwrap_response(newsletter_api.admin_delete_newsletter_signup(DummyRequest(method="DELETE", args={})))
     assert status == 400
-    assert resp["error"] == "Missing signup ID"
+    assert resp["error"] == "Invalid request data"
+    assert called is False
 
 
 def test_admin_delete_newsletter_signup_happy_path(monkeypatch):
-    """Deletes signup via service."""
-    monkeypatch.setattr(
-        newsletter_api,
-        "newsletter_service",
-        types.SimpleNamespace(delete=lambda signup_id: ({"message": "ok"}, 200)),
-    )
+    captured = {}
+
+    def delete(signup_id):
+        captured["id"] = signup_id
+        return NewsletterActionResponseDTO(message="ok")
+
+    monkeypatch.setattr(newsletter_api, "newsletter_service", types.SimpleNamespace(delete_signup=delete))
     req = DummyRequest(method="DELETE", args={"id": "signup-1"})
     resp, status = unwrap_response(newsletter_api.admin_delete_newsletter_signup(req))
     assert status == 200
     assert resp["message"] == "ok"
+    assert captured["id"] == "signup-1"
 
 
 def test_admin_get_newsletter_consents_happy_path(monkeypatch):
-    """Fetches all newsletter consents via plural endpoint."""
     monkeypatch.setattr(
         newsletter_api,
         "newsletter_service",
-        types.SimpleNamespace(get_all_consents=lambda: ({"consents": []}, 200)),
+        types.SimpleNamespace(
+            get_all_consents=lambda: NewsletterConsentsListResponseDTO(
+                consents=[NewsletterConsentResponseDTO(id="consent-1", email="user@example.com")]
+            )
+        ),
     )
     req = DummyRequest(method="GET", args={})
     resp, status = unwrap_response(newsletter_api.admin_get_newsletter_consents(req))
     assert status == 200
-    assert resp == {"consents": []}
+    assert resp["consents"][0]["id"] == "consent-1"

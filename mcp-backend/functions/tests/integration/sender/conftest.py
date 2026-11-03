@@ -3,13 +3,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from api.admin.sender import helpers as sender_helpers
+from clients.sender_client import SenderRoutes
 from services.sender.sender_service import SenderService
 
 
 @pytest.fixture(autouse=True)
 def _force_sender_service(monkeypatch):
     """Use a deterministic Sender service instance for API integration tests."""
-    monkeypatch.setattr(sender_helpers, "_sender_service", SenderService(api_key="test-key"))
+    monkeypatch.setattr(
+        sender_helpers,
+        "_sender_service",
+        SenderService(api_key="test-key", routes=SenderRoutes),
+    )
 
 
 @pytest.fixture

@@ -107,7 +107,7 @@ def test_process_new_ticket_missing_email():
 def test_process_new_ticket_send_failure(monkeypatch):
     """Returns error when mail send fails."""
     service = _make_service()
-    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", start_time="20:00", end_time="23:00"))
     monkeypatch.setattr("services.events.ticket_service.mail_service.send", lambda *args, **kwargs: False)
     result = service.process_new_ticket("part-1", _participant(), send=True)
     assert result["success"] is False
@@ -117,7 +117,7 @@ def test_process_new_ticket_send_failure(monkeypatch):
 def test_process_new_ticket_happy_path(monkeypatch):
     """Sends ticket and updates participant."""
     service = _make_service()
-    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", start_time="20:00", end_time="23:00"))
     monkeypatch.setattr("services.events.ticket_service.mail_service.send", lambda *args, **kwargs: True)
     result = service.process_new_ticket("part-1", _participant(), send=True)
     assert result["success"] is True
@@ -127,7 +127,7 @@ def test_process_new_ticket_happy_path(monkeypatch):
 def test_process_new_ticket_attachment_filename(monkeypatch):
     """Uses event title in attachment filename for outbound ticket emails."""
     service = _make_service()
-    service.event_repository = _DummyEventRepo(model=Event(title="MCP Spring 2026!", date="13-02-2026"))
+    service.event_repository = _DummyEventRepo(model=Event(title="MCP Spring 2026!", date="13-02-2026", start_time="20:00", end_time="23:00"))
     captured = {}
 
     def fake_send(email_message):
@@ -146,7 +146,7 @@ def test_process_new_ticket_attachment_filename(monkeypatch):
 def test_process_new_ticket_no_send(monkeypatch):
     """Creates ticket without sending email when send=False."""
     service = _make_service()
-    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026"))
+    service.event_repository = _DummyEventRepo(model=Event(title="Test", date="13-02-2026", start_time="20:00", end_time="23:00"))
     result = service.process_new_ticket("part-1", _participant(), send=False)
     assert result["success"] is True
     assert service.participant_repository.updated

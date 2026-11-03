@@ -14,6 +14,7 @@ from errors.service_errors import (
     SoundCloudTrackNotFoundError,
     SoundCloudTrackNotPlayableError,
 )
+from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_runtime_settings
 
 _TOKEN_DOC = "soundcloud_token"
 _SETTINGS_COLLECTION = "settings"
@@ -21,6 +22,10 @@ _TOKEN_GRACE_SECONDS = 300  # refresh 5 min before expiry
 
 
 class SoundCloudService:
+    def __init__(self, client_id=None, client_secret=None):
+        self._client_id = client_id
+        self._client_secret = client_secret
+
     def get_token(self) -> str:
         token_ref = db.collection(_SETTINGS_COLLECTION).document(_TOKEN_DOC)
         doc = token_ref.get()
@@ -41,11 +46,13 @@ class SoundCloudService:
         return self._refresh_token(token_ref)
 
     def _refresh_token(self, token_ref) -> str:
-        if not SOUNDCLOUD_CLIENT_ID or not SOUNDCLOUD_CLIENT_SECRET:
+        client_id = self._client_id or SOUNDCLOUD_CLIENT_ID
+        client_secret = self._client_secret or SOUNDCLOUD_CLIENT_SECRET
+        if not client_id or not client_secret:
             raise SoundCloudAuthError("SoundCloud credentials not configured")
 
         credentials = base64.b64encode(
-            f"{SOUNDCLOUD_CLIENT_ID}:{SOUNDCLOUD_CLIENT_SECRET}".encode()
+            f"{client_id}:{client_secret}".encode()
         ).decode()
 
         try:
@@ -115,3 +122,35 @@ class SoundCloudService:
             "access": access,
             "genres": [genre] if genre else [],
         }
+
+
+class FixtureSoundCloudService:
+    def resolve_track(self, soundcloud_url: str) -> Dict:
+        if soundcloud_url != "https://soundcloud.com/mcp-fixtures/demo-track":
+            raise SoundCloudTrackNotFoundError("No local fixture for this SoundCloud URL")
+        return {
+            "soundcloud_track_id": "FAKE-TRACK-1", "title": "Local demo track",
+            "soundcloud_url": soundcloud_url, "soundcloud_artwork_url": None,
+            "soundcloud_stream_url": None, "soundcloud_waveform_url": None,
+            "duration": 60000, "access": "playable", "genres": ["Fixture"],
+        }
+
+
+class DisabledSoundCloudService:
+    def resolve_track(self, soundcloud_url: str) -> Dict:
+        raise SoundCloudAPIError("SoundCloud integration disabled")
+
+
+def build_soundcloud_service(settings=None):
+    settings = settings or get_runtime_settings()
+    provider = settings.providers
+    if provider.soundcloud == ProviderMode.FAKE:
+        return FixtureSoundCloudService()
+    if provider.soundcloud == ProviderMode.DISABLED:
+        return DisabledSoundCloudService()
+    if provider.soundcloud not in {ProviderMode.STAGING, ProviderMode.LIVE}:
+        raise RuntimeConfigurationError("Unsupported SoundCloud mode")
+    if not provider.soundcloud_client_id or not provider.soundcloud_client_secret:
+        raise RuntimeConfigurationError("SoundCloud requires client ID and client secret")
+    return SoundCloudService(provider.soundcloud_client_id.get_secret_value(),
+                             provider.soundcloud_client_secret.get_secret_value())

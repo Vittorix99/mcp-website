@@ -38,14 +38,20 @@ def test_subscribers_update_integration(mock_request, sender_response_factory):
     """PUT subscribers maps to PATCH /subscribers/{email} without email in body."""
     mock_request.return_value = sender_response_factory(200, {"data": {"updated": True}})
 
-    req = DummyRequest(method="PUT", json={"email": "x@test.com", "firstname": "Luigi"})
+    req = DummyRequest(
+        method="PUT",
+        json={"email": "x@test.com", "firstname": "Luigi", "subscriber_status": "active"},
+    )
     resp, status = unwrap_response(subscribers_api.admin_sender_subscribers(req))
 
     assert status == 200
     assert resp == {"data": {"updated": True}}
     assert mock_request.call_args.kwargs["method"] == "PATCH"
     assert mock_request.call_args.kwargs["url"].endswith("/subscribers/x@test.com")
-    assert mock_request.call_args.kwargs["json"] == {"firstname": "Luigi"}
+    assert mock_request.call_args.kwargs["json"] == {
+        "firstname": "Luigi",
+        "subscriber_status": "ACTIVE",
+    }
 
 
 @patch("clients.sender_client.requests.request")
@@ -61,6 +67,42 @@ def test_subscribers_delete_integration(mock_request, sender_response_factory):
     assert mock_request.call_args.kwargs["method"] == "DELETE"
     assert mock_request.call_args.kwargs["url"].endswith("/subscribers")
     assert mock_request.call_args.kwargs["json"] == {"subscribers": ["x@test.com"]}
+
+
+@patch("clients.sender_client.requests.request")
+def test_subscribers_delete_accepts_frontend_query_contract(mock_request, sender_response_factory):
+    """DELETE remains backward compatible with clients that send email in query params."""
+    mock_request.return_value = sender_response_factory(200, {"deleted": True})
+
+    req = DummyRequest(method="DELETE", args={"email": "x@test.com"})
+    resp, status = unwrap_response(subscribers_api.admin_sender_subscribers(req))
+
+    assert status == 200
+    assert resp == {"deleted": True}
+
+
+@patch("clients.sender_client.requests.request")
+def test_subscribers_upsert_provider_failure_returns_502(mock_request, sender_response_factory):
+    """Provider failures must not be exposed as an empty successful response."""
+    mock_request.return_value = sender_response_factory(422, {"error": "invalid subscriber"})
+
+    req = DummyRequest(method="POST", json={"email": "x@test.com"})
+    resp, status = unwrap_response(subscribers_api.admin_sender_subscribers(req))
+
+    assert status == 502
+    assert resp == {"error": "Sender non ha salvato il subscriber"}
+
+
+@patch("clients.sender_client.requests.request")
+def test_subscribers_delete_provider_failure_returns_502(mock_request, sender_response_factory):
+    """A failed delete must not claim that the subscriber was deleted."""
+    mock_request.return_value = sender_response_factory(500, {"error": "provider unavailable"})
+
+    req = DummyRequest(method="DELETE", json={"email": "x@test.com"})
+    resp, status = unwrap_response(subscribers_api.admin_sender_subscribers(req))
+
+    assert status == 502
+    assert resp == {"error": "Sender non ha eliminato il subscriber"}
 
 
 @patch("clients.sender_client.requests.request")

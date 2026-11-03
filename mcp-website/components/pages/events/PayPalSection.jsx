@@ -1,6 +1,6 @@
 "use client"
 
-import { initialOptions } from "@/config/paypal"
+import { initialOptions, isFakePayment } from "@/config/paypal"
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js"
 import { useMemo, useState } from "react"
 import { createOrder, onApprove } from "@/services/paypal"
@@ -133,6 +133,16 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
 
   const totalLabel = typeof cart?.total === "number" && !isNaN(cart.total) ? `${cart.total.toFixed(2)}€` : "0.00€"
 
+  const handleFakePayment = async () => {
+    if (disabled || isProcessing || locked) return
+    try {
+      const orderID = await handleCreateOrder()
+      await handleApprove({ orderID, fundingSource: "fake" })
+    } catch {
+      // Existing handlers show creation/capture failures to the user.
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
       <div
@@ -171,6 +181,19 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
         </span>
       </div>
 
+      {isFakePayment ? (
+        <div>
+          {orderError && <p role="alert">{orderError}</p>}
+          <button
+            type="button"
+            onClick={handleFakePayment}
+            disabled={disabled || isProcessing || locked}
+            style={{ width: "100%", padding: "14px", background: ACC, color: "#fff", fontFamily: HN, border: 0, cursor: "pointer" }}
+          >
+            {isProcessing ? "Elaborazione..." : "Conferma pagamento simulato"}
+          </button>
+        </div>
+      ) : (
       <PayPalScriptProvider options={initialOptions}>
         {isProcessing && (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "16px 0", color: "rgba(245,243,239,0.55)" }}>
@@ -207,6 +230,7 @@ export function PayPalSection({ event, cart, purchaseMode, disabled = false }) {
           disabled={disabled || isProcessing || locked}
         />
       </PayPalScriptProvider>
+      )}
 
       <p style={{ fontFamily: CH, fontSize: "13px", lineHeight: 1.6, color: "rgba(245,243,239,0.38)", textAlign: "center", margin: 0 }}>
         Procedendo con il pagamento, accetti i nostri&nbsp;

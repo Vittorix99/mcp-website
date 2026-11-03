@@ -1,0 +1,11 @@
+{
+  "get_all_events": [],
+  "get_next_event": [],
+  "get_membership_price_public": {
+    "year": "2026",
+    "price": 20
+  },
+  "get_published_radio_episodes": [],
+  "get_latest_radio_episode": null,
+  "get_radio_seasons": []
+}

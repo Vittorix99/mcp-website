@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
@@ -44,6 +44,17 @@ class UpdateSubscriberRequestDTO(SenderApiBaseDTO):
     lastname: Optional[str] = None
     phone: Optional[str] = None
     fields: Optional[Dict[str, Any]] = None
+    subscriber_status: Optional[
+        Literal["ACTIVE", "UNSUBSCRIBED", "BOUNCED", "SPAM_REPORTED"]
+    ] = None
+
+    @field_validator("subscriber_status", mode="before")
+    @classmethod
+    def normalize_subscriber_status(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            return normalized or None
+        return value
 
     def changes(self) -> Dict[str, Any]:
         allowed = set(self.model_fields_set) - {"email"}

@@ -195,6 +195,108 @@ def test_on_membership_created_creates_wallet_pass():
 
 
 @pytest.mark.integration
+def test_on_participant_created_from_purchase_sets_gender():
+    """
+    Simula la creazione di un partecipante dopo un acquisto (purchase_id presente).
+    Il trigger deve chiamare genderize.io con la API key e scrivere gender +
+    gender_probability su Firestore entro il timeout.
+    """
+    import os
+    if os.environ.get("RUN_LIVE_PROVIDER_TESTS") != "1":
+        pytest.skip("Set RUN_LIVE_PROVIDER_TESTS=1 to allow calls to live providers")
+    if not os.environ.get("GENDER_API_KEY"):
+        pytest.skip("GENDER_API_KEY non configurata — skip live gender inference test")
+
+    firebase_config = _load_firebase_config()
+    _assert_firestore_emulator(firebase_config)
+    _assert_trigger_registered("on_participant_created")
+    db = firebase_config.db
+
+    event_id = f"evt_{uuid4().hex[:8]}"
+    participant_id = f"part_{uuid4().hex[:8]}"
+    ref = (
+        db.collection("participants")
+        .document(event_id)
+        .collection("participants_event")
+        .document(participant_id)
+    )
+    ref.set({
+        "name": "Giulia Bianchi",
+        "email": "giulia.test@example.com",
+        "send_ticket_on_create": False,
+        "newsletterConsent": False,
+        "purchase_id": f"purch_{uuid4().hex[:8]}",
+        "payment_method": "website",
+    })
+
+    try:
+        assert _wait_for(
+            lambda: (ref.get().to_dict() or {}).get("gender") not in (None, ""),
+            timeout=15.0,
+        ), "Il trigger non ha scritto il campo gender entro il timeout"
+
+        data = ref.get().to_dict() or {}
+        assert data["gender"] in ("female", "male", "N/A"), (
+            f"Valore gender inatteso: {data['gender']!r}"
+        )
+        assert "gender_probability" in data, "gender_probability assente nel documento"
+        assert isinstance(data["gender_probability"], (int, float))
+    finally:
+        ref.delete()
+
+
+@pytest.mark.integration
+def test_on_participant_created_from_purchase_female_name_inferred_female():
+    """
+    Con un nome femminile comune (Giulia) genderize.io deve restituire 'female'.
+    Fallisce solo se l'API è raggiungibile ma non riconosce il nome.
+    """
+    import os
+    if os.environ.get("RUN_LIVE_PROVIDER_TESTS") != "1":
+        pytest.skip("Set RUN_LIVE_PROVIDER_TESTS=1 to allow calls to live providers")
+    if not os.environ.get("GENDER_API_KEY"):
+        pytest.skip("GENDER_API_KEY non configurata — skip live gender inference test")
+
+    firebase_config = _load_firebase_config()
+    _assert_firestore_emulator(firebase_config)
+    _assert_trigger_registered("on_participant_created")
+    db = firebase_config.db
+
+    event_id = f"evt_{uuid4().hex[:8]}"
+    participant_id = f"part_{uuid4().hex[:8]}"
+    ref = (
+        db.collection("participants")
+        .document(event_id)
+        .collection("participants_event")
+        .document(participant_id)
+    )
+    ref.set({
+        "name": "Giulia Bianchi",
+        "email": "giulia.test@example.com",
+        "send_ticket_on_create": False,
+        "newsletterConsent": False,
+        "purchase_id": f"purch_{uuid4().hex[:8]}",
+        "payment_method": "website",
+    })
+
+    try:
+        assert _wait_for(
+            lambda: (ref.get().to_dict() or {}).get("gender") not in (None, ""),
+            timeout=15.0,
+        ), "Il trigger non ha scritto il campo gender entro il timeout"
+
+        data = ref.get().to_dict() or {}
+        if data["gender"] == "N/A":
+            pytest.skip("genderize.io non ha riconosciuto il nome — potrebbe essere rate limit o nome sconosciuto")
+        assert data["gender"] == "female", (
+            f"Atteso 'female' per 'Giulia', ottenuto: {data['gender']!r}"
+        )
+        assert data["gender_probability"] > 0.5
+    finally:
+        ref.delete()
+
+
+@pytest.mark.integration
 def test_on_membership_created_skips_wallet_when_flag_false():
     """
     Backward-compatible alias for older test node ids used by local runners.

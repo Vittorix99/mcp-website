@@ -16,7 +16,6 @@ def test_admin_create_event_happy_path(monkeypatch):
         method="POST",
         json={
             "title": "Test",
-            "location": "Milano",
             "locationHint": "Ingresso A",
             "date": "13-02-2026",
             "startTime": "20:00",
@@ -57,7 +56,6 @@ def test_admin_create_event_service_error(monkeypatch):
         method="POST",
         json={
             "title": "Test",
-            "location": "Milano",
             "locationHint": "Ingresso A",
             "date": "13-02-2026",
             "startTime": "20:00",

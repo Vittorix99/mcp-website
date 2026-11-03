@@ -7,7 +7,7 @@ from interfaces.repositories import MembershipRepositoryProtocol, ParticipantRep
 from interfaces.services import Pass2UServiceProtocol
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
-from services.memberships.pass2u_service import Pass2UService
+from services.memberships.pass2u_service import build_pass2u_service
 from utils.safe_logging import redact_sensitive
 
 
@@ -21,7 +21,7 @@ class MergeService:
         self.logger = logging.getLogger("MergeService")
         self.membership_repository = membership_repository or MembershipRepository()
         self.participant_repository = participant_repository or ParticipantRepository()
-        self.pass2u_service = pass2u_service or Pass2UService()
+        self.pass2u_service = pass2u_service or build_pass2u_service()
 
     @staticmethod
     def _unique_sorted(values: List[Optional[str]]) -> List[str]:

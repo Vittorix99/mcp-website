@@ -1,0 +1,5 @@
+{
+  "event_id": "smoke-event",
+  "event": {"title": "WS1 synthetic event", "date": "01-01-2099", "status": "active", "start_time": "20:00", "end_time": "23:00", "price": 10, "fee": 0},
+  "membership_settings": {"price_by_year": {"2026": 20}}
+}

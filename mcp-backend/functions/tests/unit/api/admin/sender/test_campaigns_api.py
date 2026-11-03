@@ -84,7 +84,8 @@ class TestAdminSenderCampaigns:
         resp, status = unwrap_response(campaigns_api.admin_sender_campaigns(req))
 
         assert status == 400
-        assert resp["error"] == "Missing campaign_id"
+        assert resp["error"] == "Invalid request data"
+        assert resp["details"][0]["field"] == "id"
 
     def test_delete_not_implemented_501(self, monkeypatch):
         svc = types.SimpleNamespace(delete_campaign=lambda campaign_id: False)
@@ -126,7 +127,8 @@ class TestAdminSenderCampaignSend:
         resp, status = unwrap_response(campaigns_api.admin_sender_campaign_send(req))
 
         assert status == 400
-        assert resp["error"] == "Missing campaign_id"
+        assert resp["error"] == "Invalid request data"
+        assert resp["details"][0]["field"] == "id"
 
     def test_only_post_allowed(self):
         req = DummyRequest(method="GET", json={})
@@ -180,7 +182,8 @@ class TestAdminSenderCampaignSchedule:
         resp, status = unwrap_response(campaigns_api.admin_sender_campaign_schedule(req))
 
         assert status == 400
-        assert resp["error"] == "Missing campaign_id or scheduled_at"
+        assert resp["error"] == "Invalid request data"
+        assert resp["details"][0]["field"] == "scheduled_at"
 
 
 class TestAdminSenderCampaignStats:
@@ -240,14 +243,16 @@ class TestAdminSenderCampaignStats:
         resp, status = unwrap_response(campaigns_api.admin_sender_campaign_stats(req))
 
         assert status == 400
-        assert "Unknown stat type" in resp["error"]
+        assert resp["error"] == "Invalid request data"
+        assert "Unknown stat type" in resp["details"][0]["message"]
 
     def test_missing_id_400(self):
         req = DummyRequest(method="GET", args={"type": "opens"})
         resp, status = unwrap_response(campaigns_api.admin_sender_campaign_stats(req))
 
         assert status == 400
-        assert resp["error"] == "Missing campaign_id"
+        assert resp["error"] == "Invalid request data"
+        assert resp["details"][0]["field"] == "id"
 
     def test_only_get_allowed(self):
         req = DummyRequest(method="POST", json={})

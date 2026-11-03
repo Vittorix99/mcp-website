@@ -15,7 +15,7 @@ Flow under test:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -222,6 +222,7 @@ def _previous_year_membership(email: str) -> Membership:
         phone="+390000000000",
         birthdate="01-01-1990",
         start_date=f"{prev_year}-09-05T22:55:43Z",
+        membership_years=[prev_year],
         end_date=f"31-12-{prev_year}",
         subscription_valid=True,
         membership_sent=True,
@@ -241,6 +242,7 @@ def _current_year_membership(email: str) -> Membership:
         phone="+390000000000",
         birthdate="01-01-1990",
         start_date=f"{curr_year}-03-01T10:00:00Z",
+        membership_years=[curr_year],
         end_date=f"31-12-{curr_year}",
         subscription_valid=True,
         membership_sent=True,
@@ -308,15 +310,15 @@ def test_is_valid_member_current_year_returns_true():
     assert _is_valid_member(m) is True
 
 
-def test_is_valid_member_no_start_date_falls_back_to_subscription_valid():
-    """If start_date is missing, fall back to subscription_valid."""
+def test_is_valid_member_without_canonical_year_is_not_active():
+    """The legacy validity flag alone does not establish annual membership."""
     m = Membership(
         name="A",
         surname="B",
         email="a@example.com",
         subscription_valid=True,
     )
-    assert _is_valid_member(m) is True
+    assert _is_valid_member(m) is False
 
 
 def test_is_valid_member_no_start_date_and_invalid_subscription():
@@ -537,6 +539,12 @@ def test_capture_renews_previous_year_member_and_registers_participant(monkeypat
 
     service = _make_service(existing_membership=prev_membership)
 
+    service.event_repository = _DummyEventRepo(model=Event(
+        id="evt-renewal", title="Renewal Event",
+        date=(datetime.now(timezone.utc) + timedelta(days=1)).strftime("%d-%m-%Y"),
+        price=12.0, fee=0.0, purchase_mode=EventPurchaseAccessType.ONLY_MEMBERS,
+    ))
+
     # Build the staged order: participant is in membership_targets (not lookup)
     participant_payload = _participant(email).to_payload()
     event_order = EventOrder(
@@ -590,8 +598,9 @@ def test_capture_renews_previous_year_member_and_registers_participant(monkeypat
     assert event_id_saved == "evt-renewal"
     assert part_payload.membership_included is True
 
-    # The staging order must have been deleted after capture
-    assert "order-renewal" in service.order_repository.deleted
+    # A completed order is retained for idempotent capture retries.
+    assert service.order_repository.deleted == []
+    assert ("order-renewal", "COMPLETED") in service.order_repository.status_updates
 
 
 # ---------------------------------------------------------------------------

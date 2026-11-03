@@ -1,10 +1,10 @@
 // firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { GoogleAuthProvider } from "firebase/auth";
-import { getStorage, ref, getDownloadURL, listAll , uploadBytes, deleteObject} from "firebase/storage";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 
@@ -28,12 +28,22 @@ const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 if (typeof window !== "undefined") {
   console.log(`[MCP Frontend] Env: ${env} | Project: ${projectId || "unknown"}`);
 }
-if (typeof window !== "undefined" && authEmulatorHost && env !== "production") {
+if (authEmulatorHost && ["local", "test"].includes(env)) {
   connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
 }
 const db = getFirestore(app);
 const functions = getFunctions(app);
  const storageBucket = getStorage(app);
+if (["local", "test"].includes(env)) {
+  const connect = (value, fn, service) => {
+    if (!value) throw new Error("Validated Firebase emulator host is missing")
+    const endpoint = new URL(`http://${value}`)
+    fn(service, endpoint.hostname, Number(endpoint.port))
+  }
+  connect(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST, connectFirestoreEmulator, db)
+  connect(process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST, connectFunctionsEmulator, functions)
+  connect(process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST, connectStorageEmulator, storageBucket)
+}
 let analytics = null;
 const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 const analyticsFlag = process.env.NEXT_PUBLIC_ENABLE_ANALYTICS;

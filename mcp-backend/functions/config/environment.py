@@ -1,47 +1,29 @@
+"""Explicit, opt-in dotenv loading for emulator runtimes only."""
+
 import os
 from pathlib import Path
+from typing import MutableMapping
 
-from dotenv import load_dotenv
-
-ENV_VAR = "MCP_ENV"
-PROD_VALUE = "prod"
+from dotenv import dotenv_values
 
 
-def _resolve_env_path() -> Path:
-    base_dir = Path(__file__).resolve().parents[1]
-    if os.environ.get(ENV_VAR, "").lower() == PROD_VALUE:
-        return base_dir / ".env"
-    return base_dir / ".env.integration"
+def load_environment(environ: MutableMapping[str, str] | None = None) -> Path | None:
+    from config.runtime_settings import RuntimeConfigurationError
 
-
-def _should_override_env(override: bool) -> bool:
-    if override:
-        return True
-    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
-        return True
-    if os.environ.get("FIREBASE_EMULATOR_HUB") or os.environ.get("FUNCTIONS_EMULATOR"):
-        return True
-    return False
-
-
-def _is_cloud_runtime() -> bool:
-    return bool(os.environ.get("K_SERVICE"))
-
-
-def load_environment(override: bool = False) -> Path:
-    env_path = _resolve_env_path()
-    if _is_cloud_runtime():
-        return env_path
-
-    # Quando il processo parte con Doppler, le variabili sono gia iniettate
-    # nell'ambiente. In quel caso non carichiamo i file .env locali per evitare
-    # che configurazioni obsolete sovrascrivano la source of truth.
-    if (
-        os.environ.get("MCP_USE_DOPPLER") == "1"
-        or os.environ.get("DOPPLER_PROJECT")
-        or os.environ.get("DOPPLER_CONFIG")
-    ):
-        return env_path
-    if env_path.exists():
-        load_dotenv(dotenv_path=env_path, override=_should_override_env(override))
-    return env_path
+    env = os.environ if environ is None else environ
+    requested = env.get("MCP_ENV_FILE")
+    if not requested:
+        return None
+    if env.get("MCP_ENV") not in {"local", "test"} or env.get("K_SERVICE"):
+        raise RuntimeConfigurationError("MCP_ENV_FILE is allowed only in local/test emulator runtimes")
+    path = Path(requested)
+    try:
+        if not path.is_file():
+            raise OSError
+        values = dotenv_values(path, interpolate=False)
+    except (OSError, ValueError):
+        raise RuntimeConfigurationError("MCP_ENV_FILE could not be read") from None
+    for key, value in values.items():
+        if value is not None:
+            env.setdefault(key, value)
+    return path

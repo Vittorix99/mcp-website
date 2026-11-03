@@ -12,6 +12,7 @@ from dto.sender_api import (
     UpdateSubscriberRequestDTO,
     UpsertSubscriberRequestDTO,
 )
+from errors.service_errors import ExternalServiceError
 from utils.http_responses import handle_pydantic_error, handle_service_error
 from .helpers import get_sender_service
 
@@ -26,8 +27,12 @@ def admin_sender_subscribers(req):
         try:
             dto = SubscriberQueryDTO.model_validate(dict(req.args or {}))
             if dto.email:
-                return jsonify(sender_service.get_subscriber(str(dto.email)) or {}), 200
-            return jsonify(sender_service.list_subscribers(params=dict(req.args or {})) or {}), 200
+                result = sender_service.get_subscriber(str(dto.email))
+            else:
+                result = sender_service.list_subscribers(params=dict(req.args or {}))
+            if result is None:
+                raise ExternalServiceError("Sender non ha restituito i subscriber")
+            return jsonify(result), 200
         except PydanticValidationError as err:
             return handle_pydantic_error(err)
         except Exception as err:
@@ -44,7 +49,9 @@ def admin_sender_subscribers(req):
                 groups=dto.groups,
                 fields=dto.fields,
             )
-            return jsonify(result or {}), 200
+            if result is None:
+                raise ExternalServiceError("Sender non ha salvato il subscriber")
+            return jsonify(result), 200
         except PydanticValidationError as err:
             return handle_pydantic_error(err)
         except Exception as err:
@@ -54,15 +61,19 @@ def admin_sender_subscribers(req):
         try:
             dto = UpdateSubscriberRequestDTO.model_validate(req.get_json(silent=True) or {})
             result = sender_service.update_subscriber(str(dto.email), dto.changes())
-            return jsonify(result or {}), 200
+            if result is None:
+                raise ExternalServiceError("Sender non ha aggiornato il subscriber")
+            return jsonify(result), 200
         except PydanticValidationError as err:
             return handle_pydantic_error(err)
         except Exception as err:
             return handle_service_error(err)
 
     try:
-        dto = DeleteSubscriberRequestDTO.model_validate(req.get_json(silent=True) or {})
-        sender_service.delete_subscriber(str(dto.email))
+        data = {**(req.get_json(silent=True) or {}), **dict(req.args or {})}
+        dto = DeleteSubscriberRequestDTO.model_validate(data)
+        if not sender_service.delete_subscriber(str(dto.email)):
+            raise ExternalServiceError("Sender non ha eliminato il subscriber")
         return jsonify({"deleted": True}), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
@@ -79,9 +90,13 @@ def admin_sender_subscriber_groups(req):
 
         if req.method == "POST":
             result = sender_service.add_to_group(str(dto.email), dto.group_id)
+            if not result:
+                raise ExternalServiceError("Sender non ha aggiunto il subscriber al gruppo")
             return jsonify({"added": result}), 200
 
         result = sender_service.remove_from_group(str(dto.email), dto.group_id)
+        if not result:
+            raise ExternalServiceError("Sender non ha rimosso il subscriber dal gruppo")
         return jsonify({"removed": result}), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
@@ -96,7 +111,9 @@ def admin_sender_subscriber_events(req):
         dto = SubscriberEventQueryDTO.model_validate(dict(req.args or {}))
         identifier = str(dto.email) if dto.email else dto.id
         result = sender_service.get_subscriber_events(identifier, actions=dto.actions)
-        return jsonify(result or {}), 200
+        if result is None:
+            raise ExternalServiceError("Sender non ha restituito gli eventi del subscriber")
+        return jsonify(result), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
     except Exception as err:
