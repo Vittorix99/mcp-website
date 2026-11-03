@@ -32,7 +32,9 @@ consumatori esterni. Per questo non sono state eliminate funzioni o chiavi.
 nuova destinazione assente fallisce. Se un'eccezione viene implementata o il
 suo riferimento viene rimosso, il gate richiede di eliminare l'eccezione.
 Sorgente non interpretabile, proprietà duplicate e route dinamiche non
-supportate falliscono invece di essere saltate. Alias di export Python
+supportate falliscono invece di essere saltate. Sono rifiutate anche mutazioni
+successive della mappa, alias della mappa stessa e riassegnazioni delle funzioni
+Python inventariate. Alias di export Python
 sono risolti; callable, trigger e funzioni non esportate non soddisfano una route HTTP.
 
 Restano fuori da questo gate: metodi, body, risposte, errori e autorizzazioni

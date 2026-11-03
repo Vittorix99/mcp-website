@@ -1,6 +1,7 @@
 """Inventory exported HTTP functions without importing application code or SDKs."""
 import argparse
 import ast
+from collections import Counter
 import json
 from pathlib import Path
 import sys
@@ -34,6 +35,25 @@ def _qualified(node, bindings):
     return ""
 
 
+def _assert_single_binding(tree, names):
+    def bindings(node):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            yield node.name
+            return  # Function/class locals do not replace module bindings.
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for item in node.names:
+                yield item.asname or (item.name.split(".")[0] if isinstance(node, ast.Import) else item.name)
+            return
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            yield node.id
+        for child in ast.iter_child_nodes(node):
+            yield from bindings(child)
+
+    counts = Counter(bindings(tree))
+    if any(counts[name] != 1 for name in names):
+        raise ValueError("Rebound API function or decorator")
+
+
 def export_http_endpoints(root: Path) -> set[str]:
     functions = root / "mcp-backend/functions"
     main = ast.parse((functions / "main.py").read_text())
@@ -53,9 +73,15 @@ def export_http_endpoints(root: Path) -> set[str]:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
                 and any(_qualified(decorator, bindings) in HTTP_DECORATORS for decorator in item.decorator_list)
             }
+            decorator_bindings = {
+                name for name, qualified in bindings.items()
+                if qualified in HTTP_DECORATORS or qualified == "firebase_functions.https_fn"
+            }
+            _assert_single_binding(tree, modules[node.module] | decorator_bindings)
         for name in node.names:
             if name.name in modules[node.module]:
                 exported.add(name.asname or name.name)
+    _assert_single_binding(main, exported)
     return exported
 
 

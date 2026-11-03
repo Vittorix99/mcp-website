@@ -18,6 +18,17 @@ export function readFrontendRoutes(source) {
     && node.declaration?.type === 'VariableDeclaration' ? node.declaration.declarations : [])
   const endpointDeclarations = declarations.filter(node => node.id.type === 'Identifier' && node.id.name === 'endpoints')
   if (endpointDeclarations.length !== 1) throw new Error('Expected one exported endpoints object')
+  function rejectOutsideReferences(node) {
+    if (!node || node === endpointDeclarations[0] || typeof node !== 'object') return
+    if (node.type === 'Identifier' && node.name === 'endpoints') {
+      throw new Error('API map references outside its static declaration are unsupported')
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(rejectOutsideReferences)
+      else if (value && typeof value === 'object') rejectOutsideReferences(value)
+    }
+  }
+  rejectOutsideReferences(tree)
   const routes = new Map()
   function visit(node,prefix = '') {
     if (node?.type !== 'ObjectExpression') throw new Error(`Unsupported API object: ${prefix}`)

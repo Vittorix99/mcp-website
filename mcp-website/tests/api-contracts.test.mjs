@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {execFileSync,spawnSync} from 'node:child_process'
-import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs'
+import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -25,6 +25,14 @@ test('rejects dynamic, malformed, duplicate or missing endpoint definitions inst
     'export const endpoints = {',
     'export const unrelated = {}',
   ]) assert.throws(() => checker.readFrontendRoutes(source))
+})
+
+test('rejects endpoint mutations and aliases outside the static map',() => {
+  for (const mutation of [
+    'endpoints.extra = make("missing_new_endpoint")',
+    'Object.assign(endpoints,{extra:make("missing_new_endpoint")})',
+    'const alias = endpoints; alias.extra = make("missing_new_endpoint")',
+  ]) assert.throws(() => checker.readFrontendRoutes(`export const endpoints = {list:make("events")}; ${mutation}`))
 })
 
 test('flags new missing references while naming only exact known legacy exceptions',() => {
@@ -86,4 +94,20 @@ test('Python extraction refuses malformed modules and unsupported wildcard expor
       assert.equal(result.stdout,'')
     }
   })
+})
+
+test('Python extraction rejects rebound export names and overwritten decorated definitions',() => {
+  for (const target of ['main.py','api/example.py']) {
+    backendFixture((functions,fixture) => {
+      const destination = path.join(functions,target)
+      const original = readFileSync(destination,'utf8')
+      writeFileSync(destination,`${original}\n${target === 'main.py' ? 'exposed = None' : 'def original(req): pass'}\n`)
+      const result = spawnSync(path.join(root,'.venv/bin/python'),[
+        path.join(root,'scripts/contracts/export_http_endpoints.py'),'--root',fixture,
+      ],{encoding:'utf8'})
+      assert.equal(result.status,1)
+      assert.match(result.stderr,/API inventory rejected:/)
+      assert.equal(result.stdout,'')
+    })
+  }
 })
