@@ -77,6 +77,36 @@ di X-Request-ID, con due regressioni del verificatore RED→GREEN.
   indipendente dell’agente.
 - Review indipendente Sol high: pulita, nessun rilievo. Rieseguiti dal
   revisore 23 test backend mirati e 9 test del verificatore HTTP.
-- CI remota WS3: da verificare sulla PR. Nessun deploy eseguito.
+- CI remota WS3: [run 7](https://github.com/Vittorix99/mcp-website/actions/runs/41735828308)
+  tutta verde; PR #4 integrata dal proprietario in `main` (`b93b742`).
+  Nessun deploy eseguito.
 - Non ripetuta la build frontend locale: codice UI e fixture di build invariati;
   la CI esegue comunque la pipeline completa.
+
+
+## Seguito circoscritto — riepilogo offline dei log
+
+`scripts/observability/summarize_requests.py` legge JSONL WS3 oppure stdout
+emulatori (prefisso `> `), raggruppa per ambiente e funzione e restituisce
+richieste, conteggi 4xx/5xx, p50/p95/p99 e massimo in millisecondi. Percentili
+nearest-rank; il numero di campioni resta visibile. ID duplicati non aumentano
+le richieste; duplicati discordanti e record invalidi fanno fallire il comando
+senza stampare il contenuto. Altri log vengono ignorati; un input senza record
+non produce un falso successo. Nessuna rete, dipendenza o modifica applicativa.
+
+Uso dalla radice, con un log già salvato:
+
+```sh
+.venv/bin/python scripts/observability/summarize_requests.py /percorso/log-emulatori.txt
+```
+
+Sono supportati anche stdin con `-` e JSONL grezzo. Non legge direttamente
+export Cloud Logging annidati o l'intero log di un job CI. Gli ambienti non
+vengono mescolati; campi extra come email/body non compaiono nel report.
+I conteggi 4xx/5xx includono le prove negative intenzionali dei test.
+Campioni degli emulatori e percentili con pochi dati non sono una misura
+rappresentativa delle prestazioni o dei costi di produzione.
+
+Verifica: 17 test mirati RED prima del codice, GREEN dopo. Prova con record
+estratti dalla CI reale WS3: 22 richieste e 6 gruppi API, ambiente `test`.
+Suite applicativa completa demandata alla CI: nessun codice HTTP modificato.
