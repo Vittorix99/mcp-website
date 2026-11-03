@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
+import {randomUUID} from 'node:crypto'
 import test from 'node:test'
 
 import {verifyEventReadContracts as verify} from '../scripts/event-contract-smoke.mjs'
@@ -34,7 +35,7 @@ async function fixture(t,mutation) {
     } else payload = event
     const result = mutation?.({endpoint,url,token,status,payload}) || {status,payload}
     seen.push({endpoint,token,status:result.status})
-    res.writeHead(result.status,{'Content-Type':'application/json'})
+    res.writeHead(result.status,{'Content-Type':'application/json','X-Request-ID':randomUUID(),...result.headers})
     res.end(JSON.stringify(result.payload))
   })
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve))
@@ -82,6 +83,16 @@ test('detects an admin endpoint allowing an ordinary authenticated user',async t
 test('rejects event metadata leaked in 401 responses even without an event ID',async t => {
   await fixture(t,result => result.status === 401
     ? {...result,payload:{event:{title:'WS1 synthetic event',createdBy:'synthetic-admin'}}} : result)
+  await assert.rejects(verify(options),/Event contract:/)
+})
+
+test('rejects HTTP responses without a valid request ID',async t => {
+  await fixture(t,result => ({...result,headers:{'X-Request-ID':''}}))
+  await assert.rejects(verify(options),/Event contract:/)
+})
+
+test('rejects repeated request IDs across different HTTP requests',async t => {
+  await fixture(t,result => ({...result,headers:{'X-Request-ID':'00000000-0000-4000-8000-000000000001'}}))
   await assert.rejects(verify(options),/Event contract:/)
 })
 
