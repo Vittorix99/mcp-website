@@ -59,3 +59,11 @@ Esecuzione nativa coordinatore, senza deleghe di implementazione.
 | Codex / Sol 6.1 | `ws2_final_review_sol`: unica review indipendente del branch WS2 | high | Conclusa; tre Important accettati e corretti dal coordinatore con tre regressioni RED→GREEN. Suite frontend finale 39 passati, inventario confermato. Una sola review indipendente; prova Firebase reale PASS, exit 0 riportato dal proprietario. |
 
 Conteggio WS2: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## WS2 — ritiro riferimenti API obsoleti
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Luna 6 | `obsolete_api_cleanup_luna`: rimozione meccanica di quattro riferimenti e due servizi frontend senza consumatori | low | Interrotto dal limite di utilizzo dopo test RED e modifiche ai file. Il coordinatore ha revisionato e completato il diff: 40 test frontend passati, gate 126 riferimenti/128 export/zero eccezioni/zero errori; lint mirato e scanner passati. Build passata. Diff accettato con correzione del commento sulle eccezioni; nessun nuovo tentativo delegato. |
+
+Conteggio di questo intervento: 1 incarico Luna, 0 review delegate Sol; review del diff al coordinatore. Token e costi non disponibili.

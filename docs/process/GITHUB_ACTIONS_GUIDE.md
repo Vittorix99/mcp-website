@@ -17,8 +17,8 @@ Il workflow PR previsto parte quando si apre o aggiorna una pull request e può 
 La scansione è progettata per non stampare valori segreti. Evita comunque di copiare log in spazi pubblici o includerli in screenshot senza averli controllati. Il workflow non prevede al momento il caricamento di artefatti: i log sono la fonte principale per diagnosticare un errore. Eventuali artefatti aggiunti in futuro dovranno essere ripuliti da dati sensibili prima della pubblicazione.
 
 Lo step **API reference contracts** confronta tutta la mappa frontend con gli
-handler HTTP esportati. Stampa le quattro eccezioni legacy note: exit 0
-significa nessuna nuova incoerenza, non che quelle quattro siano corrette.
+handler HTTP esportati. Non ci sono eccezioni legacy: ogni riferimento senza
+handler fa fallire il controllo.
 Lo step **Full emulator smoke** verifica anche lettura eventi, risposte
 pubbliche e permessi admin tramite HTTP, con token emessi dall'emulatore Auth.
 

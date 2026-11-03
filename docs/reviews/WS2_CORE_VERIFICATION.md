@@ -1,6 +1,6 @@
 # WS2 — Verifica del primo blocco
 
-Stato: blocco locale verificato; CI remota WS2 ancora da eseguire. Base: `d8ac90e8`.
+Stato: primo blocco WS2 integrato in `main`; CI remota verificata. Base: `d8ac90e8`.
 Design e piano approvati dal proprietario in chat il 2026-11-03.
 
 ## Perimetro
@@ -29,7 +29,11 @@ Design e piano approvati dal proprietario in chat il 2026-11-03.
 - Review indipendente finale Sol high: tre Important riprodotti e corretti
   con regressioni RED→GREEN. Suite frontend finale: 39 passati; inventario
   confermato. Vedere [rapporto di review](WS2_CORE_REVIEW.md).
-- CI remota WS2: non ancora avviata; nessun merge eseguito dall'agente.
+- CI remota WS2: [run 5](https://github.com/Vittorix99/mcp-website/actions/runs/41730948217)
+  passata: 686 test backend, 39 frontend, 2 smoke Python e client/HTTP emulatori.
+  [PR #2](https://github.com/Vittorix99/mcp-website/pull/2) unita dal proprietario
+  in `main` (`f1d70ffe`). Albero del merge confrontato col branch: identico.
+  Nessun deploy o merge eseguito dall’agente.
 
 ## Decisioni e limiti
 
