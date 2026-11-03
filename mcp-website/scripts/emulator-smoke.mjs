@@ -9,6 +9,7 @@ import {initializeApp as initializeAdminApp,deleteApp as deleteAdminApp} from 'f
 import {getAuth as getAdminAuth} from 'firebase-admin/auth'
 import {getFirestore as getAdminFirestore} from 'firebase-admin/firestore'
 import {seedLocalAdmin} from './emulator-admin-seed.mjs'
+import {verifyEventReadContracts} from './event-contract-smoke.mjs'
 
 const require = createRequire(import.meta.url)
 const {validatePublicRuntime} = require('../config/runtime-policy.cjs')
@@ -72,8 +73,10 @@ try {
     const memberResponse = await fetch(`${base}/member_get_me`,{headers:{Authorization:`Bearer ${token}`}})
     assert.equal(memberResponse.status,404,'Valid emulator Auth token should reach membership lookup')
     assert.equal((await memberResponse.json()).error,'Membership not found for this account')
+    await verifyEventReadContracts({base,eventId:seed.event_id,adminToken:token,
+      memberToken:await regular.auth.currentUser.getIdToken()})
     await deleteDoc(doc(privileged.db,'events','smoke-admin-write'))
-    console.log('Emulator client smoke: PASS (Firestore/Auth/Storage/Functions)')
+    console.log('Emulator client smoke: PASS (Firestore/Auth/Storage/Functions/event HTTP contracts)')
   }
 } finally {
   if (!process.argv.includes('--seed-only')) {

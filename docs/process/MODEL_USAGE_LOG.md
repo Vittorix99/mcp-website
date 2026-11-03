@@ -49,3 +49,13 @@ e Sender, collegamento degli altri provider e protezioni della build frontend.
 Ogni nuova delega sarà annunciata in chat con modello, incarico e motivo;
 al ritorno verranno comunicati esito, verifica e correzioni. Nessun importo o
 numero di token verrà stimato a partire dal conteggio dei task.
+
+## WS2 — contratti API
+
+Esecuzione nativa coordinatore, senza deleghe di implementazione.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `ws2_final_review_sol`: unica review indipendente del branch WS2 | high | Conclusa; tre Important accettati e corretti dal coordinatore con tre regressioni RED→GREEN. Suite frontend finale 39 passati, inventario confermato. Una sola review indipendente; prova Firebase reale PASS, exit 0 riportato dal proprietario. |
+
+Conteggio WS2: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
