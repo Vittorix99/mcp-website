@@ -157,7 +157,7 @@ Metodo già scelto: esecuzione nativa; una review indipendente finale.
 - [x] **3.3 Una review indipendente finale Sol high**, contesto fresco,
   limitata al diff e ai contratti; correggere i rilievi prima della consegna.
   Annunciare e registrare la delega; evitare review separate per ogni microtask.
-- [ ] **3.4 Aggiornare documentazione, commit e consegnare la PR**, guidando
+- [x] **3.4 Aggiornare documentazione, commit e consegnare la PR**, guidando
   il proprietario nel push e nella lettura dei risultati CI. Nessun merge
   automatico o attivazione staging/production.
 

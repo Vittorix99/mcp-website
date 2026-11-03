@@ -40,3 +40,19 @@ sono risolti; callable, trigger e funzioni non esportate non soddisfano una rout
 Restano fuori da questo gate: metodi, body, risposte, errori e autorizzazioni
 di tutte le API. Questi contratti sono verificati in profondità sul primo
 flusso eventi tramite lo smoke HTTP, separatamente dall'inventario.
+
+
+## Disposizione successiva del proprietario
+
+Il proprietario ha deciso di ritirare i quattro endpoint elencati sopra. Le
+ricerche dei consumatori nominati non hanno trovato consumer per le due voci
+senza servizio; i servizi legacy `services/signup.js` e
+`services/admin/signup.js` non avevano importatori e sono stati rimossi. Sono
+state eliminate le quattro voci frontend e le relative eccezioni. Inventario
+corrente: **126 riferimenti, 128 export HTTP, zero eccezioni**. La collezione
+Firestore `newsletter_participants` non è stata modificata.
+
+Verifica della rimozione: il nuovo test esegue realmente il CLI e richiede
+zero eccezioni. RED prima della pulizia; GREEN dopo, suite frontend 40/40.
+Lint dei file modificati, scanner e build passati. CI di questa pulizia ancora
+da eseguire. Nessun backend o dato cloud modificato.

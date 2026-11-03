@@ -15,11 +15,9 @@ export const endpoints = {
   contactUs: make("contact_us"),
   getNextEvent: make("get_next_event"),
   newsletterSignup: make("newsletter_signup"),
-  newsletterParticipantsSignup: make("newsletter_participants"),
   createEventOrder: make("create_order_event"),
   captureEventOrder: make("capture_order_event"),
   validateDiscountCode: make("validate_discount_code"),
-  signupRequest: make("signup_request"),
   checkParticipants: make("check_participants"),
 
   // Public Events
@@ -39,11 +37,6 @@ export const endpoints = {
   getSetting: make("get_setting"),
   getMembershipPrice: make("get_membership_price_public"),
 
-  // Questions
-  questions: {
-    getAll: make("get_all_questions"),
-  },
-
   // Admin endpoints grouped by domain
  admin: {
     createEvent: make("admin_create_event"),
@@ -51,7 +44,6 @@ export const endpoints = {
     deleteEvent: make("admin_delete_event"),
     getAllEvents: make("admin_get_all_events"),
     getEventById: make("admin_get_event_by_id"),
-    uploadEventPhoto: make("admin_upload_event_photo"),
     
     
     

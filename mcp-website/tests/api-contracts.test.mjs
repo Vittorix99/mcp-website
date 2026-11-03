@@ -9,6 +9,12 @@ import test from 'node:test'
 const root = fileURLToPath(new URL('../../',import.meta.url))
 import * as checker from '../scripts/check-api-contracts.mjs'
 
+test('CLI reports no legacy references and no API contract errors',() => {
+  const output = execFileSync(process.execPath,[path.join(root,'mcp-website/scripts/check-api-contracts.mjs')],{encoding:'utf8'})
+  assert.doesNotMatch(output,/^LEGACY:/m)
+  assert.match(output,/legacy references: 0; errors: 0/)
+})
+
 test('reads every nested route and retains both references to the same endpoint',() => {
   const routes = checker.readFrontendRoutes('export const endpoints = {list:make("events"), admin:{list:make("events")}}')
   assert.deepEqual([...routes],[['list','events'],['admin.list','events']])
