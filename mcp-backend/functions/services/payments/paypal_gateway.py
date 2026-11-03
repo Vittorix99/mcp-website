@@ -11,6 +11,7 @@ from paypalserversdk.http.auth.o_auth_2 import ClientCredentialsAuthCredentials
 from paypalserversdk.models.order_request import OrderRequest
 from paypalserversdk.paypal_serversdk_client import PaypalServersdkClient
 
+from utils.http_observability import timed_dependency
 from config.runtime_settings import (
     ProviderMode, RuntimeConfigurationError, RuntimeSettings, get_runtime_settings,
 )
@@ -36,14 +37,20 @@ class SdkPayPalGateway:
         return PayPalGatewayResponse(response.status_code,
             json.loads(ApiHelper.json_serialize(response.body)))
 
+    @staticmethod
+    def _timed(operation, call):
+        return timed_dependency("paypal", operation, call,
+            lambda r: (r.status_code, "success" if 200 <= r.status_code < 300 else "error"))
+
     def create_order(self, request: OrderRequest) -> PayPalGatewayResponse:
-        return self._response(self._orders.orders_create({"body": request}))
+        return self._timed("create_order", lambda: self._response(
+            self._orders.orders_create({"body": request})))
 
     def capture_order(self, order_id: str) -> PayPalGatewayResponse:
-        return self._response(self._orders.orders_capture({
+        return self._timed("capture_order", lambda: self._response(self._orders.orders_capture({
             "id": order_id, "prefer": "return=representation",
             "paypal_request_id": f"mcp-capture-{order_id}",
-        }))
+        })))
 
 
 class FakePayPalGateway:

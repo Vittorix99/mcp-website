@@ -1,4 +1,5 @@
 """Bounded HTTP completion records without request data or root logger changes."""
+from contextvars import ContextVar
 from functools import wraps
 import json
 from time import perf_counter
@@ -11,6 +12,48 @@ from config import get_runtime_settings
 
 
 _METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
+_current_request_id = ContextVar("http_request_id", default=None)
+
+
+def _status(value):
+    return value if isinstance(value, int) and 100 <= value <= 599 else None
+
+
+def timed_dependency(provider, operation, call, classify):
+    """Run `call` unchanged and log only its duration, status and outcome category.
+
+    `classify(result)` returns (status_code, "success" | "error").
+    """
+    started = perf_counter()
+    status, outcome = None, "exception"
+    try:
+        result = call()
+        outcome = "error"
+        try:
+            status, outcome = classify(result)
+        except Exception:
+            pass  # A classification failure must never replace a valid result.
+        return result
+    except Exception as error:
+        status = _status(getattr(error, "response_code", None))
+        raise
+    finally:
+        try:
+            status = _status(status)
+            print(json.dumps({
+                "event": "dependency_completed",
+                "severity": "ERROR" if outcome == "exception" else "WARNING" if outcome == "error" else "INFO",
+                "environment": get_runtime_settings().environment.value,
+                "provider": provider,
+                "operation": operation,
+                "request_id": _current_request_id.get(),
+                "status_code": status,
+                "outcome": outcome,
+                "duration_ms": max(0, round((perf_counter() - started) * 1000, 3)),
+            }, separators=(",", ":")), flush=True)
+        except Exception:
+            # Observability failure must not replace a result or the original exception.
+            pass
 
 
 def observe_http_request(handler):
@@ -48,6 +91,7 @@ def observe_http_request(handler):
                 emit(response.status_code)
             return response
 
+        token = _current_request_id.set(request_id)
         try:
             return handler(*args, **kwargs)
         except HTTPException:
@@ -55,5 +99,7 @@ def observe_http_request(handler):
         except Exception:
             emit(500)
             raise
+        finally:
+            _current_request_id.reset(token)
 
     return observed

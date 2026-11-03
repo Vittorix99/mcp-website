@@ -109,4 +109,56 @@ rappresentativa delle prestazioni o dei costi di produzione.
 
 Verifica: 17 test mirati RED prima del codice, GREEN dopo. Prova con record
 estratti dalla CI reale WS3: 22 richieste e 6 gruppi API, ambiente `test`.
-Suite applicativa completa demandata alla CI: nessun codice HTTP modificato.
+CI del riepilogo offline: run 8 completata con successo; PR #5 integrata
+dal proprietario in `main` (`146b3c68`). Nessun codice HTTP modificato.
+
+
+## Prossimo blocco proposto — tempi PayPal e MailerSend
+
+Stato: approvato dal proprietario in chat il 2026-11-04. Scopo: collegare il tempo delle chiamate SDK al request ID
+HTTP, distinguendolo dal tempo totale già registrato. Nessuna chiamata reale
+aggiuntiva e nessuna attivazione di provider.
+
+- Riutilizzare il writer JSON con un contesto temporale condiviso. Propagare
+  il request ID durante l'esecuzione sincrona tramite ContextVar, ripristinato
+  anche su eccezione; fuori da una richiesta usare `null`, senza ID inventati.
+- Instrumentare soltanto i confini SDK esistenti: `SdkPayPalGateway.create_order`,
+  `SdkPayPalGateway.capture_order` e `MailerSendRoutes.send_email`.
+- Nuovi record `dependency_completed`: ambiente, request ID, provider,
+  operazione costante, durata, stato HTTP quando disponibile e categoria di
+  esito. Vietati URL, ordine/pagamento ID, destinatari, messaggi d'errore,
+  payload e credenziali. I record delle chiamate API restano compatibili.
+- Preservare argomenti SDK, timeout, ritorni, eccezioni e chiavi di idempotenza.
+  Nessun nuovo retry o pagamento/invio prodotto dalla strumentazione.
+- Test mirati con controller/client finti: successi, errori restituiti,
+  eccezioni, ID correlati e separati tra richieste, contesto ripristinato,
+  log senza sentinelle sensibili e guasti del writer senza effetti applicativi.
+- Verifica finale backend completa e smoke emulatori; una sola review finale
+  Sol high perché vengono toccati confini di pagamenti e dati personali.
+  Evidenze aggiornate qui, commit e PR, senza rapporti separati.
+
+Limiti: emulatori e stub provano l'instrumentazione, non la latenza reale
+PayPal/MailerSend. Questa si misurerà in staging dopo il gate cloud.
+Sono esclusi Firestore, dashboard, billing export e modifiche al riepilogo
+CLI, che continua a leggere soltanto i record HTTP di completamento.
+
+Decisione del proprietario (2026-11-04): l'estensione di
+`summarize_requests.py` ai record `dependency_completed` è rinviata a un
+blocco separato, da fare quando esisteranno misure reali in staging. Nel
+frattempo i record si leggono direttamente nel log.
+
+Nota di implementazione: `send_email` cattura già le eccezioni SDK e restituisce
+un esito, quindi i suoi fallimenti sono registrati come `error`; `exception`
+resta per PayPal, dove l'eccezione risale al chiamante.
+
+La durata di `send_email` include la costruzione del messaggio, la lettura
+degli allegati e, in caso di errore, il log esterno: in errore è un po'
+sovrastimata rispetto al solo `emails.send`. Differenza accettata e nota.
+
+Review indipendente (sotto-agente, modello predefinito dell'host, non
+`gpt-6.1-sol`): nessun Critical né Important; 5 Minor. Corretti: `classify`
+isolata dal risultato, firma posizionale di `send_email` ripristinata, test su
+`response_code` delle eccezioni, su guasti di writer/impostazioni e sul
+risultato con classificazione fallita. Verifica: 739 test unitari passati.
+Smoke emulatori non eseguito dall'agente.
+
