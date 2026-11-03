@@ -1,6 +1,10 @@
 # Guida operativa a GitHub Actions
 
-Questa guida spiega come leggere i controlli automatici del repository. La suite unit offline completa è verde: **684 test superati**. Il workflow `.github/workflows/pr.yml` è stato preparato, ma non pubblicato né eseguito; la verifica locale è completata e i tre rilievi della review indipendente sono corretti; resta la revisione del proprietario.
+Questa guida spiega come leggere i controlli automatici del repository.
+WS1 è integrato in `main`; la quarta esecuzione del workflow è passata su GitHub.
+WS2 aggiunge il controllo globale dei riferimenti API e approfondisce i contratti
+HTTP degli eventi. Per risultati e limiti aggiornati vedere
+[verifica WS2](../reviews/WS2_CORE_VERIFICATION.md).
 
 ## Workflow, job e step
 
@@ -11,6 +15,12 @@ Un **workflow** è un’automazione definita da un file YAML in `.github/workflo
 Il workflow PR previsto parte quando si apre o aggiorna una pull request e può anche essere avviato manualmente. Esegue verifiche in sola lettura: installazione riproducibile con dipendenze Python hashate, Node.js 20 e Python 3.11; controlli di policy e suite unit con rete disabilitata; configurazione frontend, lint e fixture build; smoke test con emulatori; scansione redatta del repository. Non sono previsti job di deploy.
 
 La scansione è progettata per non stampare valori segreti. Evita comunque di copiare log in spazi pubblici o includerli in screenshot senza averli controllati. Il workflow non prevede al momento il caricamento di artefatti: i log sono la fonte principale per diagnosticare un errore. Eventuali artefatti aggiunti in futuro dovranno essere ripuliti da dati sensibili prima della pubblicazione.
+
+Lo step **API reference contracts** confronta tutta la mappa frontend con gli
+handler HTTP esportati. Stampa le quattro eccezioni legacy note: exit 0
+significa nessuna nuova incoerenza, non che quelle quattro siano corrette.
+Lo step **Full emulator smoke** verifica anche lettura eventi, risposte
+pubbliche e permessi admin tramite HTTP, con token emessi dall'emulatore Auth.
 
 ## Trovare e leggere un’esecuzione
 

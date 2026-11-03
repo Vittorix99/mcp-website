@@ -53,6 +53,9 @@ jobs:
           fi
       - name: Validate canonical Firebase configuration
         run: .venv/bin/python scripts/validate-firebase-config.py
+      - name: API reference contracts
+        working-directory: mcp-website
+        run: npm run check:contracts
       - name: Offline unit suite
         run: scripts/test-unit.sh
       - name: Frontend policy and deterministic build

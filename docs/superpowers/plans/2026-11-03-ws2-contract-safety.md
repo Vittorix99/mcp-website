@@ -115,27 +115,27 @@ Metodo già scelto: esecuzione nativa; una review indipendente finale.
 | GET `admin_get_event_by_id?id=<seed>`, admin | 200, oggetto `{event: ...}` con `id` seed |
 | Entrambi gli endpoint admin senza token, con token membro o invalido | 401; nessun payload dell'evento |
 
-- [ ] **2.1 Scrivere test del verificatore con server HTTP loopback controllato.**
+- [x] **2.1 Scrivere test del verificatore con server HTTP loopback controllato.**
   Osservare RED. Casi: contratto atteso passa; dettaglio con envelope errato
   fallisce; errore 404 alterato fallisce; risposta admin 200 a membro fallisce;
   campo privato nella risposta pubblica fallisce; chiamata a host/progetto non
   demo rifiutata prima della rete. Testare comportamento, non testo sorgente.
-- [ ] **2.2 Implementare il verificatore** con fetch/URL/assert standard;
+- [x] **2.2 Implementare il verificatore** con fetch/URL/assert standard;
   limitare base a `http://127.0.0.1:5001/demo-mcp-test/us-central1`.
   Nessuna richiesta invia un token a endpoint pubblici o a host esterni.
-- [ ] **2.3 Arricchire il seed esistente con `createdBy` e `updatedBy` sintetici**
+- [x] **2.3 Arricchire il seed esistente con `createdBy` e `updatedBy` sintetici**
   per controllare che i DTO pubblici non espongano metadati admin presenti.
   Preservare titolo, data, prezzi e le altre aspettative WS1.
-- [ ] **2.4 Integrare con utenti admin/membro già creati nello smoke.**
+- [x] **2.4 Integrare con utenti admin/membro già creati nello smoke.**
   Verificare assenza di `createdBy`, `updatedBy`, `participantsCount` nei
   payload pubblici; non imporre l'assenza di `createdAt`/`updatedAt`, previsti
   dal DTO corrente. Cercare il seed nell'array, senza assumerlo unico evento.
-- [ ] **2.5 Eseguire test frontend e smoke reale sugli emulatori.** Il
+- [x] **2.5 Eseguire test frontend e smoke reale sugli emulatori.** Il
   proprietario esegue `scripts/test-emulators.sh` quando guidato; nessun
   arresto automatico di emulatori già attivi né collisione con il suo dev.
   Un fallimento di permessi o risposta è un blocco da analizzare, non
   un motivo per allentare l'assert o cambiare il contratto silenziosamente.
-- [ ] **2.6 Commit mirato** delle nuove prove, solo dopo esito verificato.
+- [x] **2.6 Commit mirato** delle nuove prove, solo dopo esito verificato.
 
 ## Task 3 — CI e verifica finale
 
@@ -145,16 +145,16 @@ Metodo già scelto: esecuzione nativa; una review indipendente finale.
 - Modify `docs/process/GITHUB_ACTIONS_GUIDE.md`.
 - Modify `docs/process/MODEL_USAGE_LOG.md` solo per deleghe effettive.
 
-- [ ] **3.1 Inserire step `API reference contracts`** con
+- [x] **3.1 Inserire step `API reference contracts`** con
   `npm run check:contracts`, cartella `mcp-website`, dopo installazione
   e scansione. Lo step emulatori esistente include già il nuovo percorso:
   non duplicare l'avvio del Firebase CLI né aggiungere nuovi job/deploy.
-- [ ] **3.2 Eseguire prove pertinenti:** test backend offline, test frontend,
+- [x] **3.2 Eseguire prove pertinenti:** test backend offline, test frontend,
   controllo contratti, lint, build controllata, validatore Firebase e scanner
   repository/diff. Riutilizzare il baseline WS1 solo per ciò che non cambia.
   Registrare comandi, exit code e warning; le prove del proprietario restano
   marcate come owner-reported.
-- [ ] **3.3 Una review indipendente finale Sol high**, contesto fresco,
+- [x] **3.3 Una review indipendente finale Sol high**, contesto fresco,
   limitata al diff e ai contratti; correggere i rilievi prima della consegna.
   Annunciare e registrare la delega; evitare review separate per ogni microtask.
 - [ ] **3.4 Aggiornare documentazione, commit e consegnare la PR**, guidando
