@@ -4,13 +4,8 @@ import {execFileSync} from 'node:child_process'
 import path from 'node:path'
 import {fileURLToPath,pathToFileURL} from 'node:url'
 
-// Known gaps, not verified contracts. Remove each exception when its reference or implementation changes.
-export const LEGACY_API_GAPS = {
-  newsletter_participants:'No backend export; no named consumer found. See docs/reviews/WS2_API_REFERENCE_AUDIT.md',
-  signup_request:'Legacy signup services; UI reachability not established. See docs/reviews/WS2_API_REFERENCE_AUDIT.md',
-  get_all_questions:'Legacy questions service; UI reachability not established. See docs/reviews/WS2_API_REFERENCE_AUDIT.md',
-  admin_upload_event_photo:'No backend export; no named consumer found. See docs/reviews/WS2_API_REFERENCE_AUDIT.md',
-}
+// No legacy exceptions: every frontend reference must resolve.
+export const LEGACY_API_GAPS = {}
 
 export function readFrontendRoutes(source) {
   const tree = parse(source,{ecmaVersion:'latest',sourceType:'module'})
