@@ -45,10 +45,14 @@ def assert_no_provisioning(http, case):
     ('PERCENTAGE', 50, 20, 10, 10, '12.00', '10.50'),
     ('FIXED', 5, 20, 5, 15, '17.00', '15.50'),
     ('FIXED_PRICE', 10, 25, 15, 10, '12.00', '10.50'),
+    ('PERCENTAGE', 100, 20, 20, 0, '2.00', '0.50'),
+    ('FIXED', 20, 20, 20, 0, '2.00', '0.50'),
+    ('FIXED_PRICE', 0, 20, 20, 0, '2.00', '0.50'),
+    ('FIXED_PRICE', 20, 20, 0, 20, '22.00', '20.50'),
 ])
 def test_discount_formula_capture_and_retry_use_exact_totals(
         http, discount_case, gateway, kind, value, price, discount, final, gross, net):
-    """DIS-01/03/07: normalization, separate event fee, one usage despite retry."""
+    """DIS-01/02/03/07: normalization, separate event fee, one usage despite retry."""
     case = discount_case
     db.document('events/' + case.event.id).update({'price': price})
     case.discount_ref.update({'discountType': kind, 'discountValue': value})
@@ -208,3 +212,63 @@ def test_failure_after_discount_claim_retains_usage_and_retry_does_not_claim_aga
     assert case.discount_ref.get().to_dict()['usedCount'] == 1
     assert db.document('orders/' + order_id).get().to_dict() == order
     assert_no_provisioning(http, case)
+
+
+@pytest.mark.parametrize('kind,value', [
+    ('PERCENTAGE', -0.01), ('PERCENTAGE', 0), ('PERCENTAGE', 100.01),
+    ('FIXED', -0.01), ('FIXED', 0), ('FIXED', 20.01),
+    ('FIXED_PRICE', -0.01), ('FIXED_PRICE', 20.01),
+])
+def test_invalid_discount_amount_rejected_without_provider_or_writes(
+        http, discount_case, gateway, kind, value):
+    """DIS-02: invalid limits against a 20.00 ticket never reach PayPal."""
+    case = discount_case
+    case.discount_ref.update({'discountType': kind, 'discountValue': value})
+    before = case.discount_ref.get().to_dict()
+    validation = validate_discount(http, case)
+    assert validation['valid'] is False
+    assert validation['error_message'] == 'Codice sconto non valido per questo importo'
+    response = http.post('/orders', json=checkout_payload(case))
+    assert response.status_code == 400, response.get_json()
+    assert response.get_json()['error'] == 'Codice sconto non valido per questo importo'
+    assert gateway.create_calls == gateway.capture_calls == 0
+    assert not list(db.collection('orders').stream())
+    assert case.discount_ref.get().to_dict() == before
+    assert_no_provisioning(http, case)
+
+
+def test_zero_total_checkout_characterizes_fake_provider_path(http, discount_case, gateway):
+    """DIS-02 characterization: fake acceptance does not prove live zero-value checkout."""
+    case = discount_case
+    db.document('events/' + case.event.id).update({'fee': 0})
+    case.discount_ref.update({'discountValue': 100})
+    validation = validate_discount(http, case)
+    assert validation['valid'] is True
+    assert (validation['discount_amount'], validation['final_price']) == (20, 0)
+    response = http.post('/orders', json=checkout_payload(case))
+    assert response.status_code == 201, response.get_json()
+    order_id = response.get_json()['id']
+    assert db.document('orders/' + order_id).get().to_dict()['total'] == 0
+    assert case.discount_ref.get().to_dict()['usedCount'] == 0
+    assert_no_provisioning(http, case)
+    gateway.capture_fee, gateway.capture_net = '0.00', '0.00'
+    capture = http.post('/capture', json={'order_id': order_id})
+    assert capture.status_code == 200, capture.get_json()
+    purchase_id = capture.get_json()['purchase_id']
+    purchase = db.document('purchases/' + purchase_id).get().to_dict()
+    assert purchase['amount_total'] == '0.00'
+    assert purchase['paypal_fee'] == purchase['net_amount'] == '0.00'
+    participants = list(db.collection(f'participants/{case.event.id}/participants_event').stream())
+    assert len(participants) == 1
+    assert participants[0].to_dict()['price'] == 0
+    assert participants[0].to_dict()['purchase_id'] == purchase_id
+    assert case.discount_ref.get().to_dict()['usedCount'] == 1
+    assert_revenue(http, case.event.id, 0, 0, 0, 1)
+    retry = http.post('/capture', json={'order_id': order_id})
+    assert retry.status_code == 200
+    assert retry.get_json()['purchase_id'] == purchase_id
+    assert gateway.create_calls == gateway.capture_calls == 1
+    assert case.discount_ref.get().to_dict()['usedCount'] == 1
+    assert len(list(db.collection('purchases').stream())) == 1
+    assert len(list(db.collection(f'participants/{case.event.id}/participants_event').stream())) == 1
+    assert_revenue(http, case.event.id, 0, 0, 0, 1)

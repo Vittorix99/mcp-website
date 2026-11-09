@@ -645,6 +645,35 @@ Le prove chiudono le varianti implementate, non DIS-02/06/08 o l'intera matrice.
 
 ## Vincoli generali e prove
 
+### Estensione DIS-02 — limiti e totale zero, 2026-11-09
+
+Ripresa richiesta dal proprietario. Branch `core-discount-boundary-scenarios`,
+base `d3c7dc7`, dipendente dalla PR #9 non ancora integrata al fetch iniziale.
+Stesso runner e fixture, nessuna modifica applicativa o alle regole.
+
+- Aggiungere quattro limiti ammessi al test formule: percentuale 100%,
+  fisso uguale prezzo, prezzo fisso zero e prezzo fisso uguale prezzo.
+  Nei primi tre il biglietto è zero ma la fee evento resta 2.00.
+- Otto varianti invalide: percentuale negativa/zero/>100, fisso
+  negativo/zero/>prezzo, prezzo fisso negativo/>prezzo; rifiuto senza ordini,
+  provisioning, chiamate provider o consumo utilizzi.
+- Un caso separato con prezzo scontato e fee evento entrambi zero:
+  caratterizzare il percorso attuale con gateway fake, fee PayPal/netto
+  sintetici entrambi zero, purchase e partecipante presenti, ricavi zero,
+  un biglietto e un solo utilizzo anche dopo retry. Non è una prova PayPal
+  reale né una decisione sul checkout gratuito desiderato.
+- Totale atteso 64 casi API (13 nuovi). Test unitari offline mirati,
+  una review Sol high e prova emulatori del proprietario prima del commit.
+  Concorrenza e quota tessera restano separate.
+
+Verifiche offline: 64 casi raccolti, 27 unit test collegati passati,
+scanner zero segnalazioni, diff check pulito. Review Sol high conclusa senza
+rilievi e accettata dal coordinatore. Successivamente ispezionato il report
+JUnit locale del 2026-11-09T20:47:56+01:00: **64 test, zero failure/error/skipped**,
+inclusi i nuovi casi DIS-02. Emulatori non riavviati dal coordinatore; il report
+non certifica separatamente exit code del runner e arresto emulatori.
+Nessuna operazione cloud o provider reale.
+
 - I comandi di reset/seed rifiutano ogni progetto/bucket diverso dallo staging
   indicato; il lettore di inventario produzione è separato e non scrive dati.
 - Il seed non invia messaggi o crea pagamenti/pass esterni direttamente.
