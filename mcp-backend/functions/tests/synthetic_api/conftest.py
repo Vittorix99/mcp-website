@@ -128,6 +128,7 @@ class ControlledGateway(FakePayPalGateway):
         self.missing_capture_id = False
         self.capture_amount = None
         self.capture_net = None
+        self.capture_fee = '1.50'
         self.bad_field = None
         self.bad_state = None
 
@@ -150,7 +151,7 @@ class ControlledGateway(FakePayPalGateway):
         if response.status_code == 201:
             capture = body['purchase_units'][0]['payments']['captures'][0]
             capture['create_time'] = datetime.now(timezone.utc).isoformat()
-            capture['seller_receivable_breakdown']['paypal_fee']['value'] = '1.50'
+            capture['seller_receivable_breakdown']['paypal_fee']['value'] = self.capture_fee
             capture['seller_receivable_breakdown']['net_amount']['value'] = '42.50'
             if self.capture_net is not None:
                 capture['seller_receivable_breakdown']['net_amount']['value'] = self.capture_net
