@@ -608,6 +608,41 @@ anomalia applicativa emersa da questi casi; restano fuori concorrenza,
 sconti, provider reali e altre varianti della matrice. Nessuna modifica
 alla CI: il runner esistente scopre automaticamente tutti i 35 casi.
 
+### Blocco sconti API — 2026-11-09
+
+Ripresa richiesta dal proprietario dopo merge PR #8, base `2a4fb1d`, branch
+`core-discount-api-scenarios`, stesso worktree isolato. Perimetro discusso:
+DIS-01/03/04/05/07, test soltanto, nessuna modifica alle regole applicative.
+
+- Collegare alla fixture HTTP l'handler pubblico di validazione sconto.
+- Nuovo `tests/synthetic_api/test_discount_checkout.py`: tre formule con
+  importi attesi espliciti, invalidi (inesistente/inattivo/esaurito/altro evento),
+  email/socio destinatario, gruppo rifiutato, capture fallite e guasto locale
+  dopo il claim. Verificare ordine, acquisto, partecipante, statistiche,
+  usedCount e retry; sola validazione/create non consumano utilizzi.
+- Riutilizzare fixture e gateway esistenti, senza nuove dipendenze o servizi.
+- Esecuzione nativa Sol per il perimetro pagamenti; test offline mirati,
+  una review finale Sol high, prova emulatori eseguita da Vittorio.
+- Restano separati DIS-02 (tutti i confini/zero), DIS-06 (concorrenza),
+  DIS-08 (quota tessera), cloud e provider reali. Bug applicativi da riportare
+  prima della correzione. Commit dopo prova runtime.
+
+Preparati 16 casi nuovi: 3 formule/capture/retry, 4 indisponibilità,
+5 restrizioni personali, 1 gruppo, 2 capture fallite, 1 guasto dopo claim.
+Il gateway mantiene il lordo della richiesta reale al fake e permette di
+impostare solo il netto, evitando che la fixture mascheri un importo richiesto
+errato. Raccolti 51 casi API; 27 test unitari collegati passati, scanner zero
+segnalazioni e diff check pulito. Review finale Sol high conclusa senza
+rilievi e accettata dal coordinatore; formule, persistenza, restrizioni e
+claim/retry confrontati con i flussi reali.
+
+Il coordinatore ha poi ispezionato il report locale
+`.local/staging/api-results.xml`, timestamp 2026-11-09T20:18:05+01:00:
+**51 test, zero failure/error/skipped**, inclusi i 16 nuovi casi sconto.
+Nessun riavvio degli emulatori dal coordinatore. L'artefatto dimostra l'esito
+pytest, non certifica separatamente exit code del runner o arresto emulatori.
+Le prove chiudono le varianti implementate, non DIS-02/06/08 o l'intera matrice.
+
 ## Vincoli generali e prove
 
 - I comandi di reset/seed rifiutano ogni progetto/bucket diverso dallo staging
