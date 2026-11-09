@@ -573,6 +573,41 @@ capture_status ora riprodotta); Q-05 ingressi e finestre; Q-06 età;
 Q-07 cascata/riferimenti; Q-08 più iscrizioni per socio; Q-09 cleanup ordini.
 Le caratterizzazioni non autorizzano correzioni implicite alle regole di prodotto.
 
+### Blocco approvato — errori pagamenti API, 2026-11-09
+
+Il proprietario ha approvato in chat il perimetro PAY-07, varianti PAY-05/08
+e PAY-09. Esecuzione nativa nel worktree esistente, branch
+`core-payment-failure-scenarios`, base `3690479` dopo merge PR #7.
+
+- Estendere solo il gateway di test in `tests/synthetic_api/conftest.py`
+  per risposte provider controllate e importi espliciti.
+- Aggiungere scenari API nello stesso file di test: guasto locale prima/dopo
+  creazione purchase con retry senza ricattura; create/capture provider
+  fallite e ID assenti; importi 43.98/43.99/44.01/44.02 contro totale 44.00.
+- Verificare HTTP, ordine persistito, purchase/partecipanti, statistiche e
+  assenza di ulteriori chiamate capture nei retry di un incasso già registrato.
+- Raccolta e test unitari offline, una review finale Sol high; Vittorio
+  esegue la batteria negli emulatori. Commit dopo esito runtime.
+- Nessuna modifica applicativa, concorrenza, sconti o operazione cloud.
+  Eventuali bug applicativi vengono riportati prima della correzione.
+
+Preparati 12 nuovi casi (35 totali): 2 interruzioni locali, 4 errori
+provider HTTP/SDK, 2 identificativi assenti e 4 importi al confine.
+Verifica offline del coordinatore: 29 test unitari collegati passati,
+35 casi raccolti, scanner zero segnalazioni e whitespace pulito. Review
+Sol high conclusa senza rilievi e accettata; confermati offline costruzione
+ApiException, confini importi e correttezza dei conti quando la purchase
+esiste ma i partecipanti non sono ancora creati.
+
+Vittorio ha eseguito `scripts/staging/test_emulator.py --api`: **35 passati**,
+un warning HarfBuzz, codice 0 e arresto pulito degli emulatori. Esito del
+proprietario, non rieseguito dal coordinatore. Le 12 nuove istanze verificano
+PAY-07 prima/dopo creazione purchase, le varianti PAY-05/08 con ID assenti
+ed errori HTTP/SDK e PAY-09 ai quattro importi espliciti sopra. Nessuna
+anomalia applicativa emersa da questi casi; restano fuori concorrenza,
+sconti, provider reali e altre varianti della matrice. Nessuna modifica
+alla CI: il runner esistente scopre automaticamente tutti i 35 casi.
+
 ## Vincoli generali e prove
 
 - I comandi di reset/seed rifiutano ogni progetto/bucket diverso dallo staging
