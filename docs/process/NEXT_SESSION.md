@@ -1,27 +1,45 @@
 # Passaggio di consegne — 9 novembre 2026
 
 - Worktree: `/Users/vittoriodigiorgio/Desktop/Projects/MCP-WEB-PROJECT/.worktrees/core-ws2`.
-- Branch corrente: `chore/reduce-agent-overhead`, basato su `19ff14a`.
-  Contiene le regole di risparmio e questo handoff; commit locale, non pubblicato.
-- Main verificato: `2a4fb1d`, merge PR #8. PR #9 (`d3c7dc7`, sconti) e
-  PR #10 (`19ff14a`, limiti sconti) risultavano aperte all'ultima verifica.
-  #10 ha base `core-discount-api-scenarios`: integrare prima #9, poi
-  verificare/aggiornare la base di #10 a main. Nessun merge autorizzato all'agente.
-- Ultima prova: 64 casi API Firestore emulator passati nel JUnit locale,
-  inclusi 13 nuovi limiti; 27 unit test collegati passati; review Sol high
-  senza rilievi. CI #10 verde:
-  https://github.com/Vittorix99/mcp-website/actions/runs/42693126184
-- Nessuna modifica applicativa nei blocchi recenti. PayPal e admin simulati;
-  zero totale è una caratterizzazione fake, non una garanzia del provider reale.
-- Prossimo perimetro proposto, da discutere prima di implementare:
-  PAY-12 capture concorrenti dello stesso ordine e DIS-06 ultimo utilizzo
-  sconto concorrente. Verificare duplicati e stati parziali con prove
-  controllate; riportare eventuali bug prima di correggere il codice applicativo.
-- Evidenze e matrice: `docs/superpowers/plans/2026-11-04-staging-synthetic-data.md`;
-  leggere solo le sezioni necessarie. Deleghe: `docs/process/MODEL_USAGE_LOG.md`.
-- Leggere `AGENTS.md`: blocchi coerenti, una review finale per blocco,
-  CI ordinaria monitorata dal proprietario, comandi del walkthrough uno alla volta.
-- Rimossa la preferenza globale `service_tier = "priority"`; backup locale
-  `~/.codex/config.toml.before-standard-20261109.bak`. Controllare Standard
-  nel selettore della nuova chat: nessuna prova della velocità effettiva corrente.
-- Nessun deploy, reset/seed cloud o operazione su credenziali autorizzato.
+- Branch `core-concurrency-api-scenarios`, base locale `a8e8702`
+  (`chore/reduce-agent-overhead`). Modifiche non committate.
+- PAY-12 / DIS-06 approvati: due nuovi test controllati, nessun codice
+  applicativo modificato. Review Sol **medium** fino a nuova indicazione
+  del proprietario; regola aggiornata in AGENTS.md.
+- Unica review medium conclusa: corretti ID partecipanti vs membershipId
+  e timeout executor; coordinatore accetta le correzioni. Deadline processo
+  45s verificata offline con worker bloccati, exit 124.
+- Offline: 66 API raccolti, 34 unitari collegati passati, scanner zero
+  segnalazioni e whitespace pulito.
+- Proprietario ha eseguito il runner emulatori e riportato exit 1. JUnit
+  locale del 2026-11-09T21:43:48+01:00 ispezionato: **65 passati, 1 failure,
+  zero error/skipped**. PAY-12 persiste due purchase per un ordine, con due
+  richieste fake che restituiscono lo stesso capture ID. Duplicazione locale
+  riprodotta; non prova di doppio addebito PayPal reale. Dettagli pytest
+  abbreviati: duplicazione partecipanti/ricavi non quantificata.
+- DIS-06 passa: un vincitore, contatore al limite; perdente già catturato
+  senza purchase e retry senza nuova capture. Rischio post-incasso aperto.
+- Bug riportato al proprietario prima di qualsiasi fix. Prossimo perimetro
+  da approvare: claim atomico ordine/provisioning per PAY-12; recupero del
+  perdente DIS-06 da discutere separatamente. Non mascherare la failure.
+- Ultimo stato remoto noto: PR #9 e #10 aperte, #10 dipende da #9. Nessun
+  nuovo controllo remoto, merge, push, deploy o operazione cloud/credenziali.
+- Matrice/evidenze: `docs/superpowers/plans/2026-11-04-staging-synthetic-data.md`;
+  dispatch: `docs/process/MODEL_USAGE_LOG.md`. Suite completa futura in CI,
+  monitoraggio proprietario; nessuna CI del nuovo blocco dichiarata verde.
+
+## Aggiornamento — PAY-12 corretto (2026-11-09, approvato dal proprietario)
+
+- `OrderRepository.mark_captured` ora è un compare-and-set sull'`update_time`
+  (nessun lock, nessun nuovo flag): chi trova `captured` già vero riceve
+  `ConflictError` `ORDER_CAPTURE_CONFLICT`; interferenze non legate (es. stato)
+  ritentate al massimo 3 volte, poi `ORDER_CAPTURE_RETRY`.
+- Prima versione con transazione scartata: deadlock `Transaction lock timeout`
+  (due 500 dopo 10 s) in ~1 corsa su 20 sull'emulatore.
+- Prove: 749 unitari, 39 strumenti, PAY-12 60/60 in ciclo sull'emulatore e
+  batteria sintetica 66/66 per 8 corse complete. Solo emulatore, non Firestore reale.
+- Review Sol medium (sotto-agente, modello predefinito dell'host): nessun
+  Critical; 2 Important e 2 Minor, tre corretti. Resta: la barriera di PAY-12
+  sincronizza solo la lettura, quindi il ramo `FailedPrecondition` reale dipende
+  dal timing (coperto dai test unitari e dalle corse ripetute).
+- DIS-06 (perdente già catturato senza acquisto) resta aperto, fuori perimetro.

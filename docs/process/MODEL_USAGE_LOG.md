@@ -175,3 +175,23 @@ applicativo modificato. Il caso a totale zero è una caratterizzazione fake.
 | Codex / Sol 6.1 | `discount_boundary_review_sol`: review finale dell'estensione DIS-02 | high | Conclusa senza rilievi, accettata dal coordinatore. Revisore: contratti sconti/capture/persistenza/statistiche, default fee e preservazione del retry dopo claim verificati; sintassi e diff check puliti. Nessuna esecuzione emulatori/cloud dal revisore. Coordinatore: 27 test unitari collegati passati, scanner zero segnalazioni e diff check pulito; successivamente ispezionato il JUnit locale del 2026-11-09T20:47:56+01:00: 64 test, zero failure/error/skipped, con 8 invalidi e il caso totale zero presenti, oltre ai 4 parametri validi aggiunti. Emulatori non riavviati dal coordinatore. Il report non certifica separatamente exit code del runner e arresto degli emulatori. |
 
 Conteggio limiti: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## Concorrenza — PAY-12 / DIS-06 — 2026-11-09
+
+Implementazione nativa, nessuna delega Luna. Proprietario: review Sol medium
+fino a nuova indicazione (override di high). Nessuna modifica applicativa.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `concurrent_checkout_review_sol`: unica review finale di test PAY-12/DIS-06, chiave SDK e regole aggiornate | medium | Conclusa con due rilievi P2 sui test, entrambi corretti e accettati dal coordinatore: ID partecipante generato distinto da membershipId; timeout executor non sufficiente, sostituito da deadline del processo dedicato. Self-check offline con worker bloccati: processo figlio termina con exit 124, senza emulatori/network. Dopo le correzioni: 66 casi API raccolti, 34 unitari collegati passati. Runtime eseguito dal proprietario (exit 1 riportato); JUnit locale 2026-11-09T21:43:48+01:00 ispezionato dal coordinatore: 66 casi, 65 passati, 1 failure PAY-12 su due purchase anziché una; zero error/skipped. DIS-06 passa, incluso perdente catturato senza purchase e retry senza ricattura. Nessun fix applicativo; arresto emulatori non attestato dal JUnit. |
+
+Conteggio dispatch effettivi: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## PAY-12 — claim atomico della capture — 2026-11-09
+
+Implementazione del coordinatore, nessuna delega Luna (stato di pagamento e
+concorrenza). Una review delegata a un sotto-agente (effort medium, modello
+predefinito dell'host, non `gpt-6.1-sol`): nessun Critical, 2 Important e
+2 Minor; corretti test del service sul perdente, codice del retry esaurito e
+`Aborted`. Conteggio: 0 incarichi Luna, 1 review delegata. Token e costi non
+disponibili.

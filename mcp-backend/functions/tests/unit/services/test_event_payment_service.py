@@ -457,6 +457,41 @@ def test_capture_amount_mismatch_records_capture_before_raising(monkeypatch):
     assert service.order_repository.captured_updates == [("order-1", "paypal")]
 
 
+def test_capture_loser_conflict_leaves_no_side_effects(monkeypatch):
+    """A lost capture claim must not use the discount, create a purchase or complete the order."""
+    service = _make_service()
+    future_date = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%d-%m-%Y")
+    service.event_repository = _DummyEventRepo(
+        model=Event(title="Test", date=future_date, start_time="20:00", end_time="23:00")
+    )
+    orders = _DummyOrderRepo(order_data=EventOrder(
+        order_id="order-1", event_id="evt-1", total=10.0, discount_code_id="disc-1",
+        participants=[_participant().to_payload()],
+    ))
+    conflict = ConflictError("Order capture already claimed")
+
+    def lost_claim(order_id, payment_method):
+        raise conflict
+
+    orders.mark_captured = lost_claim
+    service.order_repository = orders
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("Side effect after a lost capture claim")
+
+    service.discount_code_repository = SimpleNamespace(claim_usage=forbidden)
+    service.purchase_repository = SimpleNamespace(create=forbidden, create_from_model=forbidden,
+                                                  update_participants=forbidden)
+    monkeypatch.setattr(service, "save_purchase", forbidden)
+    monkeypatch.setattr(service, "capture_paypal_order", lambda order_id: _order_payload())
+
+    with pytest.raises(ConflictError) as raised:
+        service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
+
+    assert raised.value is conflict
+    assert orders.purchase_updates == [] and orders.status_updates == []
+
+
 def test_capture_paypal_order_uses_stable_idempotency_key(monkeypatch):
     """Retries for one order must reuse the same PayPal-Request-Id."""
     response = SimpleNamespace(status_code=200, body=_order_payload())
@@ -470,10 +505,12 @@ def test_capture_paypal_order_uses_stable_idempotency_key(monkeypatch):
 
     service.capture_paypal_order("order-1")
     service.capture_paypal_order("order-1")
+    service.capture_paypal_order("order-2")
 
     assert [request["paypal_request_id"] for request in controller.capture_requests] == [
         "mcp-capture-order-1",
         "mcp-capture-order-1",
+        "mcp-capture-order-2",
     ]
 
 

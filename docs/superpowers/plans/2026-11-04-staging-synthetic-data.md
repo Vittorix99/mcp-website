@@ -816,3 +816,66 @@ locale. Non dimostra gli esiti dei 105 scenari API, il comportamento di Auth,
 i trigger, le statistiche applicative o la consegna email. Le successive
 prove devono usare scenari controllati, senza attivare invii sul dataset
 massivo o cambiare i contratti Q per far coincidere artificialmente i conti.
+
+### Blocco concorrenza PAY-12 / DIS-06 — approvato 2026-11-09
+
+Branch `core-concurrency-api-scenarios`, dal checkpoint locale
+`chore/reduce-agent-overhead`; dipendenze PR #9/#10 come da handoff,
+nessun merge autorizzato. Proprietario: review Sol **medium** fino a nuova
+indicazione, in sostituzione di high. Implementazione nativa Sol; skill
+writing-plans/executing-plans applicate con il flusso lean di AGENTS.md.
+
+- [x] Due scenari in `tests/synthetic_api/test_concurrent_checkout.py`,
+  fixture HTTP riusata con client separati per thread. Barriere limitate
+  da timeout; fake serializzato solo durante costruzione risposta/conteggi.
+- [x] PAY-12: entrambe le letture iniziali vedono ordine non catturato;
+  provider fake idempotente, verifica unicità purchase/provisioning,
+  collegamenti, statistiche e retry. Distinguere richieste da incassi.
+  Test unitario SDK per chiave stabile sullo stesso ordine e diversa fra ordini.
+- [x] DIS-06: due ordini e soci distinti per l'ultimo utilizzo, barriera
+  prima del claim reale. Un vincitore, contatore al limite, errore perdente,
+  stato catturato senza purchase esplicito e retry senza ricattura.
+- [x] Raccolta offline: 66 casi API; 34 unitari collegati passati; scanner
+  zero segnalazioni e diff check pulito. Unica review Sol medium conclusa:
+  corretti ID documenti partecipanti vs membershipId e timeout executor.
+  Deadline processo a 45 secondi; self-check offline worker bloccati exit 124.
+  In caso di timeout il runner arresta emulatori; il JUnit può non esserci.
+- [x] Runtime emulatori del proprietario con
+  `scripts/staging/test_emulator.py --api`, una attività alla volta.
+- [ ] Riportare eventuali violazioni prima di correzioni applicative.
+  Nessun xfail o aspettativa permissiva per mascherare PAY-12; una failure
+  del requisito resta evidenza aperta. DIS-06 caratterizza esplicitamente
+  il rischio post-incasso, non certifica un checkout sicuro end-to-end.
+
+Nessun codice applicativo, dipendenza, provider reale o operazione cloud.
+Commit dopo prova runtime; suite completa in CI, monitoraggio del proprietario.
+
+Esito runtime: il proprietario ha riportato exit code 1 del runner.
+Ispezionato il JUnit locale del 2026-11-09T21:43:48+01:00: **66 casi,
+1 failure, zero error/skipped** (65 passati). PAY-12 fallisce sul requisito
+`len(purchases) == 1`: due purchase persistite per l'unico ordine; due
+richieste fake restituiscono lo stesso capture ID. È una duplicazione
+locale riprodotta, non prova di doppio addebito PayPal reale. La lettura
+dell'ordine non catturato non è seguita da un claim atomico prima del
+provisioning; `PurchaseRepository.create` genera un nuovo ID a ogni chiamata.
+Il report pytest abbrevia i dettagli: non quantificare partecipanti o
+ricavi duplicati sulla base di questa failure.
+
+DIS-06 passa: un solo claim vincente e usedCount al limite; il secondo
+ordine resta catturato senza purchase e il retry è bloccato senza nuova
+capture. È un rischio post-incasso esplicitamente caratterizzato, non una
+garanzia di sicurezza end-to-end. Nessun fix applicativo applicato.
+Prossimo passo da discutere: protezione atomica contro provisioning
+concorrente PAY-12, separando il recupero post-incasso DIS-06. Nessun
+riavvio emulatori dal coordinatore; arresto pulito non attestato dal JUnit.
+
+### PAY-12 — esito dopo il fix (2026-11-09)
+
+Il doppio acquisto per lo stesso ordine è corretto con un claim atomico di
+`captured` (compare-and-set sull'`update_time`). Un tentativo con transazione
+Firestore è stato scartato: lock timeout reciproco (due 500 dopo 10 s) in circa
+1 corsa su 20. Con il compare-and-set: PAY-12 60/60 in ciclo e batteria 66/66
+per 8 corse complete sull'emulatore. Il perdente riceve 409
+`ORDER_CAPTURE_CONFLICT`; nessuna nuova capture PayPal e nessun effetto
+collaterale (verificato anche da test del service). Non provato su Firestore
+reale. DIS-06 invariato e ancora aperto.
