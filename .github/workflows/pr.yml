@@ -58,6 +58,10 @@ jobs:
         run: npm run check:contracts
       - name: Offline unit suite
         run: scripts/test-unit.sh
+      - name: Offline development tools and synthetic data
+        run: .venv/bin/python -m pytest scripts/tests -q
+      - name: Controlled synthetic API and statistics scenarios
+        run: .venv/bin/python scripts/staging/test_emulator.py --api
       - name: Frontend policy and deterministic build
         working-directory: mcp-website
         run: npm run test:config && npm run lint && npm run build
