@@ -75,10 +75,10 @@ test del checkout eventi, soci, partecipanti, ingressi e statistiche.
 È completa come specifica operativa del perimetro indicato; non è una prova
 che i casi siano già passati, né una copertura di ogni possibile input.
 
-**Stati:** `D` = definito, da eseguire; `Q` = definito, con discrepanza o
-contratto da chiarire; `X` = definito, prova esterna rinviata. Nessuna riga
-è marcata PASS: in questo intervento sono stati letti sorgenti e test,
-non eseguite prove applicative.
+**Stati originari della matrice (5 novembre):** `D` = definito, da eseguire;
+`Q` = definito, con discrepanza o contratto da chiarire; `X` = definito,
+prova esterna rinviata. Questi stati non certificano l'esito attuale:
+le evidenze successive e i limiti di copertura sono riportati sotto.
 
 **Prove:** `Seed` = scenario persistente nel dataset; `API` = azione tramite
 servizi/HTTP con verifica delle scritture; `Locale` = clock, concorrenza o
@@ -533,6 +533,45 @@ un warning HarfBuzz, codice 0 e arresto pulito degli emulatori. Esito riportato
 dal proprietario, non rieseguito dal coordinatore. Prima batteria verificata;
 le 23 istanze non chiudono automaticamente 23 righe della matrice completa
 né la decisione Q-04. Nessuna scrittura cloud.
+
+### Copertura dopo la prima batteria — 2026-11-09
+
+I 105 ID descrivono scenari con più varianti; i 23 test eseguiti non sono
+23 righe complete e non consentono di dedurre «82 scenari mancanti».
+Il caricamento/rilettura dei 53684 documenti prova il dataset, non i flussi
+API sul dataset completo. I test unitari preesistenti sono evidenze distinte.
+
+| Area e perimetro | Dimostrato dalla prima batteria API | Ancora da verificare nel perimetro della matrice |
+| --- | --- | --- |
+| Soci, 15 ID MEM-01…15 | Due soci validi usati come fixture; non è una prova completa dei flussi membership. | Create/rinnovi, contatti duplicati, anni/flag/date, età, account, merge, invalidazione annuale e consenso. |
+| Eventi, 10 ID EVT-01…10 | EVT-05: evento vuoto con capienza zero e percentuali finite. | Variante capienza assente; stati, fine evento, capienza, fusi/date, listing, CRUD e distinzione DTO pubblico/admin. |
+| Partecipanti, 18 ID PAR-01…18 | PAR-05: un acquisto con due partecipanti, payer distinto e nessun raddoppio dei totali. | Riferimenti e identità completi, modalità evento, soci nuovi/scaduti, duplicati, DTO, età/genere, inserimenti manuali, update/delete e campi facoltativi. |
+| Pagamenti, 14 ID PAY-01…14 | PAY-01/02: create/capture riuscite su gruppo di soci esistenti; PAY-06: retry terminale senza seconda capture; PAY-03/04: esclusione dei sei stati invalidi e ripristino; PAY-05: due stati provider rifiutati; PAY-14: update stato. | Totale/riferimenti ordine e provisioning tessere completo, ID capture assente, errori provider, provisioning interrotto, importi/tolleranza, evento scaduto, capture simultanee, stati vuoti/PENDING/sconosciuti e CRUD admin completo. Le fixture di rimborso non eseguono un rimborso PayPal. |
+| Sconti, 8 ID DIS-01…08 | Nessun flusso con sconto nella batteria API. | Formule, limiti, destinatari, gruppi, ultimo utilizzo concorrente, claim/retry e quota tessera. |
+| Scanner, 15 ID QR-01…15 | QR-03/05: ingresso valido e rifiuti senza ingresso; QR-04: duplicato sequenziale; QR-07: manuale/ripetizione/undo/nuovo ingresso. | Token: contratto di generazione, verify e revoca; metadati manuali; concorrenza, stesso socio fra eventi, override manuale, incoerenze scan/flag, guasti intermedi, duplicati socio, finestre orarie, QR malformato e camera/rete UI. QR-02/06 non sono chiusi dai soli rifiuti su `/scan`. |
+| Statistiche, 15 ID STA-01…15 | STA-04: 44 lordi, 1.50 fee, 42.50 netti e 2 biglietti; STA-02/05: conteggi del piccolo caso e variazioni stato; STA-03: divergenza capture_status fra generale/evento; STA-07: zeri; STA-10: flag/scan del caso base; STA-13: snapshot ricostruito esplicitamente. | Aggregati del dataset completo, matrice eleggibilità completa, omaggi/manuali, tiers, bucket temporali, retention, demografia, finestre ingressi, trigger reali/retry/job, rebuild ripetuti e cancellazioni. Il rebuild esplicito non verifica l'attivazione dei trigger. |
+| Operazioni e permessi, 10 ID OPS-01…10 | Runner locale con provider fake e guardie; generatore/caricatore verificati separatamente. | Auth reale/ruoli, metodi/DTO, mail/PDF e flag invio, provider disabilitati nei singoli flussi, cleanup, ripresa dopo interruzione e app sul dataset completo. L'admin simulato non chiude OPS-01; guardie e importazione non chiudono tutte le varianti OPS-09. |
+
+Priorità proposte per i prossimi blocchi, da discutere col proprietario prima
+dell'implementazione:
+
+1. **Pagamenti e sconti:** PAY-07…13, varianti PAY-05/08/09 e DIS-01…08.
+   Prima errori e recupero sequenziali; capture e ultimo sconto concorrenti
+   richiedono prove dedicate, non riuso del retry sequenziale.
+2. **Permessi e ammissione:** OPS-01/02, EVT-02…04, PAR-02…10 e MEM-03…08.
+   Distinguere regole attuali da quelle desiderate prima di cambiare comportamento.
+3. **Coerenza dati e statistiche:** Q-04/05/07/08, scan/flag, trigger/job,
+   merge/delete e riconciliazione sul dataset completo.
+4. **Tempo e manutenzione:** Q-06/09, confini anagrafici, fine evento,
+   cambio anno/ora legale e cleanup di ordini/token.
+5. **Prove esterne:** UI camera/rete e dataset completo; Auth/trasporto
+   distribuiti, sandbox PayPal, mail/PDF in staging solo ai relativi gate.
+
+Decisioni aperte: Q-01 validità tessera; Q-02 disponibilità/capienza;
+Q-03 quota tessera/importi; Q-04 significato delle metriche (divergenza
+capture_status ora riprodotta); Q-05 ingressi e finestre; Q-06 età;
+Q-07 cascata/riferimenti; Q-08 più iscrizioni per socio; Q-09 cleanup ordini.
+Le caratterizzazioni non autorizzano correzioni implicite alle regole di prodotto.
 
 ## Vincoli generali e prove
 
