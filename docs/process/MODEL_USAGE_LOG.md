@@ -142,3 +142,14 @@ Vittorio ha eseguito `scripts/staging/test_emulator.py --api` e riportato
 emulatori. Esito runtime del proprietario, non rieseguito dal coordinatore.
 Questo chiude la prima batteria API; non dimostra tutti i 105 scenari,
 autenticazione reale, provider reali o staging cloud.
+
+## Pagamenti — errori e retry API — 2026-11-09
+
+Implementazione nativa del coordinatore: test su stati intermedi di pagamento,
+nessuna delega meccanica e nessuna modifica applicativa.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `payment_failure_api_review_sol`: review finale del diff test/fixture PAY-05/07/08/09 | high | Conclusa senza rilievi, accettata dal coordinatore. Revisore: handler, service, repository e statistiche verificati; costruzione ApiException, confini importi e diff check confermati offline. Sola lettura e nessuna esecuzione emulatori. Coordinatore: 29 test unitari collegati passati, 35 casi API raccolti (12 nuovi), scanner zero segnalazioni, diff check pulito. Vittorio ha poi riportato 35 test API passati, un warning HarfBuzz, codice 0 e arresto pulito degli emulatori; esito del proprietario, non rieseguito dal coordinatore. |
+
+Conteggio blocco: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.

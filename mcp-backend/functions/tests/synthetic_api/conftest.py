@@ -120,12 +120,29 @@ class ControlledGateway(FakePayPalGateway):
     """Provider responses under test control; no SDK/network/provider endpoint."""
     def __init__(self):
         super().__init__()
+        self.create_calls = 0
         self.capture_calls = 0
+        self.create_result = None
+        self.capture_result = None
+        self.missing_capture_id = False
+        self.capture_amount = None
         self.bad_field = None
         self.bad_state = None
 
+    def create_order(self, request):
+        self.create_calls += 1
+        if isinstance(self.create_result, Exception):
+            raise self.create_result
+        if self.create_result is not None:
+            return self.create_result
+        return super().create_order(request)
+
     def capture_order(self, order_id):
         self.capture_calls += 1
+        if isinstance(self.capture_result, Exception):
+            raise self.capture_result
+        if self.capture_result is not None:
+            return self.capture_result
         response = super().capture_order(order_id)
         body = response.payload
         if response.status_code == 201:
@@ -133,6 +150,12 @@ class ControlledGateway(FakePayPalGateway):
             capture['create_time'] = datetime.now(timezone.utc).isoformat()
             capture['seller_receivable_breakdown']['paypal_fee']['value'] = '1.50'
             capture['seller_receivable_breakdown']['net_amount']['value'] = '42.50'
+            if self.missing_capture_id:
+                capture.pop('id')
+            if self.capture_amount is not None:
+                gross, net = self.capture_amount
+                capture['amount']['value'] = gross
+                capture['seller_receivable_breakdown']['net_amount']['value'] = net
             if self.bad_field == 'status':
                 body['status'] = self.bad_state
             elif self.bad_field == 'capture_status':
