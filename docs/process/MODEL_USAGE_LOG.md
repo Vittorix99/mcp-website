@@ -77,3 +77,68 @@ Esecuzione nativa, nessuna delega di implementazione.
 | Codex / Sol 6.1 | `ws3_observability_review_sol`: unica review finale su privacy, contratti HTTP e autenticazione | high | Conclusa pulita, nessun rilievo. Il revisore ha rieseguito 23 test backend mirati e 9 test del verificatore HTTP. Coordinatore: 709 backend e 42 frontend passati. Proprietario: smoke Firebase PASS, exit 0. Nessuna seconda review. |
 
 Conteggio WS3: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## Staging — matrice dei casi sintetici
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Luna 6 | `staging_case_index_luna`: inventario in sola lettura dei casi nei test partecipanti e sconti | low | Concluso; nessun file modificato e nessun test eseguito. Coordinatore: riferimenti controllati, risultati accettati e integrati nel piano; interpretazione di pagamenti, autorizzazioni, ingressi e statistiche mantenuta al coordinatore. Verifica documentale finale del 2026-11-07: 105 ID scenario univoci, link locali esistenti e nessun errore di whitespace. |
+
+Conteggio della matrice: 1 incarico Luna, 0 review delegate Sol.
+Token e costi non disponibili. I 105 scenari sono definiti, non eseguiti.
+
+## Staging — generatore e importazione locale — 2026-11-07
+
+Implementazione del coordinatore: nessuna delega meccanica, poiché il lavoro
+tocca relazioni, importi, stati e limiti delle scritture.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `synthetic_generator_review_sol`: unica review indipendente di generatore, caricatore emulatori e relativi test | high | Conclusa: 1 P1 (regole fuori dalla directory progetto Firebase), 2 P2 (documenti residui tra seed diversi, token storici fuori cronologia/durata). Tutti accettati e corretti dal coordinatore con regressioni RED→GREEN. Revisore: 23 test mirati passati prima delle correzioni. Coordinatore: 33 test scripts/tests passati dopo correzioni, export completo verificato offline, configurazione verificata con CLI Firebase installata, scanner segreti zero finding. Successiva regressione sui metadati RPC: 34 test strumenti passati. Vittorio ha poi riportato importazione e rilettura di 53684 documenti negli emulatori, codice 0; esito del proprietario, non rieseguito dal coordinatore. Nessun cloud/Auth/mail modificato. |
+
+Conteggio generatore: 0 incarichi Luna, 1 review Sol. Token e costi non
+disponibili. Nessuna seconda review. Le verifiche offline non equivalgono
+all'esecuzione della matrice API o alla prova reale nell'emulatore.
+
+## Staging — review API interrotta e audit utilizzo — 2026-11-08
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `synthetic_api_review_sol`: review circoscritta di fixture API/statistiche e runner | high | Interrotta da usage limit, non conclusa. Nota parziale: gli stati parametrizzati vengono dalla funzione di produzione che si vuole verificare; serve un elenco atteso indipendente. Nessuna approvazione della review e nessun nuovo tentativo. Nessuna esecuzione emulatori dal revisore. |
+
+Conteggio batteria API: 0 deleghe Luna, 1 review Sol incompleta. Il
+coordinatore ha eseguito 39 test strumenti, 44 unit test collegati e collection
+di 23 nuovi scenari; non sono 23 scenari runtime superati. Sviluppo sospeso
+durante l'indagine richiesta da Vittorio, senza modifiche cloud.
+
+Per questa indagine sono disponibili contatori nativi Codex: non sono stime
+da numero di incarichi. All'ultimo «vai procedi» risultava già usato il 64%
+della finestra di 300 minuti. La review iniziò all'89%, arrivò al 99% e fallì
+per limite. Nel tratto esaminato: 22 eventi usage distinti del coordinatore
+Sol medium e 13 della review Sol high. Contesto coordinatore fino a 287527
+token per chiamata nel tratto, in larga parte cached. Questi input ripetuti
+non sono nuovi token distinti né unità di quota fatturate.
+
+Configurazione locale osservata: service_tier=priority. Possibile Fast da
+verificare nel client; tier effettivamente servito non disponibile nel record
+del turno. Nessuna configurazione o policy modificata. Numeri dettagliati e
+limiti interpretativi in `.local/staging/usage-audit.json`, escluso da Git.
+
+Indicazioni per la ripresa: passaggio di consegne breve in chat nuova, letture
+mirate, un'unica review del blocco completo e verifica del tier Standard.
+Caveman comprime le risposte: non limita da solo contesto, ragionamento o
+numero di chiamate. Nessuna percentuale di risparmio o costo stimato.
+
+## Staging — ripresa batteria API — 2026-11-09
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `synthetic_api_completion_review_sol`: review circoscritta della batteria API, fixture, runner e collegamento CI | high | Conclusa senza rilievi; accettata dal coordinatore. Revisore: 5 test del runner passati, sola lettura, nessuna esecuzione emulatori o operazione cloud. Coordinatore: sei stati letterali indipendenti al posto dei casi derivati da `PurchaseStatus.invalid_statuses()`; 39 test strumenti e 35 unitari acquisti/statistiche passati, 23 casi API raccolti, scanner zero segnalazioni, diff check pulito. Esecuzione API negli emulatori ancora da confermare dal proprietario. |
+
+Conteggio ripresa: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+Vittorio ha eseguito `scripts/staging/test_emulator.py --api` e riportato
+**23 test passati**, un warning HarfBuzz, codice 0 e arresto pulito degli
+emulatori. Esito runtime del proprietario, non rieseguito dal coordinatore.
+Questo chiude la prima batteria API; non dimostra tutti i 105 scenari,
+autenticazione reale, provider reali o staging cloud.
