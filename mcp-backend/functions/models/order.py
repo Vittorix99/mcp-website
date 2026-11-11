@@ -15,7 +15,8 @@ class Order(FirestoreModel):
         default=PurchaseTypes.EVENT, metadata={"firestore_name": "purchase_type", "enum": PurchaseTypes}
     )
     cart: List[Dict[str, Any]] = field(default_factory=list)
-    total: float = 0.0
+    # Missing payment data must not become a legitimate zero-price checkout.
+    total: Optional[float] = None
     reference_id: Optional[str] = field(default=None, metadata={"firestore_name": "reference_id"})
     event_meta: Dict[str, Any] = field(default_factory=dict, metadata={"firestore_name": "eventMeta"})
     created_at: Optional[Any] = field(default=None, metadata={"firestore_name": "createdAt"})

@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from decimal import Decimal, DecimalException, InvalidOperation, localcontext, ROUND_UP
 from typing import Any, Dict, List, Optional, Tuple
 
 from google.cloud import firestore
@@ -388,6 +389,8 @@ class EventPaymentService:
         # that fact before any local validation or provisioning can fail, so a
         # retry cannot issue a second capture request.
         self.order_repository.mark_captured(order_id, order_info.payment_method or "unknown")
+        if order_info.capture.final_capture is not True:
+            raise ValidationError("Capture is not explicitly final: manual payment verification required")
         self._validate_capture_amount(order_info, stored_order)
 
         if stored_order.discount_code_id:
@@ -571,34 +574,27 @@ class EventPaymentService:
             raise ValidationError(
                 f"Payment not completed (order={order_info.status}, capture={order_info.capture.status}, id={order_info.capture.capture_id})."
             )
-        if not order_info.capture.final_capture:
-            logger.warning(
-                "Capture is not marked as final_capture=True (id=%s)",
-                order_info.capture.capture_id,
-            )
 
     def _validate_capture_amount(
         self,
         order_info: PayPalOrderInfo,
         stored_order: EventOrder,
     ) -> None:
-        expected = stored_order.total
-        if expected is None:
-            logger.warning(
-                "No stored total found for order — skipping amount validation"
-            )
-            return
         try:
-            captured = float(order_info.capture.amount_value)
-            expected = float(expected)
-        except (TypeError, ValueError):
-            logger.warning(
-                "Amount validation skipped — could not parse values (captured=%s, expected=%s)",
-                order_info.capture.amount_value,
-                expected,
-            )
-            return
-        if abs(captured - expected) > 0.01:
+            captured = Decimal(str(order_info.capture.amount_value))
+            expected = Decimal(str(stored_order.total))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValidationError("Captured amount or stored total cannot be verified") from exc
+        if not captured.is_finite() or not expected.is_finite() or captured < 0 or expected < 0:
+            raise ValidationError("Captured amount and stored total must be finite and non-negative")
+        try:
+            with localcontext() as context:
+                # Round outward: an excess over one cent must not round onto the boundary.
+                context.rounding = ROUND_UP
+                difference = max(captured, expected) - min(captured, expected)
+        except DecimalException as exc:
+            raise ValidationError("Captured amount or stored total cannot be compared safely") from exc
+        if difference > Decimal("0.01"):
             logger.error(
                 "Amount mismatch: captured=%.2f expected=%.2f (order_id=%s)",
                 captured,
@@ -606,7 +602,7 @@ class EventPaymentService:
                 order_info.capture.capture_id,
             )
             raise ValidationError(
-                f"Captured amount ({captured:.2f}) does not match expected amount ({expected:.2f})"
+                f"Captured amount ({captured}) does not match expected amount ({expected})"
             )
 
     def save_purchase(

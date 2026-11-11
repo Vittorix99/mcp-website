@@ -220,3 +220,14 @@ concorrenza e permessi richiedono Sol. Approvato in chat dal proprietario.
 | Codex / gpt-6.1-sol | `order_recovery_review_sol`: unica review finale recupero admin, deduplica condivisa, ricevute sconto, auth e failure window | medium | Conclusa: 4 Important (lookup soci estranei, dati salvati malformati, prezzi locali non finiti, metadati legacy alterati), tutti riprodotti RED e corretti dal coordinatore; nessun Critical/Minor. Esito accettato e corretto, nessuna seconda delega. Verifica finale: 826 unitari, 39 test script, 107 API, 6 integrazione sconti e 20×6 scenari concorrenti (120/120), tutti passati; runner emulatori exit 0 e arresto pulito. Scanner zero segnalazioni, diff check pulito. Nessuna CI remota/cloud/provider reale. |
 
 Conteggio dispatch effettivi: 0 incarichi Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## PAY-10 — cattura non verificabile — 2026-11-11
+
+Implementazione nativa del coordinatore (pagamenti), nessuna delega Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `pay10_review_sol`: unica review finale su importi, totale assente, final_capture e conservazione dell'incasso | medium | Conclusa: 1 Important (amount non-oggetto prima della persistenza) e 1 Minor sui limiti Decimal, riclassificato Important dal coordinatore per la violazione della tolleranza monetaria. Entrambi riprodotti RED e corretti; nessun rilievo differito. Review ripresa sullo stesso incarico dopo interruzione, nessuna seconda delega. Esito accettato e corretto dal coordinatore: 849 unitari, 39 test script, 151 API e 6 integrazione sconti passati; emulatori exit 0 e arresto pulito. Scanner zero segnalazioni e diff check pulito. Nessuna CI remota/cloud/provider reale. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.

@@ -188,7 +188,7 @@ Fonti: [event_payment_service.py](../../../mcp-backend/functions/services/paymen
 | PAY-07 | captured vero ma purchase assente/provisioning incompleto | Conflitto `ORDER_PROVISIONING_INCOMPLETE`; nessuna nuova capture o tentativo automatico di incassare. | Locale D |
 | PAY-08 | Provider create/capture fallisce, HTTP non riuscito o create senza order ID | 502 per errore provider gestito; nessuna falsa conferma di acquisto. Conservare fatti già catturati se fallisce un passo successivo. | Locale D |
 | PAY-09 | Importo capture diverso dall'ordine oltre 0,01; confine tolleranza | Dopo capture riuscita persiste captured prima dell'errore; non crea acquisto/provisioning e non ricattura al retry. Verificare esattamente il confine. | Locale D |
-| PAY-10 | Importo catturato non parsabile, totale assente o final_capture falso | Codice attuale salta certi controlli o avvisa: non considerarli una validazione riuscita degli importi. Casi di anomalia Q-03. | Locale Q |
+| PAY-10 | Importo catturato non parsabile, totale assente o final_capture falso | Rifiuto senza provisioning, incasso COMPLETED con ID registrato e retry senza nuova capture; zero valido distinto da totale assente, tolleranza 0.01 preservata. Implementato e provato localmente il 2026-11-11. | API D |
 | PAY-11 | Evento termina tra create e capture; ordine mancante o senza eventId | Evento concluso bloccato prima di PayPal; ordine mancante 404, evento ordine mancante errore; nessun nuovo incasso fake. | Locale D |
 | PAY-12 | Due capture simultanee dello stesso ordine non ancora catturato | Una sola cattura/provisioning come requisito; verificare idempotency key e scritture, non basta retry sequenziale. Non dimostrato dalla lettura. | Locale D |
 | PAY-13 | Status/capture_status vuoti, PENDING o sconosciuti; ref_id o participants_count assenti/zero | Caratterizzare eleggibilità attuale, che non richiede sempre COMPLETED e diverge fra servizi; rifiutare false equivalenze con incassi definitivi: Q-04. | Locale Q |
@@ -1020,3 +1020,44 @@ scaduto, partecipanti ambigui o sconto legacy privo di attribuzione. I flag
 esistenti dei biglietti non vengono riscritti. Le prove dimostrano assenza di
 ulteriori document-created per gli stessi record; non certificano consegna
 exactly-once delle email da trigger esterni.
+
+
+### PAY-10 — anomalie di importo e cattura non definitiva, 2026-11-11
+
+Approvato dal proprietario: «vai con PAY-10». Blocco mirato nativo, una review
+finale Sol medium; nessuna decisione sulla quota tessera o altre regole Q-03.
+
+- Riprodurre nei test importi non leggibili/mancanti/non finiti/negativi,
+  totale assente/null e `final_capture` falso, omesso o di tipo errato.
+- Registrare l'incasso COMPLETED con ID prima di questi rifiuti; nessun
+  acquisto, partecipante, rinnovo o consumo sconto. Il posto sconto rimane
+  occupato perché il pagamento potrebbe essere avvenuto. Retry senza capture.
+- Distinguere totale assente da zero valido; richiedere booleano True esplicito
+  per la cattura definitiva. Confronto monetario decimale, tolleranza PAY-09
+  invariata a 0.01; rifiuto di valori non verificabili anziché skip/warning.
+- RED→GREEN unitari e API con/senza sconto; includere zero valido e confini
+  PAY-09 esistenti, poi suite unitari/script, API/emulatori, review e commit.
+  Nessun cloud, provider reale, deploy, UI o recupero automatico.
+
+
+Esito PAY-10: **849 unitari, 39 test script, 151 API e 6 integrazione sconti
+passati**; i 44 nuovi scenari API coprono 22 anomalie con/senza sconto. Zero
+failure/error/skipped nei JUnit finali, exit 0 e arresto pulito degli emulatori.
+Scanner zero segnalazioni e diff check pulito. La suite include i precedenti
+casi a totale zero e i quattro confini PAY-09, oltre a checkout e recupero.
+
+Review finale Sol medium: un Important sul contenitore `amount` stringa/lista
+che interrompeva il parsing prima di registrare l'incasso, riprodotto RED e
+corretto normalizzandolo a importo mancante. Un Minor sui limiti aritmetici
+Decimal è stato riclassificato Important dal coordinatore perché poteva
+accettare un importo oltre la tolleranza approvata: riprodotti Overflow e
+precisione oltre il centesimo, poi corretti con rifiuto degli errori aritmetici
+e arrotondamento verso l'esterno per il confronto. I timestamp/importi della
+recovery rimangono soggetti ai controlli già esistenti. Nessun rilievo differito.
+
+Il totale assente resta None nel modello, non viene sostituito da zero; la
+finalità richiede il booleano True JSON, non valori semplicemente truthy.
+Questi errori vengono rifiutati dopo aver registrato una capture COMPLETED
+con ID. L'eventuale preflight per evitare la chiamata provider su ordini già
+corrotti resta una decisione separata, non è stato introdotto implicitamente.
+Nessun rimborso, deploy, provider reale, scrittura cloud o prova CI remota.

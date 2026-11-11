@@ -730,3 +730,61 @@ def test_discount_reservation_tracks_payment_outcome(monkeypatch, outcome, expec
         service.capture_order_event(OrderCaptureDTO(order_id='order-1'))
     assert operations == expected
     assert service.purchase_repository.created == []
+
+
+@pytest.mark.parametrize('problem', ['unreadable_amount', 'missing_total', 'absent_total',
+    'nan_amount', 'infinite_amount', 'negative_amount', 'unreadable_total', 'nan_total',
+    'infinite_total', 'negative_total', 'amount_container_string', 'amount_container_list',
+    'extreme_amount', 'over_tolerance_precision', 'not_final', 'missing_final', 'string_final', 'numeric_final'])
+def test_unverifiable_capture_records_payment_but_never_provisions(monkeypatch, problem):
+    service = _make_service()
+    future = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%d-%m-%Y')
+    service.event_repository = _DummyEventRepo(model=Event(title='Event', date=future, start_time='20:00', end_time='23:00'))
+    order = EventOrder(order_id='order-1', event_id='evt-1', total=10,
+                       participants=[_participant().to_payload()])
+    body = _order_payload()
+    capture = body['purchase_units'][0]['payments']['captures'][0]
+    if problem.startswith('amount_container_'):
+        capture['amount'] = 'invalid' if problem.endswith('string') else ['10.00']
+    elif problem == 'extreme_amount':
+        capture['amount']['value'] = '1E+1000000'
+    elif problem == 'over_tolerance_precision':
+        capture['amount']['value'] = '10.010000000000000000000000000001'
+    elif problem == 'absent_total':
+        raw = order.to_firestore()
+        raw.pop('total')
+        order = EventOrder.from_firestore(raw, 'order-1')
+        capture['amount']['value'] = '0.00'
+    elif problem == 'missing_total':
+        order.total = None
+    elif problem.endswith('_total'):
+        order.total = {'unreadable_total': 'invalid', 'nan_total': float('nan'),
+                       'infinite_total': float('inf'), 'negative_total': -10}[problem]
+    elif problem.endswith('_amount'):
+        capture['amount']['value'] = {'unreadable_amount': 'invalid', 'nan_amount': 'NaN',
+                                    'infinite_amount': 'Infinity', 'negative_amount': '-10.00'}[problem]
+    elif problem == 'missing_final':
+        capture.pop('final_capture')
+    else:
+        capture['final_capture'] = {'not_final': False, 'string_final': 'false', 'numeric_final': 1}[problem]
+    service.order_repository = _DummyOrderRepo(order_data=order)
+    calls = []
+    def provider(order_id):
+        calls.append(order_id)
+        return body
+    monkeypatch.setattr(service, 'capture_paypal_order', provider)
+    with pytest.raises(ValidationError):
+        service.capture_order_event(OrderCaptureDTO(order_id='order-1'))
+    assert calls == ['order-1']
+    assert service.order_repository.captured_updates == [('order-1', 'paypal')]
+    assert service.purchase_repository.created == []
+    assert service.participant_repository.created == []
+
+
+@pytest.mark.parametrize('amount', ['10.01', '9.99', '10.009999999999999999999999999999',
+                                  '9.990000000000000000000000000001', '10.000000000000000000000000000001'])
+def test_decimal_tolerance_keeps_values_within_one_cent(amount):
+    from models import PayPalOrderInfo
+    body = _order_payload()
+    body['purchase_units'][0]['payments']['captures'][0]['amount']['value'] = amount
+    _make_service()._validate_capture_amount(PayPalOrderInfo.from_payload(body), EventOrder(total=10))
