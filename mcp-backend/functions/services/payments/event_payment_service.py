@@ -363,11 +363,23 @@ class EventPaymentService:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        reservation_token = None
+        if stored_order.discount_code_id:
+            reservation_token = self.discount_code_repository.reserve_usage(
+                stored_order.discount_code_id, order_id)
+            self.discount_code_repository.begin_capture(
+                stored_order.discount_code_id, order_id, reservation_token)
+
+        # Transport errors and malformed responses have an unknown payment outcome:
+        # retain the reservation rather than making the last slot available again.
         order_data = self.capture_paypal_order(order_id)
         order_info = PayPalOrderInfo.from_payload(order_data)
         try:
             self.validate_capture_payload(order_info)
         except ValidationError:
+            if reservation_token and order_info.capture.status in {"DECLINED", "FAILED"}:
+                self.discount_code_repository.release_reservation(
+                    stored_order.discount_code_id, order_id, reservation_token)
             self._debug("Capture validation failed for %s", order_id)
             self._update_order_status(order_id, order_info.status or "UNKNOWN")
             raise
@@ -379,7 +391,8 @@ class EventPaymentService:
         self._validate_capture_amount(order_info, stored_order)
 
         if stored_order.discount_code_id:
-            self.discount_code_repository.claim_usage(stored_order.discount_code_id)
+            self.discount_code_repository.consume_reservation(
+                stored_order.discount_code_id, order_id, reservation_token)
 
         participants = self._participants_from_payload(stored_order.participants or [])
         membership_targets = self._participants_from_payload(stored_order.membership_targets or [])

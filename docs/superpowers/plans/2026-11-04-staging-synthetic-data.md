@@ -879,3 +879,46 @@ per 8 corse complete sull'emulatore. Il perdente riceve 409
 `ORDER_CAPTURE_CONFLICT`; nessuna nuova capture PayPal e nessun effetto
 collaterale (verificato anche da test del service). Non provato su Firestore
 reale. DIS-06 invariato e ancora aperto.
+
+
+### DIS-06 — prenotazione prima della capture, 2026-11-11
+
+Regola approvata dal proprietario: prenotare prima di incassare, con
+idempotenza, rilascio in caso di pagamento fallito e gestione della scadenza.
+Implementazione nel worktree esistente; nessuna operazione cloud/provider.
+
+- Il controllo CAS sul codice conta `usedCount` più le prenotazioni attive.
+  Chiave ordine e token distinguono tentativi: riservare due volte lo stesso
+  ordine restituisce lo stesso token; iniziare la capture richiede un passaggio
+  atomico esclusivo. Il perdente riceve 409 prima della chiamata PayPal.
+- `reserved` scade dopo 15 minuti, con recupero pigro nel successivo accesso;
+  il worker con token scaduto/sostituito non può iniziare la capture.
+  `capturing` non scade automaticamente: timeout, errori HTTP/SDK, risposte
+  malformate o interruzioni locali non provano l'assenza di un incasso.
+  Il retry di questi ordini è bloccato prima del provider, in attesa di verifica.
+- Capture esplicitamente `DECLINED`/`FAILED`: rilascio del posto, senza consumo.
+  Capture valida: conversione atomica in uso e ricevuta persistente per ordine
+  nella sottocollezione `reservation_receipts`; consume/release ripetuti sono
+  idempotenti, token obsoleti non liberano una nuova prenotazione.
+- Un guasto dopo l'incasso conserva l'uso o il posto occupato; recupero e
+  riconciliazione degli ordini già incassati rimangono separati. Nessun rimborso,
+  cancellazione automatica o rilascio basato soltanto sul tempo.
+
+Verifiche del coordinatore: regressione RED sul perdente inviato al provider,
+poi GREEN. Review Sol medium: un Important sulla riduzione admin di `maxUses`
+sotto gli utilizzi prenotati, riprodotto e corretto con controllo CAS contro
+consumati + prenotazioni vive (stessa regola di scadenza); nessun Minor.
+Un primo tentativo con transazioni Firestore è stato sostituito dopo lock
+timeout riprodotti in entrambi i nuovi scenari concorrenti (due 500 senza
+chiamata provider). La versione finale usa batch atomici con precondizione
+`update_time`, retry limitati e ricevuta scritta nello stesso batch: nessun
+lock transazionale. L'admin usa la stessa precondizione per cambiare il limite.
+
+Esito finale eseguito dal coordinatore dopo autorizzazione del proprietario
+ai comandi locali: **768 unitari, 39 test script, 72/72 API, 6/6 integrazione
+sconti**; **20 corse da 3 scenari concorrenti, 60/60**. Nella suite integrazione
+è stata corretta un'aspettativa legacy che richiedeva la cancellazione
+anziché conservazione dell'ordine completato; ora verifica anche retry senza
+ricattura. Scanner zero segnalazioni, diff check pulito. Runner emulatori exit
+0 e arresto pulito; report JUnit sotto `.local/staging/`. Nessuna prova remota
+CI o Firestore/PayPal reale. Il recupero di ordini già incassati resta separato.

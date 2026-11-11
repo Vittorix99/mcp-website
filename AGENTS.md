@@ -38,6 +38,10 @@
 
 ## Owner-operated external checks
 
+- Owner update 2026-11-11: the agent runs local verification commands, including
+  emulator tests, directly from now on. This supersedes the initial walkthrough
+  rule below for local commands; cloud and real-provider gates remain in effect.
+
 - During initial learning walkthroughs, let the owner run development, test,
   and build commands manually, one activity at a time. Explain the purpose and
   expected result, then wait for their reported outcome before the next step.

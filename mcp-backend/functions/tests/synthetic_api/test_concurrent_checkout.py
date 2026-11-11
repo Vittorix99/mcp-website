@@ -1,7 +1,7 @@
-"""Controlled overlaps, real Firestore transactions, fake idempotent PayPal.
+"""Controlled overlaps, real Firestore writes, fake idempotent PayPal.
 
 PAY-12 asserts the safety requirement (and may expose an application bug).
-DIS-06 characterizes the post-capture loser; passing does not make it safe.
+DIS-06 rejects the last-slot loser before calling the payment provider.
 """
 from concurrent.futures import ThreadPoolExecutor
 import faulthandler
@@ -124,9 +124,9 @@ def test_same_order_concurrent_capture_has_one_purchase_and_provisioning(
     assert_revenue(http, sample.event.id, 44, 42.5, 1.5, 2)
 
 
-def test_last_discount_usage_concurrent_claim_keeps_post_capture_loser_explicit(
+def test_last_discount_usage_concurrent_reservation_prevents_loser_capture(
         http, sample, gateway, capture_log, monkeypatch):
-    """DIS-06: one usage winner, but the losing order has already been captured."""
+    """DIS-06: only the reservation winner can reach the capture provider."""
     code = DiscountCode(id='last-discount', event_id=sample.event.id, code='LAST',
                         discount_type=DiscountType.PERCENTAGE, discount_value=50,
                         max_uses=2, used_count=1, is_active=True)
@@ -144,17 +144,17 @@ def test_last_discount_usage_concurrent_claim_keeps_post_capture_loser_explicit(
     assert not documents('purchases')
     gateway.capture_net = '10.50'
     repository = event_payment_api.event_payment_service.discount_code_repository
-    original_claim = repository.claim_usage
-    both_captured = Barrier(2, timeout=10)
+    original_reserve = repository.reserve_usage
+    both_ready = Barrier(2, timeout=10)
 
-    def claim_after_both_captures(discount_id):
+    def reserve_after_both_ready(discount_id, order_id):
         assert discount_id == code.id
-        both_captured.wait()
-        # Keep the transaction intact: never synchronize inside its retry callback.
-        return original_claim(discount_id)
+        both_ready.wait()
+        # Synchronize before repository work, never inside its retry callback.
+        return original_reserve(discount_id, order_id)
 
     with monkeypatch.context() as patch:
-        patch.setattr(repository, 'claim_usage', claim_after_both_captures)
+        patch.setattr(repository, 'reserve_usage', reserve_after_both_ready)
         results = concurrent_captures(http, order_ids)
 
     evidence = {'responses': results, 'calls': capture_log, 'orders': documents('orders'),
@@ -168,8 +168,8 @@ def test_last_discount_usage_concurrent_claim_keeps_post_capture_loser_explicit(
     assert orders[winner_id]['captured'] is True, evidence
     assert orders[winner_id]['orderStatus'] == 'COMPLETED', evidence
     assert orders[winner_id]['purchase_id'] == purchase_id, evidence
-    assert orders[loser_id]['captured'] is True, evidence
-    assert orders[loser_id]['orderStatus'] == 'PAYMENT_CAPTURED', evidence
+    assert orders[loser_id]['captured'] is False, evidence
+    assert orders[loser_id]['orderStatus'] != 'PAYMENT_CAPTURED', evidence
     assert not orders[loser_id].get('purchase_id'), evidence
     assert evidence['discount']['usedCount'] == 2, evidence
     assert set(evidence['purchases']) == {purchase_id}, evidence
@@ -177,9 +177,9 @@ def test_last_discount_usage_concurrent_claim_keeps_post_capture_loser_explicit(
     assert purchase['order_id'] == winner_id, evidence
     assert purchase['discountCodeId'] == code.id, evidence
     assert purchase['participants_count'] == 1, evidence
-    assert len(capture_log) == 2, evidence
-    assert {order_id for order_id, _ in capture_log} == set(order_ids), evidence
-    assert len({capture_id for _, capture_id in capture_log}) == 2, evidence
+    assert len(capture_log) == 1, evidence
+    assert {order_id for order_id, _ in capture_log} == {winner_id}, evidence
+    assert len({capture_id for _, capture_id in capture_log}) == 1, evidence
     participants_path = f'participants/{sample.event.id}/participants_event'
     participants = documents(participants_path)
     assert len(participants) == 1, evidence
@@ -196,11 +196,49 @@ def test_last_discount_usage_concurrent_claim_keeps_post_capture_loser_explicit(
             assert retry.get_json()['purchase_id'] == purchase_id
         else:
             assert retry.status_code == 409, retry.get_json()
-            assert retry.get_json()['code'] == 'ORDER_PROVISIONING_INCOMPLETE'
+            assert not db.document('orders/' + order_id).get().to_dict()['captured']
     assert capture_log == calls_before_retry
     assert discount_ref.get().to_dict() == evidence['discount']
     assert documents('orders') == orders
     assert documents('purchases') == evidence['purchases']
     assert documents(participants_path) == participants
     assert len(documents('memberships')) == 2
+    assert_revenue(http, sample.event.id, 12, 10.5, 1.5, 1)
+
+
+def test_same_discounted_order_concurrent_capture_uses_one_reservation(
+        http, sample, gateway, capture_log, monkeypatch):
+    code = DiscountCode(id='same-discount', event_id=sample.event.id, code='ONCE',
+                        discount_type=DiscountType.PERCENTAGE, discount_value=50,
+                        max_uses=2, used_count=0, is_active=True)
+    ref = db.document('discount_codes/' + code.id)
+    ref.set(code.to_firestore())
+    payload = order_payload(SimpleNamespace(event=sample.event, people=sample.people[:1]))
+    payload['cart'][0]['discountCode'] = 'ONCE'
+    response = http.post('/orders', json=payload)
+    assert response.status_code == 201, response.get_json()
+    order_id = response.get_json()['id']
+    gateway.capture_net = '10.50'
+    repository = event_payment_api.event_payment_service.order_repository
+    original_get = repository.get_model
+    both_read = Barrier(2, timeout=10)
+
+    def stale_read(target_id):
+        order = original_get(target_id)
+        assert not order.captured
+        both_read.wait()
+        return order
+
+    with monkeypatch.context() as patch:
+        patch.setattr(repository, 'get_model', stale_read)
+        results = concurrent_captures(http, [order_id, order_id])
+    assert sorted(status for status, _ in results) == [200, 409], results
+    assert len(capture_log) == 1
+    assert len(documents('purchases')) == 1
+    assert len(documents(f'participants/{sample.event.id}/participants_event')) == 1
+    assert ref.get().to_dict()['usedCount'] == 1
+    assert ref.get().to_dict()['reservations'] == {}
+    retry = http.post('/capture', json={'order_id': order_id})
+    assert retry.status_code == 200, retry.get_json()
+    assert len(capture_log) == 1
     assert_revenue(http, sample.event.id, 12, 10.5, 1.5, 1)

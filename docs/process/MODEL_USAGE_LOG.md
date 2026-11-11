@@ -195,3 +195,16 @@ predefinito dell'host, non `gpt-6.1-sol`): nessun Critical, 2 Important e
 2 Minor; corretti test del service sul perdente, codice del retry esaurito e
 `Aborted`. Conteggio: 0 incarichi Luna, 1 review delegata. Token e costi non
 disponibili.
+
+
+## DIS-06 — prenotazione sconto prima della capture — 2026-11-11
+
+Implementazione del coordinatore; nessuna delega Luna perché il blocco tratta
+stati di pagamento e concorrenza.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `dis06_reservation_review_sol`: unica review finale su prenotazione, rilascio, scadenza e failure window | medium | Conclusa: un Important sulla riduzione admin del limite sotto le prenotazioni vive, riprodotto RED e corretto con CAS; nessun Minor. Coordinatore: 768 unitari, 39 test script, 72 API, 6 integrazione sconti passati; 20 corse concorrenti da 3 scenari (60/60). Lock timeout runtime risolto dopo la review sostituendo le transazioni con batch condizionati alla versione; verificati retry CAS e aggiornamenti atomici delle ricevute. Runner emulatori exit 0 e arresto pulito. Scanner zero segnalazioni; nessun cloud/provider reale o CI remota. Esito della review accettato e corretto dal coordinatore; nessuna seconda delega. |
+
+Conteggio dispatch effettivi nel blocco: 0 incarichi Luna, 1 review Sol.
+Token e costi non disponibili.
