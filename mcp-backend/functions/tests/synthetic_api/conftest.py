@@ -12,7 +12,8 @@ from flask import Flask, request
 
 from config.firebase_config import db
 from models import Event, EventParticipant, EventPurchase, Membership, PaymentMethod
-from api.admin import purchases_api, stats_api
+from api.admin import purchases_api, stats_api, order_recovery_api
+from services.payments.event_order_recovery_service import EventOrderRecoveryService
 from api.entrance import entrance_api
 from api.public import discount_code_public_api, event_payment_api
 from services.payments.event_payment_service import EventPaymentService
@@ -60,6 +61,7 @@ def http():
         '/orders': event_payment_api.create_order_event,
         '/discount-validation': discount_code_public_api.validate_discount_code,
         '/capture': event_payment_api.capture_order_event,
+        '/recover-order': order_recovery_api.recover_order_event,
         '/purchase-status': purchases_api.update_purchase_status,
         '/revenue': stats_api.admin_get_revenue_breakdown,
         '/funnel': stats_api.admin_get_event_funnel,
@@ -123,6 +125,8 @@ class ControlledGateway(FakePayPalGateway):
         super().__init__()
         self.create_calls = 0
         self.capture_calls = 0
+        self.read_calls = 0
+        self.read_result = None
         self.create_result = None
         self.capture_result = None
         self.missing_capture_id = False
@@ -131,6 +135,14 @@ class ControlledGateway(FakePayPalGateway):
         self.capture_fee = '1.50'
         self.bad_field = None
         self.bad_state = None
+
+    def get_order(self, order_id):
+        self.read_calls += 1
+        if isinstance(self.read_result, Exception):
+            raise self.read_result
+        if self.read_result is not None:
+            return self.read_result
+        return super().get_order(order_id)
 
     def create_order(self, request):
         self.create_calls += 1
@@ -165,11 +177,15 @@ class ControlledGateway(FakePayPalGateway):
                 body['status'] = self.bad_state
             elif self.bad_field == 'capture_status':
                 capture['status'] = self.bad_state
+        from copy import deepcopy
+        self._captures[order_id] = deepcopy(body)
         return PayPalGatewayResponse(response.status_code, body)
 
 
 @pytest.fixture
 def gateway(monkeypatch):
     fake = ControlledGateway()
-    monkeypatch.setattr(event_payment_api, 'event_payment_service', EventPaymentService(paypal_gateway=fake))
+    payments = EventPaymentService(paypal_gateway=fake)
+    monkeypatch.setattr(event_payment_api, 'event_payment_service', payments)
+    monkeypatch.setattr(order_recovery_api, 'recovery_service', EventOrderRecoveryService(payments))
     return fake

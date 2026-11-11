@@ -610,6 +610,15 @@ class EventPaymentService:
             )
 
     def save_purchase(
+        self, order_id: str, order_info: PayPalOrderInfo, event_id: str,
+        purchase_mode: EventPurchaseAccessType, discount_code_id: Optional[str] = None,
+        discount_code: Optional[str] = None, discount_amount: Optional[float] = None,
+    ) -> str:
+        return self.purchase_repository.create_for_order(self._purchase_model(
+            order_id, order_info, event_id, purchase_mode, discount_code_id,
+            discount_code, discount_amount))
+
+    def _purchase_model(
         self,
         order_id: str,
         order_info: PayPalOrderInfo,
@@ -618,7 +627,7 @@ class EventPaymentService:
         discount_code_id: Optional[str] = None,
         discount_code: Optional[str] = None,
         discount_amount: Optional[float] = None,
-    ) -> str:
+    ) -> EventPurchase:
         purchase = EventPurchase(
             payer_name=order_info.payer.given_name,
             payer_surname=order_info.payer.surname,
@@ -640,7 +649,7 @@ class EventPaymentService:
             discount_code=discount_code,
             discount_amount=discount_amount,
         )
-        return self.purchase_repository.create_from_model(purchase)
+        return purchase
 
     def create_memberships_for_targets(
         self,
@@ -730,6 +739,20 @@ class EventPaymentService:
         return membership_refs
 
     def handle_event_participants(
+        self, event_id: str, participants: List[CheckoutParticipantDTO],
+        membership_refs: List[MembershipRef], purchase_id: str, price: float,
+        existing_memberships: Dict[str, Membership], price_original: Optional[float] = None,
+        discount_code_id: Optional[str] = None, discount_code: Optional[str] = None,
+    ):
+        models = self._event_participants(event_id, participants, membership_refs, purchase_id,
+            price, existing_memberships, price_original, discount_code_id, discount_code)
+        for index, participant in enumerate(models):
+            if participant.membership_id:
+                self.membership_repository.add_attended_event_and_purchase(
+                    participant.membership_id, event_id, purchase_id)
+            self.participant_repository.create_for_purchase(event_id, participant, index)
+
+    def _event_participants(
         self,
         event_id: str,
         participants: List[CheckoutParticipantDTO],
@@ -752,7 +775,8 @@ class EventPaymentService:
             if membership.id
         }
 
-        for participant_dto in participants:
+        result = []
+        for index, participant_dto in enumerate(participants):
             normalized_email = normalize_email(participant_dto.email)
             membership_id = (
                 membership_map.get(normalized_email)
@@ -769,6 +793,7 @@ class EventPaymentService:
                 ticket_sent=False,
                 location_sent=False,
                 purchase_id=purchase_id,
+                checkout_index=index,
                 price=price,
                 price_original=price_original,
                 discount_code_id=discount_code_id,
@@ -779,13 +804,8 @@ class EventPaymentService:
             )
             if membership_id:
                 participant.membership_id = membership_id
-                self.membership_repository.add_attended_event_and_purchase(
-                    membership_id,
-                    event_id,
-                    purchase_id,
-                )
-
-            self.participant_repository.create_from_model(event_id, participant)
+            result.append(participant)
+        return result
 
     def _participant_price_from_order(self, stored_order: EventOrder) -> float:
         if stored_order.discount_code_id and stored_order.discount_amount is not None:

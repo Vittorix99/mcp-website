@@ -191,3 +191,28 @@ def test_admin_capacity_retry_rechecks_a_new_reservation(reservations, monkeypat
     with pytest.raises(ValidationError):
         repo.update('d', {'max_uses': 1}, 'admin')
     assert store['discount_codes/d']['maxUses'] == 3
+
+
+def test_recovery_consumes_attributable_slot_once_even_if_normal_worker_finishes_later(reservations):
+    repo, store = reservations
+    token = repo.reserve_usage('d', 'a')
+    repo.begin_capture('d', 'a', token)
+    repo.reconcile_usage('d', 'a')
+    repo.reconcile_usage('d', 'a')
+    repo.consume_reservation('d', 'a', token)
+    assert store['discount_codes/d']['usedCount'] == 1
+    assert store['discount_codes/d']['reservations'] == {}
+
+
+@pytest.mark.parametrize('state', ['missing', 'reserved', 'released'])
+def test_recovery_refuses_discount_without_attributable_capture_slot(reservations, state):
+    repo, store = reservations
+    if state != 'missing':
+        token = repo.reserve_usage('d', 'a')
+        if state == 'released':
+            repo.begin_capture('d', 'a', token)
+            repo.release_reservation('d', 'a', token)
+    before = deepcopy(store)
+    with pytest.raises(ConflictError):
+        repo.reconcile_usage('d', 'a')
+    assert store == before

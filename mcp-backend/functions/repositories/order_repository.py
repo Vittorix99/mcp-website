@@ -69,7 +69,20 @@ class OrderRepository(BaseRepository[EventOrder]):
         raise error
 
     def set_purchase_id(self, order_id: str, purchase_id: str) -> None:
-        self.collection.document(order_id).update({
-            "purchase_id": purchase_id,
-            "orderStatus": "PURCHASE_CREATED",
-        })
+        doc_ref = self.collection.document(order_id)
+        for _ in range(_CLAIM_ATTEMPTS):
+            snapshot = doc_ref.get()
+            if not snapshot.exists:
+                raise NotFoundError("Order not found")
+            data = snapshot.to_dict() or {}
+            if data.get("purchase_id"):
+                if data["purchase_id"] != purchase_id:
+                    raise ConflictError("Order already linked to a different purchase")
+                return
+            try:
+                doc_ref.update({"purchase_id": purchase_id, "orderStatus": "PURCHASE_CREATED"},
+                    option=db.write_option(last_update_time=snapshot.update_time))
+                return
+            except (FailedPrecondition, Aborted):
+                continue
+        raise ConflictError("Order changed concurrently, retry purchase linking")

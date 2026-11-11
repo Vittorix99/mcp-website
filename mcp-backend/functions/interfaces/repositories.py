@@ -9,6 +9,7 @@ from models import (
     Event,
     EventOrder,
     EventParticipant,
+    EventPurchase,
     Job,
     Membership,
     NewsletterConsent,
@@ -158,6 +159,9 @@ class MembershipSettingsRepositoryProtocol(Protocol):
 
 
 class ParticipantRepositoryProtocol(Protocol):
+    def create_for_purchase(self, event_id: str, participant: EventParticipant, checkout_index: int = 0) -> str:
+        ...
+
     def list(self, event_id: str) -> List[EventParticipant]:
         ...
 
@@ -205,6 +209,12 @@ class ParticipantRepositoryProtocol(Protocol):
 
 
 class PurchaseRepositoryProtocol(Protocol):
+    def create_for_order(self, purchase: EventPurchase) -> str:
+        ...
+
+    def find_by_order(self, order_id: str) -> Optional[Purchase]:
+        ...
+
     def create(self, purchase: Purchase) -> str:
         ...
 

@@ -35,6 +35,7 @@ class EventParticipant(FirestoreModel):
         default=PaymentMethod.WEBSITE,
         metadata={"firestore_name": "payment_method", "enum": PaymentMethod},
     )
+    checkout_index: Optional[int] = field(default=None, metadata={"firestore_name": "checkoutIndex"})
     purchase_id: Optional[str] = field(default=None, metadata={"firestore_name": "purchase_id"})
     discount_code_id: Optional[str] = field(default=None, metadata={"firestore_name": "discountCodeId"})
     discount_code: Optional[str] = field(default=None, metadata={"firestore_name": "discountCode"})

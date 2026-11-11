@@ -922,3 +922,101 @@ anziché conservazione dell'ordine completato; ora verifica anche retry senza
 ricattura. Scanner zero segnalazioni, diff check pulito. Runner emulatori exit
 0 e arresto pulito; report JUnit sotto `.local/staging/`. Nessuna prova remota
 CI o Firestore/PayPal reale. Il recupero di ordini già incassati resta separato.
+
+
+### Proposta prossimo blocco — recupero controllato post-incasso, 2026-11-11
+
+Stato: approvato dal proprietario in chat (2026-11-11: «vai partiamo con questo»). Esecuzione nativa, una review finale Sol medium.
+Il proprietario ha chiesto di proseguire lo sviluppo dopo DIS-06; il recupero
+post-incasso era esplicitamente separato dall'approvazione precedente.
+
+Evidenze: l'ordine conserva `captured` e `purchase_id`, ma non il dettaglio
+incasso necessario per ricostruire un acquisto; il gateway espone solo create
+e capture. Purchase e partecipanti sono creati con ID casuali. Rilanciare il
+provisioning corrente dopo un'interruzione può quindi duplicare documenti.
+
+Approcci: recupero controllato avviato da admin (raccomandato), con perimetro
+e conflitti espliciti; oppure ripresa automatica dal retry del checkout, che
+richiede anche idempotenza completa di creazione/rinnovo tessera e relativi
+effetti collaterali. La prima opzione consente un blocco più circoscritto.
+
+Proposta concreta per una sola approvazione:
+- Aggiungere la lettura dello stato ordine al gateway, con fake controllabile;
+  il recupero non deve mai chiamare capture o rimborsi.
+- Esporre un'operazione riservata agli admin per un ordine esistente, con
+  controllo di identità ordine, valuta, importo e incasso completato. Esiti
+  ancora ambigui o incongruenti rimangono bloccati, senza liberare lo sconto.
+- Riprendere acquisto, collegamenti e partecipanti in modo idempotente, anche
+  dopo errori intermedi o due richieste admin concorrenti; convertire una
+  prenotazione già detenuta senza un secondo consumo. Un vecchio ordine
+  incassato senza prenotazione richiede verifica esplicita della capienza
+  sconto: niente superamento implicito del limite o nuovo addebito.
+- Primo perimetro: ordini senza `membershipTargets`, senza creazione/rinnovo
+  tessera; gli altri sono rifiutati esplicitamente prima delle scritture.
+  Nessun job automatico o nuova UI. Casi evento scaduto, incasso non coerente,
+  dati mancanti o prenotazione non attribuibile restano a verifica manuale.
+- Test offline ed emulatori con provider fake: recupero prima/dopo creazione
+  acquisto e partecipante, retry e concorrenza, sconto consumato una sola volta,
+  permessi admin, valuta/importo errati ed esito sconosciuto. Una review finale
+  Sol medium, commit locale dopo verifiche. Nessuna operazione cloud/provider.
+
+Decisione: recupero controllato approvato in chat dal proprietario; ripresa
+automatica e gestione tessere rimangono fuori da questo blocco.
+
+
+#### Piano di esecuzione del recupero approvato
+
+Vincoli: niente capture/refund nel recupero, niente cloud/provider reale,
+creazione/rinnovo tessera o UI; conservare modifiche locali esistenti.
+
+- [x] Gateway `get_order` SDK/fake: sola lettura, fake controllabile e test.
+- [x] Acquisti/partecipanti: ID stabili, create-only, verifica e riuso dei
+  documenti legacy univoci. Checkout normale e recupero condividono questa
+  deduplica per proteggere anche la corsa con il primo processo ancora attivo.
+  Collegamento ordine monotono via CAS.
+- [x] `EventOrderRecoveryService.recover_order(order_id)`: rifiuto immediato
+  dei membershipTargets, verifica di ordine/evento, singolo incasso finale,
+  EUR/importo/commissione/netto/data coerenti ed evento ancora valido. Ripresa
+  idempotente, collegamenti socio array-union, sconto riconciliato una volta.
+  Sconti legacy senza prenotazione/ricevuta attribuibile restano manuali:
+  il contatore da solo non dimostra se l'ordine sia stato già contato.
+- [x] Endpoint admin POST `recover_order_event`, DTO ordine esistente,
+  registrazione main; auth mancante/non-admin rifiutata con 401 secondo il
+  contratto esistente, metodi/DTO e gestione errori.
+- [x] RED→GREEN su gateway, deduplica e recupero; API con guasti prima/dopo
+  acquisto e partecipante, retry/concorrenza anche col checkout normale,
+  dati provider errati, membershipTargets, duplicati legacy ed esito ignoto.
+  Suite unitari/script, API completa, integrazione interessata e stress race.
+- [x] Unica review Sol medium, regressioni per le correzioni, esito documentato
+  e commit locale. Niente push/merge o nuova workstream implicita.
+
+Focus review: corsa recupero/capture originale, dati legacy duplicati o
+alterati, ricevuta sconto prima/dopo guasto, importi non finiti/valute diverse,
+side effect ripetuti (ticket/mail e collegamenti socio).
+
+
+Esito finale del coordinatore: **826 unitari, 39 test script, 107 API e 6
+integrazione sconti passati**; stress **20 corse da sei varianti, 120/120**.
+Runner emulatori exit 0 e arresto pulito; JUnit zero failure/error/skipped.
+Scanner zero segnalazioni e diff check pulito. Nessuna prova CI remota,
+deploy, chiamata PayPal reale o scrittura cloud.
+
+Review Sol medium: quattro Important, tutti riprodotti e corretti con prove
+RED→GREEN e nuova batteria completa. Il recupero rifiuta lookup soci estranei
+o malformati, qualsiasi partecipante malformato (nessuna omissione silenziosa),
+prezzi locali non finiti/negativi o incoerenti con il totale e acquisti legacy
+con timestamp, metodo o identità pagatore incompatibili con l'incasso letto.
+I timestamp equivalenti con fusi diversi sono confrontati come istanti.
+Aggiunti dieci scenari HTTP che verificano 409 e database invariato per i
+conflitti d'integrità. Nessun Critical o Minor riportato; esito accettato e
+corretto dal coordinatore, senza seconda delega.
+
+Endpoint locale implementato: POST `recover_order_event`, body
+`{"order_id": "<ordine esistente>"}`, autenticazione admin con il decorator
+esistente. Una recovery non invoca create/capture/refund del provider. Il
+checkout pubblico mantiene il blocco di un provisioning incompleto: non è
+stata introdotta una ripresa automatica. Nessun recupero tessere, evento
+scaduto, partecipanti ambigui o sconto legacy privo di attribuzione. I flag
+esistenti dei biglietti non vengono riscritti. Le prove dimostrano assenza di
+ulteriori document-created per gli stessi record; non certificano consegna
+exactly-once delle email da trigger esterni.

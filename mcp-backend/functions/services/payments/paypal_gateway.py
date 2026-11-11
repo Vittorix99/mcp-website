@@ -26,6 +26,7 @@ class PayPalGatewayResponse:
 class PayPalGateway(Protocol):
     def create_order(self, request: OrderRequest) -> PayPalGatewayResponse: ...
     def capture_order(self, order_id: str) -> PayPalGatewayResponse: ...
+    def get_order(self, order_id: str) -> PayPalGatewayResponse: ...
 
 
 class SdkPayPalGateway:
@@ -46,6 +47,11 @@ class SdkPayPalGateway:
         return self._timed("create_order", lambda: self._response(
             self._orders.orders_create({"body": request})))
 
+    def get_order(self, order_id: str) -> PayPalGatewayResponse:
+        return self._timed("get_order", lambda: self._response(self._orders.orders_get({
+            "id": order_id, "fields": "payment_source",
+        })))
+
     def capture_order(self, order_id: str) -> PayPalGatewayResponse:
         return self._timed("capture_order", lambda: self._response(self._orders.orders_capture({
             "id": order_id, "prefer": "return=representation",
@@ -64,6 +70,13 @@ class FakePayPalGateway:
         self._orders[order_id] = payload
         return PayPalGatewayResponse(201, {"id": order_id, "status": "CREATED"})
 
+    def get_order(self, order_id: str) -> PayPalGatewayResponse:
+        if order_id not in self._orders:
+            return PayPalGatewayResponse(404, {"error": "Unknown fake order"})
+        if order_id in self._captures:
+            return PayPalGatewayResponse(200, deepcopy(self._captures[order_id]))
+        return PayPalGatewayResponse(200, {"id": order_id, "status": "CREATED"})
+
     def capture_order(self, order_id: str) -> PayPalGatewayResponse:
         if order_id not in self._orders:
             return PayPalGatewayResponse(404, {"error": "Unknown fake order"})
@@ -75,12 +88,12 @@ class FakePayPalGateway:
                     "name": {"given_name": "Local", "surname": "Buyer"},
                     "email_address": "buyer@example.test",
                 }},
-                "purchase_units": [{"payments": {"captures": [{
+                "purchase_units": [{"reference_id": units[0].get("reference_id"), "payments": {"captures": [{
                     "id": f"FAKE-CAPTURE-{order_id}", "status": "COMPLETED",
                     "final_capture": True, "amount": deepcopy(units[0]["amount"]),
                     "create_time": "2026-01-01T00:00:00Z",
                     "seller_receivable_breakdown": {
-                        "paypal_fee": {"value": "0.00"},
+                        "paypal_fee": {"value": "0.00", "currency_code": "EUR"},
                         "net_amount": deepcopy(units[0]["amount"]),
                     },
                 }]}}],

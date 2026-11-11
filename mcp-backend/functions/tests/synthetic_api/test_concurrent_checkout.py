@@ -39,11 +39,12 @@ def capture_log(gateway, monkeypatch):
     return calls
 
 
-def concurrent_captures(http, order_ids):
-    def capture(order_id):
+def concurrent_captures(http, order_ids, routes=None):
+    def capture(order_id, route):
         # A Flask test client and its request context belong to one worker only.
         with http.application.test_client() as client:
-            response = client.post('/capture', json={'order_id': order_id})
+            response = client.post(route, json={'order_id': order_id},
+                                   headers={'Authorization': 'Bearer test-token'})
             return response.status_code, response.get_json()
 
     def deadline_exceeded():
@@ -59,7 +60,8 @@ def concurrent_captures(http, order_ids):
     deadline.start()
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(capture, order_id) for order_id in order_ids]
+            futures = [pool.submit(capture, order_id, route) for order_id, route in
+                       zip(order_ids, routes or ['/capture'] * len(order_ids), strict=True)]
             return [future.result() for future in futures]
     finally:
         deadline.cancel()

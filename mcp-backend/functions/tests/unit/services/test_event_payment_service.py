@@ -88,6 +88,9 @@ class _DummyPurchaseRepo:
         self.created.append(purchase)
         return "pur-1"
 
+    def create_for_order(self, purchase):
+        return self.create(purchase)
+
     def create_from_model(self, purchase):
         return self.create(purchase)
 
@@ -128,6 +131,9 @@ class _DummyParticipantRepo:
     def create(self, event_id, payload):
         self.created.append((event_id, payload))
         return "part-1"
+
+    def create_for_purchase(self, event_id, participant, checkout_index=0):
+        return self.create_from_model(event_id, participant)
 
     def create_from_model(self, event_id, participant):
         self.created.append((event_id, participant))
@@ -481,7 +487,7 @@ def test_capture_loser_conflict_leaves_no_side_effects(monkeypatch):
 
     service.discount_code_repository = SimpleNamespace(reserve_usage=lambda *args: "token", begin_capture=lambda *args: None,
                                                        consume_reservation=forbidden)
-    service.purchase_repository = SimpleNamespace(create=forbidden, create_from_model=forbidden,
+    service.purchase_repository = SimpleNamespace(create=forbidden, create_from_model=forbidden, create_for_order=forbidden,
                                                   update_participants=forbidden)
     monkeypatch.setattr(service, "save_purchase", forbidden)
     monkeypatch.setattr(service, "capture_paypal_order", lambda order_id: _order_payload())

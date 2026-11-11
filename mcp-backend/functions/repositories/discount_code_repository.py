@@ -149,6 +149,9 @@ class DiscountCodeRepository(BaseRepository[DiscountCode]):
     def release_reservation(self, discount_code_id: str, order_id: str, token: str) -> None:
         self._reservation_operation(discount_code_id, order_id, "release", token)
 
+    def reconcile_usage(self, discount_code_id: str, order_id: str) -> None:
+        self._reservation_operation(discount_code_id, order_id, "recover")
+
     def consume_reservation(self, discount_code_id: str, order_id: str, token: str) -> None:
         self._reservation_operation(discount_code_id, order_id, "consume", token)
 
@@ -192,10 +195,17 @@ class DiscountCodeRepository(BaseRepository[DiscountCode]):
                 _save({"reservations": reservations})
                 return new_token
 
-            terminal = "consumed" if operation == "consume" else "released"
-            if not current and operation != "capture" and receipt == {"token": token, "state": terminal}:
+            effective_token = token
+            if operation == "recover":
+                if not current and receipt.get("state") == "consumed":
+                    return
+                if not current or current["state"] != "capturing":
+                    raise ConflictError("Discount usage cannot be attributed to this order: manual verification required")
+                effective_token = current["token"]
+            terminal = "consumed" if operation in {"consume", "recover"} else "released"
+            if not current and operation != "capture" and receipt == {"token": effective_token, "state": terminal}:
                 return
-            if not current or current["token"] != token:
+            if not current or current["token"] != effective_token:
                 raise ConflictError("Prenotazione sconto scaduta o sostituita")
             if operation == "capture":
                 if current["state"] != "reserved":
@@ -207,8 +217,8 @@ class DiscountCodeRepository(BaseRepository[DiscountCode]):
                 raise ConflictError("Cattura sconto non iniziata")
             del reservations[order_id]
             changes = {"reservations": reservations}
-            if operation == "consume":
+            if operation in {"consume", "recover"}:
                 changes.update(usedCount=used + 1, updatedAt=firestore.SERVER_TIMESTAMP)
-            _save(changes, {"token": token, "state": terminal})
+            _save(changes, {"token": effective_token, "state": terminal})
 
         return self._retry_write(_change)

@@ -1,4 +1,8 @@
 from typing import Iterable, List, Optional
+from hashlib import sha256
+
+from google.api_core.exceptions import AlreadyExists
+from errors.service_errors import ConflictError
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
@@ -38,6 +42,39 @@ class ParticipantRepository:
     def create_from_model(self, event_id: str, participant: EventParticipant) -> str:
         doc_ref = self._collection(event_id).add(participant.to_firestore(include_none=True))[1]
         return doc_ref.id
+
+    @staticmethod
+    def assert_same_checkout(existing: EventParticipant, expected: EventParticipant) -> None:
+        if existing.checkout_index is not None and existing.checkout_index != expected.checkout_index:
+            raise ConflictError("Participant checkout position is inconsistent")
+        fields = ("event_id", "purchase_id", "email", "name", "surname", "phone", "birthdate",
+                  "membership_id", "membership_included", "price", "price_original",
+                  "discount_code_id", "discount_code", "payment_method")
+        if any(getattr(existing, field) != getattr(expected, field) for field in fields):
+            raise ConflictError("Participant does not match captured order")
+
+    def create_for_purchase(self, event_id: str, participant: EventParticipant, checkout_index: int = 0) -> str:
+        participant.checkout_index = checkout_index
+        collection = self._collection(event_id)
+        matches = [doc for doc in collection.where(
+            filter=FieldFilter("purchase_id", "==", participant.purchase_id)).stream()
+            if (doc.to_dict() or {}).get("email") == participant.email
+            and (doc.to_dict() or {}).get("checkoutIndex") in (None, checkout_index)]
+        if len(matches) > 1:
+            raise ConflictError("Duplicate checkout participants: manual verification required")
+        if matches:
+            existing = self._model_from_snapshot(matches[0], event_id)
+            self.assert_same_checkout(existing, participant)
+            return existing.id
+        key = participant.purchase_id + ":" + str(checkout_index)
+        ref = collection.document("checkout-" + sha256(key.encode()).hexdigest())
+        try:
+            ref.create(participant.to_firestore(include_none=True))
+        except AlreadyExists:
+            existing = self._model_from_snapshot(ref.get(), event_id)
+            self.assert_same_checkout(existing, participant)
+            return existing.id
+        return ref.id
 
     def update_from_model(self, event_id: str, participant_id: str, participant: EventParticipant) -> bool:
         self._collection(event_id).document(participant_id).set(

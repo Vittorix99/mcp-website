@@ -109,3 +109,18 @@ def test_aborted_write_is_retried_like_a_failed_precondition(capture_repository)
     repo.mark_captured('order-1', 'paypal')
 
     assert doc.update.call_count == 2
+
+
+def test_linking_same_purchase_never_regresses_completed_order(capture_repository):
+    repo, doc = capture_repository
+    doc.get.return_value = _snapshot({'captured': True, 'orderStatus': 'COMPLETED', 'purchase_id': 'p'})
+    repo.set_purchase_id('order-1', 'p')
+    doc.update.assert_not_called()
+
+
+def test_linking_a_different_purchase_is_rejected(capture_repository):
+    repo, doc = capture_repository
+    doc.get.return_value = _snapshot({'captured': True, 'purchase_id': 'other'})
+    with pytest.raises(ConflictError):
+        repo.set_purchase_id('order-1', 'p')
+    doc.update.assert_not_called()

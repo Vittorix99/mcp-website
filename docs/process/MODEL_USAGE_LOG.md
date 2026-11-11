@@ -208,3 +208,15 @@ stati di pagamento e concorrenza.
 
 Conteggio dispatch effettivi nel blocco: 0 incarichi Luna, 1 review Sol.
 Token e costi non disponibili.
+
+
+## Recupero controllato ordini — 2026-11-11
+
+Implementazione nativa del coordinatore, nessuna delega Luna: stato pagamento,
+concorrenza e permessi richiedono Sol. Approvato in chat dal proprietario.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `order_recovery_review_sol`: unica review finale recupero admin, deduplica condivisa, ricevute sconto, auth e failure window | medium | Conclusa: 4 Important (lookup soci estranei, dati salvati malformati, prezzi locali non finiti, metadati legacy alterati), tutti riprodotti RED e corretti dal coordinatore; nessun Critical/Minor. Esito accettato e corretto, nessuna seconda delega. Verifica finale: 826 unitari, 39 test script, 107 API, 6 integrazione sconti e 20×6 scenari concorrenti (120/120), tutti passati; runner emulatori exit 0 e arresto pulito. Scanner zero segnalazioni, diff check pulito. Nessuna CI remota/cloud/provider reale. |
+
+Conteggio dispatch effettivi: 0 incarichi Luna, 1 review Sol. Token/costi non disponibili.
