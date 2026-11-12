@@ -7,6 +7,7 @@ import pytest
 from dto.preorder import OrderCaptureDTO
 from errors.service_errors import ConflictError, ExternalServiceError
 from models import Event, EventOrder
+from models.enums import EventStatus
 from services.payments.paypal_gateway import PayPalGatewayResponse
 from tests.unit.services.test_event_payment_service import _make_service, _order_payload, _participant
 
@@ -57,6 +58,18 @@ def test_unsupported_local_state_rejected_before_provider_or_writes(recovery, pr
         case.service.recover_order('order-1')
     assert case.reads == []
     assert case.payments.purchase_repository.created == []
+    assert case.payments.order_repository.captured_updates == []
+
+
+@pytest.mark.parametrize('state', [EventStatus.SOLD_OUT, EventStatus.COMING_SOON, EventStatus.ENDED])
+def test_unavailable_event_recovery_requires_manual_handling(recovery, state):
+    case = recovery
+    case.payments.event_repository.model.status = state
+    with pytest.raises(ConflictError):
+        case.service.recover_order('order-1')
+    assert case.reads == []
+    assert case.payments.purchase_repository.created == []
+    assert case.payments.participant_repository.created == []
     assert case.payments.order_repository.captured_updates == []
 
 

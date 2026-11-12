@@ -132,7 +132,7 @@ Fonti: [event_rules.py](../../../mcp-backend/functions/domain/event_rules.py),
 | --- | --- | --- | --- |
 | EVT-01 | Eventi `active`, `coming_soon`, `sold_out`, `ended`; listing admin/pubblico | Stati serializzati correttamente; admin vede conteggi reali; verificare distinzioni UI. Il listing pubblico attuale non filtra tutti gli stati. | Seed/API/UI D |
 | EVT-02 | Checkout su evento ended o temporalmente concluso anche se active | Rifiuto prima di chiamare il provider; zero ordini/acquisti/partecipanti nuovi. | API D |
-| EVT-03 | Checkout su coming_soon o sold_out non concluso | Guard attuale blocca ended/tempo, non questi stati: rilevare accettazione o rifiuto API/UI e confrontare disponibilità desiderata, Q-02. | API/UI Q |
+| EVT-03 | Checkout su coming_soon o sold_out non concluso | Regola owner 2026-11-12: creazione e capture rifiutate prima del provider; riapertura permette ripresa, retry già completato restituisce ricevuta. Verificato via API/emulatore; UI separata. | API D / UI Q |
 | EVT-04 | Evento con 0 iscritti, capienza parziale, esatta e richiesta oltre capienza | Conteggi/fill rate esatti; verificare blocco oltre capienza. Nessun controllo di capienza trovato nel checkout esaminato: Q-02. | Seed/API Q |
 | EVT-05 | Capienza assente o zero; report con nessun acquisto/ingresso | Nessuna divisione per zero o NaN; percentuali secondo contratto attuale a zero; nessun prezzo medio inventato. | Seed/API D |
 | EVT-06 | Evento 23:00-05:00; fine uguale all'inizio; fine non parsabile | Fine al giorno successivo per orario <= inizio; fallback 12 ore se fine non parsabile; checkout prima/al/dopo termine. | Locale D |
@@ -295,7 +295,7 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 | Punto | Evidenza attuale e decisione/verifica necessaria | Casi collegati |
 | --- | --- | --- |
 | Q-01 | Checkout usa anno in membership_years, scanner e attivi usano subscription_valid. Date non sono un controllo unico di scadenza. Testare combinazioni e chiarire la regola uniforme desiderata. | MEM-03, MEM-04 |
-| Q-02 | Guard attiva evento blocca ended/termine temporale; nessun blocco sold_out/coming_soon o capienza trovato nel checkout esaminato. Distinguere blocco UI e garanzia backend. | EVT-03, EVT-04 |
+| Q-02 | Dal 2026-11-12 backend blocca ended/termine temporale e sold_out/coming_soon, su conferma owner. Capienza non imposta automaticamente; regola e concorrenza ultimo posto restano da concordare. UI separata. | EVT-03, EVT-04 |
 | Q-03 | Formula confermata dal proprietario il 2026-11-12: quota tessera inclusa nel prezzo evento, sconto applicato all’intero prezzo e fee aggiunta dopo. DIS-08 prova la formula e i dati socio; PAY-10 rifiuta importi non verificabili. Nessuna aggiunta implicita della quota al totale. | PAR-03, PAY-10, DIS-08 |
 | Q-04 | StatsService filtra solo status, analytics evento/snapshot filtrano anche capture_status, tipo, ref_id e count. Stati vuoti/non definitivi possono passare i filtri; incassi manuali da participant non sono automaticamente Purchase. Stabilire significato di ogni metrica. | PAY-03, PAY-13, STA-03, STA-06 |
 | Q-05 | Entrate raw, flag participant e scansioni nella finestra non sono lo stesso insieme. Snapshot usa finestra fissa 22:00-06:00 e KPI entered dalla somma bucket; endpoint diretto può contare flag/scan differenti. Scritture scan/flag separate. | QR-10, QR-12, QR-15, STA-10 |
@@ -1174,3 +1174,28 @@ Il costo della scelta conservativa è la ritenzione degli ordini legacy o con
 qualunque tentativo: non vengono eliminati automaticamente senza riconciliazione.
 La revisione del rollout resta al gate deploy: cleanup conservativo prima,
 producer del marker dopo. Nessun deploy eseguito o prova CI remota.
+
+
+### EVT-03 / Q-02 — blocco checkout per stato evento, 2026-11-12
+
+Regola confermata dal proprietario in chat: niente ordini per `sold_out`,
+`coming_soon` o `ended`. Patch al controllo condiviso: creazione pubblica e
+capture rifiutate prima del provider; il recupero admin usa lo stesso gate e
+richiede gestione manuale se lo stato non consente acquisti. Retry pubblico
+completato conserva la ricevuta e non ripete l'incasso. Nessuna modifica a
+inserimenti admin, validità tessera, capienza o riconciliazione legacy.
+
+RED: 4 nuovi casi API su sold_out/coming_soon restituivano 201/200 anziché 400;
+2 casi recovery non sollevavano conflitto. ENDED risultava già bloccato.
+GREEN: **888 unitari e 233 API passati**, inclusi 9 nuovi casi con Firestore
+emulato e 3 unitari recovery. Verificati ordine invariato dopo rifiuto,
+zero chiamate provider, ripresa dopo riapertura e ricevuta dopo cambio stato.
+Runner emulatori exit 0 e arresto pulito; JUnit `.local/staging/api-results.xml`.
+Scanner sui tre file applicativi/test: zero finding; diff check pulito.
+Unica review indipendente Sol high senza rilievi, accettata dal coordinatore.
+Warning preesistente WeasyPrint/HarfBuzz durante pytest.
+
+Il gate controlla lo stato letto: non è una prenotazione posti e non rende
+atomico un cambio stato concorrente dopo la lettura. Stato legacy assente o
+sconosciuto mantiene il comportamento precedente. Q-02 rimane aperta per la
+capienza; UI, cloud, provider reali e CI remota non verificati in questo blocco.

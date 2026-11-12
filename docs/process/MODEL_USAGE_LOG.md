@@ -256,3 +256,15 @@ pagamento, cancellazione e concorrenza.
 | Codex / gpt-6.1-sol | `ops07_review_sol`: unica review finale su timestamp, eligibility cleanup, marker pre-provider e CAS delete | medium | Conclusa senza Critical/Important/Minor, accettata dal coordinatore. Successivo controllo autore: quattro forme list/map di metadati riprodotte RED e corrette con confronti conservativi; nessuna seconda delega. Verifica finale 885 unitari, 39 script, 224 API e 6 integrazione sconti verdi, exit 0 e arresto pulito. Scanner zero segnalazioni e diff check pulito. Nessun cleanup cloud, deploy o provider reale. |
 
 Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## EVT-03 — disponibilità evento nel checkout — 2026-11-12
+
+Implementazione nativa del coordinatore: controlli su pagamenti e recupero,
+nessuna delega Luna. Regola sold_out/coming_soon/ended confermata dall'owner.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `event_availability_review_sol`: unica review finale del gate condiviso, create/capture, recovery e retry completato | high | Conclusa senza rilievi; accettata dal coordinatore. Verifiche eseguite dal coordinatore: 888 unitari, 233 API passati, exit 0 e arresto pulito emulatori, scanner 0 e diff check pulito. Review ha letto l'evidenza senza rieseguire le suite. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
