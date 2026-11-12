@@ -346,3 +346,16 @@ nessun cambio configurazione cloud o provider reale.
 | Codex / gpt-6.1-sol | `ops06_final_review`: unica review finale isolamento provider e override gender disabilitato | high | Conclusa senza rilievi; accettata dal coordinatore. Evidenze1257 unitari,358 API,14 Sender focalizzati e2 smoke Python+client HTTP emulato PASS; API JUnit zero failure/error/skip, exit0/shutdown pulito, scanner sorgenti0/diff pulito. Nessun rerun del reviewer. Script44 invariati riutilizzati; nessun deploy/cloud/provider reale/CI remota. |
 
 Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-08 — pulizia conservativa token scanner — 2026-11-12
+
+Proseguimento sviluppo richiesto dal proprietario. Verifiche e cancellazioni
+solo nell'emulatore dedicato; nessuna pulizia cloud o modifica schedule.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops08_token_cleanup_tests`: matrice soglia7 giorni e timestamp con client in memoria | medium | Conclusa:10 verdi e6 RED su timestamp malformati. Sol ha corretto il nome campo fixture in is_active e aggiunto il caso campo assente (17 casi finali); diff accettato. Nessuna modifica applicativa delegata. |
+| Codex / gpt-6.1-sol | `ops08_final_review`: unica review finale soglia token, cancellazione condizionale e storico scansioni | high | Conclusa senza rilievi, accettata dal coordinatore. Verificati1274 unitari,364 API (6 nuovi),2 smoke Python e client HTTP emulato PASS; API JUnit zero failure/error/skip, runner exit0/shutdown pulito, source scanner0/diff pulito. Nessun rerun reviewer;44 script invariati riutilizzati. Nessuna pulizia cloud/deploy/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.

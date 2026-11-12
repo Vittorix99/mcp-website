@@ -86,13 +86,18 @@ def _cleanup_orders(now: datetime) -> int:
 def _cleanup_scan_tokens(now: datetime) -> int:
     """Elimina token scanner scaduti da piu' di 7 giorni."""
     threshold = now - timedelta(days=7)
-    refs = []
+    deleted = 0
     for doc in db.collection("scan_tokens").stream():
         data = doc.to_dict() or {}
-        expires_at = _to_utc(data.get("expires_at"))
-        if expires_at is not None and expires_at < threshold:
-            refs.append(doc.reference)
-    deleted = _batch_delete(refs)
+        expires_at = data.get("expires_at")
+        if not isinstance(expires_at, datetime) or _to_utc(expires_at) >= threshold:
+            continue
+        try:
+            doc.reference.delete(option=db.write_option(last_update_time=doc.update_time))
+        except (FailedPrecondition, Aborted, NotFound):
+            # Never delete using eligibility read before a renewal or another writer.
+            continue
+        deleted += 1
     logger.info("cleanup_scan_tokens: %d token scaduti eliminati", deleted)
     return deleted
 

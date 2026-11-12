@@ -281,7 +281,7 @@ Fonti: [decoratori API](../../../mcp-backend/functions/api/decorators/__init__.p
 | OPS-05 | Omaggi: bulk con già inviato/non inviato; resend singolo | Bulk salta già inviati, singolo può reinviare; controllare sent/skipped/failed e flag con provider fake. | Locale D |
 | OPS-06 | Wallet/Sender disabilitati e gender fake durante seed | Nessuna attività live su Pass2U/Sender; guasti fake non cancellano soci/partecipazioni. Verifica wallet live separata e rinviata. | Locale D |
 | OPS-07 | Ordine non catturato prima/al/dopo 24 ore; captured; timestamp assente | Cleanup conservativo con timestamp corrente/legacy, marker pre-provider e CAS delete. Preserva recenti, pagati, tentati, legacy senza prova e metadati ambigui. Verificato il confine 24 ore e le corse con capture/recupero. | API D |
-| OPS-08 | Token scanner scaduto da meno/esattamente/più di 7 giorni | Cleanup rimuove solo oltre soglia; scan storici non eliminati dal cleanup token. | Locale D |
+| OPS-08 | Token scanner scaduto da meno/esattamente/più di 7 giorni | Solo oltre soglia; timestamp ambigui conservati, delete condizionale alla versione, scansioni storiche intatte. Perimetro ed evidenze sotto. | API D |
 | OPS-09 | Rigenera seed con stesso seed RNG, poi interruzione e ripresa | Stessi ID/relazioni/conteggi; no duplicati; errore parziale esplicito; guard progetto/bucket rifiuta produzione. Test locale prima di cloud. | Locale D |
 | OPS-10 | App su dataset completo: ricerca, filtri, ordinamento, paginazione | Risultati completi senza perdere/duplicare righe fra pagine; filtri socio/anno/evento/stato confrontati col manifesto. Misurare tempi, senza chiamarla ancora prova concorrente. | API/UI D |
 
@@ -1642,3 +1642,48 @@ Domanda owner su pulizia periodica ordini: già implementata in OPS-07,
 `cleanup_stale_data` esportata da main e schedulata0 3 * * * Europe/Rome.
 Criteri conservativi oltre24 ore e fence/CAS restano invariati. Nessuna prova
 dell'attivazione di questa versione su cloud e nessun cambio schedule/deploy.
+
+
+### OPS-08 — pulizia token scanner senza perdere rinnovi o storico, 2026-11-12
+
+Proseguimento sviluppo autorizzato dal proprietario; perimetro annunciato
+prima del lavoro: token scanner e conservazione scansioni, solo emulatore.
+Schedule03:00 Europe/Rome, cleanup ordini e job rimangono invariati.
+
+Difetti riprodotti:6 RED unitari su expires_at di tipo stringa/numero/bool/
+lista/dict interrompevano il job con TypeError, impedendo pulizie successive.
+3 RED API reali: timestamp non valido e cancellazione batch su snapshot
+vecchio dopo proroga/rimozione concorrente (contava2 invece di1). Una prima
+esecuzione del nuovo test non si raccoglieva per import ScanToken errato:
+corretto l'import prima dei RED runtime, senza modifica applicativa richiesta.
+
+Ora si considerano solo datetime validi: convenzione naive UTC mantenuta,
+confronto per istante per timezone esplicite. Scadenza strettamente anteriore
+a now-7 giorni: il confine esatto viene conservato. Campi assenti/null e
+valori malformati restano intatti; nessun parsing stringhe o migrazione.
+Delete con precondizione update_time del documento letto, come per OPS-07;
+FailedPrecondition/Aborted/NotFound fanno saltare il documento senza retry
+su eleggibilità obsoleta. Contatore incrementato solo dopo delete riuscito.
+Token attivi/inattivi seguono la stessa soglia di scadenza.
+
+17 unitari nuovi: confini, futuro, is_active, forme invalide/assenti, UTC
+naive e offset, mix e seconda esecuzione con zero cancellazioni. Sei nuovi
+casi API su Firestore reale
+emulato: confini per attivi/inattivi, dati ambigui, cambio scadenza/rimozione
+tra lettura ed eliminazione, e501 token. EntranceScan conservato anche
+quando il token referenziato viene eliminato; nessuna cascata sugli ingressi.
+La race usa snapshot/update_time e delete reali, con hook controllato sulla
+lettura, non un falso confronto di versioni in memoria.
+
+GREEN:1274 unitari e364 API, JUnit API zero failure/error/skip, runner exit0
+e shutdown pulito. Log `.local/staging/ops08-{unit,api-red,api-green}.log` e
+`ops08-luna-unit.log`; JUnit `.local/staging/api-results.xml`. Source scanner
+functions0/diff check pulito. Due smoke Python e client HTTP completo
+Functions/Auth/Firestore/Storage PASS, exit0/shutdown pulito; log
+`.local/staging/ops08-smoke.log`. Unica review Sol high senza rilievi, accettata.
+44 test script precedenti riutilizzati: nessuno script/config cambiato.
+
+Tradeoff: un delete condizionale per token, più RPC del vecchio batch, con
+prova emulata su501 record; non è una misura prestazionale cloud. Nessuna
+modifica alle regole di accesso scanner, allo storico, ai provider o ad altri
+cleanup; nessuna pulizia cloud/deploy o prova di schedulazione distribuita.
