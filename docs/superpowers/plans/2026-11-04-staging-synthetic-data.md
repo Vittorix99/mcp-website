@@ -1488,3 +1488,50 @@ verificatore ha controllato sorgenti/evidenze senza rieseguire le suite.
 Scanner zero finding, diff check pulito. Nessun deploy, provider reale,
 migrazione UID, cambio credenziali/revoche o prova CI remota. La copertura
 OPS-01 è quella qui specificata, non una certificazione di tutte le API.
+
+
+### OPS-02 — metodi HTTP e contratti delle richieste, 2026-11-12
+
+Blocco approvato dal proprietario in chat dopo OPS-01. Perimetro:58 handler
+core elencati in `tests/unit/api/test_ops02_request_contracts.py`: soci,
+eventi admin/pubblici e guide, partecipanti/invii, acquisti/recupero, checkout,
+validazione sconto, scanner e cinque percorsi personali. La matrice prova un
+metodo errato per handler, otto body assenti/malformati/non-oggetto sui36
+handler con body diversi dalla create checkout, e sei lookup senza query
+obbligatoria. Autenticazione simulata in questa suite; non estende OPS-01
+né dichiara coperti tutti gli export API o tutte le combinazioni di campi.
+
+La creazione soci mantiene la validazione anagrafica nel service: il DTO
+consente campi facoltativi, ma input vuoto viene rifiutato prima della
+repository. Prima versione del test delegato sostituiva quel service e
+produceva4 errori artificiali; corretto il test usando service reale e
+trap sulla repository. Nessuna modifica alla regola di creazione soci.
+
+Difetto checkout riprodotto: il decorator evento usava `.get()` su JSON/cart
+item non-oggetto e passava ID non stringa direttamente a Firestore; alias
+`event_id` e trim previsti dal DTO non venivano rispettati. Ora valida con
+`PreOrderDTO` prima di dereferenziare i campi o leggere l'evento, usando
+l'ID normalizzato. Nessun cambiamento ai ruoli, alle regole capienza, pricing
+o cattura. Input rifiutati restituiscono400; metodi errati405 nel contratto
+esaminato con autenticazione valida. Nessun allargamento di extra=forbid.
+
+42 nuovi casi API usano parsing Flask reale e snapshot di tutti i documenti
+dell'emulatore prima/dopo i rifiuti: niente ordini, hold, preferenze/claim UID
+o chiamate provider. Verificati extra rifiutati nei DTO stretti e ignorati
+nel cart item/creazione partecipante, senza persistenza arbitraria; create
+valide con alias/trim/extra cart mantengono44EUR. Altri campi errati, query
+personali e richieste capture/recovery/scanner restano senza scritture.
+
+RED reale:13 fallimenti e316 passati; GREEN:329 API passati. Unitari1240
+(888 precedenti+352 nuovi),44 test script passati. JUnit API zero failure,
+error e skip; runner exit0 e shutdown pulito. Due smoke Python e client
+HTTP Functions/Auth/Firestore/Storage PASS, exit0 e shutdown pulito. Log
+`.local/staging/ops02-{api-red,api-green,unit,scripts,smoke}.log`; JUnit
+`.local/staging/api-results.xml`. Warning preesistenti WeasyPrint/Google.
+
+Unica review finale Sol high senza rilievi; accettata dal coordinatore.
+Scanner sui sorgenti modificati zero finding; diff check pulito. Lo scanner
+intero working tree segnala due righe solo nel log locale preesistente
+ignorato `member-auth-red.log`, non nei sorgenti del blocco.
+Nessun deploy, cloud/provider reale o prova CI remota. Il prossimo blocco
+richiede il confronto con il proprietario.

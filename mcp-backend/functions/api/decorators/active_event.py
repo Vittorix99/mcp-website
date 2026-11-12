@@ -1,9 +1,12 @@
 from functools import wraps
 
 from flask import jsonify
+from pydantic import ValidationError as PydanticValidationError
 
 from config.firebase_config import db
+from dto.preorder import PreOrderDTO
 from utils.events_utils import ensure_event_is_active
+from utils.http_responses import handle_pydantic_error
 
 
 def require_active_event(handler):
@@ -23,14 +26,12 @@ def require_active_event(handler):
         if not payload:
             return jsonify({"error": "Missing request body"}), 400
 
-        cart = payload.get("cart", [])
-        if not isinstance(cart, list) or len(cart) != 1:
-            return jsonify({"error": "Only one cart item is allowed"}), 400
-
-        cart_item = cart[0] or {}
-        event_id = cart_item.get("eventId")
-        if not event_id:
-            return jsonify({"error": "Missing eventId"}), 400
+        # Validate before using nested values or looking up the event.
+        try:
+            order = PreOrderDTO.model_validate(payload)
+        except PydanticValidationError as err:
+            return handle_pydantic_error(err)
+        event_id = order.cart[0].event_id
 
         event_snapshot = db.collection("events").document(event_id).get()
         if not event_snapshot.exists:

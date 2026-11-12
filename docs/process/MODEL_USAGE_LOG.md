@@ -305,3 +305,17 @@ coordinatore: autorizzazione e claim concorrenti; nessuna delega Luna.
 | Codex / gpt-6.1-sol | `ops01_identity_review_sol`: unica review finale identità JWT/UID, primo link verificato, preferenze CAS e guardie emulatori | high | Conclusa senza rilievi; accettata dal coordinatore. Evidenze eseguite dal coordinatore:888 unitari,44 script,57 Auth Emulator senza bypass verifier,287 API,36 integrazioni membri,6 integrazioni sconti,2 smoke Python e client smoke HTTP completo passati. JUnit zero failure/error/skip, runner exit0/shutdown pulito, scanner0/diff pulito. Review ha letto le evidenze senza duplicare suite. Nessun deploy/cloud/provider reale/CI remota. |
 
 Dispatch effettivi:0 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-02 — metodi HTTP e contratti richiesta — 2026-11-12
+
+Blocco autorizzato dal proprietario in chat. Diagnosi checkout e correzioni
+a cura del coordinatore; matrice ripetitiva dei contratti delegata a Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops02_contract_matrix`: test su metodi errati e body non validi nelle API core elencate nel test | medium | Conclusa:352 test mirati passati; Sol ha corretto l’assunzione del mock su create_membership (validazione nel service prima della repository), letto il diff e accettato il risultato. Nessuna modifica applicativa delegata. |
+
+| Codex / gpt-6.1-sol | `ops02_final_review`: unica review finale dei contratti HTTP/DTO e del preflight checkout | high | Conclusa senza rilievi; accettata dal coordinatore. Verificati1240 unitari (352 nuovi),44 script,329 API (42 nuovi),2 smoke Python e client HTTP emulato PASS; JUnit API zero failure/error/skip, exit0/shutdown pulito. Scanner sorgenti modificati0/diff pulito. Review ha letto le evidenze senza rieseguire suite. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
