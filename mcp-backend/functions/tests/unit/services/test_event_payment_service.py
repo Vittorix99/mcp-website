@@ -3,6 +3,7 @@ import datetime
 from types import SimpleNamespace
 
 import pytest
+from tests.utils import DummyCapacityRepository
 from pydantic import ValidationError as PydanticValidationError
 
 from dto import CheckoutParticipantDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
@@ -135,7 +136,7 @@ class _DummyParticipantRepo:
         self.created.append((event_id, payload))
         return "part-1"
 
-    def create_for_purchase(self, event_id, participant, checkout_index=0):
+    def create_for_purchase(self, event_id, participant, checkout_index=0, capacity_reservation_id=None):
         return self.create_from_model(event_id, participant)
 
     def create_from_model(self, event_id, participant):
@@ -152,6 +153,7 @@ def _make_service():
     service.membership_repository = _DummyMembershipRepo()
     service.membership_settings_repository = _DummyMembershipSettingsRepo()
     service.order_repository = _DummyOrderRepo()
+    service.capacity_repository = DummyCapacityRepository()
     service.purchase_repository = _DummyPurchaseRepo()
     service.participant_repository = _DummyParticipantRepo()
     return service
@@ -800,7 +802,7 @@ def test_cleanup_winner_prevents_provider_capture(monkeypatch):
     service.order_repository = _DummyOrderRepo(order_data=EventOrder(order_id='order-1', event_id='evt-1', total=10))
     def deleted(*args):
         raise NotFoundError('Order removed by cleanup')
-    service.order_repository.mark_capture_started = deleted
+    service.capacity_repository.begin_capture = deleted
     monkeypatch.setattr(service, 'capture_paypal_order', lambda _: pytest.fail('Provider called after cleanup removed order'))
     with pytest.raises(NotFoundError):
         service.capture_order_event(OrderCaptureDTO(order_id='order-1'))

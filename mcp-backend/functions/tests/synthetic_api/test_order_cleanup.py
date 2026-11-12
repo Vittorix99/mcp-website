@@ -84,12 +84,12 @@ def test_provider_window_is_fenced_before_cleanup(http, sample, gateway, monkeyp
 def test_cleanup_winner_cancels_capture_before_provider(http, sample, gateway, monkeypatch, discount):
     order_id = create_checkout_order(http, sample, gateway, discount)
     age_order(order_id, sample.now)
-    repo = event_payment_api.event_payment_service.order_repository
-    original = repo.mark_capture_started
-    def start(target):
+    repo = event_payment_api.event_payment_service.capacity_repository
+    original = repo.begin_capture
+    def start(*args):
         assert _cleanup_orders(sample.now) == 1
-        return original(target)
-    monkeypatch.setattr(repo, 'mark_capture_started', start)
+        return original(*args)
+    monkeypatch.setattr(repo, 'begin_capture', start)
     result = http.post('/capture', json={'order_id': order_id})
     assert result.status_code == 404, result.get_json()
     assert gateway.capture_calls == 0
@@ -99,7 +99,7 @@ def test_cleanup_winner_cancels_capture_before_provider(http, sample, gateway, m
     if discount:
         data = db.document('discount_codes/recovery-discount').get().to_dict()
         assert data['usedCount'] == 0
-        assert data['reservations'][order_id]['state'] == 'reserved'
+        assert data.get('reservations', {}) == {}
 
 
 def test_capture_start_after_cleanup_snapshot_wins_conditional_delete(http, sample, gateway, monkeypatch):
@@ -109,7 +109,8 @@ def test_capture_start_after_cleanup_snapshot_wins_conditional_delete(http, samp
     original = DocumentReference.delete
     def before_delete(ref, *args, **kwargs):
         if ref.path == 'orders/' + order_id:
-            repo.mark_capture_started(order_id)
+            capture = http.post('/capture', json={'order_id': order_id})
+            assert capture.status_code == 200, capture.get_json()
         return original(ref, *args, **kwargs)
     with monkeypatch.context() as patch:
         patch.setattr(DocumentReference, 'delete', before_delete)

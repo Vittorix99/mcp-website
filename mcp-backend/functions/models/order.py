@@ -31,6 +31,7 @@ class EventOrder(Order):
     """Order specialization for event purchases (single cart item)."""
 
     event_id: Optional[str] = field(default=None, metadata={"firestore_name": "eventId"})
+    capacity_reservation_id: Optional[str] = field(default=None, metadata={"firestore_name": "capacityReservationId"})
     participants: List[Dict[str, Any]] = field(default_factory=list)
     event_price: float = field(default=0.0, metadata={"firestore_name": "eventPrice"})
     event_fee: float = field(default=0.0, metadata={"firestore_name": "eventFee"})

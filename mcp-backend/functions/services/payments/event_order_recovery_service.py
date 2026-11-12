@@ -115,6 +115,7 @@ class EventOrderRecoveryService:
         if order.captured and order.order_status == 'COMPLETED' and existing:
             return order_capture_to_response(purchase_id=existing.id, payment_method=order.payment_method)
 
+        payments.capacity_repository.assert_recoverable(order.event_id, order.capacity_reservation_id, order_id)
         info = self._read_capture(order)
         mode = order.purchase_mode or EventPurchaseAccessType.PUBLIC
         expected = payments._purchase_model(order_id, info, order.event_id, mode,
@@ -149,11 +150,13 @@ class EventOrderRecoveryService:
             discount_code_id=order.discount_code_id, discount_code=order.discount_code,
             discount_amount=order.discount_amount)
         payments.order_repository.set_purchase_id(order_id, purchase_id)
+        payments.capacity_repository.attach_purchase(order.event_id, order.capacity_reservation_id, order_id, purchase_id)
         payments.purchase_repository.update_participants(purchase_id, len(participants),
             sorted({member.id for member in memberships.values() if member.id}))
         payments.handle_event_participants(order.event_id, participants, [], purchase_id,
             price, memberships,
             price_original=order.original_price, discount_code_id=order.discount_code_id,
-            discount_code=order.discount_code)
+            discount_code=order.discount_code, capacity_reservation_id=order.capacity_reservation_id)
+        payments.capacity_repository.complete(order.event_id, order.capacity_reservation_id, order_id, purchase_id)
         payments.order_repository.update_status(order_id, 'COMPLETED')
         return order_capture_to_response(purchase_id=purchase_id, payment_method=info.payment_method)

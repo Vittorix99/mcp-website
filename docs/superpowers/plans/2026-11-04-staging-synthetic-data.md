@@ -133,7 +133,7 @@ Fonti: [event_rules.py](../../../mcp-backend/functions/domain/event_rules.py),
 | EVT-01 | Eventi `active`, `coming_soon`, `sold_out`, `ended`; listing admin/pubblico | Stati serializzati correttamente; admin vede conteggi reali; verificare distinzioni UI. Il listing pubblico attuale non filtra tutti gli stati. | Seed/API/UI D |
 | EVT-02 | Checkout su evento ended o temporalmente concluso anche se active | Rifiuto prima di chiamare il provider; zero ordini/acquisti/partecipanti nuovi. | API D |
 | EVT-03 | Checkout su coming_soon o sold_out non concluso | Regola owner 2026-11-12: creazione e capture rifiutate prima del provider; riapertura permette ripresa, retry già completato restituisce ricevuta. Verificato via API/emulatore; UI separata. | API D / UI Q |
-| EVT-04 | Evento con 0 iscritti, capienza parziale, esatta e richiesta oltre capienza | Conteggi/fill rate esatti; verificare blocco oltre capienza. Nessun controllo di capienza trovato nel checkout esaminato: Q-02. | Seed/API Q |
+| EVT-04 | Evento con 0 iscritti, capienza parziale, esatta e richiesta oltre capienza | Online: prenotazione atomica intero gruppo per 10 minuti, capienza positiva obbligatoria, admin libero. Ultimo posto, scadenza, provisioning/recovery e sconti verificati con Firestore emulato. | API D |
 | EVT-05 | Capienza assente o zero; report con nessun acquisto/ingresso | Nessuna divisione per zero o NaN; percentuali secondo contratto attuale a zero; nessun prezzo medio inventato. | Seed/API D |
 | EVT-06 | Evento 23:00-05:00; fine uguale all'inizio; fine non parsabile | Fine al giorno successivo per orario <= inizio; fallback 12 ore se fine non parsabile; checkout prima/al/dopo termine. | Locale D |
 | EVT-07 | Date supportate, data invalida, cambio anno e ora legale Europe/Rome | Normalizzazione DTO; confronto con clock esplicito; errore/fallback documentato per forma legacy, senza scambiare UTC e ora locale. | Locale D |
@@ -295,7 +295,7 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 | Punto | Evidenza attuale e decisione/verifica necessaria | Casi collegati |
 | --- | --- | --- |
 | Q-01 | Checkout usa anno in membership_years, scanner e attivi usano subscription_valid. Date non sono un controllo unico di scadenza. Testare combinazioni e chiarire la regola uniforme desiderata. | MEM-03, MEM-04 |
-| Q-02 | Dal 2026-11-12 backend blocca ended/termine temporale e sold_out/coming_soon, su conferma owner. Capienza non imposta automaticamente; regola e concorrenza ultimo posto restano da concordare. UI separata. | EVT-03, EVT-04 |
+| Q-02 | Regole owner 2026-11-12 implementate: stati indisponibili bloccati, capienza online positiva, prenotazione 10 minuti all’ordine, niente overbooking online concorrente; admin può superare il limite. UI e rollout restano separati. | EVT-03, EVT-04 |
 | Q-03 | Formula confermata dal proprietario il 2026-11-12: quota tessera inclusa nel prezzo evento, sconto applicato all’intero prezzo e fee aggiunta dopo. DIS-08 prova la formula e i dati socio; PAY-10 rifiuta importi non verificabili. Nessuna aggiunta implicita della quota al totale. | PAR-03, PAY-10, DIS-08 |
 | Q-04 | StatsService filtra solo status, analytics evento/snapshot filtrano anche capture_status, tipo, ref_id e count. Stati vuoti/non definitivi possono passare i filtri; incassi manuali da participant non sono automaticamente Purchase. Stabilire significato di ogni metrica. | PAY-03, PAY-13, STA-03, STA-06 |
 | Q-05 | Entrate raw, flag participant e scansioni nella finestra non sono lo stesso insieme. Snapshot usa finestra fissa 22:00-06:00 e KPI entered dalla somma bucket; endpoint diretto può contare flag/scan differenti. Scritture scan/flag separate. | QR-10, QR-12, QR-15, STA-10 |
@@ -1199,3 +1199,106 @@ Il gate controlla lo stato letto: non è una prenotazione posti e non rende
 atomico un cambio stato concorrente dopo la lettura. Stato legacy assente o
 sconosciuto mantiene il comportamento precedente. Q-02 rimane aperta per la
 capienza; UI, cloud, provider reali e CI remota non verificati in questo blocco.
+
+
+### Proposta EVT-04 / Q-02 — capienza e prenotazione posti, 2026-11-12
+
+Stato: **approvato dal proprietario in chat e implementato**; evidenze finali sotto.
+Regole owner in chat: admin libero di superare capienza; online prenotazione
+alla creazione ordine, durata massima 10 minuti; capienza zero o assente
+blocca le vendite online. Stato evento continua a seguire EVT-03.
+
+User story: come organizzatore voglio che ogni ordine online riservi tutti
+i posti richiesti per 10 minuti, così che acquisti simultanei non vendano lo
+stesso posto. Un gruppo senza posti sufficienti viene rifiutato per intero.
+
+Architettura proposta: registro Firestore delle prenotazioni per evento,
+con operazioni atomiche e chiave locale univoca prima della creazione ordine
+PayPal. Collegamento al provider/order locale dopo create; nessuna chiamata
+provider dentro una transazione/retry database. Posti occupati = partecipanti
+esistenti, anche admin, più posti riservati non ancora materializzati come
+partecipanti: niente doppio conteggio durante provisioning parziale/recovery.
+Scritture participant e prenotazioni devono condividere un controllo versione
+per evento, inclusi create/delete admin senza imporre loro il limite.
+
+Ciclo: reserved fino a expiresAt (UTC, creazione +600 secondi); a now >=
+expiresAt non può avviarsi capture e occorre un nuovo ordine. Il passaggio
+atomico a capturing avviene prima del provider e impedisce la scadenza/rilascio
+concorrente. Esito incerto resta occupato e richiede riconciliazione; rifiuto
+certo libera i posti. Incasso verificato mantiene i posti fino alla loro
+conversione idempotente in partecipanti; retry completato conserva ricevuta.
+Prenotazioni già accordate non vengono revocate automaticamente da aggiunte
+admin; le nuove vendite usano la disponibilità residua aggiornata.
+Gli ordini precedenti privi di prenotazione non avviano nuovi incassi: nuovo
+checkout o gestione manuale. Nessuna migrazione cloud o ricostruzione implicita;
+recovery legacy non deve attribuire prenotazioni inventate.
+
+- [x] RED: casi API/unitari per capienza zero/assente/piena, gruppo e posti
+  esatti; scadenza prima/al/dopo 600s; stato evento; create provider fallita;
+  capture definitiva/incerta; retry e provisioning parziale; legacy.
+- [x] Registro atomico e lifecycle in nuovo
+  `repositories/event_capacity_repository.py`; collegamento in `models/order.py`,
+  `mappers/payment_mappers.py`, `repositories/order_repository.py` e
+  `interfaces/repositories.py`, conservando CAS e marker captureStarted.
+- [x] Integrare create/capture in `services/payments/event_payment_service.py`,
+  recovery supportato in `event_order_recovery_service.py`, e le scritture
+  in `repositories/participant_repository.py`. Valutare `triggers/cleanup_trigger.py`
+  solo per preservare OPS-07: disponibilità non dipende dal cleanup giornaliero.
+  Nessun nuovo provider, dipendenza o job necessario per la scadenza logica.
+- [x] GREEN: unitari e API su emulatore, gare controllate ultimo posto,
+  scadenza/capture e provisioning/admin; nessun provider del perdente,
+  nessun doppio conteggio e nessuna liberazione di incasso incerto.
+  Unica review finale Sol high, scanner/diff check, commit ed evidenza qui.
+
+Fuori perimetro: UI/countdown, stato sold_out automatico, regole tessera,
+modifiche statistiche, rimborsi, nuovi percorsi recovery legacy/membership,
+deploy e cloud. Criterio di arresto: garanzie e prove sopra soddisfatte, non
+espandere alle restanti user story. Esecuzione nativa Sol per pagamenti e
+concorrenza; nessuna delega implementativa Luna su queste invarianti.
+
+
+#### EVT-04 — esecuzione ed evidenza finale
+
+Prenotazioni implementate in `EventCapacityRepository`, con CAS sulla versione
+evento condivisa con le scritture participant. Conteggio dai documenti reali
+più posti riservati non ancora materializzati, evitando contatori legacy o
+migrazioni implicite. La scansione include le ricevute terminali per rifiutare
+stati/metadati ambigui; questa soluzione non è una prova di prestazioni su
+volumi maggiori. Nessun nuovo job o dipendenza. Il token capacità viaggia in
+EventOrder e nei percorsi di provisioning; il protocollo participant è aggiornato.
+Ordini creati con create-only: un ID provider ripetuto non sostituisce un ordine
+pagato. La scadenza logica non aspetta il cleanup giornaliero OPS-07.
+
+RED iniziale: 15 dei 16 casi capacità fallivano; capienza None/0/-1/1 accettava
+un gruppo di due. Successivi RED su metadati stato sconosciuto/None e ID
+provider ripetuto, tutti corretti. Aggiunte prove di admin overbooking/delete,
+conversione e recovery parziale, due create con lettura della stessa versione,
+scadenza/riallocazione contro capture e inserimento admin dopo lettura posti.
+
+Unica review indipendente Sol high: **1 P1 e 1 P2**, accettati e corretti dal
+coordinatore dopo due regressioni RED. P1: dopo consumo capacità e fallimento
+dell'ultimo update ordine, admin delete/rivendita permetteva a recovery di
+ricreare persone senza posti; ogni nuova scrittura online ora richiede un hold
+capturing attribuito all'acquisto, aggiornato nello stesso batch con CAS.
+Un hold consumed permette solo riuso di documenti già presenti, non ricreazione.
+P2: il tentativo di capture con hold scaduto impegnava prima lo sconto; il claim
+capacità ora precede reserve/begin sconto. Errori sconto prima del provider
+liberano i posti, senza modificare gli utilizzi concorrenti altrui. Nessuna
+seconda review delegata. Correzioni e diff finale verificati dal coordinatore.
+
+GREEN finale: **888 unitari, 268 API e 6 integrazioni sconti passati**. Le 35
+nuove prove API capacità includono le due regressioni di review e il rilascio
+posti quando lo sconto si esaurisce dopo create. JUnit zero error/failure/skip,
+runner exit 0 e arresto pulito emulatori; scanner file modificati zero finding,
+diff check pulito. Log/JUnit in `.local/staging/`. Warning preesistenti
+WeasyPrint/HarfBuzz e filtri Firestore posizionali nelle integrazioni.
+
+Ruling: test cleanup sincronizzati sul nuovo claim atomico capacità/marker.
+Ruling: acquisto riassegnato manualmente a un ID legacy senza riallineare il
+registro posti viene rifiutato, non riconciliato implicitamente. I vecchi ordini
+senza prenotazione richiedono nuovo checkout/gestione manuale prima di incasso.
+
+Nessun deploy, cloud/provider reale o prova CI remota. Il rollout deve evitare
+worker vecchi che ignorano i posti accanto a worker nuovi; rollback con hold
+attivi va pianificato al gate produzione. UI/countdown, sold_out automatico,
+ottimizzazione scansioni e nuove recovery membership/legacy restano esclusi.

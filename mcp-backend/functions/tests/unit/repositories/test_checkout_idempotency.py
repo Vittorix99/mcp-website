@@ -55,7 +55,7 @@ def test_purchase_from_another_capture_is_not_reused():
     repo.collection.document.return_value.create.assert_not_called()
 
 
-def test_checkout_participant_create_race_reuses_record_without_resetting_ticket_state():
+def test_checkout_participant_create_race_reuses_record_without_resetting_ticket_state(monkeypatch):
     repo = ParticipantRepository()
     repo.base_collection = MagicMock()
     collection = repo.base_collection.document.return_value.collection.return_value
@@ -64,9 +64,15 @@ def test_checkout_participant_create_race_reuses_record_without_resetting_ticket
     existing = EventParticipant(event_id='e', purchase_id='p', email='a@example.test', price=10,
                                 entered=True, ticket_sent=True)
     ref = collection.document.return_value
-    ref.create.side_effect = AlreadyExists('Created concurrently')
+    client = MagicMock()
+    hold = client.collection.return_value.document.return_value.collection.return_value.document.return_value
+    hold.get.return_value = SimpleNamespace(exists=True, reference=hold, update_time='h1',
+        to_dict=lambda: {'state': 'capturing', 'purchaseId': 'p'})
+    monkeypatch.setattr('repositories.participant_repository.db', client)
+    batch = client.batch.return_value
+    batch.commit.side_effect = AlreadyExists('Created concurrently')
     ref.get.return_value = snapshot(existing)
-    assert repo.create_for_purchase('e', participant) == 'existing'
+    assert repo.create_for_purchase('e', participant, capacity_reservation_id='hold-1') == 'existing'
     ref.set.assert_not_called()
 
 

@@ -268,3 +268,16 @@ nessuna delega Luna. Regola sold_out/coming_soon/ended confermata dall'owner.
 | Codex / gpt-6.1-sol | `event_availability_review_sol`: unica review finale del gate condiviso, create/capture, recovery e retry completato | high | Conclusa senza rilievi; accettata dal coordinatore. Verifiche eseguite dal coordinatore: 888 unitari, 233 API passati, exit 0 e arresto pulito emulatori, scanner 0 e diff check pulito. Review ha letto l'evidenza senza rieseguire le suite. Nessun deploy/cloud/provider reale/CI remota. |
 
 Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## EVT-04 — prenotazione posti e capienza — 2026-11-12
+
+Implementazione nativa coordinatore: pagamenti, concorrenza e recovery; 0 deleghe Luna.
+Regole owner: admin libero, hold intero gruppo alla creazione per 10 minuti,
+capienza zero/assente blocca online; piano approvato in chat.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `event_capacity_review_sol`: unica review finale CAS posti, create/capture, provisioning/recovery e cleanup | high | Conclusa con 1 P1 (ricreazione posti da hold consumed dopo delete/rivendita) e 1 P2 (sconto impegnato da capture scaduta). Accettati e corretti dal coordinatore con regressioni RED→GREEN; nessuna seconda delega. Verifica finale coordinatore: 888 unitari, 268 API, 6 integrazioni sconti passati, JUnit zero failure/error/skip, emulatori exit 0 e arresto pulito; scanner 0 e diff check pulito. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.

@@ -164,6 +164,12 @@ def test_recovery_and_original_checkout_share_purchase_and_participant_ids(
     with monkeypatch.context() as patch:
         patch.setattr(payments, 'save_purchase', overlap_save)
         patch.setattr(gateway, 'get_order', verified_read)
+        capacity = payments.capacity_repository
+        original_verify = capacity.assert_recoverable
+        def verify_after_capture_started(*args):
+            assert checkout_paused.wait(timeout=10)
+            return original_verify(*args)
+        patch.setattr(capacity, 'assert_recoverable', verify_after_capture_started)
         results = concurrent_captures(http, [order_id, order_id], ['/capture', '/recover-order'])
     assert [status for status, _ in results] == [200, 200], results
     assert_recovered(http, sample, gateway, order_id, discount)
@@ -202,7 +208,7 @@ def test_unverifiable_recovery_keeps_persisted_state_unchanged(
     assert gateway.capture_calls == 1
 
 
-def test_recovery_keeps_unique_legacy_purchase_and_participant_ids(http, sample, gateway, monkeypatch):
+def test_recovery_rejects_purchase_id_reassigned_without_capacity_reconciliation(http, sample, gateway, monkeypatch):
     order_id = pending_order(http, sample, gateway, monkeypatch, 'participant_created')
     purchase_id, purchase = next(iter(documents('purchases').items()))
     db.document('purchases/legacy-purchase').set(purchase)
@@ -216,10 +222,9 @@ def test_recovery_keeps_unique_legacy_purchase_and_participant_ids(http, sample,
     db.document(path + '/legacy-person').set(person)
     db.document(path + '/' + participant_id).delete()
     result = http.post('/recover-order', json={'order_id': order_id}, headers={'Authorization': 'Bearer test'})
-    assert result.status_code == 200, result.get_json()
-    assert result.get_json()['purchase_id'] == 'legacy-purchase'
+    assert result.status_code == 409, result.get_json()
     assert set(documents('purchases')) == {'legacy-purchase'}
-    assert len(documents(path)) == 2
+    assert set(documents(path)) == {'legacy-person'}
     assert documents(path)['legacy-person']['ticket_sent'] is True
     assert gateway.capture_calls == 1
 

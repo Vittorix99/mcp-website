@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+from tests.utils import DummyCapacityRepository
 
 from domain.participant_rules import _is_valid_member, run_basic_checks
 from domain.membership_rules import build_renewal_record, membership_years_from_renewals
@@ -159,7 +160,7 @@ class _DummyParticipantRepo:
         self.created.append((event_id, payload))
         return "part-1"
 
-    def create_for_purchase(self, event_id, participant, checkout_index=0):
+    def create_for_purchase(self, event_id, participant, checkout_index=0, capacity_reservation_id=None):
         return self.create_from_model(event_id, participant)
 
     def create_from_model(self, event_id, participant):
@@ -214,6 +215,7 @@ def _make_service(existing_membership: Membership = None):
     service.membership_repository = _DummyMembershipRepo(existing=existing_membership)
     service.membership_settings_repository = _DummyMembershipSettingsRepo()
     service.order_repository = _DummyOrderRepo()
+    service.capacity_repository = DummyCapacityRepository()
     service.purchase_repository = _DummyPurchaseRepo()
     service.participant_repository = _DummyParticipantRepo()
     service.memberships_service = _DummyMembershipsService(service.membership_repository)

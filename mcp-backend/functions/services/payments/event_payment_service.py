@@ -55,6 +55,7 @@ from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
 from repositories.order_repository import OrderRepository
 from repositories.participant_repository import ParticipantRepository
+from repositories.event_capacity_repository import EventCapacityRepository
 from repositories.purchase_repository import PurchaseRepository
 from services.core.error_logs_service import log_external_error
 from services.memberships.renewal_command import RenewMembershipCommand
@@ -89,7 +90,9 @@ class EventPaymentService:
         discount_code_repository: Optional[DiscountCodeRepository] = None,
         discount_code_service: Optional[DiscountCodeService] = None,
         paypal_gateway: Optional[PayPalGateway] = None,
+        capacity_repository: Optional[EventCapacityRepository] = None,
     ):
+        self.capacity_repository = capacity_repository or EventCapacityRepository()
         self.paypal_client = paypal_client
         self.paypal_gateway = paypal_gateway
         self.orders_controller: Optional[OrdersController] = paypal_client.orders if paypal_client else None
@@ -261,64 +264,74 @@ class EventPaymentService:
                 )
             ],
         )
+        capacity_token = self.capacity_repository.reserve(event_id, len(normalized_participants))
         try:
-            order = self._get_paypal_gateway().create_order(order_request)
-        except ApiException as exc:
-            status = getattr(exc, "response_code", None)
-            log_external_error(
-                service="PayPal",
-                operation="create_order_event",
-                source="services.payments.event_payment_service.create_order_event",
-                message=f"Failed to create PayPal order (status: {status})",
-                status_code=status,
-                payload=str(exc),
-                context={"event_id": event_id},
+            try:
+                order = self._get_paypal_gateway().create_order(order_request)
+            except ApiException as exc:
+                status = getattr(exc, "response_code", None)
+                log_external_error(
+                    service="PayPal",
+                    operation="create_order_event",
+                    source="services.payments.event_payment_service.create_order_event",
+                    message=f"Failed to create PayPal order (status: {status})",
+                    status_code=status,
+                    payload=str(exc),
+                    context={"event_id": event_id},
+                )
+                raise ExternalServiceError(
+                    f"Failed to create PayPal order (status: {status})"
+                ) from exc
+            if order.status_code not in (200, 201):
+                log_external_error(
+                    service="PayPal",
+                    operation="create_order_event",
+                    source="services.payments.event_payment_service.create_order_event",
+                    message="Failed to create PayPal order",
+                    status_code=order.status_code,
+                    payload=str(order.payload),
+                    context={"event_id": event_id},
+                )
+                raise ExternalServiceError("Failed to create PayPal order")
+
+            body = order.payload
+            order_info = PayPalOrderCreateResponse.from_payload(body)
+            if not order_info.order_id:
+                raise ExternalServiceError("Missing PayPal order id")
+            self._debug(
+                "PayPal order created: %s (status %s)",
+                order_info.order_id,
+                order_info.status,
             )
-            raise ExternalServiceError(
-                f"Failed to create PayPal order (status: {status})"
-            ) from exc
-        if order.status_code not in (200, 201):
-            log_external_error(
-                service="PayPal",
-                operation="create_order_event",
-                source="services.payments.event_payment_service.create_order_event",
-                message="Failed to create PayPal order",
-                status_code=order.status_code,
-                payload=str(order.payload),
-                context={"event_id": event_id},
+
+            event_order = create_event_order_model(
+                capacity_reservation_id=capacity_token,
+                order_id=order_info.order_id,
+                order_status=order_info.status or "CREATED",
+                cart_item=cart_item,
+                total=total,
+                event=event_model,
+                participants=normalized_participants,
+                membership_targets=membership_targets,
+                membership_fee=float(membership_fee) if membership_fee is not None else None,
+                purchase_mode=purchase_mode,
+                membership_lookup=membership_lookup_payload,
+                discount_code_id=discount_validation.discount_code_id if discount_validation else None,
+                discount_code=discount_validation.code if discount_validation else None,
+                discount_amount=discount_validation.discount_amount if discount_validation else None,
+                original_price=float(event_model.price or 0) if discount_validation else None,
             )
-            raise ExternalServiceError("Failed to create PayPal order")
 
-        body = order.payload
-        order_info = PayPalOrderCreateResponse.from_payload(body)
-        if not order_info.order_id:
-            raise ExternalServiceError("Missing PayPal order id")
-        self._debug(
-            "PayPal order created: %s (status %s)",
-            order_info.order_id,
-            order_info.status,
-        )
-
-        event_order = create_event_order_model(
-            order_id=order_info.order_id,
-            order_status=order_info.status or "CREATED",
-            cart_item=cart_item,
-            total=total,
-            event=event_model,
-            participants=normalized_participants,
-            membership_targets=membership_targets,
-            membership_fee=float(membership_fee) if membership_fee is not None else None,
-            purchase_mode=purchase_mode,
-            membership_lookup=membership_lookup_payload,
-            discount_code_id=discount_validation.discount_code_id if discount_validation else None,
-            discount_code=discount_validation.code if discount_validation else None,
-            discount_amount=discount_validation.discount_amount if discount_validation else None,
-            original_price=float(event_model.price or 0) if discount_validation else None,
-        )
-
-        self.order_repository.save(order_info.order_id, event_order)
-        self._debug("Order document stored for %s", order_info.order_id)
-        return paypal_order_create_to_response(order_info)
+            self.order_repository.save(order_info.order_id, event_order)
+            self.capacity_repository.bind(event_id, capacity_token, order_info.order_id)
+            self._debug("Order document stored for %s", order_info.order_id)
+            return paypal_order_create_to_response(order_info)
+        except Exception:
+            try:
+                self.capacity_repository.release(event_id, capacity_token)
+            except Exception:
+                logger.exception("Unable to release checkout capacity after order creation failure")
+            raise
 
     def capture_order_event(self, payload: OrderCaptureDTO) -> OrderCaptureResponseDTO:
         order_id = payload.order_id
@@ -364,14 +377,18 @@ class EventPaymentService:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        self.capacity_repository.begin_capture(event_id, stored_order.capacity_reservation_id, order_id)
         reservation_token = None
-        if stored_order.discount_code_id:
-            reservation_token = self.discount_code_repository.reserve_usage(
-                stored_order.discount_code_id, order_id)
-        self.order_repository.mark_capture_started(order_id)
-        if reservation_token:
-            self.discount_code_repository.begin_capture(
-                stored_order.discount_code_id, order_id, reservation_token)
+        try:
+            if stored_order.discount_code_id:
+                reservation_token = self.discount_code_repository.reserve_usage(
+                    stored_order.discount_code_id, order_id)
+                self.discount_code_repository.begin_capture(
+                    stored_order.discount_code_id, order_id, reservation_token)
+        except Exception:
+            # No payment provider was called: a rejected coupon must not trap seats.
+            self.capacity_repository.release(event_id, stored_order.capacity_reservation_id, order_id)
+            raise
 
         # Transport errors and malformed responses have an unknown payment outcome:
         # retain the reservation rather than making the last slot available again.
@@ -380,9 +397,11 @@ class EventPaymentService:
         try:
             self.validate_capture_payload(order_info)
         except ValidationError:
-            if reservation_token and order_info.capture.status in {"DECLINED", "FAILED"}:
-                self.discount_code_repository.release_reservation(
-                    stored_order.discount_code_id, order_id, reservation_token)
+            if order_info.capture.status in {"DECLINED", "FAILED"}:
+                self.capacity_repository.release(event_id, stored_order.capacity_reservation_id, order_id)
+                if reservation_token:
+                    self.discount_code_repository.release_reservation(
+                        stored_order.discount_code_id, order_id, reservation_token)
             self._debug("Capture validation failed for %s", order_id)
             self._update_order_status(order_id, order_info.status or "UNKNOWN")
             raise
@@ -413,6 +432,7 @@ class EventPaymentService:
             discount_amount=stored_order.discount_amount,
         )
         self.order_repository.set_purchase_id(order_id, purchase_id)
+        self.capacity_repository.attach_purchase(event_id, stored_order.capacity_reservation_id, order_id, purchase_id)
 
         existing_memberships = self._membership_lookup_to_models(stored_order.membership_lookup or {})
         membership_refs = []
@@ -448,8 +468,10 @@ class EventPaymentService:
             price_original=stored_order.original_price,
             discount_code_id=stored_order.discount_code_id,
             discount_code=stored_order.discount_code,
+            capacity_reservation_id=stored_order.capacity_reservation_id,
         )
 
+        self.capacity_repository.complete(event_id, stored_order.capacity_reservation_id, order_id, purchase_id)
         self.order_repository.update_status(order_id, "COMPLETED")
         self._debug("Order %s processed and retained as terminal record", order_id)
 
@@ -741,6 +763,7 @@ class EventPaymentService:
         membership_refs: List[MembershipRef], purchase_id: str, price: float,
         existing_memberships: Dict[str, Membership], price_original: Optional[float] = None,
         discount_code_id: Optional[str] = None, discount_code: Optional[str] = None,
+        capacity_reservation_id: Optional[str] = None,
     ):
         models = self._event_participants(event_id, participants, membership_refs, purchase_id,
             price, existing_memberships, price_original, discount_code_id, discount_code)
@@ -748,7 +771,8 @@ class EventPaymentService:
             if participant.membership_id:
                 self.membership_repository.add_attended_event_and_purchase(
                     participant.membership_id, event_id, purchase_id)
-            self.participant_repository.create_for_purchase(event_id, participant, index)
+            self.participant_repository.create_for_purchase(event_id, participant, index,
+                capacity_reservation_id=capacity_reservation_id)
 
     def _event_participants(
         self,

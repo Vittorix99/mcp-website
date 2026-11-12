@@ -159,7 +159,8 @@ class MembershipSettingsRepositoryProtocol(Protocol):
 
 
 class ParticipantRepositoryProtocol(Protocol):
-    def create_for_purchase(self, event_id: str, participant: EventParticipant, checkout_index: int = 0) -> str:
+    def create_for_purchase(self, event_id: str, participant: EventParticipant, checkout_index: int = 0,
+                            capacity_reservation_id: Optional[str] = None) -> str:
         ...
 
     def list(self, event_id: str) -> List[EventParticipant]:

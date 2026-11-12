@@ -1,7 +1,7 @@
 from typing import Optional
 
 from google.cloud import firestore
-from google.api_core.exceptions import Aborted, FailedPrecondition
+from google.api_core.exceptions import Aborted, AlreadyExists, FailedPrecondition
 
 from config.firebase_config import db
 from errors.service_errors import ConflictError, NotFoundError
@@ -29,7 +29,10 @@ class OrderRepository(BaseRepository[EventOrder]):
     def save(self, order_id: str, order: EventOrder) -> None:
         data = order.to_firestore(include_none=True)
         data["createdAt"] = firestore.SERVER_TIMESTAMP
-        self.collection.document(order_id).set(data)
+        try:
+            self.collection.document(order_id).create(data)
+        except AlreadyExists as exc:
+            raise ConflictError("Order already exists: checkout was not replaced") from exc
 
     def get_model(self, order_id: str) -> Optional[EventOrder]:
         return self.get_by_id(order_id)
