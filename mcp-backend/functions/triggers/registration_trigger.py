@@ -5,6 +5,7 @@ from firebase_functions.firestore_fn import on_document_created, Event, Document
 from google.api_core.exceptions import Aborted, FailedPrecondition
 
 from config.firebase_config import region, db
+from config.runtime_settings import ProviderMode, get_runtime_settings
 from models import EventParticipant, Membership as MembershipModel
 from services.communications.mail_service import EmailMessage, mail_service
 from services.core.error_logs_service import log_external_error
@@ -51,7 +52,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         gender = "N/A"
         probability = 0.0
 
-        if name == "andrea":
+        if name == "andrea" and get_runtime_settings().providers.gender != ProviderMode.DISABLED:
             gender = "male"
             probability = 1.0
         elif name:

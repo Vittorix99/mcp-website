@@ -1595,3 +1595,50 @@ recupero automatico di step membership falliti. Tentativi legacy senza marker
 non sono ricostruibili; nessuna migrazione/reset. Un eventuale rollout dovrà
 evitare worker misti che ignorano i marker. Nessun deploy, cloud/provider
 reale, invio reale o prova CI remota. OPS-04 resta al gate invii del proprietario.
+
+
+### OPS-06 — isolamento provider nei flussi di registrazione, 2026-11-12
+
+User story autorizzata dal proprietario in chat. Riutilizzate le prove sulle
+factory esistenti; aggiunta verifica dei flussi reali su Firestore emulato:
+wallet Pass2U disabled/fake, Sender disabilitato, gender fake/disabled e guasti
+wallet/gender. Mail costruita dalla factory fake con flag invio falso. UID
+sintetici già associati: provisioning Auth non fa parte di questo blocco.
+
+Difetto riprodotto (1 RED): anche con GENDER_MODE=disabled, il trigger
+classificava Andrea come male/1.0 tramite ramo speciale locale. Ora il ramo
+rispetta la modalità disabilitata e passa al lookup disabled, che restituisce
+N/A/0.0. Comportamento precedente conservato nelle altre modalità; nessun
+cambio alle regole di ammissione checkout o al provider HTTP globale.
+
+10 nuovi scenari API: membership con wallet disabled resta invariata salvo
+marker trigger; fake produce solo ID/link locale deterministico; replay non
+aggiunge effetti. Giulia/Andrea/Unknown usano fixture fake; gender disabled
+non assegna attributi, anche ad Andrea. Wallet None/eccezione e lookup gender
+in errore conservano soci, UID, partecipanti, ingresso/prezzo/membershipId.
+PDF render/upload stub: verificati URL/flag e nessuna mail, non validità PDF.
+Ogni tentativo di requests.Session.request viene registrato/bloccato;
+assert finale zero tentativi anche se il chiamante cattura l'errore.
+
+14 nuovi unitari Sender usano impostazioni reali disabled:6 operazioni sync
+e8 subscriber/group CRUD; chiave esplicita ed enabled=True non aggirano la
+policy. Spy al trasporto SenderRoutes._call mai raggiunto. Nessun override
+del predicato enabled nei test. Altre factory offline già coperte restano
+inalterate; non equivale a verifica completa di tutti gli export provider.
+
+GREEN:1257 unitari,358 API,14 Sender focalizzati dopo rinomina del placeholder
+chiave test in fake-key (scanner non lo confonde con una credenziale).
+JUnit API zero failure/error/skip, runner exit0/shutdown pulito;2 smoke
+Python e client HTTP Functions/Auth/Firestore/Storage PASS, exit0/shutdown
+pulito. Log `.local/staging/ops06-{unit,api-red,api-green,sender-final,smoke}.log`,
+JUnit `.local/staging/api-results.xml`; scanner sorgenti functions0/diff
+check pulito.44 script di OPS-02 riutilizzati: nessuno script/config cambiato.
+Unica review finale Sol high senza rilievi, accettata dal coordinatore.
+Nessun deploy/cloud/provider reale,
+modifica configurazione di account o prova CI remota. Invocazioni controllate
+dei trigger non certificano la consegna distribuita; spy HTTP non è firewall.
+
+Domanda owner su pulizia periodica ordini: già implementata in OPS-07,
+`cleanup_stale_data` esportata da main e schedulata0 3 * * * Europe/Rome.
+Criteri conservativi oltre24 ore e fence/CAS restano invariati. Nessuna prova
+dell'attivazione di questa versione su cloud e nessun cambio schedule/deploy.

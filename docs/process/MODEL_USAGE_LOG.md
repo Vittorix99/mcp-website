@@ -333,3 +333,16 @@ Diagnosi trigger e policy degli esiti incerti a cura del coordinatore.
 | Codex / gpt-6.1-sol | `ops03_05_final_review`: unica review finale di trigger, claim invio, retry manuale e scritture mirate | high | Conclusa con1 P2: claim membership interrotto da scrittura concorrente non-trigger. Accettato dal coordinatore, riprodotto con2 RED e corretto con4 riletture/precondizioni prima dei provider; nessuna seconda delega. Finale1243 unitari,348 API (19 nuovi),2 smoke Python e client HTTP emulato PASS; API JUnit zero failure/error/skip, exit0/shutdown pulito. Script44 di OPS-02 riutilizzati invariati. Scanner sorgenti0/diff pulito. Nessun deploy/cloud/provider reale/CI remota. |
 
 Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-06 — isolamento provider disabilitati e simulati — 2026-11-12
+
+User story autorizzata dal proprietario in chat. Verifiche locali soltanto;
+nessun cambio configurazione cloud o provider reale.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops06_sender_offline_matrix`: test di14 operazioni sync/service con policy Sender disabilitata reale | medium | Conclusa:14 passati, spy trasporto mai raggiunto; diff letto/accettato da Sol. Nessuna modifica applicativa delegata. |
+| Codex / gpt-6.1-sol | `ops06_final_review`: unica review finale isolamento provider e override gender disabilitato | high | Conclusa senza rilievi; accettata dal coordinatore. Evidenze1257 unitari,358 API,14 Sender focalizzati e2 smoke Python+client HTTP emulato PASS; API JUnit zero failure/error/skip, exit0/shutdown pulito, scanner sorgenti0/diff pulito. Nessun rerun del reviewer. Script44 invariati riutilizzati; nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
