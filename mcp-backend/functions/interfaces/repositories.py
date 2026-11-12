@@ -281,6 +281,9 @@ class SettingsRepositoryProtocol(Protocol):
 
 
 class OrderRepositoryProtocol(Protocol):
+    def mark_capture_started(self, order_id: str) -> None:
+        ...
+
     def save(self, order_id: str, order: EventOrder) -> None:
         ...
 

@@ -228,7 +228,10 @@ def test_provider_errors_return_502_without_provisioning(http, sample, gateway, 
     response = (http.post('/capture', json={'order_id': order_id}) if order_id
                 else http.post('/orders', json=order_payload(sample)))
     assert response.status_code == 502, response.get_json()
-    assert [row.to_dict() for row in db.collection('orders').stream()] == [row.to_dict() for row in before]
+    expected_orders = [row.to_dict() for row in before]
+    if operation == 'capture':
+        expected_orders[0]['captureStarted'] = True
+    assert [row.to_dict() for row in db.collection('orders').stream()] == expected_orders
     assert gateway.create_calls == 1
     assert gateway.capture_calls == (1 if operation == 'capture' else 0)
     assert not list(db.collection('purchases').stream())

@@ -54,6 +54,9 @@ class _DummyOrderRepo:
     def update_status(self, order_id, status):
         self.status_updates.append((order_id, status))
 
+    def mark_capture_started(self, order_id):
+        pass
+
     def mark_captured(self, order_id, payment_method):
         self.captured_updates.append((order_id, payment_method))
         self.status_updates.append((order_id, "PAYMENT_CAPTURED"))
@@ -788,3 +791,16 @@ def test_decimal_tolerance_keeps_values_within_one_cent(amount):
     body = _order_payload()
     body['purchase_units'][0]['payments']['captures'][0]['amount']['value'] = amount
     _make_service()._validate_capture_amount(PayPalOrderInfo.from_payload(body), EventOrder(total=10))
+
+
+def test_cleanup_winner_prevents_provider_capture(monkeypatch):
+    service = _make_service()
+    future = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%d-%m-%Y')
+    service.event_repository = _DummyEventRepo(model=Event(title='Event', date=future, start_time='20:00', end_time='23:00'))
+    service.order_repository = _DummyOrderRepo(order_data=EventOrder(order_id='order-1', event_id='evt-1', total=10))
+    def deleted(*args):
+        raise NotFoundError('Order removed by cleanup')
+    service.order_repository.mark_capture_started = deleted
+    monkeypatch.setattr(service, 'capture_paypal_order', lambda _: pytest.fail('Provider called after cleanup removed order'))
+    with pytest.raises(NotFoundError):
+        service.capture_order_event(OrderCaptureDTO(order_id='order-1'))

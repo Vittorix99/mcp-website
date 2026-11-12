@@ -124,3 +124,48 @@ def test_linking_a_different_purchase_is_rejected(capture_repository):
     with pytest.raises(ConflictError):
         repo.set_purchase_id('order-1', 'p')
     doc.update.assert_not_called()
+
+
+def test_capture_start_is_written_with_version_precondition(capture_repository):
+    repo, doc = capture_repository
+    doc.get.return_value = _snapshot({'captured': False, 'captureStarted': False}, 't1')
+    repo.mark_capture_started('order-1')
+    doc.update.assert_called_once_with({'captureStarted': True}, option=('precondition', 't1'))
+
+
+def test_repeated_capture_start_does_not_overwrite_a_payment(capture_repository):
+    repo, doc = capture_repository
+    doc.get.return_value = _snapshot({'captured': False, 'captureStarted': True})
+    repo.mark_capture_started('order-1')
+    doc.update.assert_not_called()
+    doc.get.return_value = _snapshot({'captured': True})
+    with pytest.raises(ConflictError):
+        repo.mark_capture_started('order-1')
+    doc.update.assert_not_called()
+
+
+def test_deleted_order_cannot_start_capture(capture_repository):
+    repo, doc = capture_repository
+    doc.get.return_value = _snapshot({}, exists=False)
+    with pytest.raises(NotFoundError):
+        repo.mark_capture_started('order-1')
+    doc.update.assert_not_called()
+
+
+@pytest.mark.parametrize('error', [FailedPrecondition, Aborted])
+def test_capture_start_cas_rechecks_a_concurrent_start(capture_repository, error):
+    repo, doc = capture_repository
+    doc.get.side_effect = [_snapshot({'captured': False, 'captureStarted': False}),
+                           _snapshot({'captured': False, 'captureStarted': True}, 't2')]
+    doc.update.side_effect = error('Changed')
+    repo.mark_capture_started('order-1')
+    assert doc.update.call_count == 1
+
+
+def test_capture_start_persistent_contention_stops_before_provider(capture_repository):
+    repo, doc = capture_repository
+    doc.get.return_value = _snapshot({'captured': False, 'captureStarted': False})
+    doc.update.side_effect = FailedPrecondition('Changed')
+    with pytest.raises(ConflictError):
+        repo.mark_capture_started('order-1')
+    assert doc.update.call_count == 3

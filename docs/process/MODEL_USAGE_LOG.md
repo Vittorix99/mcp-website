@@ -244,3 +244,15 @@ Luna per la verifica congiunta di pagamenti, rinnovi e contabilità.
 | Codex / gpt-6.1-sol | `dis08_review_sol`: unica review finale su formule incluse, dati socio, quote/storico e retry | medium | Conclusa senza Critical/Important/Minor, accettata dal coordinatore. 52 nuovi casi, 203/203 API, 849 unitari e 39 script passati. Verificati lordo richiesto reale, dati/storico socio, soci attivi e retry invariato; anche capture senza impostazione quota per i soci correnti. Primo errore fixture (email .test) corretto prima della review. Runner emulatori exit 0 e arresto pulito; scanner zero segnalazioni e diff check pulito. Nessuna modifica applicativa, cloud/provider reale o prova CI remota. |
 
 Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## OPS-07 — pulizia ordini e corsa con capture — 2026-11-12
+
+Implementazione nativa del coordinatore; nessuna delega Luna per logica di
+pagamento, cancellazione e concorrenza.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `ops07_review_sol`: unica review finale su timestamp, eligibility cleanup, marker pre-provider e CAS delete | medium | Conclusa senza Critical/Important/Minor, accettata dal coordinatore. Successivo controllo autore: quattro forme list/map di metadati riprodotte RED e corrette con confronti conservativi; nessuna seconda delega. Verifica finale 885 unitari, 39 script, 224 API e 6 integrazione sconti verdi, exit 0 e arresto pulito. Scanner zero segnalazioni e diff check pulito. Nessun cleanup cloud, deploy o provider reale. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.

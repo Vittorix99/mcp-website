@@ -20,6 +20,7 @@ class Order(FirestoreModel):
     reference_id: Optional[str] = field(default=None, metadata={"firestore_name": "reference_id"})
     event_meta: Dict[str, Any] = field(default_factory=dict, metadata={"firestore_name": "eventMeta"})
     created_at: Optional[Any] = field(default=None, metadata={"firestore_name": "createdAt"})
+    capture_started: bool = field(default=False, metadata={"firestore_name": "captureStarted"})
     captured: bool = field(default=False, metadata={"firestore_name": "captured"})
     payment_method: str = field(default="", metadata={"firestore_name": "payment_method"})
     purchase_id: Optional[str] = field(default=None, metadata={"firestore_name": "purchase_id"})

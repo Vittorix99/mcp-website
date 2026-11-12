@@ -40,6 +40,26 @@ class OrderRepository(BaseRepository[EventOrder]):
     def update_status(self, order_id: str, status: str) -> None:
         self.collection.document(order_id).update({"orderStatus": status})
 
+    def mark_capture_started(self, order_id: str) -> None:
+        """Fence cleanup before any provider call, including calls with unknown outcome."""
+        doc_ref = self.collection.document(order_id)
+        for _ in range(_CLAIM_ATTEMPTS):
+            snapshot = doc_ref.get()
+            if not snapshot.exists:
+                raise NotFoundError("Order not found")
+            data = snapshot.to_dict() or {}
+            if data.get("captured"):
+                raise _capture_conflict(order_id, data)
+            if data.get("captureStarted") is True:
+                return
+            try:
+                doc_ref.update({"captureStarted": True},
+                    option=db.write_option(last_update_time=snapshot.update_time))
+                return
+            except (FailedPrecondition, Aborted):
+                continue
+        raise ConflictError("Order changed concurrently, retry before capture")
+
     def mark_captured(self, order_id: str, payment_method: str) -> None:
         """Claim the capture exactly once; a concurrent or repeated claim raises ConflictError.
 

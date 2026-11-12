@@ -74,6 +74,9 @@ class _DummyOrderRepo:
     def update_status(self, order_id, status):
         self.status_updates.append((order_id, status))
 
+    def mark_capture_started(self, order_id):
+        pass
+
     def mark_captured(self, order_id, payment_method):
         pass
 

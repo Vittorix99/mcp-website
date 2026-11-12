@@ -280,7 +280,7 @@ Fonti: [decoratori API](../../../mcp-backend/functions/api/decorators/__init__.p
 | OPS-04 | Invio ticket/tessera a alias consentito; destinatario escluso; errore provider | Su staging solo selezionati; escluso bloccato; errore non segnato come consegna; ricezione/allegati verificati in casella dopo autorizzazione invii. | API/casella X |
 | OPS-05 | Omaggi: bulk con già inviato/non inviato; resend singolo | Bulk salta già inviati, singolo può reinviare; controllare sent/skipped/failed e flag con provider fake. | Locale D |
 | OPS-06 | Wallet/Sender disabilitati e gender fake durante seed | Nessuna attività live su Pass2U/Sender; guasti fake non cancellano soci/partecipazioni. Verifica wallet live separata e rinviata. | Locale D |
-| OPS-07 | Ordine non catturato prima/al/dopo 24 ore; captured; timestamp assente | Pulizia locale preserva captured; verificare confine e chiavi `createdAt`/`created_at`, attualmente discordanti, Q-09. | Locale Q |
+| OPS-07 | Ordine non catturato prima/al/dopo 24 ore; captured; timestamp assente | Cleanup conservativo con timestamp corrente/legacy, marker pre-provider e CAS delete. Preserva recenti, pagati, tentati, legacy senza prova e metadati ambigui. Verificato il confine 24 ore e le corse con capture/recupero. | API D |
 | OPS-08 | Token scanner scaduto da meno/esattamente/più di 7 giorni | Cleanup rimuove solo oltre soglia; scan storici non eliminati dal cleanup token. | Locale D |
 | OPS-09 | Rigenera seed con stesso seed RNG, poi interruzione e ripresa | Stessi ID/relazioni/conteggi; no duplicati; errore parziale esplicito; guard progetto/bucket rifiuta produzione. Test locale prima di cloud. | Locale D |
 | OPS-10 | App su dataset completo: ricerca, filtri, ordinamento, paginazione | Risultati completi senza perdere/duplicare righe fra pagine; filtri socio/anno/evento/stato confrontati col manifesto. Misurare tempi, senza chiamarla ancora prova concorrente. | API/UI D |
@@ -302,7 +302,7 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 | Q-06 | Diverse funzioni età usano giorni/365; verificare maggiorenne/over21 e fasce statistiche rispetto al calendario, non copiando la formula come oracolo. | MEM-06, PAR-09, STA-12 |
 | Q-07 | Delete evento/partecipante e riassegnazione socio non dimostrano cascata su scan, purchase e storico. Merge esaminato riallinea partecipanti; verificare anche scan e membership_ids degli acquisti. Nessuna cancellazione reale in questa fase. | EVT-09, PAR-16, PAR-17, STA-15 |
 | Q-08 | allow_duplicates permette più righe socio/evento, ma scan ha chiave membershipId/evento e update_entered lavora su un participant. Definire rapporto biglietti, persone e ingressi. | PAR-06, QR-11 |
-| Q-09 | Order serializza createdAt, cleanup legge created_at e considera timestamp assente eliminabile per non captured. Riprodurre con un ordine fresco negli emulatori. | OPS-07 |
+| Q-09 | Difetto createdAt/created_at riprodotto e corretto il 2026-11-12. Cleanup elimina solo ordini certamente abbandonati oltre 24 ore, con controllo versione; assenza/ambiguità e tentativi di capture conservati. Legacy senza captureStarted richiede verifica manuale. | OPS-07 |
 
 ### Combinazioni obbligatorie e prove esistenti
 
@@ -1117,3 +1117,60 @@ codice applicativo, nessun deploy/cloud/provider reale o prova CI remota.
 La decisione Q-03 sulla formula è chiusa; lo storico di dubbi delle sezioni
 precedenti resta datato al checkpoint originale. Recupero post-interruzione
 con tessere e altre regole MEM/Q-01 rimangono separati.
+
+
+### OPS-07 / Q-09 — cleanup ordini sicuro, 2026-11-12
+
+Il proprietario ha chiesto di proseguire lo sviluppo; il coordinatore ha
+selezionato il difetto già registrato OPS-07. Riprodotto RED: un ordine
+appena creato con `createdAt` veniva eliminato perché il cleanup leggeva solo
+`created_at` e considerava la data assente eliminabile. Riprodotta anche la
+corsa con l'inizio della cattura: una cancellazione non condizionata poteva
+rimuovere un ordine dopo che un altro processo lo aveva preso in carico.
+
+Perimetro della correzione:
+- Solo ordini certamente abbandonati oltre 24 ore trascorse: captured=false,
+  captureStarted=false espliciti, nessun purchase_id, stato CREATED/APPROVED,
+  timestamp datetime valido. Al confine esatto delle 24 ore l'ordine resta.
+- Leggere `createdAt` e alias legacy `created_at`; dati assenti/non validi o
+  alias discordanti restano a verifica manuale. Date naive legacy mantengono
+  l'interpretazione UTC già esistente. I cleanup token/job non cambiano.
+- Flag `captureStarted` nuovo, scritto via CAS prima di begin_capture sconto
+  e provider. Reserve sconto precede il flag, così un perdente dello sconto
+  non viene marcato come tentativo di pagamento. Se il cleanup ha già vinto,
+  il CAS/missing document ferma il processo prima di PayPal. Il flag è sticky:
+  un errore o esito sconosciuto non rende l'ordine nuovamente cancellabile.
+- Cancellazione per documento con precondizione update_time; se un altro
+  writer vince, l'ordine viene saltato senza cancellare usando dati obsoleti.
+  Niente lock Firestore o batch di ordini che perdono tutti su un solo conflitto.
+- Ordini legacy senza il nuovo campo non provano assenza di un tentativo:
+  conservati, nessuna migrazione/cancellazione cloud automatica. Anche ordini
+  con tentativi falliti restano conservati finché non riconciliati esplicitamente.
+
+Prove: 29 casi cleanup offline, marker repository/service, 21 nuove prove
+API/emulatore (ordine fresco reale, confini, alias/legacy, race CAS, vincita
+cleanup prima del provider, provider in corso, risposta persa e recupero).
+Due test PAY-08 ora richiedono il solo nuovo marcatore dopo errore HTTP/SDK,
+con tutti gli altri campi invariati. Una review Sol medium e suite complete
+locali. Nessun cleanup cloud, deploy o chiamata provider reale. Per rollout
+futuro aggiornare prima il cleanup conservativo, poi il producer del marker.
+
+
+Esito finale OPS-07: **885 unitari, 39 test script, 224 API e 6 integrazione
+sconti passati**. JUnit zero failure/error/skipped, exit 0 e arresto pulito
+emulatori; scanner zero segnalazioni e diff check pulito. Difetto ordine fresco
+riprodotto RED prima del fix; CAS e stop provider dopo cancellazione verificati
+anche con SDK Firestore reale sull'emulatore. Nessuna operazione cloud reale.
+
+Review finale Sol medium conclusa senza Critical/Important/Minor, accettata.
+Nel successivo controllo autore sono emersi quattro casi di metadati list/map:
+status non hashable interrompeva il cleanup e purchase_id vuoto non stringa
+veniva trattato come assente. Riprodotti RED e corretti usando confronti
+sicuri e valori vuoti ammessi solo None/stringa; quattro nuove prove API
+verificano conservazione invariata. Batteria completa rieseguita GREEN;
+nessuna seconda review o rilievo differito. I job/token restano invariati.
+
+Il costo della scelta conservativa è la ritenzione degli ordini legacy o con
+qualunque tentativo: non vengono eliminati automaticamente senza riconciliazione.
+La revisione del rollout resta al gate deploy: cleanup conservativo prima,
+producer del marker dopo. Nessun deploy eseguito o prova CI remota.

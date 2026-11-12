@@ -368,6 +368,8 @@ class EventPaymentService:
         if stored_order.discount_code_id:
             reservation_token = self.discount_code_repository.reserve_usage(
                 stored_order.discount_code_id, order_id)
+        self.order_repository.mark_capture_started(order_id)
+        if reservation_token:
             self.discount_code_repository.begin_capture(
                 stored_order.discount_code_id, order_id, reservation_token)
 

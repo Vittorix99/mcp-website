@@ -224,6 +224,9 @@ Model: `mcp-backend/functions/models/order.py`
 | reference_id | string | Reference id (event id). | Firestore `reference_id`. | Optional. |
 | event_meta | object | Extra metadata. | Firestore `eventMeta`. | Optional. |
 | created_at | timestamp | Created timestamp. | Firestore `createdAt`. | Optional. |
+| capture_started | boolean | A capture may have been attempted; sticky cleanup fence, not proof of payment. | Firestore `captureStarted`. | Set before provider; legacy without the field is retained. |
+| captured | boolean | Completed capture has been recorded. | Firestore `captured`. | Such orders are never removed by abandoned-order cleanup. |
+| purchase_id | string | Linked purchase. | Firestore `purchase_id`. | A linked order is retained even if other payment metadata is inconsistent. |
 
 ### EventOrder (`orders`)
 Model: `mcp-backend/functions/models/order.py`
