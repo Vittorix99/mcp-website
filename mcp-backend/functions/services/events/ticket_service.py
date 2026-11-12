@@ -131,7 +131,8 @@ class TicketService:
             buffer=document.buffer,
         )
 
-    def process_new_ticket(self, participant_id: str, participant_data: Any, send: bool = True) -> Dict[str, Any]:
+    def process_new_ticket(self, participant_id: str, participant_data: Any, send: bool = True,
+                           *, automatic: bool = False) -> Dict[str, Any]:
         try:
             participant = self._normalize_participant(participant_data)
             event_id = participant.event_id
@@ -166,6 +167,9 @@ class TicketService:
                     has_attachment=bool(attachment),
                 )
                 text_content = get_ticket_email_text(ticket_payload, event_payload)
+                if not self.participant_repository.begin_ticket_delivery(
+                        event_id, participant_id, automatic=automatic):
+                    return {"success": True, "skipped": True}
                 sent = self.mail_service.send(
                     EmailMessage(
                         to_email=participant.email,
@@ -180,7 +184,8 @@ class TicketService:
                     return {"success": False, "error": "Failed to send email"}
                 participant.ticket_sent = True
 
-            self.participant_repository.update_from_model(event_id, participant_id, participant)
+            self.participant_repository.update_ticket_delivery(
+                event_id, participant_id, document.public_url, participant.ticket_sent)
             return {"success": True}
 
         except Exception as exc:

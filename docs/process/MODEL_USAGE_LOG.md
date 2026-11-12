@@ -319,3 +319,17 @@ a cura del coordinatore; matrice ripetitiva dei contratti delegata a Luna.
 | Codex / gpt-6.1-sol | `ops02_final_review`: unica review finale dei contratti HTTP/DTO e del preflight checkout | high | Conclusa senza rilievi; accettata dal coordinatore. Verificati1240 unitari (352 nuovi),44 script,329 API (42 nuovi),2 smoke Python e client HTTP emulato PASS; JUnit API zero failure/error/skip, exit0/shutdown pulito. Scanner sorgenti modificati0/diff pulito. Review ha letto le evidenze senza rieseguire suite. Nessun deploy/cloud/provider reale/CI remota. |
 
 Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-03/05 — invii tessere, ticket e omaggi — 2026-11-12
+
+Proseguimento richiesto dal proprietario in chat; solo prove locali/provider fake.
+Diagnosi trigger e policy degli esiti incerti a cura del coordinatore.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops05_omaggio_tests`: lotto di test emulatori su contatori, skip/reinvio, fallimenti e allegati stub | medium | Conclusa:5 caratterizzazioni verdi e1 regressione RED di sovrascrittura durante invio. Sol ha letto/accettato il test e corretto la persistenza con scritture mirate; nessuna modifica applicativa delegata. |
+
+| Codex / gpt-6.1-sol | `ops03_05_final_review`: unica review finale di trigger, claim invio, retry manuale e scritture mirate | high | Conclusa con1 P2: claim membership interrotto da scrittura concorrente non-trigger. Accettato dal coordinatore, riprodotto con2 RED e corretto con4 riletture/precondizioni prima dei provider; nessuna seconda delega. Finale1243 unitari,348 API (19 nuovi),2 smoke Python e client HTTP emulato PASS; API JUnit zero failure/error/skip, exit0/shutdown pulito. Script44 di OPS-02 riutilizzati invariati. Scanner sorgenti0/diff pulito. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.

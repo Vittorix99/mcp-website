@@ -114,6 +114,36 @@ class ParticipantRepository:
                     participant.to_firestore(include_none=True))
         return True
 
+    def begin_ticket_delivery(self, event_id: str, participant_id: str, *, automatic: bool) -> bool:
+        ref = self._collection(event_id).document(participant_id)
+        for _ in range(4):
+            snapshot = ref.get()
+            if not snapshot.exists:
+                raise ConflictError('Partecipante non più presente')
+            data = snapshot.to_dict() or {}
+            if automatic and (data.get('ticket_sent') or data.get('ticket_delivery_started')):
+                return False
+            try:
+                # Sticky before the provider call: an uncertain send requires manual retry.
+                ref.update({'ticket_delivery_started': True},
+                           option=db.write_option(last_update_time=snapshot.update_time))
+                return True
+            except (Aborted, FailedPrecondition):
+                continue
+        raise ConflictError('Invio modificato contemporaneamente: verificare manualmente')
+
+    def update_ticket_delivery(self, event_id: str, participant_id: str, pdf_url: str, sent: bool) -> None:
+        fields = {'ticket_pdf_url': pdf_url}
+        # Generating a PDF alone must not clear a concurrently confirmed delivery.
+        if sent:
+            fields['ticket_sent'] = True
+        self._collection(event_id).document(participant_id).update(fields)
+
+    def mark_omaggio_email_sent(self, event_id: str, participant_id: str) -> None:
+        self._collection(event_id).document(participant_id).update({
+            'omaggio_email_sent': True, 'omaggio_email_sent_at': firestore.SERVER_TIMESTAMP,
+        })
+
     def delete(self, event_id: str, participant_id: str) -> None:
         self._write(event_id, 'delete', self._collection(event_id).document(participant_id))
 

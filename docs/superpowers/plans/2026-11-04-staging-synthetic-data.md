@@ -1535,3 +1535,63 @@ intero working tree segnala due righe solo nel log locale preesistente
 ignorato `member-auth-red.log`, non nei sorgenti del blocco.
 Nessun deploy, cloud/provider reale o prova CI remota. Il prossimo blocco
 richiede il confronto con il proprietario.
+
+
+### OPS-03/05 — invii tessere, ticket e omaggi, 2026-11-12
+
+Proseguimento richiesto dal proprietario dopo OPS-02; blocco locale con
+provider fake. Regola confermata in chat: esiti di invio incerti richiedono
+reinvio manuale. MailService espone solo bool e non distingue rifiuto certo
+da timeout dopo accettazione: un tentativo automatico non confermato viene
+quindi trattato conservativamente come incerto, senza nuovo retry automatico.
+
+Difetti riprodotti e corretti dal coordinatore:
+- 3 RED unitari: i trigger rileggevano il documento, ma recipient/flag e modello
+ restavano quelli dello snapshot iniziale. Ora usano current_data.
+- 5 RED API iniziali: il salvataggio completo del modello ticket/omaggio
+ sovrascriveva ingresso/prezzo/membershipId aggiornati durante rendering o
+ invio, cancellava il gender appena arricchito e ricreava partecipanti
+ cancellati. Persistenza limitata a URL/flag ticket o ai2 campi omaggio con
+ update, senza creare documenti assenti. I metadati non cambiano capienza.
+-3 ulteriori RED sulla policy ticket: replay dopo esito non confermato,
+ provider riuscito con errore nel salvataggio flag e due trigger concorrenti.
+ CAS a update_time con4 tentativi imposta ticket_delivery_started prima di
+ chiamare mail. Il marker resta anche se provider/salvataggio fallisce;
+ solo l'invio admin esplicito può riprovare. PDF fallito prima del tentativo
+ non imposta marker; send=False genera il documento senza chiamare mail.
+- 1 RED sulle tessere: due trigger leggevano trigger_processed=False e
+ inviavano entrambi. Il marker preesistente viene ora reclamato con CAS.
+ Il perdente non procede ai provider; errori dopo claim restano manuali.
+- 1 RED sul solo PDF: una generazione senza invio azzerava una consegna
+ confermata nel frattempo. L'update ora imposta ticket_sent soltanto aTrue.
+
+OPS-05: bulk con1 successo,1 già inviato,1 email assente,1 provider falso e
+1 non-omaggio restituisce sent1/failed2/skipped1/total4. Il retry admin
+reinvia solo il precedente fallimento; singolo con skipAlreadySent=False
+reinvia, default salta. Non-omaggio/ID assente404, elenco vuoto tutti0.
+Flag/timestamp solo dopo successo. Rendering PDF fallito conserva il fallback
+attuale: mail senza allegato, senza dichiarare generato un PDF valido.
+
+GREEN:1243 unitari (3 nuovi) e348 API (19 nuovi rispetto OPS-02). JUnit API
+zero failure/error/skip; runner exit0 e shutdown pulito. Smoke:2 Python e
+client HTTP Functions/Auth/Firestore/Storage PASS, exit0 e shutdown pulito.
+44 test script di OPS-02 riutilizzati: nessuno script/config modificato.
+Log `.local/staging/ops03-*`, `ops03-05-*` e `ops05-luna.log`; ultimo JUnit
+`.local/staging/api-results.xml`. Scanner sorgenti functions0 e diff check
+pulito; warning preesistenti WeasyPrint/Google. Unica review finale Sol high:
+P2 sul claim membership a tentativo singolo, accettato e corretto dal
+coordinatore. Un aggiornamento normale (es. attended_events) nella finestra
+read/claim poteva interrompere l'unico trigger senza concorrente vincitore.
+Due RED emulati con cambio destinatario/flag durante il claim: ora fino a4
+riletture/precondizioni, ricontrollando dati e marker prima dei provider.
+GREEN finale348 API; nessuna seconda review delegata.
+
+Limiti: test di replay/concorrenza invocano handler reali su Firestore emulato,
+non provano la consegna distribuita del trigger o il provider reale. PDF e
+upload sono stub: verificati chiamate, URL/flag e allegato nel messaggio, non
+validità PDF o volumi Storage. Smoke distribuito separato. Nessuna nuova
+garanzia su due reinvii admin espliciti concorrenti, pipeline Auth/CRM o
+recupero automatico di step membership falliti. Tentativi legacy senza marker
+non sono ricostruibili; nessuna migrazione/reset. Un eventuale rollout dovrà
+evitare worker misti che ignorano i marker. Nessun deploy, cloud/provider
+reale, invio reale o prova CI remota. OPS-04 resta al gate invii del proprietario.

@@ -144,7 +144,8 @@ class DocumentsServiceProtocol(Protocol):
 
 
 class TicketServiceProtocol(Protocol):
-    def process_new_ticket(self, participant_id: str, participant_data: Any, send: bool = True) -> Dict[str, Any]:
+    def process_new_ticket(self, participant_id: str, participant_data: Any, send: bool = True,
+                           *, automatic: bool = False) -> Dict[str, Any]:
         ...
 
 

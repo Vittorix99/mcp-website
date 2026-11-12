@@ -163,6 +163,15 @@ class MembershipSettingsRepositoryProtocol(Protocol):
 
 
 class ParticipantRepositoryProtocol(Protocol):
+    def begin_ticket_delivery(self, event_id: str, participant_id: str, *, automatic: bool) -> bool:
+        ...
+
+    def update_ticket_delivery(self, event_id: str, participant_id: str, pdf_url: str, sent: bool) -> None:
+        ...
+
+    def mark_omaggio_email_sent(self, event_id: str, participant_id: str) -> None:
+        ...
+
     def create_for_purchase(self, event_id: str, participant: EventParticipant, checkout_index: int = 0,
                             capacity_reservation_id: Optional[str] = None) -> str:
         ...

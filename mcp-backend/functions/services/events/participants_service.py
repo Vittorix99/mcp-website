@@ -370,9 +370,7 @@ class ParticipantsService:
             sent = self._send_omaggio_email(event_model, p, entry_time)
             if sent:
                 sent_count += 1
-                p.omaggio_email_sent = True
-                p.omaggio_email_sent_at = firestore.SERVER_TIMESTAMP
-                self.participant_repository.update_from_model(event_id, p.id, p)
+                self.participant_repository.mark_omaggio_email_sent(event_id, p.id)
             else:
                 failed_count += 1
 
