@@ -201,7 +201,7 @@ Model: `mcp-backend/functions/models/membership.py`
 | card_url | string | Card URL. | Firestore `card_url`. | Cannot be edited directly. |
 | card_storage_path | string | Storage path. | Firestore `card_storage_path`. | Protected (cannot be changed). |
 | send_card_on_create | boolean | Send card on create. | Firestore `send_card_on_create`. | Optional. |
-| membership_fee | number | Membership fee charged. | Firestore `membership_fee`. | Optional (set in purchase flows). |
+| membership_fee | number | Membership fee recorded for the subscription; included in event checkout price, not added again. | Firestore `membership_fee`. | Optional (set in purchase flows). |
 | wallet_pass_id | string | External wallet pass id. | Firestore `wallet_pass_id`. | Set by wallet-pass services/triggers. |
 | wallet_url | string | Wallet landing URL. | Firestore `wallet_url`. | Set by wallet-pass services/triggers. |
 
@@ -235,7 +235,7 @@ Model: `mcp-backend/functions/models/order.py`
 | event_price | number | Event price. | Firestore `eventPrice`. | Computed. |
 | event_fee | number | Event fee. | Firestore `eventFee`. | Computed. |
 | membership_targets | object[] | Non-member participants to be created. | Firestore `membershipTargets`. | Computed. |
-| membership_fee | number | Membership fee used. | Firestore `membershipFee`. | Computed from settings. |
+| membership_fee | number | Configured fee staged for target creation/renewal; included in event price, not added to the total. | Firestore `membershipFee`. | Computed from settings. |
 | purchase_mode | enum | Purchase mode used. | Firestore `purchaseMode`. | Computed from event. |
 | membership_lookup | object | Existing members by email. | Firestore `membershipLookup`. | Computed. |
 | event_meta | object | Extra metadata. | Firestore `eventMeta`. | Optional. |

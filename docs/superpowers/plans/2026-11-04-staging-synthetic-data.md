@@ -209,7 +209,7 @@ Fonti: [discount_code_service.py](../../../mcp-backend/functions/services/paymen
 | DIS-05 | Codice riservato a email/socio; identità corretta, diversa o socio assente | Solo destinatario corrispondente ammesso; email normalizzata; mismatch e membershipId incompatibile rifiutati. | API D |
 | DIS-06 | Ultimo utilizzo disponibile; due capture concorrenti | usedCount non supera maxUses; errore su ultimo claim perso; rilevare eventuale incasso già avvenuto prima del claim e provisioning incompleto. | Locale D |
 | DIS-07 | Capture riuscita, fallita, retry terminale | Incremento solo al claim nel flusso; nessun doppio utilizzo al retry terminale; guasto dopo claim documentato senza fingere rollback. | Locale D |
-| DIS-08 | Nuovo socio ONLY_MEMBERS, quota tessera configurata, con/senza sconto e fee | Verificare formula corrente: `_compute_total` usa solo prezzo+fee; con sconto totale final_price+fee. Decidere intenzione della quota, Q-03. | Locale Q |
+| DIS-08 | Nuovo socio ONLY_MEMBERS, quota tessera configurata, con/senza sconto e fee | Regola confermata 2026-11-12: tessera inclusa e sconto sull’intero prezzo evento, poi fee. Provati nuovi/scaduti/correnti, gruppi misti, errori e retry; quota nominale non aggiunta al totale. | API D |
 
 ### QR, scanner, ingressi e annullamenti
 
@@ -296,7 +296,7 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 | --- | --- | --- |
 | Q-01 | Checkout usa anno in membership_years, scanner e attivi usano subscription_valid. Date non sono un controllo unico di scadenza. Testare combinazioni e chiarire la regola uniforme desiderata. | MEM-03, MEM-04 |
 | Q-02 | Guard attiva evento blocca ended/termine temporale; nessun blocco sold_out/coming_soon o capienza trovato nel checkout esaminato. Distinguere blocco UI e garanzia backend. | EVT-03, EVT-04 |
-| Q-03 | `_compute_total` non somma membership_fee; importi non parsabili possono saltare controllo capture. Verificare intenzione quota tessera e comportamento ai confini, senza assumere di dover aggiungere una quota. | PAR-03, PAY-10, DIS-08 |
+| Q-03 | Formula confermata dal proprietario il 2026-11-12: quota tessera inclusa nel prezzo evento, sconto applicato all’intero prezzo e fee aggiunta dopo. DIS-08 prova la formula e i dati socio; PAY-10 rifiuta importi non verificabili. Nessuna aggiunta implicita della quota al totale. | PAR-03, PAY-10, DIS-08 |
 | Q-04 | StatsService filtra solo status, analytics evento/snapshot filtrano anche capture_status, tipo, ref_id e count. Stati vuoti/non definitivi possono passare i filtri; incassi manuali da participant non sono automaticamente Purchase. Stabilire significato di ogni metrica. | PAY-03, PAY-13, STA-03, STA-06 |
 | Q-05 | Entrate raw, flag participant e scansioni nella finestra non sono lo stesso insieme. Snapshot usa finestra fissa 22:00-06:00 e KPI entered dalla somma bucket; endpoint diretto può contare flag/scan differenti. Scritture scan/flag separate. | QR-10, QR-12, QR-15, STA-10 |
 | Q-06 | Diverse funzioni età usano giorni/365; verificare maggiorenne/over21 e fasce statistiche rispetto al calendario, non copiando la formula come oracolo. | MEM-06, PAR-09, STA-12 |
@@ -1061,3 +1061,59 @@ Questi errori vengono rifiutati dopo aver registrato una capture COMPLETED
 con ID. L'eventuale preflight per evitare la chiamata provider su ordini già
 corrotti resta una decisione separata, non è stato introdotto implicitamente.
 Nessun rimborso, deploy, provider reale, scrittura cloud o prova CI remota.
+
+
+### DIS-08 / Q-03 — formula confermata il 2026-11-12
+
+Richiesta del proprietario: proseguire con la prossima implementazione dopo
+PAY-10. Ispezione: backend e frontend usano prezzo evento + commissione,
+con sconto applicato al prezzo evento; l'interfaccia dichiara esplicitamente
+la tessera annuale inclusa nel prezzo (`EventPurchaseContent.jsx`, PriceBlock).
+La quota configurata viene salvata nell'ordine e nella storia socio, ma non
+aggiunta al totale. Il proprietario ha confermato il 2026-11-12: «Mantieni la
+formula attuale: tessera inclusa, totale scontato 12 €».
+
+Esempio proposto per scegliere la regola: prezzo 20, commissione 2, quota 5,
+sconto 50%. Formula attuale: 12. Quota inclusa ma protetta dallo sconto: 14.50.
+Quota aggiuntiva non scontabile: 17. Scelta approvata: prima formula (12).
+La quota configurata resta metadato nominale nello storico socio, non un
+secondo addebito o una soglia minima allo sconto. Nessuna modifica ai prezzi.
+
+Blocco concreto da eseguire con la formula scelta: prove API ONLY_MEMBERS
+per nuovo socio, rinnovo di anno precedente senza duplicare ID, socio corrente
+senza rinnovo e gruppo misto; con/senza codice sconto (il gruppo resta escluso
+dagli sconti come da regola esistente), con/senza commissione. Verificare totale
+richiesto/persistito, acquisto/partecipante, anni e storico/quota, collegamenti,
+statistiche, nessun consumo prima della capture, rifiuto provider senza tessera
+e retry completato senza nuovo incasso/rinnovo/uso sconto. Impostazione quota
+mancante: rifiuto prima del provider per i target che ne richiedono il valore.
+Unitari e API/emulatori locali, una review finale Sol medium. Nessun cloud,
+provider reale, recupero tessere post-interruzione o nuova regola Q-01 implicita.
+
+
+Esecuzione DIS-08 (2026-11-12): nuova batteria
+`tests/synthetic_api/test_membership_discount_checkout.py`, 52 scenari.
+30 combinazioni singole nuovo/scaduto/corrente × formula/fee, gruppo misto,
+8 pagamenti falliti, 8 quote mancanti/non leggibili, 2 soci correnti senza
+impostazione quota, 2 modifiche impostazione tra create/capture e un rifiuto
+sconto sul gruppo. Nessun nuovo codice applicativo: caratterizzazione e prove
+di regressione della regola confermata. Review finale Sol medium e runtime
+locale con provider fake; recupero tessere interrotte rimane separato.
+
+
+Esito finale DIS-08, 2026-11-12: **52 nuovi casi, 203/203 API, 849 unitari
+e 39 test script passati**. Il primo guasto era un indirizzo sintetico .test
+rifiutato dal DTO, corretto in example.com; nessun bug applicativo emerso.
+La batteria finale include anche capture senza impostazione quota per i soci
+già correnti e conteggi soci attivi. I test usano importi attesi letterali;
+il fake conserva il lordo della create reale, evitando di mascherare un
+importo chiesto al provider errato. Il caso totale zero resta una prova fake,
+non una verifica di accettazione PayPal reale.
+
+Review unica Sol medium conclusa senza Critical/Important/Minor, accettata
+dal coordinatore. Scanner zero segnalazioni, diff check pulito, JUnit zero
+failure/error/skipped, runner exit 0 e arresto pulito. Nessuna modifica al
+codice applicativo, nessun deploy/cloud/provider reale o prova CI remota.
+La decisione Q-03 sulla formula è chiusa; lo storico di dubbi delle sezioni
+precedenti resta datato al checkpoint originale. Recupero post-interruzione
+con tessere e altre regole MEM/Q-01 rimangono separati.

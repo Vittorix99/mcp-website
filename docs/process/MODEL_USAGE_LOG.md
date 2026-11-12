@@ -231,3 +231,16 @@ Implementazione nativa del coordinatore (pagamenti), nessuna delega Luna.
 | Codex / gpt-6.1-sol | `pay10_review_sol`: unica review finale su importi, totale assente, final_capture e conservazione dell'incasso | medium | Conclusa: 1 Important (amount non-oggetto prima della persistenza) e 1 Minor sui limiti Decimal, riclassificato Important dal coordinatore per la violazione della tolleranza monetaria. Entrambi riprodotti RED e corretti; nessun rilievo differito. Review ripresa sullo stesso incarico dopo interruzione, nessuna seconda delega. Esito accettato e corretto dal coordinatore: 849 unitari, 39 test script, 151 API e 6 integrazione sconti passati; emulatori exit 0 e arresto pulito. Scanner zero segnalazioni e diff check pulito. Nessuna CI remota/cloud/provider reale. |
 
 Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## DIS-08 — tessera inclusa e sconti — 2026-11-12
+
+Regola confermata dal proprietario; implementazione nativa del coordinatore,
+52 nuove prove API, nessuna modifica applicativa o agli importi. Nessuna delega
+Luna per la verifica congiunta di pagamenti, rinnovi e contabilità.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `dis08_review_sol`: unica review finale su formule incluse, dati socio, quote/storico e retry | medium | Conclusa senza Critical/Important/Minor, accettata dal coordinatore. 52 nuovi casi, 203/203 API, 849 unitari e 39 script passati. Verificati lordo richiesto reale, dati/storico socio, soci attivi e retry invariato; anche capture senza impostazione quota per i soci correnti. Primo errore fixture (email .test) corretto prima della review. Runner emulatori exit 0 e arresto pulito; scanner zero segnalazioni e diff check pulito. Nessuna modifica applicativa, cloud/provider reale o prova CI remota. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
