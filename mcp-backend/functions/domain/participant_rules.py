@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Protocol, Set, Tuple, Union
 
 from services.gender.gender_service import build_gender_lookup
-from domain.membership_rules import membership_matches_year
+from domain.membership_rules import is_membership_active, membership_matches_year
 from interfaces.repositories import MembershipRepositoryProtocol, ParticipantRepositoryProtocol
-from models import Event, Membership
+from models import Event, EventPurchaseAccessType, Membership
 from repositories.membership_repository import MembershipRepository
 from repositories.participant_repository import ParticipantRepository
 from utils.events_utils import is_Under_21, is_minor, normalize_email, normalize_phone
@@ -65,8 +65,7 @@ def _get_gender_cached(name: str):
 def _is_valid_member(member: Membership, today: Optional[datetime] = None) -> bool:
     if today is None:
         today = datetime.now(timezone.utc)
-    # membership_years è l'unica fonte canonica: le date descrivono solo la tessera corrente.
-    return membership_matches_year(member, today.year)
+    return is_membership_active(member, today.year)
 
 
 def _resolve_event_flags(event: object) -> Tuple[bool, bool, bool]:
@@ -169,6 +168,13 @@ def run_basic_checks(
         member_model: Optional[Membership] = None
         if email:
             member_model = membership_repository.find_by_email(email)
+            if (member_model and membership_matches_year(member_model, today.year)
+                    and not is_membership_active(member_model, today.year)
+                    and event_data.purchase_mode in (
+                        EventPurchaseAccessType.ONLY_MEMBERS,
+                        EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS,
+                    )):
+                result.errors.append("Tessera non valida per l'anno già presente: contatta l'amministratore")
             if member_model and _is_valid_member(member_model, today):
                 m_name_norm = _normalize_text(member_model.name)
                 m_surname_norm = _normalize_text(member_model.surname)

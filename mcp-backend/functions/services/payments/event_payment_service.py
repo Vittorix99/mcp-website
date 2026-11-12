@@ -15,7 +15,9 @@ from paypalserversdk.models.order_request import OrderRequest
 from paypalserversdk.models.purchase_unit_request import PurchaseUnitRequest
 from paypalserversdk.paypal_serversdk_client import PaypalServersdkClient
 
-from domain.membership_rules import build_renewal_record, membership_years_from_renewals
+from domain.membership_rules import (
+    build_renewal_record, is_membership_active, membership_matches_year, membership_years_from_renewals,
+)
 from domain.participant_rules import run_basic_checks
 from dto.preorder import (
     CheckoutParticipantDTO,
@@ -333,6 +335,23 @@ class EventPaymentService:
                 logger.exception("Unable to release checkout capacity after order creation failure")
             raise
 
+    def _validate_memberships_before_capture(self, order: EventOrder) -> None:
+        if order.purchase_mode not in (
+                EventPurchaseAccessType.ONLY_MEMBERS, EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS):
+            return
+        current_year = datetime.now(timezone.utc).year
+        target_emails = {person.email for person in self._participants_from_payload(order.membership_targets or [])}
+        for person in self._participants_from_payload(order.participants or []):
+            current = self.membership_repository.find_by_email(person.email)
+            if person.email in target_emails:
+                if current and membership_matches_year(current, current_year):
+                    raise ValidationError("Tesseramento cambiato: nuovo checkout o gestione amministratore richiesta")
+            else:
+                expected = (order.membership_lookup or {}).get(person.email)
+                if (not current or not is_membership_active(current, current_year)
+                        or not isinstance(expected, dict) or expected.get("id") != current.id):
+                    raise ValidationError("Tessera non valida o cambiata: contatta l'amministratore")
+
     def capture_order_event(self, payload: OrderCaptureDTO) -> OrderCaptureResponseDTO:
         order_id = payload.order_id
 
@@ -377,6 +396,7 @@ class EventPaymentService:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        self._validate_memberships_before_capture(stored_order)
         self.capacity_repository.begin_capture(event_id, stored_order.capacity_reservation_id, order_id)
         reservation_token = None
         try:
@@ -679,10 +699,14 @@ class EventPaymentService:
         purchase_id: str,
     ) -> List[MembershipRef]:
         membership_refs: List[MembershipRef] = []
+        processed_emails = set()
         fee_value = float(membership_fee) if membership_fee is not None else None
         for person in targets:
             # I target sono i partecipanti che devono ottenere o rinnovare la membership dal pagamento evento.
             normalized_email = normalize_email(person.email)
+            if normalized_email in processed_emails:
+                continue
+            processed_emails.add(normalized_email)
             existing = (
                 self.membership_repository.find_by_email(normalized_email)
                 if normalized_email
@@ -695,6 +719,8 @@ class EventPaymentService:
                 end_date = f"31-12-{fallback_year}"
 
             if existing:
+                if membership_matches_year(existing, datetime.now(timezone.utc).year):
+                    raise ConflictError("Tesseramento cambiato dopo l'incasso: verifica amministratore richiesta")
                 # Il payment decide che serve un rinnovo, ma la regola resta nel MembershipsService.
                 renewed = self._get_memberships_service().renew_existing(
                     existing,

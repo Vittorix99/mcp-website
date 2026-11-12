@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
+from domain.membership_rules import is_membership_active
 from interfaces.repositories import (
     EntranceScanRepositoryProtocol,
     EventRepositoryProtocol,
@@ -335,8 +336,9 @@ class AnalyticsSnapshotService:
         purchases = [purchase for purchase in self.purchase_repository.stream_models() if self._is_valid_event_purchase(purchase)]
         participants = self._stream_all_participants()
 
+        current_year = datetime.now(timezone.utc).year
         active_members = sum(
-            1 for membership in self.membership_repository.stream() if bool(getattr(membership, "subscription_valid", False))
+            1 for membership in self.membership_repository.stream() if is_membership_active(membership, current_year)
         )
 
         event_participants_map = defaultdict(int)

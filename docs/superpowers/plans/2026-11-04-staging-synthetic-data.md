@@ -106,8 +106,8 @@ Fonti: [membership_rules.py](../../../mcp-backend/functions/domain/membership_ru
 | --- | --- | --- | --- |
 | MEM-01 | Socio adulto, anno corrente presente, flag valido; lettura e checkout | Profilo leggibile; riconosciuto come socio nel checkout; incluso negli attivi. | Seed/API D |
 | MEM-02 | Socio solo anni precedenti, flag falso e tessera scaduta | Storico preservato; escluso dagli attivi; rinnovo possibile. Le vecchie partecipazioni restano. | Seed/API D |
-| MEM-03 | Anno corrente presente ma flag falso | Checkout classifica per `membership_years`; scanner rifiuta per flag. Attivi e soci riconosciuti possono divergere: Q-01. | Seed/API Q |
-| MEM-04 | Date scadute, flag vero, anno corrente assente; poi variante inversa | Dimostrare separatamente filtro annuale, attivi e scanner; nessuna presunta invalidazione automatica dalla sola data: Q-01. | Locale Q |
+| MEM-03 | Anno corrente presente ma flag falso | Regola owner: invalida per checkout soci, scanner e attivi; niente riattivazione automatica o secondo rinnovo nell’anno presente. Verificato anche prima di capture. | API D |
+| MEM-04 | Date scadute, flag vero, anno corrente assente; poi variante inversa | Senza anno corrente non è valida, anche con flag vero. Anno presente E flag vero richiesti da tutti i controlli automatici; date non sostituiscono l’indice. Rinnovo annualità precedente possibile. | API D |
 | MEM-05 | Nuova iscrizione adulta, email o solo telefono; entrambi mancanti | Nei primi casi crea socio con primo rinnovo e anno corrente; senza contatti errore e nessun nuovo socio. Variante solo telefono isolata dal dataset con alias. | API D |
 | MEM-06 | Data nascita minorenne, mancante, invalida; confine dei 18 anni | Rifiuto dove richiesto; nessuna creazione/rinnovo. Confrontare il compleanno reale con il calcolo attuale a giorni/365: Q-06. | Locale Q |
 | MEM-07 | Nuova create con email o telefono appartenenti a socio di anno precedente | Rinnova lo stesso ID; nessun socio duplicato; attivi aumentano solo se prima falso. | API D |
@@ -249,7 +249,7 @@ Le formule attuali sono specifiche per endpoint: non chiamare tutte le metriche
 
 | ID | Preparazione e operazione | Esito da verificare e impatto sui dati/statistiche | Prova/stato |
 | --- | --- | --- | --- |
-| STA-01 | Conta soci totali, flag validi e membership_years per anno | Totale iniziale 4000; attivi = flag veri; filtro annuale = anno nell'indice, non numero di rinnovi/partecipazioni. | Seed/API D |
+| STA-01 | Conta soci totali, flag validi e membership_years per anno | Totale iniziale 4000; attivi = flag veri E anno corrente presente; filtro annuale = anno nell'indice, non numero di rinnovi/partecipazioni. | Seed/API D |
 | STA-02 | Conta eventi, iscrizioni, soci unici e biglietti acquistati | Eventi iniziali 50; iscritti = documenti participant; unici deduplicati per socio/email; biglietti da participants_count degli acquisti eleggibili. | Seed/API D |
 | STA-03 | Matrice status/capture_status, tipo event/membership, ref_id presente/assente e count >0/0 | Filtro evento richiede tipo evento, ref_id e count positivo e nessuno stato invalido; legacy generale controlla solo status: Q-04. | Locale Q |
 | STA-04 | Un acquisto gruppo da 2 biglietti, lordo 44, fee sintetica 1,50, netto 42,50 | Acquisti +1; biglietti +2; lordo +44, netto +42,50, commissioni +1,50; nessun raddoppio per le due persone. | Seed/API D |
@@ -294,7 +294,7 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 
 | Punto | Evidenza attuale e decisione/verifica necessaria | Casi collegati |
 | --- | --- | --- |
-| Q-01 | Checkout usa anno in membership_years, scanner e attivi usano subscription_valid. Date non sono un controllo unico di scadenza. Testare combinazioni e chiarire la regola uniforme desiderata. | MEM-03, MEM-04 |
+| Q-01 | Risolta in chat 2026-11-12: valida solo con anno corrente in membership_years E subscription_valid=True. Flag falso prevale; anno assente invalida sempre. Date non sostituiscono l’indice. Checkout, scanner e attivi allineati; nessuna migrazione implicita. | MEM-03, MEM-04 |
 | Q-02 | Regole owner 2026-11-12 implementate: stati indisponibili bloccati, capienza online positiva, prenotazione 10 minuti all’ordine, niente overbooking online concorrente; admin può superare il limite. UI e rollout restano separati. | EVT-03, EVT-04 |
 | Q-03 | Formula confermata dal proprietario il 2026-11-12: quota tessera inclusa nel prezzo evento, sconto applicato all’intero prezzo e fee aggiunta dopo. DIS-08 prova la formula e i dati socio; PAY-10 rifiuta importi non verificabili. Nessuna aggiunta implicita della quota al totale. | PAR-03, PAY-10, DIS-08 |
 | Q-04 | StatsService filtra solo status, analytics evento/snapshot filtrano anche capture_status, tipo, ref_id e count. Stati vuoti/non definitivi possono passare i filtri; incassi manuali da participant non sono automaticamente Purchase. Stabilire significato di ogni metrica. | PAY-03, PAY-13, STA-03, STA-06 |
@@ -1302,3 +1302,73 @@ Nessun deploy, cloud/provider reale o prova CI remota. Il rollout deve evitare
 worker vecchi che ignorano i posti accanto a worker nuovi; rollback con hold
 attivi va pianificato al gate produzione. UI/countdown, sold_out automatico,
 ottimizzazione scansioni e nuove recovery membership/legacy restano esclusi.
+
+
+### MEM-03/04 / Q-01 — caratterizzazione prima della regola, 2026-11-12
+
+Dopo EVT-04 il proprietario ha chiesto di proseguire il cantiere. Verifica
+locale in sola lettura del comportamento applicativo, con quattro casi API
+su Firestore emulato/provider fake: anno corrente sì/flag vero -> checkout
+soci 201, scanner valid, attivi sì; anno sì/flag falso -> checkout 201,
+scanner invalid_membership, attivi no; anno assente/flag vero -> checkout
+400, scanner valid, attivi sì; entrambi assenti/falsi -> checkout 400,
+scanner invalid_membership, attivi no. Tutti con end_date nel 2020: la sola
+data scaduta non cambia questi esiti. Partecipazione e scan token validi
+presenti nelle fixture; duplicati ammessi per isolare il criterio tessera.
+
+4/4 probe passati, exit 0 e shutdown emulatori pulito. Log/JUnit
+`.local/staging/membership-validity-probe.*`. File probe temporaneo eliminato,
+nessuna modifica applicativa o provider/cloud. La regola uniforme deve essere
+ancora concordata: anno canonico oppure flag con potere di disabilitazione.
+Questa caratterizzazione non autorizza migrazioni, sospensioni o nuovi addebiti.
+
+
+### MEM-03/04 / Q-01 — regola approvata e implementazione, 2026-11-12
+
+Il proprietario ha confermato entrambi i requisiti: anno corrente presente E
+flag valido. Flag falso invalida a prescindere dall'anno; senza anno corrente
+non è valida. Per anno già presente ma invalidato, checkout che richiede
+membership rifiutato senza secondo rinnovo/riattivazione automatica, gestione
+admin. Rinnovi per annualità precedenti restano supportati. Nessuna modifica
+alla formula Q-03, al significato delle liste storiche per anno o ai comandi
+manuali admin. L'anno UTC preesistente e le regole data/calendario restano
+invariati; il lavoro sui confini temporali resta Q-06.
+
+Una sola regola condivisa `domain.membership_rules.is_membership_active` usata
+nel controllo partecipanti checkout, scanner, statistiche generali, KPI/trend
+analytics e rebuild dashboard snapshot. Non si riscrivono flag/indici o date
+legacy; i valori raw restituiti dalle API restano i campi persistiti.
+Prima del claim capacità/incasso si rilegge la membership per verificare anno,
+flag e, per i membri riconosciuti all'ordine, lo stesso ID dello snapshot.
+I target che nel frattempo coprono l'anno richiedono nuovo checkout/admin.
+Se il cambiamento avviene durante la risposta provider, il controllo sul
+rinnovo conserva l'incasso persistito e rifiuta di sovrascrivere la membership;
+recovery che crea/rinnova tessere resta manuale, senza nuovi percorsi impliciti.
+
+RED iniziale: 9 dei 13 nuovi casi fallivano. Altri 2 casi durante la risposta
+provider dimostravano rinnovo/riattivazione indesiderata, riprodotti e corretti.
+Unica review Sol high: P1 duplicati ammessi generavano due target per la stessa
+email, e il secondo falliva dopo che il primo aveva creato l'anno corrente;
+P2 email riassegnata validava un'altra membership prima di linkare l'ID vecchio.
+Entrambi accettati e riprodotti con 4 RED: provisioning ora deduplicato per
+email normalizzata con entrambi i biglietti preservati; preflight confronta
+l'ID corrente con quello dell'ordine. Nessuna seconda review delegata.
+Durante verifica corretto il nome campo della fixture (`membershipId`, non
+membership_id); nessuna modifica applicativa richiesta da quel refuso.
+
+GREEN finale: **888 unitari, 287 API e 6 integrazioni sconti passati**; 19 nuovi
+casi API con Firestore emulato/provider fake. Matrice completa anno/flag,
+conteggi attivi in tutti e quattro i percorsi, date scadute, pre-capture,
+rinnovo anni precedenti e scanner successivo, cambi durante risposta provider,
+duplicati new/expired con un rinnovo e due ticket, ID riassegnato e retry.
+JUnit zero error/failure/skip, runner exit 0 e shutdown pulito. Scanner zero
+finding e diff check pulito. Log `.local/staging/membership-validity-*`, JUnit
+`.local/staging/api-results.xml` e `discount-integration.xml`.
+Warning preesistenti WeasyPrint/HarfBuzz e filtri Firestore posizionali.
+
+I controlli leggono lo stato corrente nei punti descritti; questo blocco non
+introduce un protocollo generale di lock per scritture admin/member concorrenti.
+I dati sintetici attuali già associano anno corrente a tutti i flag attivi:
+manifest e generatore non richiedono modifiche. Snapshot cloud esistenti non
+sono stati ricostruiti; rollout/rebuild resta al gate del proprietario.
+Nessun deploy, provider reale, cloud/migrazione o prova CI remota.
