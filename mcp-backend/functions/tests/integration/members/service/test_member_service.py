@@ -29,7 +29,7 @@ def test_get_me_returns_correct_dto(service, create_membership, member_email):
     """get_me returns a DTO with the correct name, email and subscription_valid."""
     create_membership(name="Anna", surname="Bianchi", subscription_valid=True)
 
-    result = service.get_me(member_email, uid="")
+    result = service.get_me(member_email, uid="member-test-uid", email_verified=True)
 
     assert result.name == "Anna"
     assert result.surname == "Bianchi"
@@ -42,14 +42,14 @@ def test_get_me_returns_correct_dto(service, create_membership, member_email):
 def test_get_me_raises_not_found_for_unknown_email(service):
     """get_me raises NotFoundError when email has no matching membership."""
     with pytest.raises(NotFoundError):
-        service.get_me("nonexistent@example.com", uid="")
+        service.get_me("nonexistent@example.com", uid="member-test-uid", email_verified=True)
 
 
 @pytest.mark.integration
 def test_get_me_raises_validation_error_for_empty_email(service):
     """get_me raises ValidationError when email is empty."""
     with pytest.raises(ValidationError):
-        service.get_me("", uid="")
+        service.get_me("", uid="member-test-uid", email_verified=True)
 
 
 @pytest.mark.integration
@@ -57,7 +57,7 @@ def test_get_me_self_heals_uid(service, create_membership, member_email, members
     """get_me writes the uid into the membership document if it was missing."""
     membership_id = create_membership()
 
-    service.get_me(member_email, uid="new-uid-123")
+    service.get_me(member_email, uid="new-uid-123", email_verified=True)
 
     updated = membership_repository.get(membership_id)
     assert updated.uid == "new-uid-123"
@@ -76,7 +76,7 @@ def test_get_attended_events_returns_events(
     event_id = create_event()
     membership_repository.add_attended_event(membership_id, event_id)
 
-    result = service.get_attended_events(member_email, uid="")
+    result = service.get_attended_events(member_email, uid="member-test-uid", email_verified=True)
 
     ids = [e.id for e in result]
     assert event_id in ids
@@ -90,7 +90,7 @@ def test_get_attended_events_returns_empty_list(service, create_membership, memb
     """Fresh membership with no attended events returns empty list."""
     create_membership(attended_events=[])
 
-    result = service.get_attended_events(member_email, uid="")
+    result = service.get_attended_events(member_email, uid="member-test-uid", email_verified=True)
 
     assert result == []
 
@@ -103,7 +103,7 @@ def test_get_attended_events_skips_nonexistent_event(
     membership_id = create_membership()
     membership_repository.add_attended_event(membership_id, "ghost-event-id")
 
-    result = service.get_attended_events(member_email, uid="")
+    result = service.get_attended_events(member_email, uid="member-test-uid", email_verified=True)
 
     assert result == []
 
@@ -137,7 +137,7 @@ def test_get_purchases_returns_correct_data(
 
     try:
         membership_repository.add_attended_event_and_purchase(membership_id, f"event-{suffix}", purchase_id)
-        result = service.get_purchases(member_email, uid="")
+        result = service.get_purchases(member_email, uid="member-test-uid", email_verified=True)
 
         ids = [p.id for p in result]
         assert purchase_id in ids
@@ -155,7 +155,7 @@ def test_get_purchases_returns_empty_list(service, create_membership, member_ema
     """Fresh membership with no purchases returns empty list."""
     create_membership(purchases=[])
 
-    result = service.get_purchases(member_email, uid="")
+    result = service.get_purchases(member_email, uid="member-test-uid", email_verified=True)
 
     assert result == []
 
@@ -173,7 +173,7 @@ def test_get_ticket_is_participant(
     event_id = create_event()
     create_participant(event_id, membership_id)
 
-    result = service.get_ticket(member_email, uid="", event_id=event_id)
+    result = service.get_ticket(member_email, uid="member-test-uid", email_verified=True, event_id=event_id)
 
     assert result.is_participant is True
 
@@ -186,7 +186,7 @@ def test_get_ticket_not_participant(
     create_membership()
     event_id = create_event()
 
-    result = service.get_ticket(member_email, uid="", event_id=event_id)
+    result = service.get_ticket(member_email, uid="member-test-uid", email_verified=True, event_id=event_id)
 
     assert result.is_participant is False
     assert result.ticket_pdf_url is None
@@ -203,7 +203,7 @@ def test_patch_preferences_sets_false(
     """patch_preferences(False) updates newsletter_consent to False in Firestore."""
     membership_id = create_membership(newsletter_consent=True)
 
-    result = service.patch_preferences(member_email, uid="", newsletter_consent=False)
+    result = service.patch_preferences(member_email, uid="member-test-uid", email_verified=True, newsletter_consent=False)
 
     assert result.get("success") is True
     updated = membership_repository.get(membership_id)
@@ -217,7 +217,7 @@ def test_patch_preferences_sets_true(
     """patch_preferences(True) updates newsletter_consent to True in Firestore."""
     membership_id = create_membership(newsletter_consent=False)
 
-    service.patch_preferences(member_email, uid="", newsletter_consent=True)
+    service.patch_preferences(member_email, uid="member-test-uid", email_verified=True, newsletter_consent=True)
 
     updated = membership_repository.get(membership_id)
     assert updated.newsletter_consent is True

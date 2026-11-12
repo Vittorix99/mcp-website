@@ -274,7 +274,7 @@ Fonti: [decoratori API](../../../mcp-backend/functions/api/decorators/__init__.p
 
 | ID | Preparazione e operazione | Esito da verificare e impatto sui dati/statistiche | Prova/stato |
 | --- | --- | --- | --- |
-| OPS-01 | Admin, socio autenticato, account senza socio, anonimo e token invalido su rispettive API | Ruoli rispettati; admin assente/non admin rifiutato come da decorator (attualmente 401); nessuna scrittura non autorizzata. Scanner pubblico richiede proprio token, non claim admin. | API D |
+| OPS-01 | Admin, socio autenticato, account senza socio, anonimo e token invalido su rispettive API | Verificati 5 percorsi personali con veri token Auth Emulator: UID proprietario, primo link solo email verificata, CAS e nessuna scrittura nei rifiuti. Ruoli admin/pubblico rappresentativi e smoke HTTP verificati; copertura globale API separata. Scanner pubblico richiede proprio token. | API D (perimetro sotto) |
 | OPS-02 | GET/POST errato e JSON mancante/invalido/campi extra sugli endpoint esaminati | 405 o 400 secondo contratto; messaggio e nessun side effect; non estendere genericamente extra=forbid ai DTO che ignorano extra. | API D |
 | OPS-03 | Tessera/ticket non inviato, già inviato, flag invio falso; retry trigger | Nessuna mail durante seed; test locale della deduplica e dei flag. PDF può essere generato anche con send falso: prevedere volumi e metadati Storage. | Locale D |
 | OPS-04 | Invio ticket/tessera a alias consentito; destinatario escluso; errore provider | Su staging solo selezionati; escluso bloccato; errore non segnato come consegna; ricezione/allegati verificati in casella dopo autorizzazione invii. | API/casella X |
@@ -1372,3 +1372,119 @@ I dati sintetici attuali già associano anno corrente a tutti i flag attivi:
 manifest e generatore non richiedono modifiche. Snapshot cloud esistenti non
 sono stati ricostruiti; rollout/rebuild resta al gate del proprietario.
 Nessun deploy, provider reale, cloud/migrazione o prova CI remota.
+
+
+### Proposta OPS-01 — identità e permessi area personale, 2026-11-12
+
+Stato: **approvato dal proprietario in chat e implementato**; evidenza finale sotto.
+Base `1aac59b`. Proseguimento richiesto dal proprietario; scelta priorità
+permessi/ammissione già nella matrice. Non equivale a nuova autorizzazione cloud.
+
+Due difetti riprodotti con token realmente emessi da Firebase Auth Emulator,
+verificati dal Firebase Admin SDK senza monkeypatch del verificatore: email non
+verificata può leggere/collegare una membership priva di UID; email verificata
+ma UID diverso da quello associato può leggere comunque il profilo. Entrambi
+rispondono 200 invece del rifiuto atteso. La causa comune è
+`MemberService._get_membership_by_email`, che controlla solo l'email e collega
+UID mancante senza verifica email o confronto dell'UID già presente.
+
+Probe: **2 RED e 2 controlli positivi PASS** (email verificata/UID mancante,
+UID proprio già associato anche con email non verificata). I profili fixture
+sono invalidi/scaduti: accesso ai propri dati resta distinto da ammissione agli
+eventi. Auth+Firestore solo in demo-mcp-test, porte 9190/8180, hub4480, Functions
+assente; fixture Auth eliminate singolarmente e documenti Firestore ripuliti.
+Exit1 atteso dai due RED, shutdown pulito. Log/JUnit
+`.local/staging/member-auth-probe.*`; probe e configurazione temporanei eliminati.
+Nessun account cloud, email reale o dato del proprietario usato.
+
+Regole proposte per l'approvazione:
+- JWT valido e UID presente necessari. Un UID già associato deve coincidere
+  con il token; un'altra identità viene rifiutata anche con email verificata.
+- Senza UID, primo collegamento solo con email verificata e corrispondente.
+  Claim UID atomico con controllo versione e rilettura: mai sostituire un UID
+  concorrente. Fallimenti non devono restituire dati o modificare preferenze.
+- UID proprio già associato mantiene accesso ai propri dati; tessera scaduta o
+  invalidata non impedisce consultazione/rinnovo nell'area personale.
+- Account verificato senza membership mantiene 404; token assente/invalido e
+  identità non autorizzata rifiutati. Risposte di rifiuto senza dati personali.
+  Admin usa i percorsi admin per gestire altri soci; nessun bypass di identità
+  aggiunto ai percorsi personali. Riallineamenti UID restano manuali/autorizzati.
+
+Unico blocco di esecuzione previsto:
+- [x] Rendere permanenti i RED e la matrice su profilo, eventi, acquisti,
+  ticket e preferenze, con veri token emulatori; anonimo/token invalido,
+  owner/altro UID, primo collegamento verificato/non verificato e nessuna
+  membership. Verificare assenza di scritture/lateralità dati nei rifiuti.
+- [x] `api/member/member_api.py`: propagare UID/email/email_verified con
+  controllo centralizzato coerente a tutti e cinque i percorsi.
+  `services/memberships/member_service.py`: unico controllo identità prima
+  delle letture sensibili o preferenze. `repositories/membership_repository.py`
+  e relativo protocollo: claim UID con CAS e invarianti UID/email.
+- [x] Estendere `firebase.synthetic-emulator.json` e
+  `scripts/staging/test_emulator.py` con modalità Auth+Firestore esplicita,
+  mantenendo invariata la modalità API Firestore-only. Nuova suite
+  `tests/synthetic_auth/` ripristina il verificatore reale e usa utenti
+  sintetici eliminati individualmente; guard host/progetto e nessun provider
+  live. Adattare solo fixture dei contratti preesistenti che simulavano email
+  non verificate come primo accesso autorizzato.
+- [x] Prove CAS: due claim non possono sostituirsi e un errore di persistenza
+  non autorizza l'accesso per convenienza. Unitari, API esistenti, nuova suite
+  Auth+Firestore, controlli script/runner e smoke applicabili; un'unica review
+  Sol high, correzioni RED/GREEN, scanner/diff check e commit con evidenze qui.
+
+Fuori perimetro: cambio login/UI, ruoli o claim cloud, revoca credenziali,
+provider di produzione, migrazione massiva UID, nuovi recuperi account,
+attivazione tessere, pricing, merge/delete o deploy. OPS-01 verrà dichiarata
+coperta solo nei percorsi effettivamente verificati, non per tutte le API.
+
+
+#### OPS-01 — esecuzione e verifica finale area personale
+
+`member_api` valida email/UID del token e propaga email_verified strettamente
+booleano ai cinque metodi MemberService. La repository `get_for_account`
+compone lookup univoco (limit2), confronto UID e claim/update in una sola
+operazione con CAS update_time e quattro tentativi. Non si sovrascrive un UID
+presente. Link iniziale non verificato/UID diverso/email ambigua rifiutati con
+401, senza dati personali; account verificato senza membership conserva404.
+Ruling: anche gli unverified senza membership ricevono401 per non distinguere
+l'esistenza di altri profili. Il proprietario già associato continua ad
+accedere con email non verificata e tessera scaduta/invalidata.
+
+Ruling: claim UID e consenso newsletter sono le sole modifiche possibili nel
+batch autorizzato; eliminato il set del model completo dalle preferenze e il
+setter UID non protetto, privo di altri chiamanti. In caso di CAS retry il
+primo ID membership è fissato: un'email riassegnata non può spostare la stessa
+richiesta su un altro profilo. Errori di persistenza falliscono senza restituire
+il profilo. Nessuna modifica a dati storici, validità annuale, ruoli cloud,
+login/UI o processi admin di recupero/merge.
+
+Runner `--auth`: solo Auth9190+Firestore8180, demo-mcp-test, nessuna Functions
+nel runner dedicato; `--api` resta Firestore-only. Modalità incompatibili o
+configurazione cloud/live rifiutate. Fixture Auth usa Firebase SDK reale senza
+bypass, verifica token emessi dall'Auth Emulator e cancella singolarmente i
+soli3 utenti sintetici creati; non sono token/claim costruiti a mano. Cleanup
+Firestore per caso. Il test CAS repository usa separatamente input trusted
+per provare l'invariante storage, non si presenta come verifica JWT.
+
+TDD: 5 RED runner poi10 verdi; prima matrice Auth55 casi con20 RED/35 PASS,
+poi email ambigua RED. Test aggiunto su email spostata dopo lettura dimostrava
+PATCH sul profilo sostitutivo: RED corretto fissando ID attraverso i retry.
+Le fixture storiche di accesso autorizzato ora dichiarano UID/email verificata
+esplicitamente; lo smoke JS crea utenti con emailVerified:true. Nessun dato
+cloud modificato per adeguare i test.
+
+GREEN finale: **888 unitari, 44 script, 57 Auth, 287 API, 36 integrazioni area
+personale e 6 integrazioni sconti passati**. JUnit zero failure/error/skip.
+I57 casi includono25 combinazioni identità su5 route,10 anonimo/token invalido,
+10 account senza membership,4 ruoli admin su write, pubblico, admin senza
+bypass personale, errore persistenza, due cambi UID/email prima di preferenze,
+claim concorrenti, email ambigua e redirect del target dopo CAS. `./scripts/test-emulators.sh`: 2 smoke Python passati e client smoke HTTP Functions,
+Auth/Firestore/Storage PASS, exit0 e shutdown pulito. Log `.local/staging/ops01-{unit,scripts,emulator,smoke}.log`; report `auth-results.xml`, `api-results.xml`,
+`member-integration.xml` e `discount-integration.xml`. Warning preesistenti WeasyPrint,
+filtri Firestore posizionali ed EOL futuro delle librerie Google.
+
+Unica review Sol high conclusa senza rilievi, accettata dal coordinatore;
+verificatore ha controllato sorgenti/evidenze senza rieseguire le suite.
+Scanner zero finding, diff check pulito. Nessun deploy, provider reale,
+migrazione UID, cambio credenziali/revoche o prova CI remota. La copertura
+OPS-01 è quella qui specificata, non una certificazione di tutte le API.

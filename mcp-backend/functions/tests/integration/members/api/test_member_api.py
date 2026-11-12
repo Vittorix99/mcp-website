@@ -31,7 +31,7 @@ def test_get_me_no_membership_returns_404(monkeypatch, member_email):
     monkeypatch.setattr(
         _dec.fb_auth,
         "verify_id_token",
-        lambda _token: {"uid": "ghost-uid", "email": f"ghost_{member_email}"},
+        lambda _token: {"uid": "ghost-uid", "email": f"ghost_{member_email}", "email_verified": True},
     )
     req = DummyRequest(method="GET")
     resp, status = unwrap_response(member_api.member_get_me(req))

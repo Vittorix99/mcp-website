@@ -83,6 +83,10 @@ class EventRepositoryProtocol(Protocol):
 
 
 class MembershipRepositoryProtocol(Protocol):
+    def get_for_account(self, email: str, uid: str, *, allow_link: bool = False,
+                        newsletter_consent: Optional[bool] = None) -> Membership:
+        ...
+
     def get(self, membership_id: str) -> Optional[Membership]:
         ...
 

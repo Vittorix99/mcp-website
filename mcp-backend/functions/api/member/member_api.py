@@ -12,16 +12,17 @@ member_service = MemberService()
 
 def _token_claims(req):
     token = req.member_token
-    email = (token.get("email") or "").strip().lower()
-    uid = token.get("uid", "")
-    return email, uid
+    email, uid = token.get("email"), token.get("uid")
+    if not isinstance(email, str) or not email.strip() or not isinstance(uid, str) or not uid:
+        raise ValidationError("Account identity is missing")
+    return email.strip().lower(), uid, token.get("email_verified") is True
 
 
 @member_endpoint(methods=("GET",))
 def member_get_me(req):
     try:
-        email, uid = _token_claims(req)
-        payload = member_service.get_me(email, uid)
+        email, uid, email_verified = _token_claims(req)
+        payload = member_service.get_me(email, uid, email_verified=email_verified)
         return jsonify(payload.to_payload()), 200
     except (NotFoundError, ValidationError) as err:
         status = 404 if isinstance(err, NotFoundError) else 401
@@ -33,8 +34,8 @@ def member_get_me(req):
 @member_endpoint(methods=("GET",))
 def member_get_events(req):
     try:
-        email, uid = _token_claims(req)
-        events = member_service.get_attended_events(email, uid)
+        email, uid, email_verified = _token_claims(req)
+        events = member_service.get_attended_events(email, uid, email_verified=email_verified)
         return jsonify([e.to_payload() for e in events]), 200
     except (NotFoundError, ValidationError) as err:
         status = 404 if isinstance(err, NotFoundError) else 401
@@ -46,8 +47,8 @@ def member_get_events(req):
 @member_endpoint(methods=("GET",))
 def member_get_purchases(req):
     try:
-        email, uid = _token_claims(req)
-        purchases = member_service.get_purchases(email, uid)
+        email, uid, email_verified = _token_claims(req)
+        purchases = member_service.get_purchases(email, uid, email_verified=email_verified)
         return jsonify([p.to_payload() for p in purchases]), 200
     except (NotFoundError, ValidationError) as err:
         status = 404 if isinstance(err, NotFoundError) else 401
@@ -60,8 +61,8 @@ def member_get_purchases(req):
 def member_get_ticket(req):
     try:
         dto = MemberEventQueryDTO.model_validate(dict(req.args or {}))
-        email, uid = _token_claims(req)
-        payload = member_service.get_ticket(email, uid, dto.event_id)
+        email, uid, email_verified = _token_claims(req)
+        payload = member_service.get_ticket(email, uid, dto.event_id, email_verified=email_verified)
         return jsonify(payload.to_payload()), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)
@@ -76,8 +77,8 @@ def member_get_ticket(req):
 def member_patch_preferences(req):
     try:
         dto = MemberPreferencesPatchDTO.model_validate(req.get_json(silent=True) or {})
-        email, uid = _token_claims(req)
-        result = member_service.patch_preferences(email, uid, dto.newsletter_consent)
+        email, uid, email_verified = _token_claims(req)
+        result = member_service.patch_preferences(email, uid, dto.newsletter_consent, email_verified=email_verified)
         return jsonify(result), 200
     except PydanticValidationError as err:
         return handle_pydantic_error(err)

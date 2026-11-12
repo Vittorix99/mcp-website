@@ -293,3 +293,15 @@ coordinatore: ammissione, pagamenti e contabilità; nessuna delega Luna.
 | Codex / gpt-6.1-sol | `membership_validity_review_sol`: unica review finale della regola condivisa, conteggi e controllo create/capture/rinnovo | high | Conclusa con 1 P1 (target duplicati per stessa email fallivano dopo primo rinnovo) e 1 P2 (preflight validava ID diverso dopo riassegnazione email). Accettati e corretti dal coordinatore con 4 regressioni RED→GREEN; nessuna seconda delega. Finale: 888 unitari, 287 API (19 nuovi), 6 integrazioni sconti passati; JUnit zero failure/error/skip, emulatori exit 0/arresto pulito, scanner 0 e diff check pulito. Nessun deploy/cloud/provider reale/CI remota. |
 
 Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## OPS-01 — identità e permessi area personale — 2026-11-12
+
+Piano approvato in chat dopo probe Auth reale emulato. Implementazione nativa
+coordinatore: autorizzazione e claim concorrenti; nessuna delega Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `ops01_identity_review_sol`: unica review finale identità JWT/UID, primo link verificato, preferenze CAS e guardie emulatori | high | Conclusa senza rilievi; accettata dal coordinatore. Evidenze eseguite dal coordinatore:888 unitari,44 script,57 Auth Emulator senza bypass verifier,287 API,36 integrazioni membri,6 integrazioni sconti,2 smoke Python e client smoke HTTP completo passati. JUnit zero failure/error/skip, runner exit0/shutdown pulito, scanner0/diff pulito. Review ha letto le evidenze senza duplicare suite. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:0 Luna,1 review Sol. Token/costi non disponibili.
