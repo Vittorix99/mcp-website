@@ -372,3 +372,17 @@ sintetici ed emulatore dedicato, nessuna scrittura cloud.
 | Codex / gpt-6.1-sol | `ops09_final_review`: unica review finale export privato, ripresa import e messaggi redatti | high | Conclusa senza rilievi; accettata dal coordinatore.50 test script e369 scenari emulatore passati, API JUnit zero failure/error/skip, runner exit0/shutdown pulito, scanner sorgenti0/diff pulito. Backend1274 e smoke OPS-08 riutilizzati invariati, nessun rerun reviewer. Nessuna scrittura cloud/provider/account/deploy/CI remota. |
 
 Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-10 — liste applicative sul dataset completo — 2026-11-12
+
+Proseguimento sviluppo autorizzato; scope annunciato: completezza liste API
+e ricerca/filtri/ordinamento/paginazione già disponibili nell'app, solo locale.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops10_bulk_read_contracts`: confronto liste API con export completo4000 soci/50 eventi | medium | Conclusa:1 scenario completo passato (4000 soci,50 eventi,7076 acquisti,21701 partecipanti), identità/conteggi e snapshot invariato; diff/evidenze letti e accettati da Sol. Nessuna modifica applicativa delegata. |
+
+| Codex / gpt-6.1-sol | `ops10_final_review`: review del contratto liste sul corpus completo e limiti evidenze UI | high | Conclusa con1 rilievo sul test: confronto aggregato acquisti/evento non rileva scambi fra ID. Accettato dal coordinatore; sostituito con mappa per singolo acquisto. Suite370 API passata in88.19s; dopo il rilievo, scenario aggiornato passato in41.02s (369 deselected). Entrambi JUnit zero failure/error/skip e runner exit0/shutdown pulito. UI parziale:40 pagine soci/4000 unici A-Z, conteggi2025/2026; restanti filtri e altre liste UI aperti dopo indisponibilità controllo browser. Server locali riavviati su richiesta owner; nessuna modifica applicativa/cloud/provider reale. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.

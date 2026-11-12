@@ -1734,3 +1734,39 @@ directory; checksum blocca letture incoerenti dei record. Rilanciare lo
 stesso export su emulatore dedicato riscrive i path previsti, non conserva
 eventuali modifiche manuali a quei documenti. Nessuna prova o scrittura
 cloud, provider/account, deploy, UI sul dataset o CI remota.
+
+
+### OPS-10 — checkpoint API sul corpus completo, 2026-11-12
+
+**Parziale: i controlli UI restanti sono aperti.** Nessuna modifica applicativa.
+Il nuovo scenario usa i veri handler admin via Flask e Firestore Emulator
+`demo-mcp-test`; l'autorizzazione segue il bypass admin della suite, quindi
+non costituisce prova JWT o trasporto Functions distribuito.
+
+Corpus seed42/as_of2026-11-12:4000 soci,50 eventi,7076 acquisti,
+21701 partecipanti,53684 documenti. Verificati identità esatte e unicità delle
+liste, anni2025/2026 e anno2030 vuoto, conteggi partecipanti per evento,
+associazione acquisto/evento per singolo ID e immagine database invariata.
+Il confronto per ID sostituisce il confronto aggregato rilevato dalla review.
+
+La prima esecuzione focalizzata ha misurato circa0.436s soci completi,
+0.372s anno2026,0.553s anno2025,0.017s anno assente,2.138s eventi,
+0.569s acquisti,2.930s complessivi per le50 letture partecipanti. Sono misure
+locali singole; non dimostrano concorrenza o SLA.
+
+UI osservata con Next reale, Auth Emulator admin e harness Flask privato
+in sola lettura:2026 mostra3200 soci/2800 validi;2025 mostra4000/2800.
+Scorse40 pagine da100:4000 email sintetiche uniche e ordine nomi A-Z.
+Il controllo browser ha poi segnalato `noWindowsAvailable` e interferenze;
+nessuna conclusione sui filtri di ricerca/stato, ordinamento inverso,
+partecipanti, eventi e acquisti UI. Le pagine eventi/acquisti attuali non
+hanno paginazione: non è stata aggiunta funzionalità durante questa prova.
+
+Suite completa370 API passata in88.19s; dopo la correzione della review,
+scenario aggiornato1 passato/369 deselected in41.02s. JUnit senza
+failure/error/skip, runner exit0 e shutdown pulito. Backend1274 unitari,
+50 test script e smoke precedenti riutilizzati: nessuna modifica applicativa.
+
+Evidenze private in `.local/staging/ops10-*.log`,
+`ops10-suite370-results.xml` e `ops10-ui-results.json`.
+Provider fake/disabilitati; nessuna mail reale, deploy, cloud o CI remota.
