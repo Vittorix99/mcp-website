@@ -282,7 +282,7 @@ Fonti: [decoratori API](../../../mcp-backend/functions/api/decorators/__init__.p
 | OPS-06 | Wallet/Sender disabilitati e gender fake durante seed | Nessuna attività live su Pass2U/Sender; guasti fake non cancellano soci/partecipazioni. Verifica wallet live separata e rinviata. | Locale D |
 | OPS-07 | Ordine non catturato prima/al/dopo 24 ore; captured; timestamp assente | Cleanup conservativo con timestamp corrente/legacy, marker pre-provider e CAS delete. Preserva recenti, pagati, tentati, legacy senza prova e metadati ambigui. Verificato il confine 24 ore e le corse con capture/recupero. | API D |
 | OPS-08 | Token scanner scaduto da meno/esattamente/più di 7 giorni | Solo oltre soglia; timestamp ambigui conservati, delete condizionale alla versione, scansioni storiche intatte. Perimetro ed evidenze sotto. | API D |
-| OPS-09 | Rigenera seed con stesso seed RNG, poi interruzione e ripresa | Stessi ID/relazioni/conteggi; no duplicati; errore parziale esplicito; guard progetto/bucket rifiuta produzione. Test locale prima di cloud. | Locale D |
+| OPS-09 | Rigenera seed con stesso seed RNG, poi interruzione e ripresa | Export byte ripetibili; ripresa stesso import senza duplicati, errori parziali redatti; solo demo Firestore locale senza Functions. Nessun writer Storage/cloud. Evidenze sotto. | Emulatore D |
 | OPS-10 | App su dataset completo: ricerca, filtri, ordinamento, paginazione | Risultati completi senza perdere/duplicare righe fra pagine; filtri socio/anno/evento/stato confrontati col manifesto. Misurare tempi, senza chiamarla ancora prova concorrente. | API/UI D |
 
 ### Contratti da caratterizzare prima di dichiarare i casi superati
@@ -1687,3 +1687,50 @@ Tradeoff: un delete condizionale per token, più RPC del vecchio batch, con
 prova emulata su501 record; non è una misura prestazionale cloud. Nessuna
 modifica alle regole di accesso scanner, allo storico, ai provider o ad altri
 cleanup; nessuna pulizia cloud/deploy o prova di schedulazione distribuita.
+
+
+### OPS-09 — export sintetico e ripresa dell'import, 2026-11-12
+
+Proseguimento autorizzato dal proprietario, perimetro annunciato prima del
+lavoro: export ripetibili e interruzione/ripresa solo su file privati ed
+emulatore dedicato. Nessun nuovo writer cloud, account Auth o invio.
+
+Tre RED offline: residui records.jsonl.tmp e manifest.json.tmp bloccavano
+write_export con FileExistsError; l'errore --apply non avvertiva esplicitamente
+delle possibili scritture parziali. Ora tempfile.mkstemp crea un nome univoco
+esclusivo in directory privata, permessi600, senza cancellare i residui
+precedenti. Atomic replace per file, directory700, rifiuto symlink finale e
+manifest pubblicato per ultimo conservati. CLI import ancora exit2/tipo
+errore soltanto/no JSON di successo, con avviso parziale solo in --apply e
+istruzione di riprovare lo stesso export. Nessun dato dell'eccezione stampato.
+
+Sei test script nuovi: tre artifact byte identici con stessi input/revisione,
+checksum su export misto rifiutato e ripristinato da rerun, due temp residui
+conservati e non bloccanti, permessi privati, errore redatto/partial warning e
+modalità default offline che non invoca il caricatore. Guardie esistenti su
+progetto demo, loopback letterale, checksum/path e assenza Functions restano
+inalterate. Non esiste destinazione bucket: questo writer è Firestore-only.
+
+Cinque nuovi casi emulati usano export validato con120 soci/12 eventi/1147
+documenti. SDK reale e AnonymousCredentials: doppio import identico senza
+duplicati; interruzione prima del secondo commit (400 doc persistiti),
+risposta persa dopo il secondo commit reale (800), errore readback dopo tutte
+le scritture (1147). Ogni errore chiude il client; rilancio stesso export
+verifica tutti i path/dati. Documento estraneo provoca rifiuto prima delle
+scritture seed e rimane intatto. Il comportamento di ripresa già funzionava:
+nessuna modifica all'algoritmo di import o alle guardie è stata necessaria.
+
+GREEN:50 test script (44 precedenti+6 nuovi) e369 scenari emulatore (364+5),
+JUnit API zero failure/error/skip, runner exit0/shutdown pulito. Log
+`.local/staging/ops09-{scripts,api-baseline,api-green}.log` e
+`ops09-luna-offline.log`; JUnit `.local/staging/api-results.xml`. Scanner sui
+sorgenti scripts/nuovo test0, diff check pulito; una review Sol high senza
+rilievi, accettata. Backend1274 unitari e smoke completo OPS-08 riutilizzati:
+nessun codice applicativo, configurazione runtime o wiring modificato.
+
+Limiti: fault injection di eccezioni SDK, non kill reale di processo o rete
+distribuita. Export differenti concorrenti non sono una transazione di
+directory; checksum blocca letture incoerenti dei record. Rilanciare lo
+stesso export su emulatore dedicato riscrive i path previsti, non conserva
+eventuali modifiche manuali a quei documenti. Nessuna prova o scrittura
+cloud, provider/account, deploy, UI sul dataset o CI remota.

@@ -359,3 +359,16 @@ solo nell'emulatore dedicato; nessuna pulizia cloud o modifica schedule.
 | Codex / gpt-6.1-sol | `ops08_final_review`: unica review finale soglia token, cancellazione condizionale e storico scansioni | high | Conclusa senza rilievi, accettata dal coordinatore. Verificati1274 unitari,364 API (6 nuovi),2 smoke Python e client HTTP emulato PASS; API JUnit zero failure/error/skip, runner exit0/shutdown pulito, source scanner0/diff pulito. Nessun rerun reviewer;44 script invariati riutilizzati. Nessuna pulizia cloud/deploy/CI remota. |
 
 Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-09 — export/import sintetico ripetibile e ripresa — 2026-11-12
+
+Proseguimento sviluppo autorizzato dal proprietario; solo file privati
+sintetici ed emulatore dedicato, nessuna scrittura cloud.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops09_offline_resume_tests`: test byte ripetibili, export interrotto/temp residui e messaggi CLI | medium | Conclusa:3 verdi e3 RED (due temp residui, avviso import parziale). Diff letto e accettato da Sol; correzioni production al coordinatore. Nessuna modifica applicativa delegata. |
+| Codex / gpt-6.1-sol | `ops09_final_review`: unica review finale export privato, ripresa import e messaggi redatti | high | Conclusa senza rilievi; accettata dal coordinatore.50 test script e369 scenari emulatore passati, API JUnit zero failure/error/skip, runner exit0/shutdown pulito, scanner sorgenti0/diff pulito. Backend1274 e smoke OPS-08 riutilizzati invariati, nessun rerun reviewer. Nessuna scrittura cloud/provider/account/deploy/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.

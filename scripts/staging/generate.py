@@ -14,6 +14,7 @@ from pathlib import Path
 import random
 import re
 import sys
+import tempfile
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -304,8 +305,8 @@ def write_export(dataset, output):
         destination = output / name
         if destination.is_symlink():
             raise ValueError('Refusing symlink output file')
-        temporary = output / (name + '.tmp')
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        descriptor, temporary_name = tempfile.mkstemp(prefix=name + '.', suffix='.tmp', dir=output)
+        temporary = Path(temporary_name)
         try:
             with os.fdopen(descriptor, 'w') as handle:
                 handle.write(content)
