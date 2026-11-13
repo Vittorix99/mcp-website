@@ -140,6 +140,8 @@ class RevenueBreakdownResponseDTO(_ResponseBase):
     total_net: float = Field(serialization_alias="totalNet")
     paypal_fees: float = Field(serialization_alias="paypalFees")
     by_tier: List[RevenueTierDTO] = Field(serialization_alias="byTier")
+    manual_received: float = Field(default=0, serialization_alias="manualReceived")
+    total_received: float = Field(default=0, serialization_alias="totalReceived")
 
 
 # ---- Event Funnel --------------------------------------------------------
@@ -209,3 +211,5 @@ class DashboardKpisResponseDTO(_ResponseBase):
     this_month_revenue: float = Field(serialization_alias="thisMonthRevenue")
     total_omaggi: int = Field(serialization_alias="totalOmaggi")
     avg_unit_payment: float = Field(serialization_alias="avgUnitPayment")
+    manual_received: float = Field(default=0, serialization_alias="manualReceived")
+    total_received: float = Field(default=0, serialization_alias="totalReceived")

@@ -254,7 +254,7 @@ Le formule attuali sono specifiche per endpoint: non chiamare tutte le metriche
 | STA-03 | Matrice status/capture_status, tipo event/membership, ref_id presente/assente e count >0/0 | Status e capture_status entrambi COMPLETED; filtro evento richiede inoltre tipo evento, ref_id e count positivo. Il generale comprende anche acquisti tessera confermati: primo blocco Q-04. | Locale Q |
 | STA-04 | Un acquisto gruppo da 2 biglietti, lordo 44, fee sintetica 1,50, netto 42,50 | Acquisti +1; biglietti +2; lordo +44, netto +42,50, commissioni +1,50; nessun raddoppio per le due persone. | Seed/API D |
 | STA-05 | Stessa riga completata diventa REFUNDED o capture_status DECLINED | Metriche evento escludono lordo/netto/biglietti; iscrizioni e scan non spariscono per il solo cambio stato. Ricalcolo senza saldi residui. | API D |
-| STA-06 | Omaggi, inserimenti manuali pagati e biglietti website nello stesso evento | Omaggi da payment_method; incassi online da Purchase eleggibili. Non inventare acquisti per contanti/iban; chiarire se metriche incassi desiderate devono includerli: Q-04. | Seed/API Q |
+| STA-06 | Omaggi, inserimenti manuali pagati e biglietti website nello stesso evento | Omaggi a zero; online da Purchase confermati. Ricevuti manuali cash/iban/private_paypal separati, solo senza purchase_id e con prezzo positivo valido. Totale lordo senza doppi conteggi: Q-04. | Seed/API Q |
 | STA-07 | Nessun acquisto valido, nessun ingresso, capienza zero/assente | Totali zero, nessuna divisione per zero; media unitario e percentuali secondo formula; confrontare null/zero dei DTO. | Seed/API D |
 | STA-08 | Ticket tiers con 1/2/3/4 prezzi, prezzi vicini, gruppi e sconto | Classificazione e tolleranze come da algoritmo; somme tier = biglietti/lordo/netto eleggibili, senza sommare anche la membership come biglietto. | Locale D |
 | STA-09 | Vendite su giorni/mesi diversi, cambio mese/anno Europe/Rome | Bucket temporali e this_month corretti; nessuna inclusione per sola ora ignorando la data della vendita. | Seed/API D |
@@ -297,7 +297,7 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 | Q-01 | Risolta in chat 2026-11-12: valida solo con anno corrente in membership_years E subscription_valid=True. Flag falso prevale; anno assente invalida sempre. Date non sostituiscono l’indice. Checkout, scanner e attivi allineati; nessuna migrazione implicita. | MEM-03, MEM-04 |
 | Q-02 | Regole owner 2026-11-12 implementate: stati indisponibili bloccati, capienza online positiva, prenotazione 10 minuti all’ordine, niente overbooking online concorrente; admin può superare il limite. UI e rollout restano separati. | EVT-03, EVT-04 |
 | Q-03 | Formula confermata dal proprietario il 2026-11-12: quota tessera inclusa nel prezzo evento, sconto applicato all’intero prezzo e fee aggiunta dopo. DIS-08 prova la formula e i dati socio; PAY-10 rifiuta importi non verificabili. Nessuna aggiunta implicita della quota al totale. | PAR-03, PAY-10, DIS-08 |
-| Q-04 | Criterio online approvato 2026-11-13: status E capture_status entrambi COMPLETED nei tre servizi. Tipo/ref/count restano vincoli specifici evento. Incassi manuali da participant non sono automaticamente Purchase; significato delle metriche manuali/omaggi ancora aperto. | PAY-03, PAY-13, STA-03, STA-06 |
+| Q-04 | Criterio online approvato 2026-11-13: status E capture_status entrambi COMPLETED nei tre servizi. Tipo/ref/count restano vincoli specifici evento. Manuali ricevuti da cash/iban/private_paypal senza purchase_id, separati dagli online; omaggi zero. Totale ricevuto lordo = online + manuali, senza creare Purchase. | PAY-03, PAY-13, STA-03, STA-06 |
 | Q-05 | Entrate raw, flag participant e scansioni nella finestra non sono lo stesso insieme. Snapshot usa finestra fissa 22:00-06:00 e KPI entered dalla somma bucket; endpoint diretto può contare flag/scan differenti. Scritture scan/flag separate. | QR-10, QR-12, QR-15, STA-10 |
 | Q-06 | Diverse funzioni età usano giorni/365; verificare maggiorenne/over21 e fasce statistiche rispetto al calendario, non copiando la formula come oracolo. | MEM-06, PAR-09, STA-12 |
 | Q-07 | Delete evento/partecipante e riassegnazione socio non dimostrano cascata su scan, purchase e storico. Merge esaminato riallinea partecipanti; verificare anche scan e membership_ids degli acquisti. Nessuna cancellazione reale in questa fase. | EVT-09, PAR-16, PAR-17, STA-15 |
@@ -1900,3 +1900,72 @@ contratti126 riferimenti/130 export/0 errori, diff check pulito.
 Log privati `stats-q04-*.log`. Nessuna CI remota, cloud/provider reale,
 migrazione o merge main. Snapshot già salvati richiedono un rebuild dopo
 il rollout per applicare il criterio nuovo: nessun rebuild cloud eseguito.
+
+### Secondo blocco Q-04 — incassi manuali ricevuti, 2026-11-13
+
+Owner conferma: partecipante manuale con prezzo positivo = pagamento già
+ricevuto tramite canali diversi dal sito. La proposta online/manuali separati,
+omaggi a zero e totale economico è il perimetro del blocco. Implementazione
+sul branch `core-stats-manual-receipts`, base d5a10c9; main resta congelato.
+
+Regola: sommare prezzi monetari finiti/positivi con al massimo due decimali,
+metodo cash/iban/private_paypal, e purchase_id assente o vuoto. Qualsiasi
+riferimento purchase non vuoto esclude la riga manuale, anche se orfano o
+collegato a un acquisto non confermato. Website senza purchase e metodi
+sconosciuti non diventano incassi manuali. Omaggio non produce incasso,
+anche con prezzo legacy incoerente; nessuna rettifica automatica dei dati.
+
+1. Helper di dominio condiviso per ricevuti manuali e criterio evento
+   confermato già approvato; test RED/GREEN su metodi, importi, riferimenti.
+2. Campi aggiuntivi manuali e totale ricevuto (lordo online + ricevuto manuale)
+   in generale, breakdown evento e snapshot evento/globale/dashboard; DTO
+   additive. Lordo/netto/fee online restano separati. Nessuna commissione o
+   stima di netto manuale inventata. Totale prossimo evento usa le stesse fonti.
+3. UI esistente: mostrare manuali e totale lordo in dashboard/report evento;
+   snapshot vecchi senza campi mostrano «Da ricalcolare». Adeguare il KPI
+   acquisti al criterio COMPLETED/COMPLETED già scelto, preservando visibilità
+   dei record e distinguendo confermati da stati falliti/annullati/rimborsati.
+4. Prove unit/API emulatore su acquisti gruppo, manuali, omaggi, riferimenti
+   duplicati/orfani, rebuild ripetuto e sorgenti invariati; frontend lint/build
+   e matrice filtro confermati. Unica review finale Sol high del blocco.
+
+Esclusi: caricamenti/rebuild cloud, migrazioni, rimborsi reali, commissioni
+dei canali manuali, nuovi writer pagamenti e modifica delle definizioni di
+biglietti/retention/finestre ingressi. Snapshot vecchi richiedono rebuild al
+rollout. Nessun merge main o attivazione pipeline; owner diff preservati.
+
+Esito: implementazione locale completata. Generale espone importi stringa
+`total_manual_amount` e `total_received_amount`; DTO evento/dashboard
+`manualReceived`/`totalReceived`; snapshot evento/globale/dashboard
+`manual_received`/`total_received`. Il ricevuto complessivo è lordo online
+più ricevuto manuale; il netto online e le sue fee restano separati. Il
+generale include anche tessere standalone; dashboard e analytics evento
+mantengono il perimetro eventi, dichiarato nelle etichette UI. Totali manuali
+globali leggono i partecipanti persistiti tramite stream_all, senza dedurre
+rimborsi/cancellazioni dal solo stato del documento evento (Q-07 separato).
+
+L'UI mostra manuali/totale e «Da ricalcolare» per campi mancanti nei vecchi
+snapshot; la lista acquisti usa entrambi gli stati COMPLETED per KPI e filtro
+confermati, senza trasformare PENDING in fallimento. Filtri degli stati
+falliti/annullati/rimborsati e visibilità dei record preservati.
+
+29 nuovi casi unitari RED iniziali. Review finale Sol high:1P2 sui metodi
+persistiti non canonici, accettato e corretto con4RED/6casi modello e4casi API
+aggiuntivi. EventParticipant normalizza solo metodi riconosciuti durante
+hydration, su copia del payload; non modifica i documenti sorgente. La
+presenza di tali varianti nel database reale non è stata verificata.
+
+Finale:1372 unitari (+35),87 strumenti,50 frontend (+2),lint0errori/53warning
+preesistenti e build fixture PASS.392 scenari API/emulatore (+8),JUnit senza
+failure/error/skip, runnerexit0/shutdownpulito. Online confermato/non confermato,
+manuali misti, omaggi con prezzo incoerente, purchase_id collegati/orfani,
+metodi persistiti canonici/legacy,2rebuild e purchase/participant immutati
+coperti. Prima suite388 canonici passata; finale392 dopo normalizzazione.
+Verifica visiva browser non eseguita; niente SLA/carico/provider reale.
+
+Una delega Luna medium per6fileUI, letta e accettata; regole e aggregazioni
+economiche al coordinatore Sol. Unica review Sol high, nessuna seconda
+review dopo il fix. Contratti126/130export/0errori, Firebase, scanner0 e diff
+puliti. Log privati manual-receipts-*. Nessuna CI remota, pubblicazione,
+migrazione, invio, rebuildcloud o merge main. Il rollout richiede rebuild
+degli snapshot e verifiche cloud separate; Q-05/06/07/08 restano aperti.

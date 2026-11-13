@@ -14,7 +14,7 @@ def general_stats(purchases, recent=None):
         event_repository=SimpleNamespace(stream_models=lambda:iter(())),
         membership_repository=SimpleNamespace(stream=lambda:iter(()),get_last_by_start_date=lambda:None),
         purchase_repository=SimpleNamespace(stream_models=lambda:iter(purchases),get_last_by_timestamp=lambda:recent),
-        participant_repository=SimpleNamespace(get_last_across_events=lambda:None),
+        participant_repository=SimpleNamespace(get_last_across_events=lambda:None,stream_all=lambda:iter(())),
         message_repository=SimpleNamespace(count_unanswered_since=lambda _:0,get_last_model=lambda:None),
     ).get_general_stats()
 

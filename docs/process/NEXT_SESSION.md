@@ -175,3 +175,33 @@ migrazione,provider reale,CI remota o push. PR#11 rimane draft senza
 automerge; niente altri merge main fino a fine ristrutturazione. Q-05 ingressi,
 Q-06 età,Q-07 riferimenti,Q-08 duplicati e gate cloud restano aperti.
 Preservare3owner diff in AGENTS,MODEL_USAGE_LOG,NEXT_SESSION.
+
+
+## Q-04 — ricevuti manuali e totali separati, 13 novembre 2026
+
+Branch `core-stats-manual-receipts`, base d5a10c9, worktree `.worktrees/core-ws2`.
+Owner: manuale a prezzo positivo significa pagamento ricevuto fuori dal sito.
+Metodi: cash/iban/private_paypal; importo finito, positivo, in centesimi;
+purchase_id solo None/vuoto. Qualunque riferimento impedisce il fallback
+manuale anche se orfano. Website orfano e metodi ignoti esclusi; omaggi a zero.
+Nuovi campi manuali e totale lordo nei tre servizi e negli snapshot. Netto e
+fee online separati. Generale comprende tessere; dashboard solo eventi.
+Totale prossimo evento da acquisti confermati e manuali, senza sommare di
+nuovo i prezzi dei partecipanti website.
+
+UI con etichette separate e «Da ricalcolare» per snapshot senza nuovi campi.
+KPI/filtro acquisti confermati richiede entrambi gli stati COMPLETED. Il
+decoder EventParticipant riconosce maiuscole/spazi dei metodi noti su copia
+del payload. Varianti riprodotte con fixture, presenza reale non verificata.
+
+Finali:1372 unitari,87 strumenti,50 frontend,lint/build fixture PASS;392 API
+in99.74s,JUnit senza failure/error/skip,runner exit0 e shutdown pulito.
+1 Luna medium per6 file UI accettata;1 Sol high con1 P2 corretto:4RED poi
+6 casi modello e4 API aggiuntivi verdi;29RED iniziali. Nessuna seconda review.
+Firebase/contratti130export/scanner0/diff puliti. Log privati manual-receipts-*.
+Browser, carico, cloud, provider e CI remota non verificati.
+
+PR#11 resta draft senza auto-merge. Nessun merge main fino alla fine della
+ristrutturazione. Snapshot cloud da ricostruire al futuro rollout autorizzato.
+Q05 ingressi,Q06 calendario,Q07 coerenza,Q08 duplicati e gate cloud aperti.
+Preservare i3 owner diff: AGENTS,MODEL_USAGE_LOG,NEXT_SESSION.

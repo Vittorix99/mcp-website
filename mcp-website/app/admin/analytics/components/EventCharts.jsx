@@ -204,15 +204,21 @@ export default function EventCharts({
       >
         {revenueData && (
           <div className="flex h-full flex-col">
-            <div className="mb-3 flex gap-4 text-xs" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
+            <div className="mb-3 flex flex-wrap gap-4 text-xs" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
               <span style={{ color: C_OFF }}>
-                Lordo: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalGross)}</span>
+                Online lordo: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalGross)}</span>
               </span>
               <span style={{ color: C_OFF }}>
-                Netto: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalNet)}</span>
+                Online netto: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalNet)}</span>
               </span>
               <span style={{ color: C_OFF }}>
-                Fee: <span style={{ color: C_RED, fontWeight: 700 }}>{fmtEur(revenueData.paypalFees)}</span>
+                Fee PayPal sito: <span style={{ color: C_RED, fontWeight: 700 }}>{fmtEur(revenueData.paypalFees)}</span>
+              </span>
+              <span style={{ color: C_OFF }}>
+                Manuali ricevuti: <span style={{ color: "#fff", fontWeight: 700 }}>{revenueData.manualReceived == null ? "Da ricalcolare" : fmtEur(revenueData.manualReceived)}</span>
+              </span>
+              <span style={{ color: C_OFF }}>
+                Totale ricevuto (lordo): <span style={{ color: "#fff", fontWeight: 700 }}>{revenueData.totalReceived == null ? "Da ricalcolare" : fmtEur(revenueData.totalReceived)}</span>
               </span>
             </div>
             <div className="flex-1">

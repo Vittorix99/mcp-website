@@ -2,7 +2,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from domain.membership_rules import is_membership_active
-from domain.purchase_rules import is_completed_purchase
+from domain.purchase_rules import is_completed_purchase, is_completed_event_purchase
+from domain.revenue_rules import manual_received_total
 
 from interfaces.repositories import (
     EventRepositoryProtocol,
@@ -50,6 +51,7 @@ class StatsService:
         total_purchases = len(purchases)
         total_gross_amount = sum(self._safe_amount(p.amount_total) for p in purchases)
         total_net_amount = sum(self._safe_amount(p.net_amount) for p in purchases)
+        manual_received = manual_received_total(self.participant_repository.stream_all())
 
         total_events = sum(1 for _ in self.event_repository.stream_models())
 
@@ -57,10 +59,12 @@ class StatsService:
         upcoming_event_participants = 0
         upcoming_event_total_paid = 0.0
         if upcoming_event and upcoming_event.id:
-            participants = self.participant_repository.list(upcoming_event.id)
-            for participant in participants:
-                upcoming_event_participants += 1
-                upcoming_event_total_paid += self._safe_amount(participant.price)
+            participants = list(self.participant_repository.list(upcoming_event.id))
+            upcoming_event_participants = len(participants)
+            upcoming_event_total_paid = manual_received_total(participants) + sum(
+                self._safe_amount(p.amount_total) for p in purchases
+                if p.ref_id == upcoming_event.id and is_completed_event_purchase(p)
+            )
 
         now = datetime.now(timezone.utc)
         time_limit = now - timedelta(hours=24)
@@ -81,6 +85,8 @@ class StatsService:
             "upcoming_event_total_paid": f"{upcoming_event_total_paid:.2f}",
             "total_gross_amount": f"{total_gross_amount:.2f}",
             "total_net_amount": f"{total_net_amount:.2f}",
+            "total_manual_amount": f"{manual_received:.2f}",
+            "total_received_amount": f"{total_gross_amount + manual_received:.2f}",
             "last_membership": last_membership,
             "last_purchase": last_purchase,
             "last_participant": last_participant,

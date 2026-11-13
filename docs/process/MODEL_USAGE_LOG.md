@@ -408,3 +408,13 @@ Dispatch effettivi del blocco:1 Luna,1 review Sol high. Token/costi non disponib
 
 Dispatch effettivi:0 Luna,1 Sol high. Implementazione piccola ma relativa a
 metriche economiche: gestita dal coordinatore Sol. Token/costi non disponibili.
+
+
+## Q-04 — ricevuti manuali e UI — 2026-11-13
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `manual_receipts_ui`: display di manuali/totale e filtro confermati secondo contratto fornito, solo6filefrontend | medium | Conclusa e accettata da Sol dopo lettura diff:2 test NodeGREEN dopoRED modulo assente; lint0errori/53warning esistenti, diff check pulito. Nessun calcolo monetario o backend delegato. |
+| Codex / gpt-6.1-sol | `manual_receipts_final_review`: regole ricevuti, doppioni, API/snapshot/UI e compatibilità | high | Conclusa con1P2 accettato/corretto da Sol: normalizzazione metodi persistiti prima del decoderEnum.4RED poi6casi modelloGREEN e4API extra;1372unitari/87strumenti/50frontend e392API in99.74s PASS,JUnit0failure/error/skip,runnerexit0/shutdownpulito. Lint0errori/53warning esistenti,buildfixture/Firebase/contratti/scanner0/diff puliti. Nessuna seconda review o mutazione cloud; browser non verificato. |
+
+Dispatch effettivi:1 Luna,1 review Sol high. Token/costi non disponibili.

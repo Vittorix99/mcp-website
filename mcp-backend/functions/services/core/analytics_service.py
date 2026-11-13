@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
 from domain.membership_rules import is_membership_active
-from domain.purchase_rules import is_completed_purchase
+from domain.purchase_rules import is_completed_event_purchase
+from domain.revenue_rules import manual_received_total
 from dto.analytics_api import (
     AgeBandDTO,
     AgeDistributionResponseDTO,
@@ -34,7 +35,6 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import PurchaseTypes
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
@@ -303,6 +303,7 @@ class AnalyticsService:
             total_gross += b["gross"]
             total_net += b["net"]
 
+        manual_received = manual_received_total(self.participant_repository.list(event_id))
         return RevenueBreakdownResponseDTO(
             event_id=event_id,
             event_title=event.title or "",
@@ -310,6 +311,8 @@ class AnalyticsService:
             total_net=round(total_net, 2),
             paypal_fees=round(total_gross - total_net, 2),
             by_tier=by_tier,
+            manual_received=manual_received,
+            total_received=round(total_gross + manual_received, 2),
         )
 
     def get_event_funnel(self, event_id: str) -> EventFunnelResponseDTO:
@@ -544,6 +547,7 @@ class AnalyticsService:
         ticket_total = sum(self._safe_int(getattr(p, "participants_count", 0)) for p in purchases)
         avg_unit_payment = round(gross_total / ticket_total, 2) if ticket_total > 0 else 0.0
 
+        manual_received = manual_received_total(self.participant_repository.stream_all())
         return DashboardKpisResponseDTO(
             total_revenue_net=round(revenue_net_total, 2),
             events_count=len(events),
@@ -553,22 +557,14 @@ class AnalyticsService:
             this_month_revenue=round(revenue_net_month, 2),
             total_omaggi=total_omaggi,
             avg_unit_payment=avg_unit_payment,
+            manual_received=manual_received,
+            total_received=round(gross_total + manual_received, 2),
         )
 
     # ---- Internal helpers ------------------------------------------------
 
-    _VALID_EVENT_TYPE_VALUES = {PurchaseTypes.EVENT.value, "event_and_membership"}
-
     def _is_valid_event_purchase(self, purchase: Any) -> bool:
-        purchase_type = getattr(purchase, "purchase_type", None)
-        type_value = str(getattr(purchase_type, "value", purchase_type or "")).lower()
-        if type_value not in self._VALID_EVENT_TYPE_VALUES:
-            return False
-        if not getattr(purchase, "ref_id", None):
-            return False
-        if self._safe_int(getattr(purchase, "participants_count", 0)) <= 0:
-            return False
-        return is_completed_purchase(purchase)
+        return is_completed_event_purchase(purchase)
 
     def _map_tiers(self, rows: List[Dict]) -> Dict[Optional[str], str]:
         if not rows:

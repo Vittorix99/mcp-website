@@ -36,6 +36,9 @@ class _DummyParticipantRepo:
     def list(self, event_id):
         return self._participants
 
+    def stream_all(self):
+        return iter(self._participants)
+
     def get_last_across_events(self):
         return self._last
 

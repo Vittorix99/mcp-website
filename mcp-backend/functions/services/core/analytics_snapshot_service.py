@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
 from domain.membership_rules import is_membership_active
-from domain.purchase_rules import is_completed_purchase
+from domain.purchase_rules import is_completed_event_purchase
+from domain.revenue_rules import manual_received_total
 from interfaces.repositories import (
     EntranceScanRepositoryProtocol,
     EventRepositoryProtocol,
@@ -18,7 +19,7 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import AnalyticsJob, PurchaseTypes
+from models import AnalyticsJob
 from repositories.analytics_snapshot_repository import AnalyticsSnapshotRepository
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
@@ -249,6 +250,7 @@ class AnalyticsSnapshotService:
 
         total_gross = sum(self._safe_amount(getattr(purchase, "amount_total", 0)) for purchase in event_purchases)
         total_net = sum(self._safe_amount(getattr(purchase, "net_amount", 0)) for purchase in event_purchases)
+        manual_received = manual_received_total(participants)
         total_ticket_count = sum(self._safe_int(getattr(purchase, "participants_count", 0)) for purchase in event_purchases)
 
         tier_payload = self._build_ticket_tier_payload(event_purchases)
@@ -275,6 +277,8 @@ class AnalyticsSnapshotService:
                 "fill_rate": self._percentage(participants_count, max_participants),
                 "revenue_gross": round(total_gross, 2),
                 "revenue_net": round(total_net, 2),
+                "manual_received": manual_received,
+                "total_received": round(total_gross + manual_received, 2),
                 "avg_unit_payment": round(total_gross / total_ticket_count, 2) if total_ticket_count > 0 else 0.0,
                 "omaggi": sum(
                     1
@@ -312,11 +316,14 @@ class AnalyticsSnapshotService:
         gross_total = sum(self._safe_amount(getattr(purchase, "amount_total", 0)) for purchase in purchases)
         ticket_total = sum(self._safe_int(getattr(purchase, "participants_count", 0)) for purchase in purchases)
         avg_unit_payment = gross_total / ticket_total if ticket_total > 0 else 0.0
+        manual_received = manual_received_total(participants)
 
         global_snapshot = {
             "generated_at": datetime.now(timezone.utc),
             "kpis": {
                 "avg_unit_payment": round(avg_unit_payment, 2),
+                "manual_received": manual_received,
+                "total_received": round(gross_total + manual_received, 2),
                 "omaggi_total": omaggi_total,
                 "gender_distribution": gender_counts,
                 "age_band_dominant": self._dominant_bucket(age_counts),
@@ -358,6 +365,8 @@ class AnalyticsSnapshotService:
                 unique_participant_keys.add(unique_key)
 
         revenue_net_total = sum(self._safe_amount(getattr(purchase, "net_amount", 0)) for purchase in purchases)
+        manual_received = manual_received_total(participants)
+        gross_total = sum(self._safe_amount(getattr(purchase, "amount_total", 0)) for purchase in purchases)
         revenue_net_month = 0.0
         now_local = datetime.now(ROMA_TZ)
         for purchase in purchases:
@@ -378,6 +387,8 @@ class AnalyticsSnapshotService:
             "generated_at": datetime.now(timezone.utc),
             "kpis": {
                 "total_revenue_net": round(revenue_net_total, 2),
+                "manual_received": manual_received,
+                "total_received": round(gross_total + manual_received, 2),
                 "events": len(events),
                 "active_members": active_members,
                 "unique_participants": len(unique_participant_keys),
@@ -909,23 +920,8 @@ class AnalyticsSnapshotService:
     def _count_entered(self, entrance_flow: List[Dict[str, Any]]) -> int:
         return sum(self._safe_int(bucket.get("count")) for bucket in entrance_flow)
 
-    _VALID_EVENT_TYPE_VALUES = {PurchaseTypes.EVENT.value, "event_and_membership"}
-
     def _is_valid_event_purchase(self, purchase: Any) -> bool:
-        purchase_type = getattr(purchase, "purchase_type", None)
-        purchase_type_value = str(getattr(purchase_type, "value", purchase_type or "")).lower()
-        if purchase_type_value not in self._VALID_EVENT_TYPE_VALUES:
-            return False
-
-        event_id = getattr(purchase, "ref_id", None)
-        if not event_id:
-            return False
-
-        participants_count = self._safe_int(getattr(purchase, "participants_count", 0))
-        if participants_count <= 0:
-            return False
-
-        return is_completed_purchase(purchase)
+        return is_completed_event_purchase(purchase)
 
     def _normalize_payment_method(self, value: Any) -> str:
         raw = getattr(value, "value", value)

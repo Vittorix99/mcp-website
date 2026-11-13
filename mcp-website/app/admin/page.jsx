@@ -252,17 +252,19 @@ export default function AdminDashboardPage() {
         }
       />
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {loading ? (
-          Array.from({ length: 6 }).map((_, idx) => <SkeletonCard key={`kpi-${idx}`} />)
+          Array.from({ length: 8 }).map((_, idx) => <SkeletonCard key={`kpi-${idx}`} />)
         ) : (
           <>
-            <KPI label="Total Revenue (net)" value={fmtCurrency(kpis.total_revenue_net)} />
+            <KPI label="Online eventi (netto)" value={fmtCurrency(kpis.total_revenue_net)} />
+            <KPI label="Manuali eventi ricevuti" value={kpis.manual_received == null ? "Da ricalcolare" : fmtCurrency(kpis.manual_received)} />
+            <KPI label="Totale eventi ricevuto (lordo)" value={kpis.total_received == null ? "Da ricalcolare" : fmtCurrency(kpis.total_received)} />
             <KPI label="Events" value={kpis.events ?? 0} />
             <KPI label="Members attivi" value={kpis.active_members ?? 0} />
             <KPI label="Participants unici" value={kpis.unique_participants ?? 0} />
             <KPI label="Avg Fill Rate" value={fmtPercent(kpis.avg_fill_rate)} />
-            <KPI label="This Month Revenue" value={fmtCurrency(kpis.this_month_revenue)} />
+            <KPI label="Online eventi mese (netto)" value={fmtCurrency(kpis.this_month_revenue)} />
           </>
         )}
       </section>
