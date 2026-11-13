@@ -14,7 +14,7 @@ from config.firebase_config import db
 from models import Event, EventParticipant, EventPurchase, Membership, PaymentMethod
 from api.admin import purchases_api, stats_api
 from api.entrance import entrance_api
-from api.public import event_payment_api
+from api.public import discount_code_public_api, event_payment_api
 from services.payments.event_payment_service import EventPaymentService
 from services.payments.paypal_gateway import FakePayPalGateway, PayPalGatewayResponse
 
@@ -58,6 +58,7 @@ def http():
     app = Flask('synthetic-api-scenarios')
     handlers = {
         '/orders': event_payment_api.create_order_event,
+        '/discount-validation': discount_code_public_api.validate_discount_code,
         '/capture': event_payment_api.capture_order_event,
         '/purchase-status': purchases_api.update_purchase_status,
         '/revenue': stats_api.admin_get_revenue_breakdown,
@@ -126,6 +127,8 @@ class ControlledGateway(FakePayPalGateway):
         self.capture_result = None
         self.missing_capture_id = False
         self.capture_amount = None
+        self.capture_net = None
+        self.capture_fee = '1.50'
         self.bad_field = None
         self.bad_state = None
 
@@ -148,8 +151,10 @@ class ControlledGateway(FakePayPalGateway):
         if response.status_code == 201:
             capture = body['purchase_units'][0]['payments']['captures'][0]
             capture['create_time'] = datetime.now(timezone.utc).isoformat()
-            capture['seller_receivable_breakdown']['paypal_fee']['value'] = '1.50'
+            capture['seller_receivable_breakdown']['paypal_fee']['value'] = self.capture_fee
             capture['seller_receivable_breakdown']['net_amount']['value'] = '42.50'
+            if self.capture_net is not None:
+                capture['seller_receivable_breakdown']['net_amount']['value'] = self.capture_net
             if self.missing_capture_id:
                 capture.pop('id')
             if self.capture_amount is not None:

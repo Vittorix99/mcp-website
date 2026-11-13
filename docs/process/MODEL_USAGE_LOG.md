@@ -153,3 +153,25 @@ nessuna delega meccanica e nessuna modifica applicativa.
 | Codex / Sol 6.1 | `payment_failure_api_review_sol`: review finale del diff test/fixture PAY-05/07/08/09 | high | Conclusa senza rilievi, accettata dal coordinatore. Revisore: handler, service, repository e statistiche verificati; costruzione ApiException, confini importi e diff check confermati offline. Sola lettura e nessuna esecuzione emulatori. Coordinatore: 29 test unitari collegati passati, 35 casi API raccolti (12 nuovi), scanner zero segnalazioni, diff check pulito. Vittorio ha poi riportato 35 test API passati, un warning HarfBuzz, codice 0 e arresto pulito degli emulatori; esito del proprietario, non rieseguito dal coordinatore. |
 
 Conteggio blocco: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## Sconti — checkout API e utilizzi — 2026-11-09
+
+Implementazione nativa del coordinatore nel perimetro pagamenti, senza
+modifiche applicative né deleghe meccaniche.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `discount_api_review_sol`: review finale dei test DIS-01/03/04/05/07 e relative fixture | high | Conclusa senza rilievi, accettata dal coordinatore. Revisore: flussi reali DTO/handler/service/repository, formule e claim/retry verificati; sintassi Python e diff check puliti. Nessuna esecuzione emulatori dal revisore. Coordinatore: 27 test unitari collegati passati, scanner zero segnalazioni e diff check pulito; corretto un import test non compatibile con import-mode=importlib. Successivamente ispezionato il report locale `.local/staging/api-results.xml` del 2026-11-09T20:18:05+01:00: 51 test, zero failure/error/skipped, inclusi 16 casi sconto. Il coordinatore non ha riavviato gli emulatori; il report non certifica separatamente exit code del runner o arresto degli emulatori. |
+
+Conteggio sconti: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## Sconti — limiti e totale zero — 2026-11-09
+
+Estensione nativa del coordinatore, 13 nuove istanze DIS-02, senza codice
+applicativo modificato. Il caso a totale zero è una caratterizzazione fake.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `discount_boundary_review_sol`: review finale dell'estensione DIS-02 | high | Conclusa senza rilievi, accettata dal coordinatore. Revisore: contratti sconti/capture/persistenza/statistiche, default fee e preservazione del retry dopo claim verificati; sintassi e diff check puliti. Nessuna esecuzione emulatori/cloud dal revisore. Coordinatore: 27 test unitari collegati passati, scanner zero segnalazioni e diff check pulito; successivamente ispezionato il JUnit locale del 2026-11-09T20:47:56+01:00: 64 test, zero failure/error/skipped, con 8 invalidi e il caso totale zero presenti, oltre ai 4 parametri validi aggiunti. Emulatori non riavviati dal coordinatore. Il report non certifica separatamente exit code del runner e arresto degli emulatori. |
+
+Conteggio limiti: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
