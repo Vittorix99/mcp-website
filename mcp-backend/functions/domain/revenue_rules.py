@@ -12,7 +12,7 @@ def manual_received_total(participants) -> float:
             continue
         method = getattr(participant, 'payment_method', None)
         method = getattr(method, 'value', method)
-        if not isinstance(method, str) or method.strip().lower() not in _MANUAL_METHODS:
+        if not isinstance(method, str) or method not in _MANUAL_METHODS:
             continue
         try:
             amount = Decimal(str(getattr(participant, 'price', None)))

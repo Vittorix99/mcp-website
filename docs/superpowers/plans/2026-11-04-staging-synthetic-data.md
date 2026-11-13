@@ -1969,3 +1969,32 @@ review dopo il fix. Contratti126/130export/0errori, Firebase, scanner0 e diff
 puliti. Log privati manual-receipts-*. Nessuna CI remota, pubblicazione,
 migrazione, invio, rebuildcloud o merge main. Il rollout richiede rebuild
 degli snapshot e verifiche cloud separate; Q-05/06/07/08 restano aperti.
+
+### Decisione successiva owner — formato canonico, senza adapter legacy
+
+Owner preferisce non mantenere compatibilità con vecchi formati. Questa
+decisione supera il supporto case/spazi introdotto nel commit b4e3af1 per
+il P2 della review: rimosso l'override EventParticipant.from_firestore e
+la normalizzazione strip/lower dal filtro degli incassi manuali. Unico
+contratto: valori PaymentMethod canonici cash/iban/private_paypal/omaggio/
+website. Enum e stringhe canoniche restano supportati; varianti come CASH
+o « cash » non vengono adattate e non contribuiscono ai manuali.
+
+Il decoder generico preesistente resta invariato: valori enum non riconosciuti
+ricadono sul default del modello. Per i metodi non canonici questo significa
+esclusione dai manuali e mancata classificazione degli omaggi, non bonifica.
+Prima del rilascio va verificata la conformità dei metodi nei dati reali;
+eventuali anomalie richiedono una migrazione dedicata approvata, senza layer
+permanenti di compatibilità. Nessuna presenza reale delle varianti è attestata
+dalle fixture, nessun record reale letto, corretto o cancellato in questo blocco.
+
+Regressioni ora verificano round-trip dei5metodi canonici e rifiuto delle
+varianti nei conteggi, non la loro accettazione. Aggiornati gli8scenari API
+canonici/non canonici. Rimozione locale circoscritta, nessun nuovo dispatch
+per il follow-up richiesto dall'owner; preservate le altre regole e le prove
+frontend non toccate. Esito finale delle verifiche riportato nel checkpoint.
+
+Follow-up verificato:8RED prima della rimozione, poi1381 unitari e392 API
+in99.67s PASS,JUnit senza failure/error/skip,runnerexit0 e shutdown pulito.
+Scanner sorgenti/staged0 e diff pulito. Nessun push, merge o deploy; dati
+reali non toccati. Log privati canonical-methods-*.

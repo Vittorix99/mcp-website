@@ -205,3 +205,17 @@ PR#11 resta draft senza auto-merge. Nessun merge main fino alla fine della
 ristrutturazione. Snapshot cloud da ricostruire al futuro rollout autorizzato.
 Q05 ingressi,Q06 calendario,Q07 coerenza,Q08 duplicati e gate cloud aperti.
 Preservare i3 owner diff: AGENTS,MODEL_USAGE_LOG,NEXT_SESSION.
+
+
+## Aggiornamento Q-04: solo metodi canonici
+
+Owner ha chiesto di evitare compatibilità legacy. Rimosso l'override
+EventParticipant.from_firestore e strip/lower nei manuali: solo valori
+PaymentMethod canonici; nessun adapter per CASH/spazi. Il decoder generico
+preesistente resta invariato: formati non riconosciuti non entrano nei
+manuali e possono perdere la classificazione omaggio. Verificare conformità
+dei dati prima del rilascio; eventuale bonifica separata, non automatica.
+Nessuna presenza reale delle varianti verificata e nessun dato reale toccato.
+8RED poi1381unitari/392API in99.67s PASS,JUnit0failure/error/skip,runnerexit0
+e shutdown pulito;scanner0/diff pulito. Nessun nuovo dispatch per questo
+follow-up circoscritto. PR#11 draft, main congelato, nessun push/deploy.

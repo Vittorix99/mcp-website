@@ -50,14 +50,14 @@ def test_mixed_receipts_keep_online_net_and_fees_separate_without_double_countin
     assert dashboard['totalOmaggi'] == 1
 
 
-@pytest.mark.parametrize('method', [PaymentMethod.CASH,PaymentMethod.IBAN,PaymentMethod.PRIVATE_PAYPAL,' CASH ','iban','private_paypal'])
+@pytest.mark.parametrize('method', [PaymentMethod.CASH,PaymentMethod.IBAN,PaymentMethod.PRIVATE_PAYPAL,'cash','iban','private_paypal'])
 def test_explicit_manual_methods_are_received(method):
     general,analytics = services([person('12.50',method)])
     assert general.get_general_stats()['total_manual_amount'] == '12.50'
     assert analytics.get_revenue_breakdown('event-1').model_dump(by_alias=True)['manualReceived'] == 12.5
 
 
-@pytest.mark.parametrize('method', [PaymentMethod.WEBSITE,PaymentMethod.OMAGGIO,None,'unknown',''])
+@pytest.mark.parametrize('method', [PaymentMethod.WEBSITE,PaymentMethod.OMAGGIO,None,'unknown','',' CASH ','IBAN','private_paypal ','CASH'])
 def test_other_methods_do_not_become_manual_income(method):
     general,_ = services([person(10,method)])
     assert general.get_general_stats()['total_manual_amount'] == '0.00'
@@ -84,15 +84,19 @@ def test_cent_sums_are_exact_and_the_upcoming_event_excludes_other_events():
     assert analytics.get_revenue_breakdown('event-1').model_dump(by_alias=True)['manualReceived'] == .3
 
 
-@pytest.mark.parametrize('method,expected', [
-    (' CASH ','12.50'),('IBAN','12.50'),(' PRIVATE_PAYPAL ','12.50'),
-    (' OMAGGIO ','0.00'),(' WEBSITE ','0.00'),('unknown','0.00'),
-])
-def test_stored_methods_are_normalized_before_enum_decoding_without_changing_source(method, expected):
+@pytest.mark.parametrize('method', [' CASH ','IBAN',' PRIVATE_PAYPAL ',' OMAGGIO ',' WEBSITE ','unknown'])
+def test_noncanonical_stored_methods_are_not_adapted_or_counted_as_manual_income(method):
     data = {'event_id':'event-1','price':'12.50','payment_method':method}
     participant = EventParticipant.from_firestore(data,'legacy-receipt')
     general,_ = services([participant])
-    assert general.get_general_stats()['total_manual_amount'] == expected
+    assert general.get_general_stats()['total_manual_amount'] == '0.00'
     assert data['payment_method'] == method
-    if method.strip().lower() == 'omaggio':
-        assert participant.payment_method is PaymentMethod.OMAGGIO
+
+
+@pytest.mark.parametrize('method', list(PaymentMethod))
+def test_canonical_stored_methods_round_trip_without_a_compatibility_adapter(method):
+    data = {'event_id':'event-1','price':'12.50','payment_method':method.value}
+    participant = EventParticipant.from_firestore(data,'canonical-receipt')
+    assert participant.payment_method is method
+    assert participant.to_firestore()['payment_method'] == method.value
+    assert data['payment_method'] == method.value

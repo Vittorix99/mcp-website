@@ -42,18 +42,3 @@ class EventParticipant(FirestoreModel):
     price_original: Optional[float] = field(default=None, metadata={"firestore_name": "priceOriginal"})
     riduzione: bool = field(default=False, metadata={"firestore_name": "riduzione"})
     created_at: Optional[Any] = field(default=None, metadata={"firestore_name": "createdAt"})
-
-    @classmethod
-    def from_firestore(cls, data: dict, doc_id: Optional[str] = None):
-        method = data.get('payment_method')
-        if isinstance(method, str):
-            try:
-                normalized = PaymentMethod(method.strip().lower()).value
-            except ValueError:
-                pass
-            else:
-                # Normalize only recognized methods before the base enum decoder
-                # can replace legacy case/space variants with the WEBSITE default.
-                if normalized != method:
-                    data = {**data, 'payment_method':normalized}
-        return super().from_firestore(data, doc_id)

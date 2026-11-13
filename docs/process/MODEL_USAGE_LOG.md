@@ -418,3 +418,11 @@ metriche economiche: gestita dal coordinatore Sol. Token/costi non disponibili.
 | Codex / gpt-6.1-sol | `manual_receipts_final_review`: regole ricevuti, doppioni, API/snapshot/UI e compatibilità | high | Conclusa con1P2 accettato/corretto da Sol: normalizzazione metodi persistiti prima del decoderEnum.4RED poi6casi modelloGREEN e4API extra;1372unitari/87strumenti/50frontend e392API in99.74s PASS,JUnit0failure/error/skip,runnerexit0/shutdownpulito. Lint0errori/53warning esistenti,buildfixture/Firebase/contratti/scanner0/diff puliti. Nessuna seconda review o mutazione cloud; browser non verificato. |
 
 Dispatch effettivi:1 Luna,1 review Sol high. Token/costi non disponibili.
+
+
+Follow-up Q-04 su richiesta owner: rimosso il supporto appena aggiunto ai
+metodi non canonici. Nessun nuovo dispatch; coordinatore Sol inline per
+rimozione circoscritta.8RED prima,1381unitari/392API PASS in99.67s,JUnit
+0failure/error/skip,exit0/shutdownpulito,scanner0/diff pulito. Il criterio
+owner supera il precedente requisito della review sulle varianti legacy.
+Nessuna nuova review indipendente, cloud o migrazione.
