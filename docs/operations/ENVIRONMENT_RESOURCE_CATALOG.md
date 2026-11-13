@@ -1,6 +1,6 @@
 # Catalogo ambienti e risorse — Core WS1
 
-**Stato:** Core WS1 verificato localmente; gate cloud e CI remota ancora da eseguire. Nessuna attivazione staging o deployment è autorizzata da questo documento.
+**Stato aggiornato al 2026-11-13:** CI della PR #11 passata (offline/emulatori/build fixture); attivazione cloud e deploy automatico ancora da implementare. Nessuna mutazione cloud è autorizzata dalla sola presenza di questo catalogo. Piano e riscontri correnti in [CREDENTIAL_TRANSITION.md](CREDENTIAL_TRANSITION.md#piano-operativo-segreti-e-deploy-automatici--2026-11-13).
 
 Questo catalogo riporta valori non segreti presenti nel catalogo runtime tracciato e nella policy frontend. Vittorio Di Giorgio ha confermato il 25 ottobre 2026 di essere l'unico sviluppatore e avere accesso a tutti i servizi: è il referente per completare l'inventario. Le indicazioni di owner mancante nelle tabelle restano richieste di associazione alle singole risorse, non di individuazione di un altro responsabile. Gli identificativi di account provider e le conferme operative non risultano verificabili dal repository: sono **blocked before staging activation**. Le configurazioni di staging e produzione sono riferimenti di policy, non prova di risorse verificate.
 
@@ -46,3 +46,13 @@ La sola presenza di una chiave non abilita un provider. Sender è disabilitato i
 - `mcp-backend/functions/config/firebase_config.py`: emulatori in locale/test e ADC per cloud.
 - `docs/superpowers/specs/2026-10-24-ws1-environment-provider-safety-design.md`, sezioni 7.3, 9 e 23: fonti, modalità provider e sospensione Sender.
 
+
+
+## Riscontro metadati del 2026-11-13
+
+Lettura GitHub: nessun Environment, variabile Actions repository o secret
+Actions repository configurato. Lettura Google Cloud staging: nessun workload
+identity pool globale. Questo non inventaria i valori Doppler o Secret Manager,
+non verifica account provider e non abilita deploy. Nessuna credenziale letta
+o modificata. L'attivazione richiede il piano IAM e le prove del documento di
+transizione; il catalogo runtime non sostituisce la verifica delle risorse.

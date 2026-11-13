@@ -1,6 +1,6 @@
 # Transizione credenziali — Core WS1
 
-**Stato:** Core WS1 verificato localmente (684 test backend, 21 frontend); gate cloud e CI remota ancora da eseguire. Nessuna modifica credenziale, rotazione, revoca o deployment attivo è autorizzato da questo documento.
+**Stato aggiornato al 2026-11-13:** CI della PR #11 passata sul commit `0b85eb7`; verifica offline/emulatori e build fixture, non deploy cloud. La transizione Secret Manager/WIF e il deploy automatico non sono implementati. Il piano operativo sotto prepara il blocco successivo; nessuna creazione di identità, modifica IAM, rotazione/revoca o deploy deriva dalla sola presenza di questo documento.
 
 L'inventario del manifest è basato su riferimenti di file e codice tracciati. I nomi riportati non attestano che i file esistano nel checkout o che siano correnti. Per i due file storici segnalati dall'audit sono stati estratti soltanto metadati non segreti (tipo e progetto); nessun valore di credenziale viene riportato. Non sono stati aperti `.env` o JSON locali ignorati per questo inventario.
 
@@ -49,3 +49,104 @@ file nominati nel manifest Doppler né delle altre segnalazioni.
 - `mcp-backend/functions/mock_data.py` per il riferimento storico a `service_account.json`.
 - `mcp-backend/functions/config/firebase_config.py` e `mcp-backend/functions/config/runtime_settings.py` per ADC, modalità emulatori e rifiuto delle credenziali locali.
 - `docs/superpowers/plans/2026-10-25-core-ws1-environment-provider-safety.md`, vincoli globali e Task 12; `docs/superpowers/specs/2026-10-24-ws1-environment-provider-safety-design.md`, sezioni 7.3, 14 e 22.
+
+
+## Piano operativo: segreti e deploy automatici — 2026-11-13
+
+Richiesta owner: branch/PR con controlli, merge su main, deploy automatico
+staging con test post-deploy, produzione inizialmente con approvazione manuale.
+Il ramo di preparazione è `ci/staging-deployment`, base `0b85eb7` della PR #11;
+resta dipendente dall'integrazione #9 → #11. Questo è il piano da approvare
+prima dell'implementazione del nuovo blocco ampio, secondo AGENTS.md.
+
+### Riscontri di sola lettura
+
+- GitHub `Vittorix99/mcp-website`:0 Environment,0 variabili Actions repository,
+  0 secret Actions repository. Controllati i soli metadati; nessun valore
+  segreto letto, caricato o modificato.
+- Google Cloud `mcp-website-dev-39539`:0 workload identity pool globali.
+  Non sono state create identità né abilitate API o policy.
+- Unico workflow attivo: `.github/workflows/pr.yml`, eventi pull_request e
+  workflow_dispatch. Nessun trigger push/main né deploy.
+- I file `workflow-templates/staging.yml` e `production.yml` sono esempi
+  inattivi fuori da `.github/workflows/`; non implementano deploy o rollback.
+- Il runtime legge e valida configurazione/provider durante l'import
+  (`main.py`, `firebase_config.py`, service singleton). Non dichiara binding
+  SecretParam. Aggiungere solo un workflow o rinominare gli env non basta:
+  l'accesso ai segreti va rinviato all'inizializzazione runtime, preservando
+  il rifiuto di credenziali mancanti quando il provider viene avviato.
+
+### Fonte dei valori
+
+| Ambito | Configurazione pubblica | Segreti e identità |
+|---|---|---|
+| PR/local/test | Catalogo tracciato, emulatori, fixture | Nessuna credenziale cloud/provider reale |
+| Job deploy staging | Environment GitHub staging: progetto, regione, URL, Firebase web config, client ID PayPal sandbox, riferimenti WIF/account | OIDC/WIF limitato a repository/workflow/main; nessuna chiave JSON o FIREBASE_TOKEN persistente |
+| Backend staging | Configurazione runtime staging esplicita; mail/Pass2U/Sender disabilitati, gender/SoundCloud fake | Secret Manager del progetto staging; inizialmente solo credenziali sandbox PayPal necessarie |
+| Produzione | Environment GitHub production separato, protetto da approvazione owner e branch main | Identità deploy/runtime e secret separati; soli binding necessari per funzione |
+
+Non esportare l'intero `.env` o archivio Doppler negli artifact/log/GitHub.
+Gli env pubblici vanno passati esplicitamente; `NEXT_PUBLIC_*` è materiale
+pubblicato nel browser. Doppler resta transitorio fino alla sostituzione
+verificata: una sola fonte autorevole per ogni segreto, nessuna doppia
+manutenzione manuale. Nessuna rimozione degli env locali o rotazione automatica.
+
+### Implementazione proposta in un blocco coerente
+
+1. Inventariare nomi/consumatori/ambienti delle variabili necessarie; separare
+   configurazione pubblica, segreti e riferimenti di identità. Fornire esempi
+   senza valori reali e validazione che rifiuti credenziali/ambienti errati.
+2. Integrare SecretParam e binding per funzione. Separare discovery/deploy da
+   inizializzazione runtime dei provider; non usare chiavi dummy per aggirare
+   la validazione cloud. Conservare comportamento local/test e provider
+   disabilitati. Verificare discovery senza segreti e rifiuto runtime se mancanti.
+3. Riutilizzare il job di verifica esistente, rendendolo richiamabile dalla
+   pipeline push/main. Dopo tutti i controlli verdi, checkout dello stesso SHA
+   e deploy staging; niente artifact o codice proveniente da PR non fidate in
+   un job privilegiato. Pin delle Actions e dipendenze, concurrency per ambiente.
+4. Build frontend per ambiente: i valori NEXT_PUBLIC sono fissati nella build,
+   quindi non promuovere una build frontend staging contenente configurazione
+   staging in produzione. Release identificata da SHA e manifest di digest e
+   configurazioni/versioni, senza valori segreti; nessuna promessa di un unico
+   binario frontend identico fra ambienti diversi.
+5. Test post-deploy staging: prima health/read-only e identità della release;
+   poi E2E sandbox con dati sintetici isolati e pulizia mirata. I dati esistenti
+   restano protetti. Email solo al destinatario di prova autorizzato, quando
+   viene abilitato il relativo blocco; Sender resta disabilitato.
+6. Produzione dopo staging verde e approvazione GitHub Environment. Definire e
+   verificare rollback sul precedente SHA/configurazione/versioni segreti;
+   niente rollback dei dati. Il rollout pagamenti deve evitare worker misti
+   che ignorano le reservation: risolvere questo gate prima del primo deploy.
+7. Unica review finale Sol high del blocco, prove offline/emulatori e discovery,
+   successivamente prova staging controllata. Attivare l'automatismo soltanto
+   dopo verifica dei metadati/permessi e autorizzazione cloud concreta.
+
+### Dati/configurazioni necessari per l'attivazione
+
+- Confermare progetto/bucket/origini effettivi e inventario account provider;
+  gli identificativi del catalogo sono riferimenti, non conferme operative.
+- Preparare un piano IAM minimo con account deploy/runtime separati per
+  ambiente, WIF vincolato a repository ID899139661, workflow/ref main e
+  ambiente. Non assegnare Owner/Editor o creare chiavi persistenti.
+- Presentare nomi delle identità, risorse e permessi esatti prima di creare
+  accessi. Configurare Environment GitHub staging/production e approvazione
+  produzione; verificare che il piano GitHub supporti le protezioni richieste.
+- Popolare Secret Manager fuori da chat/Git/artifact, tramite accesso owner,
+  solo dopo aver completato il binding e verificato l'utilizzo attuale.
+
+### Accettazione e limite della preparazione corrente
+
+Il blocco sarà completato quando un commit main verificato viene distribuito
+su staging senza env del computer dello sviluppatore, i test staging passano,
+produzione resta in attesa di approvazione e il rollback è dimostrato.
+Nessun secret deve comparire in repository, artifact, bundle frontend o log;
+PR e fork non devono ottenere l'identità deploy. Valori/riferimenti mancanti
+bloccano l'attivazione senza fallback su produzione.
+
+Oggi sono completati soltanto ricognizione e piano. Workflow attivi, binding
+runtime, accessi cloud, test post-deploy e rollback devono essere implementati
+nel blocco approvato; i template inattivi non vanno semplicemente spostati o
+sbloccati. Le prove della PR #11 restano valide per il codice già concluso.
+
+Riferimenti primari: [Firebase environment e secret parameters](https://firebase.google.com/docs/functions/config-env),
+[WIF per pipeline](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
