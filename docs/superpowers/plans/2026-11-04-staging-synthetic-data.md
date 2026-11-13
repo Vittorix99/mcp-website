@@ -283,7 +283,7 @@ Fonti: [decoratori API](../../../mcp-backend/functions/api/decorators/__init__.p
 | OPS-07 | Ordine non catturato prima/al/dopo 24 ore; captured; timestamp assente | Cleanup conservativo con timestamp corrente/legacy, marker pre-provider e CAS delete. Preserva recenti, pagati, tentati, legacy senza prova e metadati ambigui. Verificato il confine 24 ore e le corse con capture/recupero. | API D |
 | OPS-08 | Token scanner scaduto da meno/esattamente/più di 7 giorni | Solo oltre soglia; timestamp ambigui conservati, delete condizionale alla versione, scansioni storiche intatte. Perimetro ed evidenze sotto. | API D |
 | OPS-09 | Rigenera seed con stesso seed RNG, poi interruzione e ripresa | Export byte ripetibili; ripresa stesso import senza duplicati, errori parziali redatti; solo demo Firestore locale senza Functions. Nessun writer Storage/cloud. Evidenze sotto. | Emulatore D |
-| OPS-10 | App su dataset completo: ricerca, filtri, ordinamento, paginazione | Risultati completi senza perdere/duplicare righe fra pagine; filtri socio/anno/evento/stato confrontati col manifesto. Misurare tempi, senza chiamarla ancora prova concorrente. | API/UI D |
+| OPS-10 | App su dataset completo: ricerca, filtri, ordinamento, paginazione | Risultati completi senza perdere/duplicare righe fra pagine; filtri socio/anno/evento/stato confrontati col manifesto. Misurare tempi, senza chiamarla ancora prova concorrente. | API + UI PASS (perimetro e verifica owner sotto) |
 
 ### Contratti da caratterizzare prima di dichiarare i casi superati
 
@@ -1810,3 +1810,29 @@ sessione, pur con richieste get_all_purchases200 nei log; causa non isolata.
 Il precedente7061 è una lettura UI riuscita, non prova che ogni caricamento
 sia stabile. Tentativi di input hanno dato noWindowsAvailable; Dock timeout.
 Nessuna correzione frontend applicata senza una riproduzione diagnosticabile.
+
+
+### OPS-10 — chiusura del perimetro locale, 2026-11-13
+
+**Completata.** I checkpoint parziali precedenti sono storici. Il proprietario
+ha risposto «tutto passa» al blocco manuale acquisti su127.0.0.1:3000,
+con Reset fra le prove:7061 totali;ricerca staging-user-00000=17/lordo997€;
+ricerca inesistente=0;evento000=1700/lordo58344€;status non validi=0;
+intervallo01/01/2026–31/12/2026=4878;prima data recente12/11/2026,
+vecchia29/10/2025. Questi esiti sono **riferiti dal proprietario**, non
+verificati indipendentemente dall'agente. Chiudono le prove acquisti rimaste
+aperte; non attribuiamo una causa tecnica ai precedenti snapshot a zero.
+
+Le prove API esatte e le verifiche UI agent di soci/eventi/partecipanti/omaggi
+restano quelle documentate sopra, con i rispettivi corpus e limiti. Dopo le
+prove agent,53749 documenti del corpus aggiornato e2 impostazioni locali
+verificati:nessun documento modificato rispetto all'export. Evidenza privata
+`ops10-ui-readonly-verification.log`; conferma owner in `ops10-ui-results.json`.
+
+Nessun nuovo difetto applicativo dimostrato e nessuna modifica frontend.
+Riutilizzate le verifiche valide:50 test strumenti e scenario completo sul
+corpus aggiornato1PASS/369deselected; suite370 sul corpus precedente.
+Review Sol high già conclusa, rilievo corretto; nessun nuovo dispatch per
+questa chiusura documentale. Non è prova di concorrenza, SLA browser,
+Functions distribuite o CI remota. Nessun push/merge/deploy/provider live.
+Prossimo blocco: ricognizione dipendenze e riconciliazione branch.
