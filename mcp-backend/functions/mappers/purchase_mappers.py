@@ -58,7 +58,7 @@ def purchase_to_response(purchase: Purchase) -> PurchaseDTO:
         net_amount=purchase.net_amount,
         transaction_id=purchase.transaction_id,
         order_id=purchase.order_id,
-        status=purchase.status,
+        status=purchase.status if purchase.status is not None else "",
         timestamp=purchase.timestamp,
         purchase_type=purchase.purchase_type,
         ref_id=purchase.ref_id,

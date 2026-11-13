@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
 from domain.membership_rules import is_membership_active
+from domain.purchase_rules import is_completed_purchase
 from interfaces.repositories import (
     EntranceScanRepositoryProtocol,
     EventRepositoryProtocol,
@@ -17,7 +18,7 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import AnalyticsJob, PurchaseStatus, PurchaseTypes
+from models import AnalyticsJob, PurchaseTypes
 from repositories.analytics_snapshot_repository import AnalyticsSnapshotRepository
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
@@ -924,12 +925,7 @@ class AnalyticsSnapshotService:
         if participants_count <= 0:
             return False
 
-        status = str(getattr(purchase, "status", "") or "").upper()
-        capture_status = str(getattr(purchase, "capture_status", "") or "").upper()
-        if status in PurchaseStatus.invalid_statuses() or capture_status in PurchaseStatus.invalid_statuses():
-            return False
-
-        return True
+        return is_completed_purchase(purchase)
 
     def _normalize_payment_method(self, value: Any) -> str:
         raw = getattr(value, "value", value)

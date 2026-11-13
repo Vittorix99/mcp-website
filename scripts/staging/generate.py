@@ -263,7 +263,7 @@ def generate(*, seed, as_of, email_base, member_count=4000, event_count=50):
                     'event_net_cents': -int(Decimal(original['net_amount']) * 100),
                     'event_paid_tickets': -original['participants_count'],
                     'participants': 0, 'entrances': 0,
-                    'legacy_general_purchases': -1 if field == 'status' else 0,
+                    'general_purchases': -1,
                 },
             })
     scenario_text = (ROOT / 'docs/superpowers/plans/2026-11-04-staging-synthetic-data.md').read_text()

@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from models import PurchaseStatus
 from domain.membership_rules import is_membership_active
+from domain.purchase_rules import is_completed_purchase
 
 from interfaces.repositories import (
     EventRepositoryProtocol,
@@ -43,10 +43,9 @@ class StatsService:
             1 for member in self.membership_repository.stream() if is_membership_active(member, current_year)
         )
 
-        _bad = PurchaseStatus.invalid_statuses()
         purchases = [
             p for p in self.purchase_repository.stream_models()
-            if str(getattr(p, "status", "") or "").upper() not in _bad
+            if is_completed_purchase(p)
         ]
         total_purchases = len(purchases)
         total_gross_amount = sum(self._safe_amount(p.amount_total) for p in purchases)

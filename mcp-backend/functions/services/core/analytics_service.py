@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
 from domain.membership_rules import is_membership_active
+from domain.purchase_rules import is_completed_purchase
 from dto.analytics_api import (
     AgeBandDTO,
     AgeDistributionResponseDTO,
@@ -33,7 +34,7 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import PurchaseStatus, PurchaseTypes
+from models import PurchaseTypes
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
@@ -567,10 +568,7 @@ class AnalyticsService:
             return False
         if self._safe_int(getattr(purchase, "participants_count", 0)) <= 0:
             return False
-        status = str(getattr(purchase, "status", "") or "").upper()
-        capture = str(getattr(purchase, "capture_status", "") or "").upper()
-        bad = PurchaseStatus.invalid_statuses()
-        return status not in bad and capture not in bad
+        return is_completed_purchase(purchase)
 
     def _map_tiers(self, rows: List[Dict]) -> Dict[Optional[str], str]:
         if not rows:

@@ -150,3 +150,28 @@ formule prima della risposta. Perimetro proposto aggiunto al piano sintetico
 esistente; niente dati/provider reali o nuove chiamate cloud. Nessun dispatch.
 Il piano staging/WIF andrà riallineato al nuovo ordine d'integrazione prima
 dell'attivazione. Preservare sempre i3 owner diff già presenti.
+
+
+## Checkpoint Q-04 — criterio online implementato,13 novembre2026
+
+Branch `core-stats-payment-eligibility`, worktree `.worktrees/core-ws2`,
+base39e5f3e (include preparazione deploy57c2cc3 e cronologia PR#11). Owner
+ha scelto «primo criterio»: entrambi status/capture_status COMPLETED. Regola
+condivisa nei3 servizi statistiche; vincoli tipo/ref/count restano evento,
+tessere standalone incluse nel generale. Stato null reso vuoto solo in
+risposta per evitare500 su ultimo acquisto; sorgente immutata. Generatore
+usa general_purchases=-1 nei casi invalidi; baseline dati invariata.
+
+Finali1337 unitari (+40),87 strumenti,384API (+14) in93.08s PASS;JUnit
+0failure/error/skip e runnerexit0/shutdownpulito. API handler+Firestore
+emulato,auth simulata.26RED prima della regola,1RED generatore e1RED mapper.
+Review unica Sol high senza P1/P2 accettata; caso mapper emerso dopo corretto
+con regressione e suite ripetute. Scanner0,Firebase/contratti130export/diff
+puliti. Log privati stats-q04-*. Nessun dispatch Luna;1 Sol high, costi ignoti.
+
+Solo primo blocco Q-04 chiuso: metriche manuali/omaggi ancora da definire.
+Snapshot salvati richiedono rebuild dopo futuro rollout; nessun rebuildcloud,
+migrazione,provider reale,CI remota o push. PR#11 rimane draft senza
+automerge; niente altri merge main fino a fine ristrutturazione. Q-05 ingressi,
+Q-06 età,Q-07 riferimenti,Q-08 duplicati e gate cloud restano aperti.
+Preservare3owner diff in AGENTS,MODEL_USAGE_LOG,NEXT_SESSION.

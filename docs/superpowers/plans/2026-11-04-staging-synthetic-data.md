@@ -181,7 +181,7 @@ Fonti: [event_payment_service.py](../../../mcp-backend/functions/services/paymen
 | --- | --- | --- | --- |
 | PAY-01 | Create ordine con gateway fake riuscito | Persistenza ordine non catturato e totale; nessun acquisto/partecipante/ingresso ancora creato. | API D |
 | PAY-02 | Capture COMPLETED/COMPLETED con ID e importo uguale | Ordine captured e purchase_id collegato; un acquisto e i partecipanti previsti; tessere solo per target; statistiche eleggibili aumentano. | API D |
-| PAY-03 | Ogni stato `FAILED`, `CANCELLED`, `VOIDED`, `REFUNDED`, `DECLINED`, `ERROR` in status; poi solo in capture_status | Fixture storiche isolate per verificare esclusioni; non creare iscrizioni riuscite da un tentativo fallito. Differenza generale/evento in Q-04. | Seed/API Q |
+| PAY-03 | Ogni stato `FAILED`, `CANCELLED`, `VOIDED`, `REFUNDED`, `DECLINED`, `ERROR` in status; poi solo in capture_status | Fixture storiche isolate per verificare esclusioni; non creare iscrizioni riuscite da un tentativo fallito. Filtro online condiviso: entrambi gli stati devono essere COMPLETED; primo blocco Q-04. | Seed/API Q |
 | PAY-04 | Rimborso sintetico dopo acquisto completato con partecipanti preesistenti | Metriche acquisti escludono la riga secondo filtro; non presumere cancellazione automatica dei partecipanti/scan. Riconciliare biglietti, iscritti e ingressi. | API D |
 | PAY-05 | Capture con status non completato, capture ID assente o capture_status non COMPLETED | Rifiuto, aggiornamento stato ordine dove previsto; nessun nuovo acquisto/provisioning. Gateway fake, non richieste live invalide. | Locale D |
 | PAY-06 | Ritenta capture di ordine terminale COMPLETED con purchase_id | Stesso purchase_id; nessuna seconda capture, quota, iscrizione o incremento dello sconto. | API D |
@@ -191,7 +191,7 @@ Fonti: [event_payment_service.py](../../../mcp-backend/functions/services/paymen
 | PAY-10 | Importo catturato non parsabile, totale assente o final_capture falso | Rifiuto senza provisioning, incasso COMPLETED con ID registrato e retry senza nuova capture; zero valido distinto da totale assente, tolleranza 0.01 preservata. Implementato e provato localmente il 2026-11-11. | API D |
 | PAY-11 | Evento termina tra create e capture; ordine mancante o senza eventId | Evento concluso bloccato prima di PayPal; ordine mancante 404, evento ordine mancante errore; nessun nuovo incasso fake. | Locale D |
 | PAY-12 | Due capture simultanee dello stesso ordine non ancora catturato | Una sola cattura/provisioning come requisito; verificare idempotency key e scritture, non basta retry sequenziale. Non dimostrato dalla lettura. | Locale D |
-| PAY-13 | Status/capture_status vuoti, PENDING o sconosciuti; ref_id o participants_count assenti/zero | Caratterizzare eleggibilità attuale, che non richiede sempre COMPLETED e diverge fra servizi; rifiutare false equivalenze con incassi definitivi: Q-04. | Locale Q |
+| PAY-13 | Status/capture_status vuoti, PENDING o sconosciuti; ref_id o participants_count assenti/zero | Stati vuoti, PENDING e sconosciuti esclusi dai totali online. Riferimento evento e count positivo restano vincoli dei soli report biglietti; i record sorgente non vengono modificati: primo blocco Q-04. | Locale Q |
 | PAY-14 | Create/update stato/delete acquisto tramite admin | Risultati e 404/validazioni da DTO; trigger ricalcola statistiche. Non presumere che aggiornare stato avvii PayPal, annulli biglietti o faccia rimborso. | API D |
 
 ### Sconti e importi
@@ -251,7 +251,7 @@ Le formule attuali sono specifiche per endpoint: non chiamare tutte le metriche
 | --- | --- | --- | --- |
 | STA-01 | Conta soci totali, flag validi e membership_years per anno | Totale iniziale 4000; attivi = flag veri E anno corrente presente; filtro annuale = anno nell'indice, non numero di rinnovi/partecipazioni. | Seed/API D |
 | STA-02 | Conta eventi, iscrizioni, soci unici e biglietti acquistati | Eventi iniziali 50; iscritti = documenti participant; unici deduplicati per socio/email; biglietti da participants_count degli acquisti eleggibili. | Seed/API D |
-| STA-03 | Matrice status/capture_status, tipo event/membership, ref_id presente/assente e count >0/0 | Filtro evento richiede tipo evento, ref_id e count positivo e nessuno stato invalido; legacy generale controlla solo status: Q-04. | Locale Q |
+| STA-03 | Matrice status/capture_status, tipo event/membership, ref_id presente/assente e count >0/0 | Status e capture_status entrambi COMPLETED; filtro evento richiede inoltre tipo evento, ref_id e count positivo. Il generale comprende anche acquisti tessera confermati: primo blocco Q-04. | Locale Q |
 | STA-04 | Un acquisto gruppo da 2 biglietti, lordo 44, fee sintetica 1,50, netto 42,50 | Acquisti +1; biglietti +2; lordo +44, netto +42,50, commissioni +1,50; nessun raddoppio per le due persone. | Seed/API D |
 | STA-05 | Stessa riga completata diventa REFUNDED o capture_status DECLINED | Metriche evento escludono lordo/netto/biglietti; iscrizioni e scan non spariscono per il solo cambio stato. Ricalcolo senza saldi residui. | API D |
 | STA-06 | Omaggi, inserimenti manuali pagati e biglietti website nello stesso evento | Omaggi da payment_method; incassi online da Purchase eleggibili. Non inventare acquisti per contanti/iban; chiarire se metriche incassi desiderate devono includerli: Q-04. | Seed/API Q |
@@ -297,7 +297,7 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 | Q-01 | Risolta in chat 2026-11-12: valida solo con anno corrente in membership_years E subscription_valid=True. Flag falso prevale; anno assente invalida sempre. Date non sostituiscono l’indice. Checkout, scanner e attivi allineati; nessuna migrazione implicita. | MEM-03, MEM-04 |
 | Q-02 | Regole owner 2026-11-12 implementate: stati indisponibili bloccati, capienza online positiva, prenotazione 10 minuti all’ordine, niente overbooking online concorrente; admin può superare il limite. UI e rollout restano separati. | EVT-03, EVT-04 |
 | Q-03 | Formula confermata dal proprietario il 2026-11-12: quota tessera inclusa nel prezzo evento, sconto applicato all’intero prezzo e fee aggiunta dopo. DIS-08 prova la formula e i dati socio; PAY-10 rifiuta importi non verificabili. Nessuna aggiunta implicita della quota al totale. | PAR-03, PAY-10, DIS-08 |
-| Q-04 | StatsService filtra solo status, analytics evento/snapshot filtrano anche capture_status, tipo, ref_id e count. Stati vuoti/non definitivi possono passare i filtri; incassi manuali da participant non sono automaticamente Purchase. Stabilire significato di ogni metrica. | PAY-03, PAY-13, STA-03, STA-06 |
+| Q-04 | Criterio online approvato 2026-11-13: status E capture_status entrambi COMPLETED nei tre servizi. Tipo/ref/count restano vincoli specifici evento. Incassi manuali da participant non sono automaticamente Purchase; significato delle metriche manuali/omaggi ancora aperto. | PAY-03, PAY-13, STA-03, STA-06 |
 | Q-05 | Entrate raw, flag participant e scansioni nella finestra non sono lo stesso insieme. Snapshot usa finestra fissa 22:00-06:00 e KPI entered dalla somma bucket; endpoint diretto può contare flag/scan differenti. Scritture scan/flag separate. | QR-10, QR-12, QR-15, STA-10 |
 | Q-06 | Diverse funzioni età usano giorni/365; verificare maggiorenne/over21 e fasce statistiche rispetto al calendario, non copiando la formula come oracolo. | MEM-06, PAR-09, STA-12 |
 | Q-07 | Delete evento/partecipante e riassegnazione socio non dimostrano cascata su scan, purchase e storico. Merge esaminato riallinea partecipanti; verificare anche scan e membership_ids degli acquisti. Nessuna cancellazione reale in questa fase. | EVT-09, PAR-16, PAR-17, STA-15 |
@@ -1837,24 +1837,27 @@ questa chiusura documentale. Non è prova di concorrenza, SLA browser,
 Functions distribuite o CI remota. Nessun push/merge/deploy/provider live.
 Prossimo blocco: ricognizione dipendenze e riconciliazione branch.
 
-### Proposta primo blocco Q-04 — incassi online confermati, 2026-11-13
+### Primo blocco Q-04 — incassi online confermati, 2026-11-13
 
-Stato: ricognizione locale; criterio di prodotto in attesa della risposta
-owner. Nessuna modifica delle formule o dei dati applicativi ancora eseguita.
+Stato: criterio approvato dall'owner in chat («primo criterio»): solo status
+e capture_status entrambi COMPLETED. Implementazione locale completata e verificata.
+Nessuna modifica o migrazione dei documenti applicativi reali.
 Owner ha fermato l'integrazione finale in main: PR #11 rimessa in draft,
 nessun auto-merge; PR #9 già unita dall'owner. Sviluppo continua sui branch.
 
-Riproduzione offline con veri modelli EventPurchase e servizi, repository
+Riproduzione precedente alla correzione, con veri modelli EventPurchase e servizi, repository
 in memoria, nessuna rete/provider: una riga100€ con COMPLETED/DECLINED vale
 100€ nel generale ma è esclusa da analytics evento e snapshot. PENDING/PENDING
 e stati vuoti sono ammessi da tutti e tre. COMPLETED/COMPLETED è ammesso e
 REFUNDED/COMPLETED escluso da tutti. Evidenza privata:
 `.local/staging/stats-q04-characterization.json`.
 
-Proposta del blocco, da confermare sulla definizione degli incassi:
+Blocco approvato sulla definizione degli incassi:
 
-1. Definire se includere solo status e capture_status entrambi COMPLETED
-   oppure ammettere acquisti COMPLETED legacy senza capture_status.
+1. Includere solo status e capture_status entrambi COMPLETED. Stati vuoti,
+   assenti, non definitivi, sconosciuti o invalidi sono esclusi; nessun
+   fallback per legacy senza capture_status. Preservata la normalizzazione
+   maiuscole/minuscole; supportati i valori Enum del modello.
 2. Applicare il medesimo criterio alle metriche online generale/evento e
    snapshot, preservando i vincoli specifici dei biglietti evento (tipo,
    riferimento e numero partecipanti). Contare separatamente transazioni e
@@ -1867,3 +1870,33 @@ Fuori dal primo blocco: riclassificazione degli incassi manuali/omaggi,
 migrazione dei record legacy, rettifica dati reali, rimborsi provider,
 ingressi/finestre, calendari e rilascio cloud. La risoluzione del solo filtro
 online non chiude tutte le questioni Q-04 né autorizza rebuild cloud.
+
+Esito del blocco: regola condivisa in `domain/purchase_rules.py`, usata da
+generale, analytics evento e snapshot evento/globale/dashboard. Conteggio
+transazioni, lordo e netto del generale includono solo acquisti confermati;
+le tessere standalone restano incluse nel generale e non nei biglietti evento.
+Nessun cambiamento ai prezzi manuali del prossimo evento o alla definizione
+degli omaggi. I record esclusi restano presenti e visibili come attività.
+Il mapper rende uno status null come stringa vuota nella risposta senza
+modificare il documento: evita500 sul riquadro ultimo acquisto.
+
+Prove:40 nuovi casi unitari (26RED iniziali prima della regola, più1RED
+specifico sul mapper null),14 nuovi casi API e6 precedenti aggiornati.
+Finale1337 unitari,87 strumenti e384 scenari API/emulatore in93.08s PASS,
+JUnit senza failure/error/skip, runner exit0 e shutdown pulito. I nuovi casi
+API provano due rebuild, ripristino COMPLETED e source purchase/participant
+immutati durante i report, nessuno scan creato. Le API usano handler Flask
+e Firestore reale emulato; auth simulata e nessuna Function distribuita.
+
+Il generatore ora emette `expected_delta.general_purchases=-1` per ciascuno
+dei due campi invalidi, al posto dell'oracolo legacy divergente; regressione
+RED→GREEN. Nessun consumer repository del vecchio campo e nessun export
+privato rigenerato/importato. I documenti baseline sintetici non cambiano.
+
+Unica review Sol high senza rilievi P1/P2, accettata; il successivo test API
+ha trovato il caso mapper null, corretto dal coordinatore con regressione
+RED→GREEN e ripetizione completa unit/API. Scanner sorgenti0, Firebase e
+contratti126 riferimenti/130 export/0 errori, diff check pulito.
+Log privati `stats-q04-*.log`. Nessuna CI remota, cloud/provider reale,
+migrazione o merge main. Snapshot già salvati richiedono un rebuild dopo
+il rollout per applicare il criterio nuovo: nessun rebuild cloud eseguito.

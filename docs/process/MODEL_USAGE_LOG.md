@@ -398,3 +398,13 @@ Chiusura OPS-10,2026-11-13: nessun ulteriore dispatch. Coordinatore: profilo1985
 | Codex / gpt-6.1-sol | `deployment_final_review`: unica review indipendente runtime, binding e pipeline WIF/rollback | high | Conclusa con4 rilievi accettati e corretti da Sol: .env.example tracciati, binding PayPal recovery, binding mail capture/rinnovo, snapshot stamp/secret version dalle revisioni attive. Regressioni finali passate;1297 unitari,87 strumenti,48 frontend,lint/build e smoke completo2Python+clientHTTP PASS. API370/Auth57 emulati precedenti riutilizzati per profili fake invariati; actionlint/Firebase/contratti/scanner0/diff pulito. Nessun secondo dispatch, cloud o CI attestato. |
 
 Dispatch effettivi del blocco:1 Luna,1 review Sol high. Token/costi non disponibili.
+
+
+## Q-04 — incassi online confermati — 2026-11-13
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `stats_q04_final_review`: review indipendente del filtro condiviso e dei conteggi nei tre servizi, regressioni e manifest sintetico | high | Conclusa senza rilievi P1/P2, accettata dal coordinatore. Caso null-status emerso dopo nella suite API: mapper corretto da Sol con regressione RED→GREEN; suite finali1337 unitari/87strumenti/384API PASS,JUnit0failure/error/skip,runnerexit0/shutdownpulito.26RED iniziali del filtro e1RED dell’oracolo generatore; scanner0/Firebase/contratti/diff puliti. Nessun secondo dispatch o intervento cloud. |
+
+Dispatch effettivi:0 Luna,1 Sol high. Implementazione piccola ma relativa a
+metriche economiche: gestita dal coordinatore Sol. Token/costi non disponibili.
