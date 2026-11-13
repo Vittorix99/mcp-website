@@ -104,8 +104,8 @@ def generate(*, seed, as_of, email_base, member_count=4000, event_count=50):
         cohort = 'active' if i % 10 < 7 else ('expired' if i % 10 < 9 else 'invalidated')
         cohorts[cohort] += 1
         gender = 'female' if i % 2 == 0 else 'male'
-        age = 20 if i % 17 == 0 else rng.randint(22, 68)
-        birth = date(year - age, 1, 10)
+        birth = date(rng.randint(1985, 2008), 1, 10)
+        age = year - birth.year
         years = [year - 1] if cohort == 'expired' else [year - 1, year]
         renewals = [{'year': y, 'start_date': f'{y}-01-01T12:00:00+00:00',
                      'end_date': f'31-12-{y}', 'purchase_id': None, 'fee': 20.0} for y in years]

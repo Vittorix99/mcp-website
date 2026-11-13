@@ -1770,3 +1770,24 @@ failure/error/skip, runner exit0 e shutdown pulito. Backend1274 unitari,
 Evidenze private in `.local/staging/ops10-*.log`,
 `ops10-suite370-results.xml` e `ops10-ui-results.json`.
 Provider fake/disabilitati; nessuna mail reale, deploy, cloud o CI remota.
+
+
+### OPS-10 — profilo anagrafico aggiornato su richiesta owner, 2026-11-13
+
+Il generatore sceglie uniformemente l'anno di nascita fra1985 e2008 inclusi,
+al posto di età20/22–68. Date coerenti fra socio e partecipazioni; niente
+modifiche ai dati reali. Seed42/as_of2026-11-12:4000 soci,24 anni coperti,
+142–185 persone per anno;50 eventi,7061 acquisti,21751 partecipanti,
+53749 documenti. Questi conteggi sostituiscono quelli del corpus precedente.
+Ricaricato solo il Firestore demo-mcp-local, verificando prima che contenesse
+esclusivamente il dataset della prova e le due impostazioni sintetiche.
+
+Regressione: nuovo vincolo anni RED sulla vecchia implementazione;50 test
+strumenti GREEN dopo la modifica. Scenario API completo aggiornato1 PASS,
+369 deselected,40.69s, JUnit senza failure/error/skip, exit0/shutdown pulito.
+La suite370 precedente resta evidenza del corpus precedente.
+
+UI prima del cambio corpus: ricerca socio esatta1/vuota0;scaduti2025=1200,
+2026=400;validi2026=2800;prima pagina100 nomi Z-A corretta. Eventi50,
+date discendenti e ricerca esatta1/vuota0. Verifiche partecipanti/acquisti
+sul nuovo corpus ancora in corso; non dichiarare OPS-10 completa.
