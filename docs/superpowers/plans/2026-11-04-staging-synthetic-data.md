@@ -1791,3 +1791,22 @@ UI prima del cambio corpus: ricerca socio esatta1/vuota0;scaduti2025=1200,
 2026=400;validi2026=2800;prima pagina100 nomi Z-A corretta. Eventi50,
 date discendenti e ricerca esatta1/vuota0. Verifiche partecipanti/acquisti
 sul nuovo corpus ancora in corso; non dichiarare OPS-10 completa.
+
+
+UI sul nuovo corpus:39 pagine ordinarie da100 (ultima54),3854 righe;
+intervalli contigui, date discendenti, multinsieme dei nomi visibili uguale
+all'atteso (fingerprint FNV32 1979647980), Succ disabilitato in fondo.
+Filtro femmine1932;femmine senza socio0. La tabella ordinaria non espone ID
+o email: questa prova confronta proiezioni visibili; l'unicità degli ID resta
+verificata dalle API. Omaggi6 pagine da25 (ultima21):146 email uniche e
+multinsieme nomi atteso (2748195636), Succ finale disabilitato.
+Acquisti: riepilogo7061 transazioni valide, lordo346371.00€,fee10591.50€,
+netto335779.50€; lo snapshot accessibile tronca l'elenco a499 righe.
+Ricerca/filtri acquisti non ancora dimostrati: input nativo ha restituito
+nuovamente noWindowsAvailable; non confondere questo limite con un bug app.
+
+Nuova finestra locale: osservati contatori iniziali0 persistenti durante la
+sessione, pur con richieste get_all_purchases200 nei log; causa non isolata.
+Il precedente7061 è una lettura UI riuscita, non prova che ogni caricamento
+sia stabile. Tentativi di input hanno dato noWindowsAvailable; Dock timeout.
+Nessuna correzione frontend applicata senza una riproduzione diagnosticabile.
