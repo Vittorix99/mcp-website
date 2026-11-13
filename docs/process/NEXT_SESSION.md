@@ -131,3 +131,22 @@ e prova rollback. Produzione e Sender restano spenti. Non riapprovare il piano
 già approvato, non confondere preparazione con attivazione. Dettagli e limiti:
 `docs/operations/CREDENTIAL_TRANSITION.md`. Preservare i3 owner diff in AGENTS,
 MODEL_USAGE_LOG e NEXT_SESSION; pubblicare solo i nuovi append propri.
+
+
+## Aggiornamento owner — integrazione sospesa e proposta Q-04
+
+Il13 novembre l'owner ha unito PR#9 in main8cfc8c68. Ha poi chiarito che
+la restante ristrutturazione va integrata alla fine: PR#11 nuovamente draft,
+aperta, auto-merge assente. Non eseguire altri merge main. Protezione main
+attiva/verificata: PR,verify GitHub Actions15368,strict/admins,conversazioni
+risolte; force/deletion vietati; reviewer aggiuntivi0. Nessun deploy attivato.
+
+Proposta prossimo blocco Q-04: criteri degli incassi online nei tre servizi
+statistici. Riproduzione offline conferma generale include COMPLETED/DECLINED
+mentre evento/snapshot escludono; tutti includono PENDING e stati vuoti.
+Richiesta preferenza owner: entrambi COMPLETED oppure compatibilità con
+COMPLETED legacy senza capture_status. Domanda in attesa: non modificare
+formule prima della risposta. Perimetro proposto aggiunto al piano sintetico
+esistente; niente dati/provider reali o nuove chiamate cloud. Nessun dispatch.
+Il piano staging/WIF andrà riallineato al nuovo ordine d'integrazione prima
+dell'attivazione. Preservare sempre i3 owner diff già presenti.

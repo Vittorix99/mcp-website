@@ -1836,3 +1836,34 @@ Review Sol high già conclusa, rilievo corretto; nessun nuovo dispatch per
 questa chiusura documentale. Non è prova di concorrenza, SLA browser,
 Functions distribuite o CI remota. Nessun push/merge/deploy/provider live.
 Prossimo blocco: ricognizione dipendenze e riconciliazione branch.
+
+### Proposta primo blocco Q-04 — incassi online confermati, 2026-11-13
+
+Stato: ricognizione locale; criterio di prodotto in attesa della risposta
+owner. Nessuna modifica delle formule o dei dati applicativi ancora eseguita.
+Owner ha fermato l'integrazione finale in main: PR #11 rimessa in draft,
+nessun auto-merge; PR #9 già unita dall'owner. Sviluppo continua sui branch.
+
+Riproduzione offline con veri modelli EventPurchase e servizi, repository
+in memoria, nessuna rete/provider: una riga100€ con COMPLETED/DECLINED vale
+100€ nel generale ma è esclusa da analytics evento e snapshot. PENDING/PENDING
+e stati vuoti sono ammessi da tutti e tre. COMPLETED/COMPLETED è ammesso e
+REFUNDED/COMPLETED escluso da tutti. Evidenza privata:
+`.local/staging/stats-q04-characterization.json`.
+
+Proposta del blocco, da confermare sulla definizione degli incassi:
+
+1. Definire se includere solo status e capture_status entrambi COMPLETED
+   oppure ammettere acquisti COMPLETED legacy senza capture_status.
+2. Applicare il medesimo criterio alle metriche online generale/evento e
+   snapshot, preservando i vincoli specifici dei biglietti evento (tipo,
+   riferimento e numero partecipanti). Contare separatamente transazioni e
+   biglietti, senza imporre identità fra totali generali e del singolo evento.
+3. Verificare matrice stati, contatori/importi, ripristino dello stato e
+   nessuna modifica di purchase/participant/scan; regressioni per divergenza.
+   Una review finale Sol high del blocco dopo l'implementazione.
+
+Fuori dal primo blocco: riclassificazione degli incassi manuali/omaggi,
+migrazione dei record legacy, rettifica dati reali, rimborsi provider,
+ingressi/finestre, calendari e rilascio cloud. La risoluzione del solo filtro
+online non chiude tutte le questioni Q-04 né autorizza rebuild cloud.

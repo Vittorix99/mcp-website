@@ -303,3 +303,18 @@ in Secret Manager, fuori da chat/Git/artifact. Non creare secret disabilitati.
 - Log privati `.local/staging/deploy-*.log`. Nessuna CI del nuovo ramo o prova
   cloud è attestata da questi risultati. WIF/IAM, bootstrap, E2E sandbox e
   rollback reale restano aperti; flag deploy assenti, nessuna mutazione cloud.
+
+### Decisione owner: integrazione finale differita — 2026-11-13
+
+La PR #9 è stata unita dall'owner in main (`8cfc8c68`); contiene prove sconti.
+Su richiesta owner, la PR #11 è nuovamente **draft**, aperta e senza
+auto-merge: il resto della ristrutturazione prosegue sui branch di sviluppo.
+Non unire altre PR in main fino alla decisione finale d'integrazione owner.
+
+Protezione main configurata su richiesta owner e riletta via API: PR e
+check GitHub Actions `verify` obbligatori, strict/up-to-date, applicazione
+anche agli admin, conversazioni risolte, force push e cancellazione vietati.
+App attesa15368; approvazioni aggiuntive richieste0 per l'owner unico.
+Nessun deploy o workflow cloud attivato. Il disegno di attivazione staging
+andrà riconciliato con questa decisione prima del gate cloud, senza cambiare
+ora i trigger o le condizioni WIF della pipeline preparata.
