@@ -85,3 +85,19 @@
 - Integration checkpoint,2026-11-13: branch core-concurrency-api-scenarios,worktree .worktrees/core-ws2. Merged published discount history61dc187 (PR#9 head8bcccb7,includes#10) and backend documentation1a11ad5 (0c5457f). Only conflict was add/add MODEL_USAGE_LOG: retained extended history after verifying every original dispatch row. Application tree identical to OPS10 checkpoint36a5561. Main2a4fb1d and all these dependencies are ancestors; no rebase/force-push/deletion. Three preexisting owner edits backed up privately, temporarily stashed, restored and patch-hash verified unchanged; excluded from publication.
 - Final integration checks:1274 backend units,50 tooling,42 frontend policy,370 API in91.78s,57 real-token Auth in1.11s PASS; both emulator runners exit0/clean shutdown and JUnit zero errors/failures/skips. API references126/exports129/errors0; Firebase config valid; secret scan0/diff clean. Logs .local/staging/reconcile-*.log. Existing per-block Sol reviews retained; no extra dispatch for history/document reconciliation. Full build/lint/HTTP emulator smoke remain CI gates; pending CI is not passed.
 - Integration PR targets main and depends on draft#9:merge#9 first, then the hardening PR after review/CI. Owner monitors final CI result. No merge/deploy/cloud/provider operation performed. OPS10 closed; birth years1985–2008; current corpus4000members/50events/7061purchases/21751participants. Unknown payment/mail outcomes and legacy unreserved orders require manual handling; rollout must avoid mixed workers. Remaining statistics/calendar stories and authorized real-mail OPS04 are separate.
+
+## Attività da fare — piano approvato il 13 novembre 2026
+
+Segreti e deploy automatici: **approvato, da implementare**. Il proprietario
+ha chiesto di inserirlo in lista, non di avviare ora l'implementazione.
+Piano: [CREDENTIAL_TRANSITION.md](../operations/CREDENTIAL_TRANSITION.md#piano-operativo-segreti-e-deploy-automatici--2026-11-13).
+Branch di preparazione `ci/staging-deployment`, base `0b85eb7`, piano `67962f7`;
+dipendenza d'integrazione #9 → #11. Non richiedere di nuovo l'approvazione del
+medesimo piano; accessi cloud e rilasci mantengono i gate concreti previsti.
+
+- [ ] Inventario variabili/segreti e separazione staging/produzione; transizione dagli env verificata.
+- [ ] Binding Secret Manager e inizializzazione runtime dei provider compatibile con discovery Firebase.
+- [ ] Identità temporanee WIF, Environment GitHub e deploy staging automatico dopo i controlli su main.
+- [ ] Test post-deploy e E2E staging con dati sintetici e provider controllati.
+- [ ] Produzione con approvazione manuale, rollout compatibile e rollback verificato.
+- [ ] Review finale Sol high e verifiche del blocco prima dell'attivazione.

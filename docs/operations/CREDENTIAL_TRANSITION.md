@@ -56,8 +56,10 @@ file nominati nel manifest Doppler né delle altre segnalazioni.
 Richiesta owner: branch/PR con controlli, merge su main, deploy automatico
 staging con test post-deploy, produzione inizialmente con approvazione manuale.
 Il ramo di preparazione è `ci/staging-deployment`, base `0b85eb7` della PR #11;
-resta dipendente dall'integrazione #9 → #11. Questo è il piano da approvare
-prima dell'implementazione del nuovo blocco ampio, secondo AGENTS.md.
+resta dipendente dall'integrazione #9 → #11. Piano approvato dal proprietario in chat il 2026-11-13 e inserito nelle
+attività da fare. Implementazione non avviata su richiesta owner; quando
+ripreso, il medesimo perimetro non richiede una nuova approvazione del piano.
+Restano distinti i gate concreti di accesso cloud e rilascio descritti sotto.
 
 ### Riscontri di sola lettura
 
@@ -143,7 +145,8 @@ Nessun secret deve comparire in repository, artifact, bundle frontend o log;
 PR e fork non devono ottenere l'identità deploy. Valori/riferimenti mancanti
 bloccano l'attivazione senza fallback su produzione.
 
-Oggi sono completati soltanto ricognizione e piano. Workflow attivi, binding
+Oggi sono completati ricognizione e approvazione del piano; implementazione
+in backlog. Workflow attivi, binding
 runtime, accessi cloud, test post-deploy e rollback devono essere implementati
 nel blocco approvato; i template inattivi non vanno semplicemente spostati o
 sbloccati. Le prove della PR #11 restano valide per il codice già concluso.
