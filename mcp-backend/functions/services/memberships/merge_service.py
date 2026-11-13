@@ -21,7 +21,17 @@ class MergeService:
         self.logger = logging.getLogger("MergeService")
         self.membership_repository = membership_repository or MembershipRepository()
         self.participant_repository = participant_repository or ParticipantRepository()
-        self.pass2u_service = pass2u_service or build_pass2u_service()
+        self._pass2u_service = pass2u_service
+
+    @property
+    def pass2u_service(self):
+        if self._pass2u_service is None:
+            self._pass2u_service = build_pass2u_service()
+        return self._pass2u_service
+
+    @pass2u_service.setter
+    def pass2u_service(self, service):
+        self._pass2u_service = service
 
     @staticmethod
     def _unique_sorted(values: List[Optional[str]]) -> List[str]:

@@ -28,7 +28,17 @@ class RadioEpisodeService:
     ):
         self.episode_repository = episode_repository or RadioEpisodeRepository()
         self.season_repository = season_repository or RadioSeasonRepository()
-        self.soundcloud_service = soundcloud_service or build_soundcloud_service()
+        self._soundcloud_service = soundcloud_service
+
+    @property
+    def soundcloud_service(self):
+        if self._soundcloud_service is None:
+            self._soundcloud_service = build_soundcloud_service()
+        return self._soundcloud_service
+
+    @soundcloud_service.setter
+    def soundcloud_service(self, service):
+        self._soundcloud_service = service
 
     def _validate_video_urls(self, video_urls: List[str]) -> None:
         if len(video_urls) > _MAX_VIDEO_URLS:

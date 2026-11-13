@@ -8,7 +8,7 @@ from uuid import uuid4
 from flask import after_this_request, request
 from werkzeug.exceptions import HTTPException
 
-from config import get_runtime_settings
+from config import get_runtime_policy
 
 
 _METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
@@ -43,7 +43,7 @@ def timed_dependency(provider, operation, call, classify):
             print(json.dumps({
                 "event": "dependency_completed",
                 "severity": "ERROR" if outcome == "exception" else "WARNING" if outcome == "error" else "INFO",
-                "environment": get_runtime_settings().environment.value,
+                "environment": get_runtime_policy().environment.value,
                 "provider": provider,
                 "operation": operation,
                 "request_id": _current_request_id.get(),
@@ -73,7 +73,7 @@ def observe_http_request(handler):
                 print(json.dumps({
                     "event": "http_request_completed",
                     "severity": "ERROR" if status >= 500 else "WARNING" if status >= 400 else "INFO",
-                    "environment": get_runtime_settings().environment.value,
+                    "environment": get_runtime_policy().environment.value,
                     "function": handler.__name__,
                     "request_id": request_id,
                     "method": method,

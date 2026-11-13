@@ -14,8 +14,8 @@ from services.sender.sender_service import SenderService
 def disabled_sender_settings(monkeypatch):
     settings = load_runtime_settings({"MCP_ENV": "test"})
     assert settings.providers.sender is ProviderMode.DISABLED
-    monkeypatch.setattr(sender_sync, "get_runtime_settings", lambda: settings)
-    monkeypatch.setattr("services.sender.sender_service.get_runtime_settings", lambda: settings)
+    monkeypatch.setattr(sender_sync, "get_runtime_policy", lambda: settings)
+    monkeypatch.setattr("services.sender.sender_service.get_provider_settings", lambda provider: settings)
     return settings
 
 

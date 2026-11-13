@@ -130,7 +130,12 @@ def _validate_url(value: str, key: str, offline: bool) -> None:
         _reject(key)
 
 
-def load_runtime_settings(environ: Mapping[str, str] | None = None) -> RuntimeSettings:
+def load_runtime_settings(
+    environ: Mapping[str, str] | None = None, *,
+    required_providers: tuple[str, ...] | None = None,
+) -> RuntimeSettings:
+    if required_providers is not None and any(name not in _PROVIDERS for name in required_providers):
+        _reject("required provider")
     env = dict(os.environ if environ is None else environ)
     try:
         environment = RuntimeEnvironment(env.get("MCP_ENV", ""))
@@ -248,12 +253,14 @@ def load_runtime_settings(environ: Mapping[str, str] | None = None) -> RuntimeSe
         "soundcloud": ("soundcloud_client_id", "soundcloud_client_secret"),
     }
     for provider, fields in required.items():
+        if required_providers is not None and provider not in required_providers:
+            continue
         if modes[provider] in {ProviderMode.SANDBOX, ProviderMode.STAGING, ProviderMode.LIVE}:
             for field in fields:
                 value = secrets[field]
                 if value is None or not value.get_secret_value().strip():
                     _reject(secret_names[field])
-    if modes["mail"] in {ProviderMode.STAGING, ProviderMode.LIVE} and not env.get("MAILERSEND_FROM_EMAIL", "").strip():
+    if (required_providers is None or "mail" in required_providers) and modes["mail"] in {ProviderMode.STAGING, ProviderMode.LIVE} and not env.get("MAILERSEND_FROM_EMAIL", "").strip():
         _reject("MAILERSEND_FROM_EMAIL")
     try:
         return RuntimeSettings(
@@ -276,8 +283,22 @@ def get_runtime_settings() -> RuntimeSettings:
     return load_runtime_settings()
 
 
+@lru_cache(maxsize=1)
+def get_runtime_policy() -> RuntimeSettings:
+    """Validate environment boundaries without requiring deployment-time secrets."""
+    return load_runtime_settings(required_providers=())
+
+
+@lru_cache(maxsize=len(_PROVIDERS))
+def get_provider_settings(provider: str) -> RuntimeSettings:
+    """Require only the credentials used by this provider in the current function."""
+    return load_runtime_settings(required_providers=(provider,))
+
+
 def clear_runtime_settings_cache() -> None:
     get_runtime_settings.cache_clear()
+    get_runtime_policy.cache_clear()
+    get_provider_settings.cache_clear()
 
 
 def safe_runtime_summary(settings: RuntimeSettings) -> dict[str, object]:

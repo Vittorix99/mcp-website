@@ -388,3 +388,13 @@ e ricerca/filtri/ordinamento/paginazione già disponibili nell'app, solo locale.
 Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
 
 Chiusura OPS-10,2026-11-13: nessun ulteriore dispatch. Coordinatore: profilo1985–2008 corretto inline;50 test strumenti e scenario completo aggiornato1PASS/369deselected in40.69s. UI agent:3854ordinari/39pagine e146omaggi/6pagine; limiti proiezioni visibili documentati. Verificati53749documenti+2impostazioni invariati dopo le prove agent. Acquisti chiusi con risposta owner «tutto passa» sul blocco ricerca/evento/status/date/ordinamento; evidenza owner-reported, non verifica indipendente. Scope OPS-10 completato; nessun nuovo difetto frontend dimostrato, nessuna ulteriore review delegata per documentazione, nessun push/cloud/provider/CI remota. Dispatch complessivi invariati:1 Luna,1 Sol high; token/costi non disponibili.
+
+
+## Segreti e preparazione deploy automatici — 2026-11-13
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `deployment_env_inventory`: inventario dei soli nomi/consumatori env tracciati; proprietà limitata a ENVIRONMENT_RESOURCE_CATALOG.md | low | Conclusa e accettata da Sol dopo lettura del diff, controllo link Markdown e diff check. Correzione Sol: ADC WIF effimero ammesso per discovery cloud; nessun env ignorato o valore segreto letto. |
+| Codex / gpt-6.1-sol | `deployment_final_review`: unica review indipendente runtime, binding e pipeline WIF/rollback | high | Conclusa con4 rilievi accettati e corretti da Sol: .env.example tracciati, binding PayPal recovery, binding mail capture/rinnovo, snapshot stamp/secret version dalle revisioni attive. Regressioni finali passate;1297 unitari,87 strumenti,48 frontend,lint/build e smoke completo2Python+clientHTTP PASS. API370/Auth57 emulati precedenti riutilizzati per profili fake invariati; actionlint/Firebase/contratti/scanner0/diff pulito. Nessun secondo dispatch, cloud o CI attestato. |
+
+Dispatch effettivi del blocco:1 Luna,1 review Sol high. Token/costi non disponibili.

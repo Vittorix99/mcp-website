@@ -1,5 +1,5 @@
 import os
-from config.runtime_settings import ProviderMode, get_runtime_settings
+from config.runtime_settings import ProviderMode, get_runtime_policy
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -21,7 +21,7 @@ PASS2U_API_KEY = os.environ.get("PASS2U_API_KEY")
 PASS2U_BASE_URL = "https://api.pass2u.net/v2"
 
 # Compatibility export only: legacy flags or credentials cannot enable Sender.
-SENDER_ENABLED = get_runtime_settings().providers.sender in {ProviderMode.STAGING, ProviderMode.LIVE}
+SENDER_ENABLED = get_runtime_policy().providers.sender in {ProviderMode.STAGING, ProviderMode.LIVE}
 SENDER_API_KEY = os.environ.get("SENDER_API_KEY")
 SENDER_BASE_URL = "https://api.sender.net/v2"
 SENDER_GROUP_NEWSLETTER = os.environ.get("SENDER_GROUP_NEWSLETTER")

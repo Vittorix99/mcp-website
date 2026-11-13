@@ -2,7 +2,7 @@ from typing import Protocol
 
 import requests
 
-from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_runtime_settings
+from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_provider_settings
 
 
 class GenderLookupProtocol(Protocol):
@@ -45,7 +45,7 @@ class HttpGenderLookup:
 
 
 def build_gender_lookup(settings=None) -> GenderLookupProtocol:
-    settings = settings or get_runtime_settings()
+    settings = settings or get_provider_settings("gender")
     provider = settings.providers
     if provider.gender == ProviderMode.FAKE:
         return DeterministicGenderLookup()

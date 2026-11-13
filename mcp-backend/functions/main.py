@@ -12,23 +12,21 @@ logging.basicConfig(level=getattr(logging, _log_level_name, logging.INFO))
 logger = logging.getLogger("main")
 
 # === Environment loading ===
-from config import load_environment, get_runtime_settings
+from config import load_environment
+from config.function_secrets import startup_settings, configure_runtime_identity
 from config.runtime_settings import safe_runtime_summary
 
 load_environment()
-runtime_settings = get_runtime_settings()
+runtime_settings = startup_settings()
+configure_runtime_identity(runtime_settings)
 logger.info("Runtime configuration: %s", json.dumps(safe_runtime_summary(runtime_settings)))
 
 # === Firebase Config ===
 from firebase_admin import credentials, firestore, auth
 from config.firebase_config import db, bucket, cors
 
-# === Mail Service init (after runtime validation and Firebase initialization) ===
-from services.communications.mail_service import init_mail_service
-
-init_mail_service()
-
 # === API Pubbliche ===
+from api.public.deployment_api import deployment_health
 from api.public.contact_api import contact_us
 from api.public.newsletter_api import newsletter_signup
 from api.public.settings_api import get_setting, get_membership_price_public

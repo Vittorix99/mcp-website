@@ -79,8 +79,18 @@ class MembershipsService:
         self.participant_repository = participant_repository or ParticipantRepository()
         self.event_repository = event_repository or EventRepository()
         self.documents_service = documents_service or DocumentsService()
-        self.pass2u_service = pass2u_service or build_pass2u_service()
+        self._pass2u_service = pass2u_service
         self.mail_service = mail_service_instance or mail_service
+
+    @property
+    def pass2u_service(self):
+        if self._pass2u_service is None:
+            self._pass2u_service = build_pass2u_service()
+        return self._pass2u_service
+
+    @pass2u_service.setter
+    def pass2u_service(self, service):
+        self._pass2u_service = service
 
     @property
     def storage(self):

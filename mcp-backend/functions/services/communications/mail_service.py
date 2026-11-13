@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 from copy import deepcopy
 
-from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_runtime_settings
+from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_provider_settings
 
 from clients.mailersend_client import (
     MailerSendClient,
@@ -229,7 +229,7 @@ class DisabledMailService(MailService):
 
 
 def build_mail_service(settings=None) -> MailService:
-    settings = settings or get_runtime_settings()
+    settings = settings or get_provider_settings("mail")
     provider = settings.providers
     if provider.mail == ProviderMode.FAKE:
         return FakeMailService()

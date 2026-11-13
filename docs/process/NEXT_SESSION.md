@@ -101,3 +101,33 @@ medesimo piano; accessi cloud e rilasci mantengono i gate concreti previsti.
 - [ ] Test post-deploy e E2E staging con dati sintetici e provider controllati.
 - [ ] Produzione con approvazione manuale, rollout compatibile e rollback verificato.
 - [ ] Review finale Sol high e verifiche del blocco prima dell'attivazione.
+
+
+## Checkpoint corrente — segreti/deploy, 13 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `ci/staging-deployment`; base0b85eb7
+(PR#11, dipendenza #9), piano67962f7/6f48eb4. Richiesta owner ha ripreso
+lo sviluppo: il precedente stato «solo backlog» è storico.
+
+Preparazione repository: SecretParam per funzione, policy/discovery senza
+chiavi provider, validazione runtime mirata, provider lazy, identità runtime
+esplicita, health SHA/digest backend/frontend. Pipeline main richiama CI PR,
+poi staging e produzione protetta; flag repository deploy assenti/defaultskip.
+Build frontend separata per ambiente. Snapshot/rollback usa revisioni Python
+e SSR, versione Hosting e riferimenti secret numerici delle revisioni attive.
+Topologia diversa o prima baseline legacy richiede bootstrap controllato.
+
+Evidenze:1297 unitari,87 strumenti,48 frontend,lint/build fixture PASS;
+API370/Auth57 emulatori precedenti validi per fake invariati; smoke completo
+2Python+clientHTTP PASS su porte dedicate (copie temporanee con sole porte
+sostituite, eliminate). Actionlint1.7.12/Firebase/contratti130export/scanner0
+e diff check passati. Review unica Sol high:4 rilievi accettati/corretti,
+regressioni passate;1 Luna inventario e1 Sol high dispatch, costi non disponibili.
+
+Nessuna CI del nuovo ramo attestata, nessun deploy/provider reale o mutazione
+IAM/API/credenziali. Prossimo gate: inventario risorse/identità build e piano
+IAM concreto; poi autorizzazione cloud separata, bootstrap staging, E2E sandbox
+e prova rollback. Produzione e Sender restano spenti. Non riapprovare il piano
+già approvato, non confondere preparazione con attivazione. Dettagli e limiti:
+`docs/operations/CREDENTIAL_TRANSITION.md`. Preservare i3 owner diff in AGENTS,
+MODEL_USAGE_LOG e NEXT_SESSION; pubblicare solo i nuovi append propri.
