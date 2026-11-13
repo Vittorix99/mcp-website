@@ -1,4 +1,10 @@
 from typing import Iterable, Optional
+from hashlib import sha256
+from decimal import Decimal, InvalidOperation
+from datetime import datetime
+
+from google.api_core.exceptions import AlreadyExists
+from errors.service_errors import ConflictError
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
@@ -29,6 +35,57 @@ class PurchaseRepository:
 
     def create_from_model(self, purchase: Purchase) -> str:
         return self.create(purchase)
+
+    def find_by_order(self, order_id: str) -> Optional[Purchase]:
+        docs = self.collection.where(filter=FieldFilter("order_id", "==", order_id)).limit(2).get()
+        if len(docs) > 1:
+            raise ConflictError("Multiple purchases for order: manual verification required")
+        return self._model_from_snapshot(docs[0]) if docs else None
+
+    @staticmethod
+    def assert_same_checkout(existing: Purchase, expected: EventPurchase) -> None:
+        fields = ("order_id", "transaction_id", "currency", "status", "capture_status",
+                  "ref_id", "event_id", "discount_code_id", "event_purchase_type", "payment_method")
+        if any(getattr(existing, field, None) != getattr(expected, field, None) for field in fields):
+            raise ConflictError("Purchase does not match captured order")
+        for field in ("payer_name", "payer_surname", "payer_email"):
+            if str(getattr(existing, field) or "").strip().casefold() != str(getattr(expected, field) or "").strip().casefold():
+                raise ConflictError("Purchase payer does not match captured order")
+        def instant(value):
+            if value is None or value == "":
+                return None
+            result = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if result.tzinfo is None:
+                raise ValueError("Missing capture timezone")
+            return result
+        try:
+            if instant(existing.timestamp) != instant(expected.timestamp):
+                raise ConflictError("Purchase timestamp does not match captured order")
+        except (TypeError, ValueError) as exc:
+            raise ConflictError("Invalid existing purchase timestamp") from exc
+        try:
+            for field in ("amount_total", "paypal_fee", "net_amount", "discount_amount"):
+                actual = Decimal(str(getattr(existing, field, None) or 0))
+                wanted = Decimal(str(getattr(expected, field, None) or 0))
+                if not actual.is_finite() or actual != wanted:
+                    raise ConflictError("Purchase amount does not match captured order")
+        except InvalidOperation as exc:
+            raise ConflictError("Invalid existing purchase amount") from exc
+
+    def create_for_order(self, purchase: EventPurchase) -> str:
+        existing = self.find_by_order(purchase.order_id)
+        if existing:
+            self.assert_same_checkout(existing, purchase)
+            return existing.id
+        ref = self.collection.document("checkout-" + sha256(purchase.order_id.encode()).hexdigest())
+        purchase.slug = build_slug(purchase.payer_name, purchase.payer_surname, suffix=ref.id[-6:])
+        try:
+            ref.create(purchase.to_firestore(include_none=True))
+        except AlreadyExists:
+            existing = self._model_from_snapshot(ref.get())
+            self.assert_same_checkout(existing, purchase)
+            return existing.id
+        return ref.id
 
     def update_participants(self, purchase_id: str, participants_count: int, membership_ids: list[str]) -> None:
         payload = {

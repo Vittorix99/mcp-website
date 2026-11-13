@@ -2,8 +2,10 @@ import logging
 
 import firebase_admin.auth as fb_auth
 from firebase_functions.firestore_fn import on_document_created, Event, DocumentSnapshot
+from google.api_core.exceptions import Aborted, FailedPrecondition
 
 from config.firebase_config import region, db
+from config.runtime_settings import ProviderMode, get_runtime_settings
 from models import EventParticipant, Membership as MembershipModel
 from services.communications.mail_service import EmailMessage, mail_service
 from services.core.error_logs_service import log_external_error
@@ -42,7 +44,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         current_data = current_doc.to_dict() or {}
         ticket_already_sent = current_data.get("ticket_sent", False)
 
-        participant_data = snapshot.to_dict()
+        participant_data = current_data
         participant_model = EventParticipant.from_firestore(participant_data, doc_id=participant_id)
 
         # Arricchimento non critico: se il provider gender fallisce, il partecipante resta valido.
@@ -50,7 +52,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         gender = "N/A"
         probability = 0.0
 
-        if name == "andrea":
+        if name == "andrea" and get_runtime_settings().providers.gender != ProviderMode.DISABLED:
             gender = "male"
             probability = 1.0
         elif name:
@@ -65,10 +67,10 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
 
         # Generazione ticket: PDF sempre creato; send=True invia anche l'email.
         send = participant_model.send_ticket_on_create
-        if ticket_already_sent:
-            logger.info("on_participant_created: ticket already sent for %s, skipping", participant_id)
+        if ticket_already_sent or current_data.get("ticket_delivery_started"):
+            logger.info("on_participant_created: ticket already sent or attempted for %s, skipping", participant_id)
         else:
-            result = ticket_service.process_new_ticket(participant_id, participant_data, send)
+            result = ticket_service.process_new_ticket(participant_id, participant_data, send, automatic=True)
             if not result.get("success", False):
                 ticket_service.log_failed_ticket_email(
                     participant_id,
@@ -116,19 +118,28 @@ def on_membership_created(event: Event[DocumentSnapshot | None]):
     try:
         logger.info("on_membership_created: %s", membership_id)
 
-        current_doc = snapshot.reference.get()
-        if not current_doc.exists:
-            logger.warning("on_membership_created: document no longer exists, skipping")
-            return
-        current_data = current_doc.to_dict() or {}
+        for _ in range(4):
+            current_doc = snapshot.reference.get()
+            if not current_doc.exists:
+                logger.warning("on_membership_created: document no longer exists, skipping")
+                return
+            current_data = current_doc.to_dict() or {}
 
-        # Guard di idempotenza: evita doppio wallet/doppia email in caso di retry del trigger.
-        if current_data.get("trigger_processed"):
-            logger.info("on_membership_created: already processed for %s, skipping", membership_id)
+            # Retry only before providers; a completed claim remains sticky.
+            if current_data.get("trigger_processed"):
+                logger.info("on_membership_created: already processed for %s, skipping", membership_id)
+                return
+            try:
+                snapshot.reference.update({"trigger_processed": True},
+                                          option=db.write_option(last_update_time=current_doc.update_time))
+                break
+            except (Aborted, FailedPrecondition):
+                continue
+        else:
+            logger.error("on_membership_created: claim contention for %s, manual check required", membership_id)
             return
-        snapshot.reference.update({"trigger_processed": True})
 
-        membership_data = snapshot.to_dict()
+        membership_data = current_data
         membership_model = MembershipModel.from_firestore(membership_data, doc_id=membership_id)
 
         send_card = bool(membership_model.send_card_on_create)

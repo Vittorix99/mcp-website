@@ -106,8 +106,8 @@ Fonti: [membership_rules.py](../../../mcp-backend/functions/domain/membership_ru
 | --- | --- | --- | --- |
 | MEM-01 | Socio adulto, anno corrente presente, flag valido; lettura e checkout | Profilo leggibile; riconosciuto come socio nel checkout; incluso negli attivi. | Seed/API D |
 | MEM-02 | Socio solo anni precedenti, flag falso e tessera scaduta | Storico preservato; escluso dagli attivi; rinnovo possibile. Le vecchie partecipazioni restano. | Seed/API D |
-| MEM-03 | Anno corrente presente ma flag falso | Checkout classifica per `membership_years`; scanner rifiuta per flag. Attivi e soci riconosciuti possono divergere: Q-01. | Seed/API Q |
-| MEM-04 | Date scadute, flag vero, anno corrente assente; poi variante inversa | Dimostrare separatamente filtro annuale, attivi e scanner; nessuna presunta invalidazione automatica dalla sola data: Q-01. | Locale Q |
+| MEM-03 | Anno corrente presente ma flag falso | Regola owner: invalida per checkout soci, scanner e attivi; niente riattivazione automatica o secondo rinnovo nell’anno presente. Verificato anche prima di capture. | API D |
+| MEM-04 | Date scadute, flag vero, anno corrente assente; poi variante inversa | Senza anno corrente non è valida, anche con flag vero. Anno presente E flag vero richiesti da tutti i controlli automatici; date non sostituiscono l’indice. Rinnovo annualità precedente possibile. | API D |
 | MEM-05 | Nuova iscrizione adulta, email o solo telefono; entrambi mancanti | Nei primi casi crea socio con primo rinnovo e anno corrente; senza contatti errore e nessun nuovo socio. Variante solo telefono isolata dal dataset con alias. | API D |
 | MEM-06 | Data nascita minorenne, mancante, invalida; confine dei 18 anni | Rifiuto dove richiesto; nessuna creazione/rinnovo. Confrontare il compleanno reale con il calcolo attuale a giorni/365: Q-06. | Locale Q |
 | MEM-07 | Nuova create con email o telefono appartenenti a socio di anno precedente | Rinnova lo stesso ID; nessun socio duplicato; attivi aumentano solo se prima falso. | API D |
@@ -132,8 +132,8 @@ Fonti: [event_rules.py](../../../mcp-backend/functions/domain/event_rules.py),
 | --- | --- | --- | --- |
 | EVT-01 | Eventi `active`, `coming_soon`, `sold_out`, `ended`; listing admin/pubblico | Stati serializzati correttamente; admin vede conteggi reali; verificare distinzioni UI. Il listing pubblico attuale non filtra tutti gli stati. | Seed/API/UI D |
 | EVT-02 | Checkout su evento ended o temporalmente concluso anche se active | Rifiuto prima di chiamare il provider; zero ordini/acquisti/partecipanti nuovi. | API D |
-| EVT-03 | Checkout su coming_soon o sold_out non concluso | Guard attuale blocca ended/tempo, non questi stati: rilevare accettazione o rifiuto API/UI e confrontare disponibilità desiderata, Q-02. | API/UI Q |
-| EVT-04 | Evento con 0 iscritti, capienza parziale, esatta e richiesta oltre capienza | Conteggi/fill rate esatti; verificare blocco oltre capienza. Nessun controllo di capienza trovato nel checkout esaminato: Q-02. | Seed/API Q |
+| EVT-03 | Checkout su coming_soon o sold_out non concluso | Regola owner 2026-11-12: creazione e capture rifiutate prima del provider; riapertura permette ripresa, retry già completato restituisce ricevuta. Verificato via API/emulatore; UI separata. | API D / UI Q |
+| EVT-04 | Evento con 0 iscritti, capienza parziale, esatta e richiesta oltre capienza | Online: prenotazione atomica intero gruppo per 10 minuti, capienza positiva obbligatoria, admin libero. Ultimo posto, scadenza, provisioning/recovery e sconti verificati con Firestore emulato. | API D |
 | EVT-05 | Capienza assente o zero; report con nessun acquisto/ingresso | Nessuna divisione per zero o NaN; percentuali secondo contratto attuale a zero; nessun prezzo medio inventato. | Seed/API D |
 | EVT-06 | Evento 23:00-05:00; fine uguale all'inizio; fine non parsabile | Fine al giorno successivo per orario <= inizio; fallback 12 ore se fine non parsabile; checkout prima/al/dopo termine. | Locale D |
 | EVT-07 | Date supportate, data invalida, cambio anno e ora legale Europe/Rome | Normalizzazione DTO; confronto con clock esplicito; errore/fallback documentato per forma legacy, senza scambiare UTC e ora locale. | Locale D |
@@ -188,7 +188,7 @@ Fonti: [event_payment_service.py](../../../mcp-backend/functions/services/paymen
 | PAY-07 | captured vero ma purchase assente/provisioning incompleto | Conflitto `ORDER_PROVISIONING_INCOMPLETE`; nessuna nuova capture o tentativo automatico di incassare. | Locale D |
 | PAY-08 | Provider create/capture fallisce, HTTP non riuscito o create senza order ID | 502 per errore provider gestito; nessuna falsa conferma di acquisto. Conservare fatti già catturati se fallisce un passo successivo. | Locale D |
 | PAY-09 | Importo capture diverso dall'ordine oltre 0,01; confine tolleranza | Dopo capture riuscita persiste captured prima dell'errore; non crea acquisto/provisioning e non ricattura al retry. Verificare esattamente il confine. | Locale D |
-| PAY-10 | Importo catturato non parsabile, totale assente o final_capture falso | Codice attuale salta certi controlli o avvisa: non considerarli una validazione riuscita degli importi. Casi di anomalia Q-03. | Locale Q |
+| PAY-10 | Importo catturato non parsabile, totale assente o final_capture falso | Rifiuto senza provisioning, incasso COMPLETED con ID registrato e retry senza nuova capture; zero valido distinto da totale assente, tolleranza 0.01 preservata. Implementato e provato localmente il 2026-11-11. | API D |
 | PAY-11 | Evento termina tra create e capture; ordine mancante o senza eventId | Evento concluso bloccato prima di PayPal; ordine mancante 404, evento ordine mancante errore; nessun nuovo incasso fake. | Locale D |
 | PAY-12 | Due capture simultanee dello stesso ordine non ancora catturato | Una sola cattura/provisioning come requisito; verificare idempotency key e scritture, non basta retry sequenziale. Non dimostrato dalla lettura. | Locale D |
 | PAY-13 | Status/capture_status vuoti, PENDING o sconosciuti; ref_id o participants_count assenti/zero | Caratterizzare eleggibilità attuale, che non richiede sempre COMPLETED e diverge fra servizi; rifiutare false equivalenze con incassi definitivi: Q-04. | Locale Q |
@@ -209,7 +209,7 @@ Fonti: [discount_code_service.py](../../../mcp-backend/functions/services/paymen
 | DIS-05 | Codice riservato a email/socio; identità corretta, diversa o socio assente | Solo destinatario corrispondente ammesso; email normalizzata; mismatch e membershipId incompatibile rifiutati. | API D |
 | DIS-06 | Ultimo utilizzo disponibile; due capture concorrenti | usedCount non supera maxUses; errore su ultimo claim perso; rilevare eventuale incasso già avvenuto prima del claim e provisioning incompleto. | Locale D |
 | DIS-07 | Capture riuscita, fallita, retry terminale | Incremento solo al claim nel flusso; nessun doppio utilizzo al retry terminale; guasto dopo claim documentato senza fingere rollback. | Locale D |
-| DIS-08 | Nuovo socio ONLY_MEMBERS, quota tessera configurata, con/senza sconto e fee | Verificare formula corrente: `_compute_total` usa solo prezzo+fee; con sconto totale final_price+fee. Decidere intenzione della quota, Q-03. | Locale Q |
+| DIS-08 | Nuovo socio ONLY_MEMBERS, quota tessera configurata, con/senza sconto e fee | Regola confermata 2026-11-12: tessera inclusa e sconto sull’intero prezzo evento, poi fee. Provati nuovi/scaduti/correnti, gruppi misti, errori e retry; quota nominale non aggiunta al totale. | API D |
 
 ### QR, scanner, ingressi e annullamenti
 
@@ -249,7 +249,7 @@ Le formule attuali sono specifiche per endpoint: non chiamare tutte le metriche
 
 | ID | Preparazione e operazione | Esito da verificare e impatto sui dati/statistiche | Prova/stato |
 | --- | --- | --- | --- |
-| STA-01 | Conta soci totali, flag validi e membership_years per anno | Totale iniziale 4000; attivi = flag veri; filtro annuale = anno nell'indice, non numero di rinnovi/partecipazioni. | Seed/API D |
+| STA-01 | Conta soci totali, flag validi e membership_years per anno | Totale iniziale 4000; attivi = flag veri E anno corrente presente; filtro annuale = anno nell'indice, non numero di rinnovi/partecipazioni. | Seed/API D |
 | STA-02 | Conta eventi, iscrizioni, soci unici e biglietti acquistati | Eventi iniziali 50; iscritti = documenti participant; unici deduplicati per socio/email; biglietti da participants_count degli acquisti eleggibili. | Seed/API D |
 | STA-03 | Matrice status/capture_status, tipo event/membership, ref_id presente/assente e count >0/0 | Filtro evento richiede tipo evento, ref_id e count positivo e nessuno stato invalido; legacy generale controlla solo status: Q-04. | Locale Q |
 | STA-04 | Un acquisto gruppo da 2 biglietti, lordo 44, fee sintetica 1,50, netto 42,50 | Acquisti +1; biglietti +2; lordo +44, netto +42,50, commissioni +1,50; nessun raddoppio per le due persone. | Seed/API D |
@@ -274,16 +274,16 @@ Fonti: [decoratori API](../../../mcp-backend/functions/api/decorators/__init__.p
 
 | ID | Preparazione e operazione | Esito da verificare e impatto sui dati/statistiche | Prova/stato |
 | --- | --- | --- | --- |
-| OPS-01 | Admin, socio autenticato, account senza socio, anonimo e token invalido su rispettive API | Ruoli rispettati; admin assente/non admin rifiutato come da decorator (attualmente 401); nessuna scrittura non autorizzata. Scanner pubblico richiede proprio token, non claim admin. | API D |
+| OPS-01 | Admin, socio autenticato, account senza socio, anonimo e token invalido su rispettive API | Verificati 5 percorsi personali con veri token Auth Emulator: UID proprietario, primo link solo email verificata, CAS e nessuna scrittura nei rifiuti. Ruoli admin/pubblico rappresentativi e smoke HTTP verificati; copertura globale API separata. Scanner pubblico richiede proprio token. | API D (perimetro sotto) |
 | OPS-02 | GET/POST errato e JSON mancante/invalido/campi extra sugli endpoint esaminati | 405 o 400 secondo contratto; messaggio e nessun side effect; non estendere genericamente extra=forbid ai DTO che ignorano extra. | API D |
 | OPS-03 | Tessera/ticket non inviato, già inviato, flag invio falso; retry trigger | Nessuna mail durante seed; test locale della deduplica e dei flag. PDF può essere generato anche con send falso: prevedere volumi e metadati Storage. | Locale D |
 | OPS-04 | Invio ticket/tessera a alias consentito; destinatario escluso; errore provider | Su staging solo selezionati; escluso bloccato; errore non segnato come consegna; ricezione/allegati verificati in casella dopo autorizzazione invii. | API/casella X |
 | OPS-05 | Omaggi: bulk con già inviato/non inviato; resend singolo | Bulk salta già inviati, singolo può reinviare; controllare sent/skipped/failed e flag con provider fake. | Locale D |
 | OPS-06 | Wallet/Sender disabilitati e gender fake durante seed | Nessuna attività live su Pass2U/Sender; guasti fake non cancellano soci/partecipazioni. Verifica wallet live separata e rinviata. | Locale D |
-| OPS-07 | Ordine non catturato prima/al/dopo 24 ore; captured; timestamp assente | Pulizia locale preserva captured; verificare confine e chiavi `createdAt`/`created_at`, attualmente discordanti, Q-09. | Locale Q |
-| OPS-08 | Token scanner scaduto da meno/esattamente/più di 7 giorni | Cleanup rimuove solo oltre soglia; scan storici non eliminati dal cleanup token. | Locale D |
-| OPS-09 | Rigenera seed con stesso seed RNG, poi interruzione e ripresa | Stessi ID/relazioni/conteggi; no duplicati; errore parziale esplicito; guard progetto/bucket rifiuta produzione. Test locale prima di cloud. | Locale D |
-| OPS-10 | App su dataset completo: ricerca, filtri, ordinamento, paginazione | Risultati completi senza perdere/duplicare righe fra pagine; filtri socio/anno/evento/stato confrontati col manifesto. Misurare tempi, senza chiamarla ancora prova concorrente. | API/UI D |
+| OPS-07 | Ordine non catturato prima/al/dopo 24 ore; captured; timestamp assente | Cleanup conservativo con timestamp corrente/legacy, marker pre-provider e CAS delete. Preserva recenti, pagati, tentati, legacy senza prova e metadati ambigui. Verificato il confine 24 ore e le corse con capture/recupero. | API D |
+| OPS-08 | Token scanner scaduto da meno/esattamente/più di 7 giorni | Solo oltre soglia; timestamp ambigui conservati, delete condizionale alla versione, scansioni storiche intatte. Perimetro ed evidenze sotto. | API D |
+| OPS-09 | Rigenera seed con stesso seed RNG, poi interruzione e ripresa | Export byte ripetibili; ripresa stesso import senza duplicati, errori parziali redatti; solo demo Firestore locale senza Functions. Nessun writer Storage/cloud. Evidenze sotto. | Emulatore D |
+| OPS-10 | App su dataset completo: ricerca, filtri, ordinamento, paginazione | Risultati completi senza perdere/duplicare righe fra pagine; filtri socio/anno/evento/stato confrontati col manifesto. Misurare tempi, senza chiamarla ancora prova concorrente. | API + UI PASS (perimetro e verifica owner sotto) |
 
 ### Contratti da caratterizzare prima di dichiarare i casi superati
 
@@ -294,15 +294,15 @@ regola richiesta separatamente; finché divergono il caso non è PASS.
 
 | Punto | Evidenza attuale e decisione/verifica necessaria | Casi collegati |
 | --- | --- | --- |
-| Q-01 | Checkout usa anno in membership_years, scanner e attivi usano subscription_valid. Date non sono un controllo unico di scadenza. Testare combinazioni e chiarire la regola uniforme desiderata. | MEM-03, MEM-04 |
-| Q-02 | Guard attiva evento blocca ended/termine temporale; nessun blocco sold_out/coming_soon o capienza trovato nel checkout esaminato. Distinguere blocco UI e garanzia backend. | EVT-03, EVT-04 |
-| Q-03 | `_compute_total` non somma membership_fee; importi non parsabili possono saltare controllo capture. Verificare intenzione quota tessera e comportamento ai confini, senza assumere di dover aggiungere una quota. | PAR-03, PAY-10, DIS-08 |
+| Q-01 | Risolta in chat 2026-11-12: valida solo con anno corrente in membership_years E subscription_valid=True. Flag falso prevale; anno assente invalida sempre. Date non sostituiscono l’indice. Checkout, scanner e attivi allineati; nessuna migrazione implicita. | MEM-03, MEM-04 |
+| Q-02 | Regole owner 2026-11-12 implementate: stati indisponibili bloccati, capienza online positiva, prenotazione 10 minuti all’ordine, niente overbooking online concorrente; admin può superare il limite. UI e rollout restano separati. | EVT-03, EVT-04 |
+| Q-03 | Formula confermata dal proprietario il 2026-11-12: quota tessera inclusa nel prezzo evento, sconto applicato all’intero prezzo e fee aggiunta dopo. DIS-08 prova la formula e i dati socio; PAY-10 rifiuta importi non verificabili. Nessuna aggiunta implicita della quota al totale. | PAR-03, PAY-10, DIS-08 |
 | Q-04 | StatsService filtra solo status, analytics evento/snapshot filtrano anche capture_status, tipo, ref_id e count. Stati vuoti/non definitivi possono passare i filtri; incassi manuali da participant non sono automaticamente Purchase. Stabilire significato di ogni metrica. | PAY-03, PAY-13, STA-03, STA-06 |
 | Q-05 | Entrate raw, flag participant e scansioni nella finestra non sono lo stesso insieme. Snapshot usa finestra fissa 22:00-06:00 e KPI entered dalla somma bucket; endpoint diretto può contare flag/scan differenti. Scritture scan/flag separate. | QR-10, QR-12, QR-15, STA-10 |
 | Q-06 | Diverse funzioni età usano giorni/365; verificare maggiorenne/over21 e fasce statistiche rispetto al calendario, non copiando la formula come oracolo. | MEM-06, PAR-09, STA-12 |
 | Q-07 | Delete evento/partecipante e riassegnazione socio non dimostrano cascata su scan, purchase e storico. Merge esaminato riallinea partecipanti; verificare anche scan e membership_ids degli acquisti. Nessuna cancellazione reale in questa fase. | EVT-09, PAR-16, PAR-17, STA-15 |
 | Q-08 | allow_duplicates permette più righe socio/evento, ma scan ha chiave membershipId/evento e update_entered lavora su un participant. Definire rapporto biglietti, persone e ingressi. | PAR-06, QR-11 |
-| Q-09 | Order serializza createdAt, cleanup legge created_at e considera timestamp assente eliminabile per non captured. Riprodurre con un ordine fresco negli emulatori. | OPS-07 |
+| Q-09 | Difetto createdAt/created_at riprodotto e corretto il 2026-11-12. Cleanup elimina solo ordini certamente abbandonati oltre 24 ore, con controllo versione; assenza/ambiguità e tentativi di capture conservati. Legacy senza captureStarted richiede verifica manuale. | OPS-07 |
 
 ### Combinazioni obbligatorie e prove esistenti
 
@@ -816,3 +816,1023 @@ locale. Non dimostra gli esiti dei 105 scenari API, il comportamento di Auth,
 i trigger, le statistiche applicative o la consegna email. Le successive
 prove devono usare scenari controllati, senza attivare invii sul dataset
 massivo o cambiare i contratti Q per far coincidere artificialmente i conti.
+
+### Blocco concorrenza PAY-12 / DIS-06 — approvato 2026-11-09
+
+Branch `core-concurrency-api-scenarios`, dal checkpoint locale
+`chore/reduce-agent-overhead`; dipendenze PR #9/#10 come da handoff,
+nessun merge autorizzato. Proprietario: review Sol **medium** fino a nuova
+indicazione, in sostituzione di high. Implementazione nativa Sol; skill
+writing-plans/executing-plans applicate con il flusso lean di AGENTS.md.
+
+- [x] Due scenari in `tests/synthetic_api/test_concurrent_checkout.py`,
+  fixture HTTP riusata con client separati per thread. Barriere limitate
+  da timeout; fake serializzato solo durante costruzione risposta/conteggi.
+- [x] PAY-12: entrambe le letture iniziali vedono ordine non catturato;
+  provider fake idempotente, verifica unicità purchase/provisioning,
+  collegamenti, statistiche e retry. Distinguere richieste da incassi.
+  Test unitario SDK per chiave stabile sullo stesso ordine e diversa fra ordini.
+- [x] DIS-06: due ordini e soci distinti per l'ultimo utilizzo, barriera
+  prima del claim reale. Un vincitore, contatore al limite, errore perdente,
+  stato catturato senza purchase esplicito e retry senza ricattura.
+- [x] Raccolta offline: 66 casi API; 34 unitari collegati passati; scanner
+  zero segnalazioni e diff check pulito. Unica review Sol medium conclusa:
+  corretti ID documenti partecipanti vs membershipId e timeout executor.
+  Deadline processo a 45 secondi; self-check offline worker bloccati exit 124.
+  In caso di timeout il runner arresta emulatori; il JUnit può non esserci.
+- [x] Runtime emulatori del proprietario con
+  `scripts/staging/test_emulator.py --api`, una attività alla volta.
+- [ ] Riportare eventuali violazioni prima di correzioni applicative.
+  Nessun xfail o aspettativa permissiva per mascherare PAY-12; una failure
+  del requisito resta evidenza aperta. DIS-06 caratterizza esplicitamente
+  il rischio post-incasso, non certifica un checkout sicuro end-to-end.
+
+Nessun codice applicativo, dipendenza, provider reale o operazione cloud.
+Commit dopo prova runtime; suite completa in CI, monitoraggio del proprietario.
+
+Esito runtime: il proprietario ha riportato exit code 1 del runner.
+Ispezionato il JUnit locale del 2026-11-09T21:43:48+01:00: **66 casi,
+1 failure, zero error/skipped** (65 passati). PAY-12 fallisce sul requisito
+`len(purchases) == 1`: due purchase persistite per l'unico ordine; due
+richieste fake restituiscono lo stesso capture ID. È una duplicazione
+locale riprodotta, non prova di doppio addebito PayPal reale. La lettura
+dell'ordine non catturato non è seguita da un claim atomico prima del
+provisioning; `PurchaseRepository.create` genera un nuovo ID a ogni chiamata.
+Il report pytest abbrevia i dettagli: non quantificare partecipanti o
+ricavi duplicati sulla base di questa failure.
+
+DIS-06 passa: un solo claim vincente e usedCount al limite; il secondo
+ordine resta catturato senza purchase e il retry è bloccato senza nuova
+capture. È un rischio post-incasso esplicitamente caratterizzato, non una
+garanzia di sicurezza end-to-end. Nessun fix applicativo applicato.
+Prossimo passo da discutere: protezione atomica contro provisioning
+concorrente PAY-12, separando il recupero post-incasso DIS-06. Nessun
+riavvio emulatori dal coordinatore; arresto pulito non attestato dal JUnit.
+
+### PAY-12 — esito dopo il fix (2026-11-09)
+
+Il doppio acquisto per lo stesso ordine è corretto con un claim atomico di
+`captured` (compare-and-set sull'`update_time`). Un tentativo con transazione
+Firestore è stato scartato: lock timeout reciproco (due 500 dopo 10 s) in circa
+1 corsa su 20. Con il compare-and-set: PAY-12 60/60 in ciclo e batteria 66/66
+per 8 corse complete sull'emulatore. Il perdente riceve 409
+`ORDER_CAPTURE_CONFLICT`; nessuna nuova capture PayPal e nessun effetto
+collaterale (verificato anche da test del service). Non provato su Firestore
+reale. DIS-06 invariato e ancora aperto.
+
+
+### DIS-06 — prenotazione prima della capture, 2026-11-11
+
+Regola approvata dal proprietario: prenotare prima di incassare, con
+idempotenza, rilascio in caso di pagamento fallito e gestione della scadenza.
+Implementazione nel worktree esistente; nessuna operazione cloud/provider.
+
+- Il controllo CAS sul codice conta `usedCount` più le prenotazioni attive.
+  Chiave ordine e token distinguono tentativi: riservare due volte lo stesso
+  ordine restituisce lo stesso token; iniziare la capture richiede un passaggio
+  atomico esclusivo. Il perdente riceve 409 prima della chiamata PayPal.
+- `reserved` scade dopo 15 minuti, con recupero pigro nel successivo accesso;
+  il worker con token scaduto/sostituito non può iniziare la capture.
+  `capturing` non scade automaticamente: timeout, errori HTTP/SDK, risposte
+  malformate o interruzioni locali non provano l'assenza di un incasso.
+  Il retry di questi ordini è bloccato prima del provider, in attesa di verifica.
+- Capture esplicitamente `DECLINED`/`FAILED`: rilascio del posto, senza consumo.
+  Capture valida: conversione atomica in uso e ricevuta persistente per ordine
+  nella sottocollezione `reservation_receipts`; consume/release ripetuti sono
+  idempotenti, token obsoleti non liberano una nuova prenotazione.
+- Un guasto dopo l'incasso conserva l'uso o il posto occupato; recupero e
+  riconciliazione degli ordini già incassati rimangono separati. Nessun rimborso,
+  cancellazione automatica o rilascio basato soltanto sul tempo.
+
+Verifiche del coordinatore: regressione RED sul perdente inviato al provider,
+poi GREEN. Review Sol medium: un Important sulla riduzione admin di `maxUses`
+sotto gli utilizzi prenotati, riprodotto e corretto con controllo CAS contro
+consumati + prenotazioni vive (stessa regola di scadenza); nessun Minor.
+Un primo tentativo con transazioni Firestore è stato sostituito dopo lock
+timeout riprodotti in entrambi i nuovi scenari concorrenti (due 500 senza
+chiamata provider). La versione finale usa batch atomici con precondizione
+`update_time`, retry limitati e ricevuta scritta nello stesso batch: nessun
+lock transazionale. L'admin usa la stessa precondizione per cambiare il limite.
+
+Esito finale eseguito dal coordinatore dopo autorizzazione del proprietario
+ai comandi locali: **768 unitari, 39 test script, 72/72 API, 6/6 integrazione
+sconti**; **20 corse da 3 scenari concorrenti, 60/60**. Nella suite integrazione
+è stata corretta un'aspettativa legacy che richiedeva la cancellazione
+anziché conservazione dell'ordine completato; ora verifica anche retry senza
+ricattura. Scanner zero segnalazioni, diff check pulito. Runner emulatori exit
+0 e arresto pulito; report JUnit sotto `.local/staging/`. Nessuna prova remota
+CI o Firestore/PayPal reale. Il recupero di ordini già incassati resta separato.
+
+
+### Proposta prossimo blocco — recupero controllato post-incasso, 2026-11-11
+
+Stato: approvato dal proprietario in chat (2026-11-11: «vai partiamo con questo»). Esecuzione nativa, una review finale Sol medium.
+Il proprietario ha chiesto di proseguire lo sviluppo dopo DIS-06; il recupero
+post-incasso era esplicitamente separato dall'approvazione precedente.
+
+Evidenze: l'ordine conserva `captured` e `purchase_id`, ma non il dettaglio
+incasso necessario per ricostruire un acquisto; il gateway espone solo create
+e capture. Purchase e partecipanti sono creati con ID casuali. Rilanciare il
+provisioning corrente dopo un'interruzione può quindi duplicare documenti.
+
+Approcci: recupero controllato avviato da admin (raccomandato), con perimetro
+e conflitti espliciti; oppure ripresa automatica dal retry del checkout, che
+richiede anche idempotenza completa di creazione/rinnovo tessera e relativi
+effetti collaterali. La prima opzione consente un blocco più circoscritto.
+
+Proposta concreta per una sola approvazione:
+- Aggiungere la lettura dello stato ordine al gateway, con fake controllabile;
+  il recupero non deve mai chiamare capture o rimborsi.
+- Esporre un'operazione riservata agli admin per un ordine esistente, con
+  controllo di identità ordine, valuta, importo e incasso completato. Esiti
+  ancora ambigui o incongruenti rimangono bloccati, senza liberare lo sconto.
+- Riprendere acquisto, collegamenti e partecipanti in modo idempotente, anche
+  dopo errori intermedi o due richieste admin concorrenti; convertire una
+  prenotazione già detenuta senza un secondo consumo. Un vecchio ordine
+  incassato senza prenotazione richiede verifica esplicita della capienza
+  sconto: niente superamento implicito del limite o nuovo addebito.
+- Primo perimetro: ordini senza `membershipTargets`, senza creazione/rinnovo
+  tessera; gli altri sono rifiutati esplicitamente prima delle scritture.
+  Nessun job automatico o nuova UI. Casi evento scaduto, incasso non coerente,
+  dati mancanti o prenotazione non attribuibile restano a verifica manuale.
+- Test offline ed emulatori con provider fake: recupero prima/dopo creazione
+  acquisto e partecipante, retry e concorrenza, sconto consumato una sola volta,
+  permessi admin, valuta/importo errati ed esito sconosciuto. Una review finale
+  Sol medium, commit locale dopo verifiche. Nessuna operazione cloud/provider.
+
+Decisione: recupero controllato approvato in chat dal proprietario; ripresa
+automatica e gestione tessere rimangono fuori da questo blocco.
+
+
+#### Piano di esecuzione del recupero approvato
+
+Vincoli: niente capture/refund nel recupero, niente cloud/provider reale,
+creazione/rinnovo tessera o UI; conservare modifiche locali esistenti.
+
+- [x] Gateway `get_order` SDK/fake: sola lettura, fake controllabile e test.
+- [x] Acquisti/partecipanti: ID stabili, create-only, verifica e riuso dei
+  documenti legacy univoci. Checkout normale e recupero condividono questa
+  deduplica per proteggere anche la corsa con il primo processo ancora attivo.
+  Collegamento ordine monotono via CAS.
+- [x] `EventOrderRecoveryService.recover_order(order_id)`: rifiuto immediato
+  dei membershipTargets, verifica di ordine/evento, singolo incasso finale,
+  EUR/importo/commissione/netto/data coerenti ed evento ancora valido. Ripresa
+  idempotente, collegamenti socio array-union, sconto riconciliato una volta.
+  Sconti legacy senza prenotazione/ricevuta attribuibile restano manuali:
+  il contatore da solo non dimostra se l'ordine sia stato già contato.
+- [x] Endpoint admin POST `recover_order_event`, DTO ordine esistente,
+  registrazione main; auth mancante/non-admin rifiutata con 401 secondo il
+  contratto esistente, metodi/DTO e gestione errori.
+- [x] RED→GREEN su gateway, deduplica e recupero; API con guasti prima/dopo
+  acquisto e partecipante, retry/concorrenza anche col checkout normale,
+  dati provider errati, membershipTargets, duplicati legacy ed esito ignoto.
+  Suite unitari/script, API completa, integrazione interessata e stress race.
+- [x] Unica review Sol medium, regressioni per le correzioni, esito documentato
+  e commit locale. Niente push/merge o nuova workstream implicita.
+
+Focus review: corsa recupero/capture originale, dati legacy duplicati o
+alterati, ricevuta sconto prima/dopo guasto, importi non finiti/valute diverse,
+side effect ripetuti (ticket/mail e collegamenti socio).
+
+
+Esito finale del coordinatore: **826 unitari, 39 test script, 107 API e 6
+integrazione sconti passati**; stress **20 corse da sei varianti, 120/120**.
+Runner emulatori exit 0 e arresto pulito; JUnit zero failure/error/skipped.
+Scanner zero segnalazioni e diff check pulito. Nessuna prova CI remota,
+deploy, chiamata PayPal reale o scrittura cloud.
+
+Review Sol medium: quattro Important, tutti riprodotti e corretti con prove
+RED→GREEN e nuova batteria completa. Il recupero rifiuta lookup soci estranei
+o malformati, qualsiasi partecipante malformato (nessuna omissione silenziosa),
+prezzi locali non finiti/negativi o incoerenti con il totale e acquisti legacy
+con timestamp, metodo o identità pagatore incompatibili con l'incasso letto.
+I timestamp equivalenti con fusi diversi sono confrontati come istanti.
+Aggiunti dieci scenari HTTP che verificano 409 e database invariato per i
+conflitti d'integrità. Nessun Critical o Minor riportato; esito accettato e
+corretto dal coordinatore, senza seconda delega.
+
+Endpoint locale implementato: POST `recover_order_event`, body
+`{"order_id": "<ordine esistente>"}`, autenticazione admin con il decorator
+esistente. Una recovery non invoca create/capture/refund del provider. Il
+checkout pubblico mantiene il blocco di un provisioning incompleto: non è
+stata introdotta una ripresa automatica. Nessun recupero tessere, evento
+scaduto, partecipanti ambigui o sconto legacy privo di attribuzione. I flag
+esistenti dei biglietti non vengono riscritti. Le prove dimostrano assenza di
+ulteriori document-created per gli stessi record; non certificano consegna
+exactly-once delle email da trigger esterni.
+
+
+### PAY-10 — anomalie di importo e cattura non definitiva, 2026-11-11
+
+Approvato dal proprietario: «vai con PAY-10». Blocco mirato nativo, una review
+finale Sol medium; nessuna decisione sulla quota tessera o altre regole Q-03.
+
+- Riprodurre nei test importi non leggibili/mancanti/non finiti/negativi,
+  totale assente/null e `final_capture` falso, omesso o di tipo errato.
+- Registrare l'incasso COMPLETED con ID prima di questi rifiuti; nessun
+  acquisto, partecipante, rinnovo o consumo sconto. Il posto sconto rimane
+  occupato perché il pagamento potrebbe essere avvenuto. Retry senza capture.
+- Distinguere totale assente da zero valido; richiedere booleano True esplicito
+  per la cattura definitiva. Confronto monetario decimale, tolleranza PAY-09
+  invariata a 0.01; rifiuto di valori non verificabili anziché skip/warning.
+- RED→GREEN unitari e API con/senza sconto; includere zero valido e confini
+  PAY-09 esistenti, poi suite unitari/script, API/emulatori, review e commit.
+  Nessun cloud, provider reale, deploy, UI o recupero automatico.
+
+
+Esito PAY-10: **849 unitari, 39 test script, 151 API e 6 integrazione sconti
+passati**; i 44 nuovi scenari API coprono 22 anomalie con/senza sconto. Zero
+failure/error/skipped nei JUnit finali, exit 0 e arresto pulito degli emulatori.
+Scanner zero segnalazioni e diff check pulito. La suite include i precedenti
+casi a totale zero e i quattro confini PAY-09, oltre a checkout e recupero.
+
+Review finale Sol medium: un Important sul contenitore `amount` stringa/lista
+che interrompeva il parsing prima di registrare l'incasso, riprodotto RED e
+corretto normalizzandolo a importo mancante. Un Minor sui limiti aritmetici
+Decimal è stato riclassificato Important dal coordinatore perché poteva
+accettare un importo oltre la tolleranza approvata: riprodotti Overflow e
+precisione oltre il centesimo, poi corretti con rifiuto degli errori aritmetici
+e arrotondamento verso l'esterno per il confronto. I timestamp/importi della
+recovery rimangono soggetti ai controlli già esistenti. Nessun rilievo differito.
+
+Il totale assente resta None nel modello, non viene sostituito da zero; la
+finalità richiede il booleano True JSON, non valori semplicemente truthy.
+Questi errori vengono rifiutati dopo aver registrato una capture COMPLETED
+con ID. L'eventuale preflight per evitare la chiamata provider su ordini già
+corrotti resta una decisione separata, non è stato introdotto implicitamente.
+Nessun rimborso, deploy, provider reale, scrittura cloud o prova CI remota.
+
+
+### DIS-08 / Q-03 — formula confermata il 2026-11-12
+
+Richiesta del proprietario: proseguire con la prossima implementazione dopo
+PAY-10. Ispezione: backend e frontend usano prezzo evento + commissione,
+con sconto applicato al prezzo evento; l'interfaccia dichiara esplicitamente
+la tessera annuale inclusa nel prezzo (`EventPurchaseContent.jsx`, PriceBlock).
+La quota configurata viene salvata nell'ordine e nella storia socio, ma non
+aggiunta al totale. Il proprietario ha confermato il 2026-11-12: «Mantieni la
+formula attuale: tessera inclusa, totale scontato 12 €».
+
+Esempio proposto per scegliere la regola: prezzo 20, commissione 2, quota 5,
+sconto 50%. Formula attuale: 12. Quota inclusa ma protetta dallo sconto: 14.50.
+Quota aggiuntiva non scontabile: 17. Scelta approvata: prima formula (12).
+La quota configurata resta metadato nominale nello storico socio, non un
+secondo addebito o una soglia minima allo sconto. Nessuna modifica ai prezzi.
+
+Blocco concreto da eseguire con la formula scelta: prove API ONLY_MEMBERS
+per nuovo socio, rinnovo di anno precedente senza duplicare ID, socio corrente
+senza rinnovo e gruppo misto; con/senza codice sconto (il gruppo resta escluso
+dagli sconti come da regola esistente), con/senza commissione. Verificare totale
+richiesto/persistito, acquisto/partecipante, anni e storico/quota, collegamenti,
+statistiche, nessun consumo prima della capture, rifiuto provider senza tessera
+e retry completato senza nuovo incasso/rinnovo/uso sconto. Impostazione quota
+mancante: rifiuto prima del provider per i target che ne richiedono il valore.
+Unitari e API/emulatori locali, una review finale Sol medium. Nessun cloud,
+provider reale, recupero tessere post-interruzione o nuova regola Q-01 implicita.
+
+
+Esecuzione DIS-08 (2026-11-12): nuova batteria
+`tests/synthetic_api/test_membership_discount_checkout.py`, 52 scenari.
+30 combinazioni singole nuovo/scaduto/corrente × formula/fee, gruppo misto,
+8 pagamenti falliti, 8 quote mancanti/non leggibili, 2 soci correnti senza
+impostazione quota, 2 modifiche impostazione tra create/capture e un rifiuto
+sconto sul gruppo. Nessun nuovo codice applicativo: caratterizzazione e prove
+di regressione della regola confermata. Review finale Sol medium e runtime
+locale con provider fake; recupero tessere interrotte rimane separato.
+
+
+Esito finale DIS-08, 2026-11-12: **52 nuovi casi, 203/203 API, 849 unitari
+e 39 test script passati**. Il primo guasto era un indirizzo sintetico .test
+rifiutato dal DTO, corretto in example.com; nessun bug applicativo emerso.
+La batteria finale include anche capture senza impostazione quota per i soci
+già correnti e conteggi soci attivi. I test usano importi attesi letterali;
+il fake conserva il lordo della create reale, evitando di mascherare un
+importo chiesto al provider errato. Il caso totale zero resta una prova fake,
+non una verifica di accettazione PayPal reale.
+
+Review unica Sol medium conclusa senza Critical/Important/Minor, accettata
+dal coordinatore. Scanner zero segnalazioni, diff check pulito, JUnit zero
+failure/error/skipped, runner exit 0 e arresto pulito. Nessuna modifica al
+codice applicativo, nessun deploy/cloud/provider reale o prova CI remota.
+La decisione Q-03 sulla formula è chiusa; lo storico di dubbi delle sezioni
+precedenti resta datato al checkpoint originale. Recupero post-interruzione
+con tessere e altre regole MEM/Q-01 rimangono separati.
+
+
+### OPS-07 / Q-09 — cleanup ordini sicuro, 2026-11-12
+
+Il proprietario ha chiesto di proseguire lo sviluppo; il coordinatore ha
+selezionato il difetto già registrato OPS-07. Riprodotto RED: un ordine
+appena creato con `createdAt` veniva eliminato perché il cleanup leggeva solo
+`created_at` e considerava la data assente eliminabile. Riprodotta anche la
+corsa con l'inizio della cattura: una cancellazione non condizionata poteva
+rimuovere un ordine dopo che un altro processo lo aveva preso in carico.
+
+Perimetro della correzione:
+- Solo ordini certamente abbandonati oltre 24 ore trascorse: captured=false,
+  captureStarted=false espliciti, nessun purchase_id, stato CREATED/APPROVED,
+  timestamp datetime valido. Al confine esatto delle 24 ore l'ordine resta.
+- Leggere `createdAt` e alias legacy `created_at`; dati assenti/non validi o
+  alias discordanti restano a verifica manuale. Date naive legacy mantengono
+  l'interpretazione UTC già esistente. I cleanup token/job non cambiano.
+- Flag `captureStarted` nuovo, scritto via CAS prima di begin_capture sconto
+  e provider. Reserve sconto precede il flag, così un perdente dello sconto
+  non viene marcato come tentativo di pagamento. Se il cleanup ha già vinto,
+  il CAS/missing document ferma il processo prima di PayPal. Il flag è sticky:
+  un errore o esito sconosciuto non rende l'ordine nuovamente cancellabile.
+- Cancellazione per documento con precondizione update_time; se un altro
+  writer vince, l'ordine viene saltato senza cancellare usando dati obsoleti.
+  Niente lock Firestore o batch di ordini che perdono tutti su un solo conflitto.
+- Ordini legacy senza il nuovo campo non provano assenza di un tentativo:
+  conservati, nessuna migrazione/cancellazione cloud automatica. Anche ordini
+  con tentativi falliti restano conservati finché non riconciliati esplicitamente.
+
+Prove: 29 casi cleanup offline, marker repository/service, 21 nuove prove
+API/emulatore (ordine fresco reale, confini, alias/legacy, race CAS, vincita
+cleanup prima del provider, provider in corso, risposta persa e recupero).
+Due test PAY-08 ora richiedono il solo nuovo marcatore dopo errore HTTP/SDK,
+con tutti gli altri campi invariati. Una review Sol medium e suite complete
+locali. Nessun cleanup cloud, deploy o chiamata provider reale. Per rollout
+futuro aggiornare prima il cleanup conservativo, poi il producer del marker.
+
+
+Esito finale OPS-07: **885 unitari, 39 test script, 224 API e 6 integrazione
+sconti passati**. JUnit zero failure/error/skipped, exit 0 e arresto pulito
+emulatori; scanner zero segnalazioni e diff check pulito. Difetto ordine fresco
+riprodotto RED prima del fix; CAS e stop provider dopo cancellazione verificati
+anche con SDK Firestore reale sull'emulatore. Nessuna operazione cloud reale.
+
+Review finale Sol medium conclusa senza Critical/Important/Minor, accettata.
+Nel successivo controllo autore sono emersi quattro casi di metadati list/map:
+status non hashable interrompeva il cleanup e purchase_id vuoto non stringa
+veniva trattato come assente. Riprodotti RED e corretti usando confronti
+sicuri e valori vuoti ammessi solo None/stringa; quattro nuove prove API
+verificano conservazione invariata. Batteria completa rieseguita GREEN;
+nessuna seconda review o rilievo differito. I job/token restano invariati.
+
+Il costo della scelta conservativa è la ritenzione degli ordini legacy o con
+qualunque tentativo: non vengono eliminati automaticamente senza riconciliazione.
+La revisione del rollout resta al gate deploy: cleanup conservativo prima,
+producer del marker dopo. Nessun deploy eseguito o prova CI remota.
+
+
+### EVT-03 / Q-02 — blocco checkout per stato evento, 2026-11-12
+
+Regola confermata dal proprietario in chat: niente ordini per `sold_out`,
+`coming_soon` o `ended`. Patch al controllo condiviso: creazione pubblica e
+capture rifiutate prima del provider; il recupero admin usa lo stesso gate e
+richiede gestione manuale se lo stato non consente acquisti. Retry pubblico
+completato conserva la ricevuta e non ripete l'incasso. Nessuna modifica a
+inserimenti admin, validità tessera, capienza o riconciliazione legacy.
+
+RED: 4 nuovi casi API su sold_out/coming_soon restituivano 201/200 anziché 400;
+2 casi recovery non sollevavano conflitto. ENDED risultava già bloccato.
+GREEN: **888 unitari e 233 API passati**, inclusi 9 nuovi casi con Firestore
+emulato e 3 unitari recovery. Verificati ordine invariato dopo rifiuto,
+zero chiamate provider, ripresa dopo riapertura e ricevuta dopo cambio stato.
+Runner emulatori exit 0 e arresto pulito; JUnit `.local/staging/api-results.xml`.
+Scanner sui tre file applicativi/test: zero finding; diff check pulito.
+Unica review indipendente Sol high senza rilievi, accettata dal coordinatore.
+Warning preesistente WeasyPrint/HarfBuzz durante pytest.
+
+Il gate controlla lo stato letto: non è una prenotazione posti e non rende
+atomico un cambio stato concorrente dopo la lettura. Stato legacy assente o
+sconosciuto mantiene il comportamento precedente. Q-02 rimane aperta per la
+capienza; UI, cloud, provider reali e CI remota non verificati in questo blocco.
+
+
+### Proposta EVT-04 / Q-02 — capienza e prenotazione posti, 2026-11-12
+
+Stato: **approvato dal proprietario in chat e implementato**; evidenze finali sotto.
+Regole owner in chat: admin libero di superare capienza; online prenotazione
+alla creazione ordine, durata massima 10 minuti; capienza zero o assente
+blocca le vendite online. Stato evento continua a seguire EVT-03.
+
+User story: come organizzatore voglio che ogni ordine online riservi tutti
+i posti richiesti per 10 minuti, così che acquisti simultanei non vendano lo
+stesso posto. Un gruppo senza posti sufficienti viene rifiutato per intero.
+
+Architettura proposta: registro Firestore delle prenotazioni per evento,
+con operazioni atomiche e chiave locale univoca prima della creazione ordine
+PayPal. Collegamento al provider/order locale dopo create; nessuna chiamata
+provider dentro una transazione/retry database. Posti occupati = partecipanti
+esistenti, anche admin, più posti riservati non ancora materializzati come
+partecipanti: niente doppio conteggio durante provisioning parziale/recovery.
+Scritture participant e prenotazioni devono condividere un controllo versione
+per evento, inclusi create/delete admin senza imporre loro il limite.
+
+Ciclo: reserved fino a expiresAt (UTC, creazione +600 secondi); a now >=
+expiresAt non può avviarsi capture e occorre un nuovo ordine. Il passaggio
+atomico a capturing avviene prima del provider e impedisce la scadenza/rilascio
+concorrente. Esito incerto resta occupato e richiede riconciliazione; rifiuto
+certo libera i posti. Incasso verificato mantiene i posti fino alla loro
+conversione idempotente in partecipanti; retry completato conserva ricevuta.
+Prenotazioni già accordate non vengono revocate automaticamente da aggiunte
+admin; le nuove vendite usano la disponibilità residua aggiornata.
+Gli ordini precedenti privi di prenotazione non avviano nuovi incassi: nuovo
+checkout o gestione manuale. Nessuna migrazione cloud o ricostruzione implicita;
+recovery legacy non deve attribuire prenotazioni inventate.
+
+- [x] RED: casi API/unitari per capienza zero/assente/piena, gruppo e posti
+  esatti; scadenza prima/al/dopo 600s; stato evento; create provider fallita;
+  capture definitiva/incerta; retry e provisioning parziale; legacy.
+- [x] Registro atomico e lifecycle in nuovo
+  `repositories/event_capacity_repository.py`; collegamento in `models/order.py`,
+  `mappers/payment_mappers.py`, `repositories/order_repository.py` e
+  `interfaces/repositories.py`, conservando CAS e marker captureStarted.
+- [x] Integrare create/capture in `services/payments/event_payment_service.py`,
+  recovery supportato in `event_order_recovery_service.py`, e le scritture
+  in `repositories/participant_repository.py`. Valutare `triggers/cleanup_trigger.py`
+  solo per preservare OPS-07: disponibilità non dipende dal cleanup giornaliero.
+  Nessun nuovo provider, dipendenza o job necessario per la scadenza logica.
+- [x] GREEN: unitari e API su emulatore, gare controllate ultimo posto,
+  scadenza/capture e provisioning/admin; nessun provider del perdente,
+  nessun doppio conteggio e nessuna liberazione di incasso incerto.
+  Unica review finale Sol high, scanner/diff check, commit ed evidenza qui.
+
+Fuori perimetro: UI/countdown, stato sold_out automatico, regole tessera,
+modifiche statistiche, rimborsi, nuovi percorsi recovery legacy/membership,
+deploy e cloud. Criterio di arresto: garanzie e prove sopra soddisfatte, non
+espandere alle restanti user story. Esecuzione nativa Sol per pagamenti e
+concorrenza; nessuna delega implementativa Luna su queste invarianti.
+
+
+#### EVT-04 — esecuzione ed evidenza finale
+
+Prenotazioni implementate in `EventCapacityRepository`, con CAS sulla versione
+evento condivisa con le scritture participant. Conteggio dai documenti reali
+più posti riservati non ancora materializzati, evitando contatori legacy o
+migrazioni implicite. La scansione include le ricevute terminali per rifiutare
+stati/metadati ambigui; questa soluzione non è una prova di prestazioni su
+volumi maggiori. Nessun nuovo job o dipendenza. Il token capacità viaggia in
+EventOrder e nei percorsi di provisioning; il protocollo participant è aggiornato.
+Ordini creati con create-only: un ID provider ripetuto non sostituisce un ordine
+pagato. La scadenza logica non aspetta il cleanup giornaliero OPS-07.
+
+RED iniziale: 15 dei 16 casi capacità fallivano; capienza None/0/-1/1 accettava
+un gruppo di due. Successivi RED su metadati stato sconosciuto/None e ID
+provider ripetuto, tutti corretti. Aggiunte prove di admin overbooking/delete,
+conversione e recovery parziale, due create con lettura della stessa versione,
+scadenza/riallocazione contro capture e inserimento admin dopo lettura posti.
+
+Unica review indipendente Sol high: **1 P1 e 1 P2**, accettati e corretti dal
+coordinatore dopo due regressioni RED. P1: dopo consumo capacità e fallimento
+dell'ultimo update ordine, admin delete/rivendita permetteva a recovery di
+ricreare persone senza posti; ogni nuova scrittura online ora richiede un hold
+capturing attribuito all'acquisto, aggiornato nello stesso batch con CAS.
+Un hold consumed permette solo riuso di documenti già presenti, non ricreazione.
+P2: il tentativo di capture con hold scaduto impegnava prima lo sconto; il claim
+capacità ora precede reserve/begin sconto. Errori sconto prima del provider
+liberano i posti, senza modificare gli utilizzi concorrenti altrui. Nessuna
+seconda review delegata. Correzioni e diff finale verificati dal coordinatore.
+
+GREEN finale: **888 unitari, 268 API e 6 integrazioni sconti passati**. Le 35
+nuove prove API capacità includono le due regressioni di review e il rilascio
+posti quando lo sconto si esaurisce dopo create. JUnit zero error/failure/skip,
+runner exit 0 e arresto pulito emulatori; scanner file modificati zero finding,
+diff check pulito. Log/JUnit in `.local/staging/`. Warning preesistenti
+WeasyPrint/HarfBuzz e filtri Firestore posizionali nelle integrazioni.
+
+Ruling: test cleanup sincronizzati sul nuovo claim atomico capacità/marker.
+Ruling: acquisto riassegnato manualmente a un ID legacy senza riallineare il
+registro posti viene rifiutato, non riconciliato implicitamente. I vecchi ordini
+senza prenotazione richiedono nuovo checkout/gestione manuale prima di incasso.
+
+Nessun deploy, cloud/provider reale o prova CI remota. Il rollout deve evitare
+worker vecchi che ignorano i posti accanto a worker nuovi; rollback con hold
+attivi va pianificato al gate produzione. UI/countdown, sold_out automatico,
+ottimizzazione scansioni e nuove recovery membership/legacy restano esclusi.
+
+
+### MEM-03/04 / Q-01 — caratterizzazione prima della regola, 2026-11-12
+
+Dopo EVT-04 il proprietario ha chiesto di proseguire il cantiere. Verifica
+locale in sola lettura del comportamento applicativo, con quattro casi API
+su Firestore emulato/provider fake: anno corrente sì/flag vero -> checkout
+soci 201, scanner valid, attivi sì; anno sì/flag falso -> checkout 201,
+scanner invalid_membership, attivi no; anno assente/flag vero -> checkout
+400, scanner valid, attivi sì; entrambi assenti/falsi -> checkout 400,
+scanner invalid_membership, attivi no. Tutti con end_date nel 2020: la sola
+data scaduta non cambia questi esiti. Partecipazione e scan token validi
+presenti nelle fixture; duplicati ammessi per isolare il criterio tessera.
+
+4/4 probe passati, exit 0 e shutdown emulatori pulito. Log/JUnit
+`.local/staging/membership-validity-probe.*`. File probe temporaneo eliminato,
+nessuna modifica applicativa o provider/cloud. La regola uniforme deve essere
+ancora concordata: anno canonico oppure flag con potere di disabilitazione.
+Questa caratterizzazione non autorizza migrazioni, sospensioni o nuovi addebiti.
+
+
+### MEM-03/04 / Q-01 — regola approvata e implementazione, 2026-11-12
+
+Il proprietario ha confermato entrambi i requisiti: anno corrente presente E
+flag valido. Flag falso invalida a prescindere dall'anno; senza anno corrente
+non è valida. Per anno già presente ma invalidato, checkout che richiede
+membership rifiutato senza secondo rinnovo/riattivazione automatica, gestione
+admin. Rinnovi per annualità precedenti restano supportati. Nessuna modifica
+alla formula Q-03, al significato delle liste storiche per anno o ai comandi
+manuali admin. L'anno UTC preesistente e le regole data/calendario restano
+invariati; il lavoro sui confini temporali resta Q-06.
+
+Una sola regola condivisa `domain.membership_rules.is_membership_active` usata
+nel controllo partecipanti checkout, scanner, statistiche generali, KPI/trend
+analytics e rebuild dashboard snapshot. Non si riscrivono flag/indici o date
+legacy; i valori raw restituiti dalle API restano i campi persistiti.
+Prima del claim capacità/incasso si rilegge la membership per verificare anno,
+flag e, per i membri riconosciuti all'ordine, lo stesso ID dello snapshot.
+I target che nel frattempo coprono l'anno richiedono nuovo checkout/admin.
+Se il cambiamento avviene durante la risposta provider, il controllo sul
+rinnovo conserva l'incasso persistito e rifiuta di sovrascrivere la membership;
+recovery che crea/rinnova tessere resta manuale, senza nuovi percorsi impliciti.
+
+RED iniziale: 9 dei 13 nuovi casi fallivano. Altri 2 casi durante la risposta
+provider dimostravano rinnovo/riattivazione indesiderata, riprodotti e corretti.
+Unica review Sol high: P1 duplicati ammessi generavano due target per la stessa
+email, e il secondo falliva dopo che il primo aveva creato l'anno corrente;
+P2 email riassegnata validava un'altra membership prima di linkare l'ID vecchio.
+Entrambi accettati e riprodotti con 4 RED: provisioning ora deduplicato per
+email normalizzata con entrambi i biglietti preservati; preflight confronta
+l'ID corrente con quello dell'ordine. Nessuna seconda review delegata.
+Durante verifica corretto il nome campo della fixture (`membershipId`, non
+membership_id); nessuna modifica applicativa richiesta da quel refuso.
+
+GREEN finale: **888 unitari, 287 API e 6 integrazioni sconti passati**; 19 nuovi
+casi API con Firestore emulato/provider fake. Matrice completa anno/flag,
+conteggi attivi in tutti e quattro i percorsi, date scadute, pre-capture,
+rinnovo anni precedenti e scanner successivo, cambi durante risposta provider,
+duplicati new/expired con un rinnovo e due ticket, ID riassegnato e retry.
+JUnit zero error/failure/skip, runner exit 0 e shutdown pulito. Scanner zero
+finding e diff check pulito. Log `.local/staging/membership-validity-*`, JUnit
+`.local/staging/api-results.xml` e `discount-integration.xml`.
+Warning preesistenti WeasyPrint/HarfBuzz e filtri Firestore posizionali.
+
+I controlli leggono lo stato corrente nei punti descritti; questo blocco non
+introduce un protocollo generale di lock per scritture admin/member concorrenti.
+I dati sintetici attuali già associano anno corrente a tutti i flag attivi:
+manifest e generatore non richiedono modifiche. Snapshot cloud esistenti non
+sono stati ricostruiti; rollout/rebuild resta al gate del proprietario.
+Nessun deploy, provider reale, cloud/migrazione o prova CI remota.
+
+
+### Proposta OPS-01 — identità e permessi area personale, 2026-11-12
+
+Stato: **approvato dal proprietario in chat e implementato**; evidenza finale sotto.
+Base `1aac59b`. Proseguimento richiesto dal proprietario; scelta priorità
+permessi/ammissione già nella matrice. Non equivale a nuova autorizzazione cloud.
+
+Due difetti riprodotti con token realmente emessi da Firebase Auth Emulator,
+verificati dal Firebase Admin SDK senza monkeypatch del verificatore: email non
+verificata può leggere/collegare una membership priva di UID; email verificata
+ma UID diverso da quello associato può leggere comunque il profilo. Entrambi
+rispondono 200 invece del rifiuto atteso. La causa comune è
+`MemberService._get_membership_by_email`, che controlla solo l'email e collega
+UID mancante senza verifica email o confronto dell'UID già presente.
+
+Probe: **2 RED e 2 controlli positivi PASS** (email verificata/UID mancante,
+UID proprio già associato anche con email non verificata). I profili fixture
+sono invalidi/scaduti: accesso ai propri dati resta distinto da ammissione agli
+eventi. Auth+Firestore solo in demo-mcp-test, porte 9190/8180, hub4480, Functions
+assente; fixture Auth eliminate singolarmente e documenti Firestore ripuliti.
+Exit1 atteso dai due RED, shutdown pulito. Log/JUnit
+`.local/staging/member-auth-probe.*`; probe e configurazione temporanei eliminati.
+Nessun account cloud, email reale o dato del proprietario usato.
+
+Regole proposte per l'approvazione:
+- JWT valido e UID presente necessari. Un UID già associato deve coincidere
+  con il token; un'altra identità viene rifiutata anche con email verificata.
+- Senza UID, primo collegamento solo con email verificata e corrispondente.
+  Claim UID atomico con controllo versione e rilettura: mai sostituire un UID
+  concorrente. Fallimenti non devono restituire dati o modificare preferenze.
+- UID proprio già associato mantiene accesso ai propri dati; tessera scaduta o
+  invalidata non impedisce consultazione/rinnovo nell'area personale.
+- Account verificato senza membership mantiene 404; token assente/invalido e
+  identità non autorizzata rifiutati. Risposte di rifiuto senza dati personali.
+  Admin usa i percorsi admin per gestire altri soci; nessun bypass di identità
+  aggiunto ai percorsi personali. Riallineamenti UID restano manuali/autorizzati.
+
+Unico blocco di esecuzione previsto:
+- [x] Rendere permanenti i RED e la matrice su profilo, eventi, acquisti,
+  ticket e preferenze, con veri token emulatori; anonimo/token invalido,
+  owner/altro UID, primo collegamento verificato/non verificato e nessuna
+  membership. Verificare assenza di scritture/lateralità dati nei rifiuti.
+- [x] `api/member/member_api.py`: propagare UID/email/email_verified con
+  controllo centralizzato coerente a tutti e cinque i percorsi.
+  `services/memberships/member_service.py`: unico controllo identità prima
+  delle letture sensibili o preferenze. `repositories/membership_repository.py`
+  e relativo protocollo: claim UID con CAS e invarianti UID/email.
+- [x] Estendere `firebase.synthetic-emulator.json` e
+  `scripts/staging/test_emulator.py` con modalità Auth+Firestore esplicita,
+  mantenendo invariata la modalità API Firestore-only. Nuova suite
+  `tests/synthetic_auth/` ripristina il verificatore reale e usa utenti
+  sintetici eliminati individualmente; guard host/progetto e nessun provider
+  live. Adattare solo fixture dei contratti preesistenti che simulavano email
+  non verificate come primo accesso autorizzato.
+- [x] Prove CAS: due claim non possono sostituirsi e un errore di persistenza
+  non autorizza l'accesso per convenienza. Unitari, API esistenti, nuova suite
+  Auth+Firestore, controlli script/runner e smoke applicabili; un'unica review
+  Sol high, correzioni RED/GREEN, scanner/diff check e commit con evidenze qui.
+
+Fuori perimetro: cambio login/UI, ruoli o claim cloud, revoca credenziali,
+provider di produzione, migrazione massiva UID, nuovi recuperi account,
+attivazione tessere, pricing, merge/delete o deploy. OPS-01 verrà dichiarata
+coperta solo nei percorsi effettivamente verificati, non per tutte le API.
+
+
+#### OPS-01 — esecuzione e verifica finale area personale
+
+`member_api` valida email/UID del token e propaga email_verified strettamente
+booleano ai cinque metodi MemberService. La repository `get_for_account`
+compone lookup univoco (limit2), confronto UID e claim/update in una sola
+operazione con CAS update_time e quattro tentativi. Non si sovrascrive un UID
+presente. Link iniziale non verificato/UID diverso/email ambigua rifiutati con
+401, senza dati personali; account verificato senza membership conserva404.
+Ruling: anche gli unverified senza membership ricevono401 per non distinguere
+l'esistenza di altri profili. Il proprietario già associato continua ad
+accedere con email non verificata e tessera scaduta/invalidata.
+
+Ruling: claim UID e consenso newsletter sono le sole modifiche possibili nel
+batch autorizzato; eliminato il set del model completo dalle preferenze e il
+setter UID non protetto, privo di altri chiamanti. In caso di CAS retry il
+primo ID membership è fissato: un'email riassegnata non può spostare la stessa
+richiesta su un altro profilo. Errori di persistenza falliscono senza restituire
+il profilo. Nessuna modifica a dati storici, validità annuale, ruoli cloud,
+login/UI o processi admin di recupero/merge.
+
+Runner `--auth`: solo Auth9190+Firestore8180, demo-mcp-test, nessuna Functions
+nel runner dedicato; `--api` resta Firestore-only. Modalità incompatibili o
+configurazione cloud/live rifiutate. Fixture Auth usa Firebase SDK reale senza
+bypass, verifica token emessi dall'Auth Emulator e cancella singolarmente i
+soli3 utenti sintetici creati; non sono token/claim costruiti a mano. Cleanup
+Firestore per caso. Il test CAS repository usa separatamente input trusted
+per provare l'invariante storage, non si presenta come verifica JWT.
+
+TDD: 5 RED runner poi10 verdi; prima matrice Auth55 casi con20 RED/35 PASS,
+poi email ambigua RED. Test aggiunto su email spostata dopo lettura dimostrava
+PATCH sul profilo sostitutivo: RED corretto fissando ID attraverso i retry.
+Le fixture storiche di accesso autorizzato ora dichiarano UID/email verificata
+esplicitamente; lo smoke JS crea utenti con emailVerified:true. Nessun dato
+cloud modificato per adeguare i test.
+
+GREEN finale: **888 unitari, 44 script, 57 Auth, 287 API, 36 integrazioni area
+personale e 6 integrazioni sconti passati**. JUnit zero failure/error/skip.
+I57 casi includono25 combinazioni identità su5 route,10 anonimo/token invalido,
+10 account senza membership,4 ruoli admin su write, pubblico, admin senza
+bypass personale, errore persistenza, due cambi UID/email prima di preferenze,
+claim concorrenti, email ambigua e redirect del target dopo CAS. `./scripts/test-emulators.sh`: 2 smoke Python passati e client smoke HTTP Functions,
+Auth/Firestore/Storage PASS, exit0 e shutdown pulito. Log `.local/staging/ops01-{unit,scripts,emulator,smoke}.log`; report `auth-results.xml`, `api-results.xml`,
+`member-integration.xml` e `discount-integration.xml`. Warning preesistenti WeasyPrint,
+filtri Firestore posizionali ed EOL futuro delle librerie Google.
+
+Unica review Sol high conclusa senza rilievi, accettata dal coordinatore;
+verificatore ha controllato sorgenti/evidenze senza rieseguire le suite.
+Scanner zero finding, diff check pulito. Nessun deploy, provider reale,
+migrazione UID, cambio credenziali/revoche o prova CI remota. La copertura
+OPS-01 è quella qui specificata, non una certificazione di tutte le API.
+
+
+### OPS-02 — metodi HTTP e contratti delle richieste, 2026-11-12
+
+Blocco approvato dal proprietario in chat dopo OPS-01. Perimetro:58 handler
+core elencati in `tests/unit/api/test_ops02_request_contracts.py`: soci,
+eventi admin/pubblici e guide, partecipanti/invii, acquisti/recupero, checkout,
+validazione sconto, scanner e cinque percorsi personali. La matrice prova un
+metodo errato per handler, otto body assenti/malformati/non-oggetto sui36
+handler con body diversi dalla create checkout, e sei lookup senza query
+obbligatoria. Autenticazione simulata in questa suite; non estende OPS-01
+né dichiara coperti tutti gli export API o tutte le combinazioni di campi.
+
+La creazione soci mantiene la validazione anagrafica nel service: il DTO
+consente campi facoltativi, ma input vuoto viene rifiutato prima della
+repository. Prima versione del test delegato sostituiva quel service e
+produceva4 errori artificiali; corretto il test usando service reale e
+trap sulla repository. Nessuna modifica alla regola di creazione soci.
+
+Difetto checkout riprodotto: il decorator evento usava `.get()` su JSON/cart
+item non-oggetto e passava ID non stringa direttamente a Firestore; alias
+`event_id` e trim previsti dal DTO non venivano rispettati. Ora valida con
+`PreOrderDTO` prima di dereferenziare i campi o leggere l'evento, usando
+l'ID normalizzato. Nessun cambiamento ai ruoli, alle regole capienza, pricing
+o cattura. Input rifiutati restituiscono400; metodi errati405 nel contratto
+esaminato con autenticazione valida. Nessun allargamento di extra=forbid.
+
+42 nuovi casi API usano parsing Flask reale e snapshot di tutti i documenti
+dell'emulatore prima/dopo i rifiuti: niente ordini, hold, preferenze/claim UID
+o chiamate provider. Verificati extra rifiutati nei DTO stretti e ignorati
+nel cart item/creazione partecipante, senza persistenza arbitraria; create
+valide con alias/trim/extra cart mantengono44EUR. Altri campi errati, query
+personali e richieste capture/recovery/scanner restano senza scritture.
+
+RED reale:13 fallimenti e316 passati; GREEN:329 API passati. Unitari1240
+(888 precedenti+352 nuovi),44 test script passati. JUnit API zero failure,
+error e skip; runner exit0 e shutdown pulito. Due smoke Python e client
+HTTP Functions/Auth/Firestore/Storage PASS, exit0 e shutdown pulito. Log
+`.local/staging/ops02-{api-red,api-green,unit,scripts,smoke}.log`; JUnit
+`.local/staging/api-results.xml`. Warning preesistenti WeasyPrint/Google.
+
+Unica review finale Sol high senza rilievi; accettata dal coordinatore.
+Scanner sui sorgenti modificati zero finding; diff check pulito. Lo scanner
+intero working tree segnala due righe solo nel log locale preesistente
+ignorato `member-auth-red.log`, non nei sorgenti del blocco.
+Nessun deploy, cloud/provider reale o prova CI remota. Il prossimo blocco
+richiede il confronto con il proprietario.
+
+
+### OPS-03/05 — invii tessere, ticket e omaggi, 2026-11-12
+
+Proseguimento richiesto dal proprietario dopo OPS-02; blocco locale con
+provider fake. Regola confermata in chat: esiti di invio incerti richiedono
+reinvio manuale. MailService espone solo bool e non distingue rifiuto certo
+da timeout dopo accettazione: un tentativo automatico non confermato viene
+quindi trattato conservativamente come incerto, senza nuovo retry automatico.
+
+Difetti riprodotti e corretti dal coordinatore:
+- 3 RED unitari: i trigger rileggevano il documento, ma recipient/flag e modello
+ restavano quelli dello snapshot iniziale. Ora usano current_data.
+- 5 RED API iniziali: il salvataggio completo del modello ticket/omaggio
+ sovrascriveva ingresso/prezzo/membershipId aggiornati durante rendering o
+ invio, cancellava il gender appena arricchito e ricreava partecipanti
+ cancellati. Persistenza limitata a URL/flag ticket o ai2 campi omaggio con
+ update, senza creare documenti assenti. I metadati non cambiano capienza.
+-3 ulteriori RED sulla policy ticket: replay dopo esito non confermato,
+ provider riuscito con errore nel salvataggio flag e due trigger concorrenti.
+ CAS a update_time con4 tentativi imposta ticket_delivery_started prima di
+ chiamare mail. Il marker resta anche se provider/salvataggio fallisce;
+ solo l'invio admin esplicito può riprovare. PDF fallito prima del tentativo
+ non imposta marker; send=False genera il documento senza chiamare mail.
+- 1 RED sulle tessere: due trigger leggevano trigger_processed=False e
+ inviavano entrambi. Il marker preesistente viene ora reclamato con CAS.
+ Il perdente non procede ai provider; errori dopo claim restano manuali.
+- 1 RED sul solo PDF: una generazione senza invio azzerava una consegna
+ confermata nel frattempo. L'update ora imposta ticket_sent soltanto aTrue.
+
+OPS-05: bulk con1 successo,1 già inviato,1 email assente,1 provider falso e
+1 non-omaggio restituisce sent1/failed2/skipped1/total4. Il retry admin
+reinvia solo il precedente fallimento; singolo con skipAlreadySent=False
+reinvia, default salta. Non-omaggio/ID assente404, elenco vuoto tutti0.
+Flag/timestamp solo dopo successo. Rendering PDF fallito conserva il fallback
+attuale: mail senza allegato, senza dichiarare generato un PDF valido.
+
+GREEN:1243 unitari (3 nuovi) e348 API (19 nuovi rispetto OPS-02). JUnit API
+zero failure/error/skip; runner exit0 e shutdown pulito. Smoke:2 Python e
+client HTTP Functions/Auth/Firestore/Storage PASS, exit0 e shutdown pulito.
+44 test script di OPS-02 riutilizzati: nessuno script/config modificato.
+Log `.local/staging/ops03-*`, `ops03-05-*` e `ops05-luna.log`; ultimo JUnit
+`.local/staging/api-results.xml`. Scanner sorgenti functions0 e diff check
+pulito; warning preesistenti WeasyPrint/Google. Unica review finale Sol high:
+P2 sul claim membership a tentativo singolo, accettato e corretto dal
+coordinatore. Un aggiornamento normale (es. attended_events) nella finestra
+read/claim poteva interrompere l'unico trigger senza concorrente vincitore.
+Due RED emulati con cambio destinatario/flag durante il claim: ora fino a4
+riletture/precondizioni, ricontrollando dati e marker prima dei provider.
+GREEN finale348 API; nessuna seconda review delegata.
+
+Limiti: test di replay/concorrenza invocano handler reali su Firestore emulato,
+non provano la consegna distribuita del trigger o il provider reale. PDF e
+upload sono stub: verificati chiamate, URL/flag e allegato nel messaggio, non
+validità PDF o volumi Storage. Smoke distribuito separato. Nessuna nuova
+garanzia su due reinvii admin espliciti concorrenti, pipeline Auth/CRM o
+recupero automatico di step membership falliti. Tentativi legacy senza marker
+non sono ricostruibili; nessuna migrazione/reset. Un eventuale rollout dovrà
+evitare worker misti che ignorano i marker. Nessun deploy, cloud/provider
+reale, invio reale o prova CI remota. OPS-04 resta al gate invii del proprietario.
+
+
+### OPS-06 — isolamento provider nei flussi di registrazione, 2026-11-12
+
+User story autorizzata dal proprietario in chat. Riutilizzate le prove sulle
+factory esistenti; aggiunta verifica dei flussi reali su Firestore emulato:
+wallet Pass2U disabled/fake, Sender disabilitato, gender fake/disabled e guasti
+wallet/gender. Mail costruita dalla factory fake con flag invio falso. UID
+sintetici già associati: provisioning Auth non fa parte di questo blocco.
+
+Difetto riprodotto (1 RED): anche con GENDER_MODE=disabled, il trigger
+classificava Andrea come male/1.0 tramite ramo speciale locale. Ora il ramo
+rispetta la modalità disabilitata e passa al lookup disabled, che restituisce
+N/A/0.0. Comportamento precedente conservato nelle altre modalità; nessun
+cambio alle regole di ammissione checkout o al provider HTTP globale.
+
+10 nuovi scenari API: membership con wallet disabled resta invariata salvo
+marker trigger; fake produce solo ID/link locale deterministico; replay non
+aggiunge effetti. Giulia/Andrea/Unknown usano fixture fake; gender disabled
+non assegna attributi, anche ad Andrea. Wallet None/eccezione e lookup gender
+in errore conservano soci, UID, partecipanti, ingresso/prezzo/membershipId.
+PDF render/upload stub: verificati URL/flag e nessuna mail, non validità PDF.
+Ogni tentativo di requests.Session.request viene registrato/bloccato;
+assert finale zero tentativi anche se il chiamante cattura l'errore.
+
+14 nuovi unitari Sender usano impostazioni reali disabled:6 operazioni sync
+e8 subscriber/group CRUD; chiave esplicita ed enabled=True non aggirano la
+policy. Spy al trasporto SenderRoutes._call mai raggiunto. Nessun override
+del predicato enabled nei test. Altre factory offline già coperte restano
+inalterate; non equivale a verifica completa di tutti gli export provider.
+
+GREEN:1257 unitari,358 API,14 Sender focalizzati dopo rinomina del placeholder
+chiave test in fake-key (scanner non lo confonde con una credenziale).
+JUnit API zero failure/error/skip, runner exit0/shutdown pulito;2 smoke
+Python e client HTTP Functions/Auth/Firestore/Storage PASS, exit0/shutdown
+pulito. Log `.local/staging/ops06-{unit,api-red,api-green,sender-final,smoke}.log`,
+JUnit `.local/staging/api-results.xml`; scanner sorgenti functions0/diff
+check pulito.44 script di OPS-02 riutilizzati: nessuno script/config cambiato.
+Unica review finale Sol high senza rilievi, accettata dal coordinatore.
+Nessun deploy/cloud/provider reale,
+modifica configurazione di account o prova CI remota. Invocazioni controllate
+dei trigger non certificano la consegna distribuita; spy HTTP non è firewall.
+
+Domanda owner su pulizia periodica ordini: già implementata in OPS-07,
+`cleanup_stale_data` esportata da main e schedulata0 3 * * * Europe/Rome.
+Criteri conservativi oltre24 ore e fence/CAS restano invariati. Nessuna prova
+dell'attivazione di questa versione su cloud e nessun cambio schedule/deploy.
+
+
+### OPS-08 — pulizia token scanner senza perdere rinnovi o storico, 2026-11-12
+
+Proseguimento sviluppo autorizzato dal proprietario; perimetro annunciato
+prima del lavoro: token scanner e conservazione scansioni, solo emulatore.
+Schedule03:00 Europe/Rome, cleanup ordini e job rimangono invariati.
+
+Difetti riprodotti:6 RED unitari su expires_at di tipo stringa/numero/bool/
+lista/dict interrompevano il job con TypeError, impedendo pulizie successive.
+3 RED API reali: timestamp non valido e cancellazione batch su snapshot
+vecchio dopo proroga/rimozione concorrente (contava2 invece di1). Una prima
+esecuzione del nuovo test non si raccoglieva per import ScanToken errato:
+corretto l'import prima dei RED runtime, senza modifica applicativa richiesta.
+
+Ora si considerano solo datetime validi: convenzione naive UTC mantenuta,
+confronto per istante per timezone esplicite. Scadenza strettamente anteriore
+a now-7 giorni: il confine esatto viene conservato. Campi assenti/null e
+valori malformati restano intatti; nessun parsing stringhe o migrazione.
+Delete con precondizione update_time del documento letto, come per OPS-07;
+FailedPrecondition/Aborted/NotFound fanno saltare il documento senza retry
+su eleggibilità obsoleta. Contatore incrementato solo dopo delete riuscito.
+Token attivi/inattivi seguono la stessa soglia di scadenza.
+
+17 unitari nuovi: confini, futuro, is_active, forme invalide/assenti, UTC
+naive e offset, mix e seconda esecuzione con zero cancellazioni. Sei nuovi
+casi API su Firestore reale
+emulato: confini per attivi/inattivi, dati ambigui, cambio scadenza/rimozione
+tra lettura ed eliminazione, e501 token. EntranceScan conservato anche
+quando il token referenziato viene eliminato; nessuna cascata sugli ingressi.
+La race usa snapshot/update_time e delete reali, con hook controllato sulla
+lettura, non un falso confronto di versioni in memoria.
+
+GREEN:1274 unitari e364 API, JUnit API zero failure/error/skip, runner exit0
+e shutdown pulito. Log `.local/staging/ops08-{unit,api-red,api-green}.log` e
+`ops08-luna-unit.log`; JUnit `.local/staging/api-results.xml`. Source scanner
+functions0/diff check pulito. Due smoke Python e client HTTP completo
+Functions/Auth/Firestore/Storage PASS, exit0/shutdown pulito; log
+`.local/staging/ops08-smoke.log`. Unica review Sol high senza rilievi, accettata.
+44 test script precedenti riutilizzati: nessuno script/config cambiato.
+
+Tradeoff: un delete condizionale per token, più RPC del vecchio batch, con
+prova emulata su501 record; non è una misura prestazionale cloud. Nessuna
+modifica alle regole di accesso scanner, allo storico, ai provider o ad altri
+cleanup; nessuna pulizia cloud/deploy o prova di schedulazione distribuita.
+
+
+### OPS-09 — export sintetico e ripresa dell'import, 2026-11-12
+
+Proseguimento autorizzato dal proprietario, perimetro annunciato prima del
+lavoro: export ripetibili e interruzione/ripresa solo su file privati ed
+emulatore dedicato. Nessun nuovo writer cloud, account Auth o invio.
+
+Tre RED offline: residui records.jsonl.tmp e manifest.json.tmp bloccavano
+write_export con FileExistsError; l'errore --apply non avvertiva esplicitamente
+delle possibili scritture parziali. Ora tempfile.mkstemp crea un nome univoco
+esclusivo in directory privata, permessi600, senza cancellare i residui
+precedenti. Atomic replace per file, directory700, rifiuto symlink finale e
+manifest pubblicato per ultimo conservati. CLI import ancora exit2/tipo
+errore soltanto/no JSON di successo, con avviso parziale solo in --apply e
+istruzione di riprovare lo stesso export. Nessun dato dell'eccezione stampato.
+
+Sei test script nuovi: tre artifact byte identici con stessi input/revisione,
+checksum su export misto rifiutato e ripristinato da rerun, due temp residui
+conservati e non bloccanti, permessi privati, errore redatto/partial warning e
+modalità default offline che non invoca il caricatore. Guardie esistenti su
+progetto demo, loopback letterale, checksum/path e assenza Functions restano
+inalterate. Non esiste destinazione bucket: questo writer è Firestore-only.
+
+Cinque nuovi casi emulati usano export validato con120 soci/12 eventi/1147
+documenti. SDK reale e AnonymousCredentials: doppio import identico senza
+duplicati; interruzione prima del secondo commit (400 doc persistiti),
+risposta persa dopo il secondo commit reale (800), errore readback dopo tutte
+le scritture (1147). Ogni errore chiude il client; rilancio stesso export
+verifica tutti i path/dati. Documento estraneo provoca rifiuto prima delle
+scritture seed e rimane intatto. Il comportamento di ripresa già funzionava:
+nessuna modifica all'algoritmo di import o alle guardie è stata necessaria.
+
+GREEN:50 test script (44 precedenti+6 nuovi) e369 scenari emulatore (364+5),
+JUnit API zero failure/error/skip, runner exit0/shutdown pulito. Log
+`.local/staging/ops09-{scripts,api-baseline,api-green}.log` e
+`ops09-luna-offline.log`; JUnit `.local/staging/api-results.xml`. Scanner sui
+sorgenti scripts/nuovo test0, diff check pulito; una review Sol high senza
+rilievi, accettata. Backend1274 unitari e smoke completo OPS-08 riutilizzati:
+nessun codice applicativo, configurazione runtime o wiring modificato.
+
+Limiti: fault injection di eccezioni SDK, non kill reale di processo o rete
+distribuita. Export differenti concorrenti non sono una transazione di
+directory; checksum blocca letture incoerenti dei record. Rilanciare lo
+stesso export su emulatore dedicato riscrive i path previsti, non conserva
+eventuali modifiche manuali a quei documenti. Nessuna prova o scrittura
+cloud, provider/account, deploy, UI sul dataset o CI remota.
+
+
+### OPS-10 — checkpoint API sul corpus completo, 2026-11-12
+
+**Parziale: i controlli UI restanti sono aperti.** Nessuna modifica applicativa.
+Il nuovo scenario usa i veri handler admin via Flask e Firestore Emulator
+`demo-mcp-test`; l'autorizzazione segue il bypass admin della suite, quindi
+non costituisce prova JWT o trasporto Functions distribuito.
+
+Corpus seed42/as_of2026-11-12:4000 soci,50 eventi,7076 acquisti,
+21701 partecipanti,53684 documenti. Verificati identità esatte e unicità delle
+liste, anni2025/2026 e anno2030 vuoto, conteggi partecipanti per evento,
+associazione acquisto/evento per singolo ID e immagine database invariata.
+Il confronto per ID sostituisce il confronto aggregato rilevato dalla review.
+
+La prima esecuzione focalizzata ha misurato circa0.436s soci completi,
+0.372s anno2026,0.553s anno2025,0.017s anno assente,2.138s eventi,
+0.569s acquisti,2.930s complessivi per le50 letture partecipanti. Sono misure
+locali singole; non dimostrano concorrenza o SLA.
+
+UI osservata con Next reale, Auth Emulator admin e harness Flask privato
+in sola lettura:2026 mostra3200 soci/2800 validi;2025 mostra4000/2800.
+Scorse40 pagine da100:4000 email sintetiche uniche e ordine nomi A-Z.
+Il controllo browser ha poi segnalato `noWindowsAvailable` e interferenze;
+nessuna conclusione sui filtri di ricerca/stato, ordinamento inverso,
+partecipanti, eventi e acquisti UI. Le pagine eventi/acquisti attuali non
+hanno paginazione: non è stata aggiunta funzionalità durante questa prova.
+
+Suite completa370 API passata in88.19s; dopo la correzione della review,
+scenario aggiornato1 passato/369 deselected in41.02s. JUnit senza
+failure/error/skip, runner exit0 e shutdown pulito. Backend1274 unitari,
+50 test script e smoke precedenti riutilizzati: nessuna modifica applicativa.
+
+Evidenze private in `.local/staging/ops10-*.log`,
+`ops10-suite370-results.xml` e `ops10-ui-results.json`.
+Provider fake/disabilitati; nessuna mail reale, deploy, cloud o CI remota.
+
+
+### OPS-10 — profilo anagrafico aggiornato su richiesta owner, 2026-11-13
+
+Il generatore sceglie uniformemente l'anno di nascita fra1985 e2008 inclusi,
+al posto di età20/22–68. Date coerenti fra socio e partecipazioni; niente
+modifiche ai dati reali. Seed42/as_of2026-11-12:4000 soci,24 anni coperti,
+142–185 persone per anno;50 eventi,7061 acquisti,21751 partecipanti,
+53749 documenti. Questi conteggi sostituiscono quelli del corpus precedente.
+Ricaricato solo il Firestore demo-mcp-local, verificando prima che contenesse
+esclusivamente il dataset della prova e le due impostazioni sintetiche.
+
+Regressione: nuovo vincolo anni RED sulla vecchia implementazione;50 test
+strumenti GREEN dopo la modifica. Scenario API completo aggiornato1 PASS,
+369 deselected,40.69s, JUnit senza failure/error/skip, exit0/shutdown pulito.
+La suite370 precedente resta evidenza del corpus precedente.
+
+UI prima del cambio corpus: ricerca socio esatta1/vuota0;scaduti2025=1200,
+2026=400;validi2026=2800;prima pagina100 nomi Z-A corretta. Eventi50,
+date discendenti e ricerca esatta1/vuota0. Verifiche partecipanti/acquisti
+sul nuovo corpus ancora in corso; non dichiarare OPS-10 completa.
+
+
+UI sul nuovo corpus:39 pagine ordinarie da100 (ultima54),3854 righe;
+intervalli contigui, date discendenti, multinsieme dei nomi visibili uguale
+all'atteso (fingerprint FNV32 1979647980), Succ disabilitato in fondo.
+Filtro femmine1932;femmine senza socio0. La tabella ordinaria non espone ID
+o email: questa prova confronta proiezioni visibili; l'unicità degli ID resta
+verificata dalle API. Omaggi6 pagine da25 (ultima21):146 email uniche e
+multinsieme nomi atteso (2748195636), Succ finale disabilitato.
+Acquisti: riepilogo7061 transazioni valide, lordo346371.00€,fee10591.50€,
+netto335779.50€; lo snapshot accessibile tronca l'elenco a499 righe.
+Ricerca/filtri acquisti non ancora dimostrati: input nativo ha restituito
+nuovamente noWindowsAvailable; non confondere questo limite con un bug app.
+
+Nuova finestra locale: osservati contatori iniziali0 persistenti durante la
+sessione, pur con richieste get_all_purchases200 nei log; causa non isolata.
+Il precedente7061 è una lettura UI riuscita, non prova che ogni caricamento
+sia stabile. Tentativi di input hanno dato noWindowsAvailable; Dock timeout.
+Nessuna correzione frontend applicata senza una riproduzione diagnosticabile.
+
+
+### OPS-10 — chiusura del perimetro locale, 2026-11-13
+
+**Completata.** I checkpoint parziali precedenti sono storici. Il proprietario
+ha risposto «tutto passa» al blocco manuale acquisti su127.0.0.1:3000,
+con Reset fra le prove:7061 totali;ricerca staging-user-00000=17/lordo997€;
+ricerca inesistente=0;evento000=1700/lordo58344€;status non validi=0;
+intervallo01/01/2026–31/12/2026=4878;prima data recente12/11/2026,
+vecchia29/10/2025. Questi esiti sono **riferiti dal proprietario**, non
+verificati indipendentemente dall'agente. Chiudono le prove acquisti rimaste
+aperte; non attribuiamo una causa tecnica ai precedenti snapshot a zero.
+
+Le prove API esatte e le verifiche UI agent di soci/eventi/partecipanti/omaggi
+restano quelle documentate sopra, con i rispettivi corpus e limiti. Dopo le
+prove agent,53749 documenti del corpus aggiornato e2 impostazioni locali
+verificati:nessun documento modificato rispetto all'export. Evidenza privata
+`ops10-ui-readonly-verification.log`; conferma owner in `ops10-ui-results.json`.
+
+Nessun nuovo difetto applicativo dimostrato e nessuna modifica frontend.
+Riutilizzate le verifiche valide:50 test strumenti e scenario completo sul
+corpus aggiornato1PASS/369deselected; suite370 sul corpus precedente.
+Review Sol high già conclusa, rilievo corretto; nessun nuovo dispatch per
+questa chiusura documentale. Non è prova di concorrenza, SLA browser,
+Functions distribuite o CI remota. Nessun push/merge/deploy/provider live.
+Prossimo blocco: ricognizione dipendenze e riconciliazione branch.

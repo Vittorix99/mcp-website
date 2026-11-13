@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from domain.membership_rules import is_membership_active
 from errors.service_errors import NotFoundError, ValidationError
 from interfaces.repositories import (
     EntranceScanRepositoryProtocol,
@@ -130,9 +131,9 @@ class EntranceService:
             self.logger.info("validate_entry: membership non trovata — %s", dto.membership_id)
             return ValidateEntryResponseDTO(result="invalid_member_not_found")
 
-        if not membership_member.subscription_valid:
+        if not is_membership_active(membership_member):
             self.logger.info(
-                "validate_entry: tessera non valida (subscription_valid=False) — %s", dto.membership_id
+                "validate_entry: tessera non valida per anno corrente o flag — %s", dto.membership_id
             )
             return ValidateEntryResponseDTO(
                 result="invalid_membership",

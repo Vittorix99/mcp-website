@@ -26,7 +26,7 @@ def mock_member_auth(monkeypatch, member_email):
     monkeypatch.setattr(
         _dec.fb_auth,
         "verify_id_token",
-        lambda _token: {"uid": "member-test-uid", "email": member_email},
+        lambda _token: {"uid": "member-test-uid", "email": member_email, "email_verified": True},
     )
 
 

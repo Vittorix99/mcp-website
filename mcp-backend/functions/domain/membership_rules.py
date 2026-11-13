@@ -159,6 +159,12 @@ def membership_matches_year(membership: Membership, year: int) -> bool:
     return False
 
 
+def is_membership_active(membership: Membership, year: Optional[int] = None) -> bool:
+    """Current-year entitlement is required; an invalid flag always vetoes it."""
+    year = datetime.now(timezone.utc).year if year is None else year
+    return membership.subscription_valid is True and membership_matches_year(membership, year)
+
+
 def is_membership_renewable(membership: Membership, now: Optional[datetime] = None) -> bool:
     """Una membership è rinnovabile solo se non copre già l'anno corrente."""
     now = now or datetime.now(timezone.utc)

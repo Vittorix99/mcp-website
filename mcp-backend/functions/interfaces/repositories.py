@@ -9,6 +9,7 @@ from models import (
     Event,
     EventOrder,
     EventParticipant,
+    EventPurchase,
     Job,
     Membership,
     NewsletterConsent,
@@ -82,6 +83,10 @@ class EventRepositoryProtocol(Protocol):
 
 
 class MembershipRepositoryProtocol(Protocol):
+    def get_for_account(self, email: str, uid: str, *, allow_link: bool = False,
+                        newsletter_consent: Optional[bool] = None) -> Membership:
+        ...
+
     def get(self, membership_id: str) -> Optional[Membership]:
         ...
 
@@ -158,6 +163,19 @@ class MembershipSettingsRepositoryProtocol(Protocol):
 
 
 class ParticipantRepositoryProtocol(Protocol):
+    def begin_ticket_delivery(self, event_id: str, participant_id: str, *, automatic: bool) -> bool:
+        ...
+
+    def update_ticket_delivery(self, event_id: str, participant_id: str, pdf_url: str, sent: bool) -> None:
+        ...
+
+    def mark_omaggio_email_sent(self, event_id: str, participant_id: str) -> None:
+        ...
+
+    def create_for_purchase(self, event_id: str, participant: EventParticipant, checkout_index: int = 0,
+                            capacity_reservation_id: Optional[str] = None) -> str:
+        ...
+
     def list(self, event_id: str) -> List[EventParticipant]:
         ...
 
@@ -205,6 +223,12 @@ class ParticipantRepositoryProtocol(Protocol):
 
 
 class PurchaseRepositoryProtocol(Protocol):
+    def create_for_order(self, purchase: EventPurchase) -> str:
+        ...
+
+    def find_by_order(self, order_id: str) -> Optional[Purchase]:
+        ...
+
     def create(self, purchase: Purchase) -> str:
         ...
 
@@ -271,6 +295,9 @@ class SettingsRepositoryProtocol(Protocol):
 
 
 class OrderRepositoryProtocol(Protocol):
+    def mark_capture_started(self, order_id: str) -> None:
+        ...
+
     def save(self, order_id: str, order: EventOrder) -> None:
         ...
 

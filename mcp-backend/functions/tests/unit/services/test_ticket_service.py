@@ -33,8 +33,11 @@ class _DummyParticipantRepo:
     def __init__(self):
         self.updated = []
 
-    def update_from_model(self, event_id, participant_id, participant):
-        self.updated.append((event_id, participant_id, participant))
+    def begin_ticket_delivery(self, event_id, participant_id, *, automatic):
+        return True
+
+    def update_ticket_delivery(self, event_id, participant_id, pdf_url, sent):
+        self.updated.append((event_id, participant_id, pdf_url, sent))
 
 
 class _DummyMessageRepo:

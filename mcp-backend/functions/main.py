@@ -146,6 +146,8 @@ from api.admin.purchases_api import (
     delete_purchase
 )
 
+from api.admin.order_recovery_api import recover_order_event
+
 # === Triggers ===
 from triggers.registration_trigger import (
     on_participant_created,

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from models import PurchaseStatus
+from domain.membership_rules import is_membership_active
 
 from interfaces.repositories import (
     EventRepositoryProtocol,
@@ -37,8 +38,9 @@ class StatsService:
         self.message_repository = message_repository or MessageRepository()
 
     def get_general_stats(self):
+        current_year = datetime.now(timezone.utc).year
         total_active_members = sum(
-            1 for member in self.membership_repository.stream() if member.subscription_valid
+            1 for member in self.membership_repository.stream() if is_membership_active(member, current_year)
         )
 
         _bad = PurchaseStatus.invalid_statuses()

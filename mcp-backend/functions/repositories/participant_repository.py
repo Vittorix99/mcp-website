@@ -1,4 +1,8 @@
 from typing import Iterable, List, Optional
+from hashlib import sha256
+
+from google.api_core.exceptions import Aborted, AlreadyExists, FailedPrecondition
+from errors.service_errors import ConflictError
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
@@ -35,19 +39,113 @@ class ParticipantRepository:
             return None
         return self._model_from_snapshot(doc, event_id)
 
+    @staticmethod
+    def _write(event_id, operation, ref, data=None, capacity_token=None):
+        batch = db.batch()
+        batch.update(db.collection('events').document(event_id), {'capacityRevision': firestore.Increment(1)})
+        if capacity_token is not None:
+            hold = db.collection('event_capacity').document(event_id).collection('reservations').document(capacity_token).get()
+            held = hold.to_dict() or {}
+            if (not hold.exists or held.get('state') != 'capturing'
+                    or held.get('purchaseId') != data.get('purchase_id')):
+                raise ConflictError('Posti già convertiti o non attribuibili: gestione manuale richiesta')
+            # A consumed hold may never authorize resurrection after an admin deletion.
+            batch.update(hold.reference, {'state': 'capturing'},
+                         option=db.write_option(last_update_time=hold.update_time))
+        if operation == 'create':
+            batch.create(ref, data)
+        elif operation == 'update':
+            batch.set(ref, data, merge=True)
+        else:
+            batch.delete(ref)
+        batch.commit()
+
     def create_from_model(self, event_id: str, participant: EventParticipant) -> str:
-        doc_ref = self._collection(event_id).add(participant.to_firestore(include_none=True))[1]
-        return doc_ref.id
+        ref = self._collection(event_id).document()
+        self._write(event_id, 'create', ref, participant.to_firestore(include_none=True))
+        return ref.id
+
+    @staticmethod
+    def assert_same_checkout(existing: EventParticipant, expected: EventParticipant) -> None:
+        if existing.checkout_index is not None and existing.checkout_index != expected.checkout_index:
+            raise ConflictError("Participant checkout position is inconsistent")
+        fields = ("event_id", "purchase_id", "email", "name", "surname", "phone", "birthdate",
+                  "membership_id", "membership_included", "price", "price_original",
+                  "discount_code_id", "discount_code", "payment_method")
+        if any(getattr(existing, field) != getattr(expected, field) for field in fields):
+            raise ConflictError("Participant does not match captured order")
+
+    def create_for_purchase(self, event_id: str, participant: EventParticipant, checkout_index: int = 0,
+                           capacity_reservation_id: Optional[str] = None) -> str:
+        for _ in range(4):
+            try:
+                return self._create_for_purchase(event_id, participant, checkout_index, capacity_reservation_id)
+            except (Aborted, FailedPrecondition):
+                continue
+        raise ConflictError('Prenotazione modificata contemporaneamente: riprova il recupero')
+
+    def _create_for_purchase(self, event_id, participant, checkout_index, capacity_reservation_id):
+        participant.checkout_index = checkout_index
+        collection = self._collection(event_id)
+        matches = [doc for doc in collection.where(
+            filter=FieldFilter("purchase_id", "==", participant.purchase_id)).stream()
+            if (doc.to_dict() or {}).get("email") == participant.email
+            and (doc.to_dict() or {}).get("checkoutIndex") in (None, checkout_index)]
+        if len(matches) > 1:
+            raise ConflictError("Duplicate checkout participants: manual verification required")
+        if matches:
+            existing = self._model_from_snapshot(matches[0], event_id)
+            self.assert_same_checkout(existing, participant)
+            return existing.id
+        if not isinstance(capacity_reservation_id, str) or not capacity_reservation_id or '/' in capacity_reservation_id:
+            raise ConflictError('Nuova partecipazione online senza prenotazione posti')
+        key = participant.purchase_id + ":" + str(checkout_index)
+        ref = collection.document("checkout-" + sha256(key.encode()).hexdigest())
+        try:
+            self._write(event_id, 'create', ref, participant.to_firestore(include_none=True), capacity_reservation_id)
+        except AlreadyExists:
+            existing = self._model_from_snapshot(ref.get(), event_id)
+            self.assert_same_checkout(existing, participant)
+            return existing.id
+        return ref.id
 
     def update_from_model(self, event_id: str, participant_id: str, participant: EventParticipant) -> bool:
-        self._collection(event_id).document(participant_id).set(
-            participant.to_firestore(include_none=True),
-            merge=True,
-        )
+        self._write(event_id, 'update', self._collection(event_id).document(participant_id),
+                    participant.to_firestore(include_none=True))
         return True
 
+    def begin_ticket_delivery(self, event_id: str, participant_id: str, *, automatic: bool) -> bool:
+        ref = self._collection(event_id).document(participant_id)
+        for _ in range(4):
+            snapshot = ref.get()
+            if not snapshot.exists:
+                raise ConflictError('Partecipante non più presente')
+            data = snapshot.to_dict() or {}
+            if automatic and (data.get('ticket_sent') or data.get('ticket_delivery_started')):
+                return False
+            try:
+                # Sticky before the provider call: an uncertain send requires manual retry.
+                ref.update({'ticket_delivery_started': True},
+                           option=db.write_option(last_update_time=snapshot.update_time))
+                return True
+            except (Aborted, FailedPrecondition):
+                continue
+        raise ConflictError('Invio modificato contemporaneamente: verificare manualmente')
+
+    def update_ticket_delivery(self, event_id: str, participant_id: str, pdf_url: str, sent: bool) -> None:
+        fields = {'ticket_pdf_url': pdf_url}
+        # Generating a PDF alone must not clear a concurrently confirmed delivery.
+        if sent:
+            fields['ticket_sent'] = True
+        self._collection(event_id).document(participant_id).update(fields)
+
+    def mark_omaggio_email_sent(self, event_id: str, participant_id: str) -> None:
+        self._collection(event_id).document(participant_id).update({
+            'omaggio_email_sent': True, 'omaggio_email_sent_at': firestore.SERVER_TIMESTAMP,
+        })
+
     def delete(self, event_id: str, participant_id: str) -> None:
-        self._collection(event_id).document(participant_id).delete()
+        self._write(event_id, 'delete', self._collection(event_id).document(participant_id))
 
     def count(self, event_id: str) -> int:
         try:

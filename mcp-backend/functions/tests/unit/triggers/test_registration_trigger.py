@@ -34,6 +34,9 @@ def _stub_sender_side_effects(monkeypatch):
         def collection(self, _name):
             return _DummyCollection()
 
+        def write_option(self, **kwargs):
+            return object()
+
     monkeypatch.setattr(registration_trigger, "db", _DummyDB())
 
     # Stub Firebase Auth so unit tests never make real HTTP calls
@@ -48,6 +51,7 @@ class _DummyCurrentDoc:
     def __init__(self, data, exists=True):
         self._data = dict(data)
         self.exists = exists
+        self.update_time = None
 
     def to_dict(self):
         return dict(self._data)
@@ -58,7 +62,7 @@ class _DummyRef:
         self.updates = []
         self._data = dict(data or {})
 
-    def update(self, payload):
+    def update(self, payload, **kwargs):
         self.updates.append(payload)
 
     def get(self):
@@ -104,7 +108,7 @@ def test_on_participant_created_updates_gender_and_sends_ticket(monkeypatch):
 
         return _Resp()
 
-    def _fake_process(pid, data, send):
+    def _fake_process(pid, data, send, *, automatic=False):
         called["ticket"] = (pid, send)
         return {"success": True}
 
@@ -142,7 +146,7 @@ def test_on_participant_created_newsletter_sync_and_skip_ticket(monkeypatch):
 
     called = {}
 
-    def _fake_process(_pid, _data, send):
+    def _fake_process(_pid, _data, send, *, automatic=False):
         called["send_flag"] = send
         return {"success": True}
 
@@ -197,7 +201,7 @@ def test_gender_api_passes_apikey_when_configured(monkeypatch):
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
-        lambda pid, data, send: {"success": True},
+        lambda pid, data, send, automatic=False: {"success": True},
     )
 
     registration_trigger.on_participant_created.__wrapped__(event)
@@ -241,7 +245,7 @@ def test_gender_api_omits_apikey_when_not_configured(monkeypatch):
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
-        lambda pid, data, send: {"success": True},
+        lambda pid, data, send, automatic=False: {"success": True},
     )
 
     registration_trigger.on_participant_created.__wrapped__(event)
@@ -284,7 +288,7 @@ def test_participant_from_purchase_gets_gender_set(monkeypatch):
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
-        lambda pid, data, send: called.setdefault("ticket", (pid, send)) or {"success": True},
+        lambda pid, data, send, automatic=False: called.setdefault("ticket", (pid, send)) or {"success": True},
     )
     monkeypatch.setattr(
         registration_trigger.ticket_service,
@@ -332,7 +336,7 @@ def test_participant_from_purchase_gender_api_failure_does_not_block_ticket(monk
     monkeypatch.setattr(
         registration_trigger.ticket_service,
         "process_new_ticket",
-        lambda pid, data, send: called.setdefault("ticket", (pid, send)) or {"success": True},
+        lambda pid, data, send, automatic=False: called.setdefault("ticket", (pid, send)) or {"success": True},
     )
     monkeypatch.setattr(
         registration_trigger.ticket_service,
@@ -464,3 +468,52 @@ def test_on_membership_created_skips_wallet_when_flag_false(monkeypatch):
     Backward-compatible alias for older test node ids used by local runners.
     """
     test_on_membership_created_does_not_send_email_when_send_flag_false(monkeypatch)
+
+
+def test_participant_trigger_uses_current_recipient_and_send_flag(monkeypatch):
+    snap = _DummySnap({
+        "event_id": "evt-current", "name": "Andrea", "email": "old@example.com",
+        "send_ticket_on_create": True,
+    })
+    snap.reference._data.update({"email": "current@example.com", "send_ticket_on_create": False})
+    deliveries = []
+    monkeypatch.setattr(registration_trigger.ticket_service, "process_new_ticket",
+                        lambda pid, data, send, automatic=False: deliveries.append((data["email"], send)) or {"success": True})
+    event = types.SimpleNamespace(data=snap, params={"participantId": "person", "eventId": "evt-current"})
+
+    registration_trigger.on_participant_created.__wrapped__(event)
+
+    assert deliveries == [("current@example.com", False)]
+
+
+def test_membership_trigger_uses_current_send_flag(monkeypatch):
+    snap = _DummySnap({
+        "name": "Mario", "email": "old@example.com", "send_card_on_create": True,
+    })
+    snap.reference._data.update({"email": "current@example.com", "send_card_on_create": False,
+                                "wallet_pass_id": "existing-pass", "uid": "current-owner"})
+    deliveries = []
+    monkeypatch.setattr(registration_trigger.mail_service, "send", lambda message: deliveries.append(message) or True)
+    event = types.SimpleNamespace(data=snap, params={"membershipId": "member"})
+
+    registration_trigger.on_membership_created.__wrapped__(event)
+
+    assert deliveries == []
+    assert not snap.reference.get().to_dict().get("membership_sent", False)
+
+
+def test_membership_trigger_uses_current_recipient_and_deduplicates_success(monkeypatch):
+    snap = _DummySnap({
+        "name": "Mario", "email": "old@example.com", "send_card_on_create": True,
+    })
+    snap.reference._data.update({"email": "current@example.com", "wallet_pass_id": "existing-pass",
+                                "uid": "current-owner"})
+    deliveries = []
+    monkeypatch.setattr(registration_trigger.mail_service, "send", lambda message: deliveries.append(message) or True)
+    event = types.SimpleNamespace(data=snap, params={"membershipId": "member"})
+
+    registration_trigger.on_membership_created.__wrapped__(event)
+    registration_trigger.on_membership_created.__wrapped__(event)
+
+    assert [message.to_email for message in deliveries] == ["current@example.com"]
+    assert snap.reference.get().to_dict()["membership_sent"] is True

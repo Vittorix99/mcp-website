@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from decimal import Decimal, DecimalException, InvalidOperation, localcontext, ROUND_UP
 from typing import Any, Dict, List, Optional, Tuple
 
 from google.cloud import firestore
@@ -14,7 +15,9 @@ from paypalserversdk.models.order_request import OrderRequest
 from paypalserversdk.models.purchase_unit_request import PurchaseUnitRequest
 from paypalserversdk.paypal_serversdk_client import PaypalServersdkClient
 
-from domain.membership_rules import build_renewal_record, membership_years_from_renewals
+from domain.membership_rules import (
+    build_renewal_record, is_membership_active, membership_matches_year, membership_years_from_renewals,
+)
 from domain.participant_rules import run_basic_checks
 from dto.preorder import (
     CheckoutParticipantDTO,
@@ -54,6 +57,7 @@ from repositories.membership_repository import MembershipRepository
 from repositories.membership_settings_repository import MembershipSettingsRepository
 from repositories.order_repository import OrderRepository
 from repositories.participant_repository import ParticipantRepository
+from repositories.event_capacity_repository import EventCapacityRepository
 from repositories.purchase_repository import PurchaseRepository
 from services.core.error_logs_service import log_external_error
 from services.memberships.renewal_command import RenewMembershipCommand
@@ -88,7 +92,9 @@ class EventPaymentService:
         discount_code_repository: Optional[DiscountCodeRepository] = None,
         discount_code_service: Optional[DiscountCodeService] = None,
         paypal_gateway: Optional[PayPalGateway] = None,
+        capacity_repository: Optional[EventCapacityRepository] = None,
     ):
+        self.capacity_repository = capacity_repository or EventCapacityRepository()
         self.paypal_client = paypal_client
         self.paypal_gateway = paypal_gateway
         self.orders_controller: Optional[OrdersController] = paypal_client.orders if paypal_client else None
@@ -260,64 +266,91 @@ class EventPaymentService:
                 )
             ],
         )
+        capacity_token = self.capacity_repository.reserve(event_id, len(normalized_participants))
         try:
-            order = self._get_paypal_gateway().create_order(order_request)
-        except ApiException as exc:
-            status = getattr(exc, "response_code", None)
-            log_external_error(
-                service="PayPal",
-                operation="create_order_event",
-                source="services.payments.event_payment_service.create_order_event",
-                message=f"Failed to create PayPal order (status: {status})",
-                status_code=status,
-                payload=str(exc),
-                context={"event_id": event_id},
+            try:
+                order = self._get_paypal_gateway().create_order(order_request)
+            except ApiException as exc:
+                status = getattr(exc, "response_code", None)
+                log_external_error(
+                    service="PayPal",
+                    operation="create_order_event",
+                    source="services.payments.event_payment_service.create_order_event",
+                    message=f"Failed to create PayPal order (status: {status})",
+                    status_code=status,
+                    payload=str(exc),
+                    context={"event_id": event_id},
+                )
+                raise ExternalServiceError(
+                    f"Failed to create PayPal order (status: {status})"
+                ) from exc
+            if order.status_code not in (200, 201):
+                log_external_error(
+                    service="PayPal",
+                    operation="create_order_event",
+                    source="services.payments.event_payment_service.create_order_event",
+                    message="Failed to create PayPal order",
+                    status_code=order.status_code,
+                    payload=str(order.payload),
+                    context={"event_id": event_id},
+                )
+                raise ExternalServiceError("Failed to create PayPal order")
+
+            body = order.payload
+            order_info = PayPalOrderCreateResponse.from_payload(body)
+            if not order_info.order_id:
+                raise ExternalServiceError("Missing PayPal order id")
+            self._debug(
+                "PayPal order created: %s (status %s)",
+                order_info.order_id,
+                order_info.status,
             )
-            raise ExternalServiceError(
-                f"Failed to create PayPal order (status: {status})"
-            ) from exc
-        if order.status_code not in (200, 201):
-            log_external_error(
-                service="PayPal",
-                operation="create_order_event",
-                source="services.payments.event_payment_service.create_order_event",
-                message="Failed to create PayPal order",
-                status_code=order.status_code,
-                payload=str(order.payload),
-                context={"event_id": event_id},
+
+            event_order = create_event_order_model(
+                capacity_reservation_id=capacity_token,
+                order_id=order_info.order_id,
+                order_status=order_info.status or "CREATED",
+                cart_item=cart_item,
+                total=total,
+                event=event_model,
+                participants=normalized_participants,
+                membership_targets=membership_targets,
+                membership_fee=float(membership_fee) if membership_fee is not None else None,
+                purchase_mode=purchase_mode,
+                membership_lookup=membership_lookup_payload,
+                discount_code_id=discount_validation.discount_code_id if discount_validation else None,
+                discount_code=discount_validation.code if discount_validation else None,
+                discount_amount=discount_validation.discount_amount if discount_validation else None,
+                original_price=float(event_model.price or 0) if discount_validation else None,
             )
-            raise ExternalServiceError("Failed to create PayPal order")
 
-        body = order.payload
-        order_info = PayPalOrderCreateResponse.from_payload(body)
-        if not order_info.order_id:
-            raise ExternalServiceError("Missing PayPal order id")
-        self._debug(
-            "PayPal order created: %s (status %s)",
-            order_info.order_id,
-            order_info.status,
-        )
+            self.order_repository.save(order_info.order_id, event_order)
+            self.capacity_repository.bind(event_id, capacity_token, order_info.order_id)
+            self._debug("Order document stored for %s", order_info.order_id)
+            return paypal_order_create_to_response(order_info)
+        except Exception:
+            try:
+                self.capacity_repository.release(event_id, capacity_token)
+            except Exception:
+                logger.exception("Unable to release checkout capacity after order creation failure")
+            raise
 
-        event_order = create_event_order_model(
-            order_id=order_info.order_id,
-            order_status=order_info.status or "CREATED",
-            cart_item=cart_item,
-            total=total,
-            event=event_model,
-            participants=normalized_participants,
-            membership_targets=membership_targets,
-            membership_fee=float(membership_fee) if membership_fee is not None else None,
-            purchase_mode=purchase_mode,
-            membership_lookup=membership_lookup_payload,
-            discount_code_id=discount_validation.discount_code_id if discount_validation else None,
-            discount_code=discount_validation.code if discount_validation else None,
-            discount_amount=discount_validation.discount_amount if discount_validation else None,
-            original_price=float(event_model.price or 0) if discount_validation else None,
-        )
-
-        self.order_repository.save(order_info.order_id, event_order)
-        self._debug("Order document stored for %s", order_info.order_id)
-        return paypal_order_create_to_response(order_info)
+    def _validate_memberships_before_capture(self, order: EventOrder) -> None:
+        if order.purchase_mode not in (
+                EventPurchaseAccessType.ONLY_MEMBERS, EventPurchaseAccessType.ONLY_ALREADY_REGISTERED_MEMBERS):
+            return
+        current_year = datetime.now(timezone.utc).year
+        target_emails = {person.email for person in self._participants_from_payload(order.membership_targets or [])}
+        for person in self._participants_from_payload(order.participants or []):
+            current = self.membership_repository.find_by_email(person.email)
+            if person.email in target_emails:
+                if current and membership_matches_year(current, current_year):
+                    raise ValidationError("Tesseramento cambiato: nuovo checkout o gestione amministratore richiesta")
+            else:
+                expected = (order.membership_lookup or {}).get(person.email)
+                if (not current or not is_membership_active(current, current_year)
+                        or not isinstance(expected, dict) or expected.get("id") != current.id):
+                    raise ValidationError("Tessera non valida o cambiata: contatta l'amministratore")
 
     def capture_order_event(self, payload: OrderCaptureDTO) -> OrderCaptureResponseDTO:
         order_id = payload.order_id
@@ -363,11 +396,32 @@ class EventPaymentService:
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        self._validate_memberships_before_capture(stored_order)
+        self.capacity_repository.begin_capture(event_id, stored_order.capacity_reservation_id, order_id)
+        reservation_token = None
+        try:
+            if stored_order.discount_code_id:
+                reservation_token = self.discount_code_repository.reserve_usage(
+                    stored_order.discount_code_id, order_id)
+                self.discount_code_repository.begin_capture(
+                    stored_order.discount_code_id, order_id, reservation_token)
+        except Exception:
+            # No payment provider was called: a rejected coupon must not trap seats.
+            self.capacity_repository.release(event_id, stored_order.capacity_reservation_id, order_id)
+            raise
+
+        # Transport errors and malformed responses have an unknown payment outcome:
+        # retain the reservation rather than making the last slot available again.
         order_data = self.capture_paypal_order(order_id)
         order_info = PayPalOrderInfo.from_payload(order_data)
         try:
             self.validate_capture_payload(order_info)
         except ValidationError:
+            if order_info.capture.status in {"DECLINED", "FAILED"}:
+                self.capacity_repository.release(event_id, stored_order.capacity_reservation_id, order_id)
+                if reservation_token:
+                    self.discount_code_repository.release_reservation(
+                        stored_order.discount_code_id, order_id, reservation_token)
             self._debug("Capture validation failed for %s", order_id)
             self._update_order_status(order_id, order_info.status or "UNKNOWN")
             raise
@@ -376,10 +430,13 @@ class EventPaymentService:
         # that fact before any local validation or provisioning can fail, so a
         # retry cannot issue a second capture request.
         self.order_repository.mark_captured(order_id, order_info.payment_method or "unknown")
+        if order_info.capture.final_capture is not True:
+            raise ValidationError("Capture is not explicitly final: manual payment verification required")
         self._validate_capture_amount(order_info, stored_order)
 
         if stored_order.discount_code_id:
-            self.discount_code_repository.claim_usage(stored_order.discount_code_id)
+            self.discount_code_repository.consume_reservation(
+                stored_order.discount_code_id, order_id, reservation_token)
 
         participants = self._participants_from_payload(stored_order.participants or [])
         membership_targets = self._participants_from_payload(stored_order.membership_targets or [])
@@ -395,6 +452,7 @@ class EventPaymentService:
             discount_amount=stored_order.discount_amount,
         )
         self.order_repository.set_purchase_id(order_id, purchase_id)
+        self.capacity_repository.attach_purchase(event_id, stored_order.capacity_reservation_id, order_id, purchase_id)
 
         existing_memberships = self._membership_lookup_to_models(stored_order.membership_lookup or {})
         membership_refs = []
@@ -430,8 +488,10 @@ class EventPaymentService:
             price_original=stored_order.original_price,
             discount_code_id=stored_order.discount_code_id,
             discount_code=stored_order.discount_code,
+            capacity_reservation_id=stored_order.capacity_reservation_id,
         )
 
+        self.capacity_repository.complete(event_id, stored_order.capacity_reservation_id, order_id, purchase_id)
         self.order_repository.update_status(order_id, "COMPLETED")
         self._debug("Order %s processed and retained as terminal record", order_id)
 
@@ -558,34 +618,27 @@ class EventPaymentService:
             raise ValidationError(
                 f"Payment not completed (order={order_info.status}, capture={order_info.capture.status}, id={order_info.capture.capture_id})."
             )
-        if not order_info.capture.final_capture:
-            logger.warning(
-                "Capture is not marked as final_capture=True (id=%s)",
-                order_info.capture.capture_id,
-            )
 
     def _validate_capture_amount(
         self,
         order_info: PayPalOrderInfo,
         stored_order: EventOrder,
     ) -> None:
-        expected = stored_order.total
-        if expected is None:
-            logger.warning(
-                "No stored total found for order — skipping amount validation"
-            )
-            return
         try:
-            captured = float(order_info.capture.amount_value)
-            expected = float(expected)
-        except (TypeError, ValueError):
-            logger.warning(
-                "Amount validation skipped — could not parse values (captured=%s, expected=%s)",
-                order_info.capture.amount_value,
-                expected,
-            )
-            return
-        if abs(captured - expected) > 0.01:
+            captured = Decimal(str(order_info.capture.amount_value))
+            expected = Decimal(str(stored_order.total))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValidationError("Captured amount or stored total cannot be verified") from exc
+        if not captured.is_finite() or not expected.is_finite() or captured < 0 or expected < 0:
+            raise ValidationError("Captured amount and stored total must be finite and non-negative")
+        try:
+            with localcontext() as context:
+                # Round outward: an excess over one cent must not round onto the boundary.
+                context.rounding = ROUND_UP
+                difference = max(captured, expected) - min(captured, expected)
+        except DecimalException as exc:
+            raise ValidationError("Captured amount or stored total cannot be compared safely") from exc
+        if difference > Decimal("0.01"):
             logger.error(
                 "Amount mismatch: captured=%.2f expected=%.2f (order_id=%s)",
                 captured,
@@ -593,10 +646,19 @@ class EventPaymentService:
                 order_info.capture.capture_id,
             )
             raise ValidationError(
-                f"Captured amount ({captured:.2f}) does not match expected amount ({expected:.2f})"
+                f"Captured amount ({captured}) does not match expected amount ({expected})"
             )
 
     def save_purchase(
+        self, order_id: str, order_info: PayPalOrderInfo, event_id: str,
+        purchase_mode: EventPurchaseAccessType, discount_code_id: Optional[str] = None,
+        discount_code: Optional[str] = None, discount_amount: Optional[float] = None,
+    ) -> str:
+        return self.purchase_repository.create_for_order(self._purchase_model(
+            order_id, order_info, event_id, purchase_mode, discount_code_id,
+            discount_code, discount_amount))
+
+    def _purchase_model(
         self,
         order_id: str,
         order_info: PayPalOrderInfo,
@@ -605,7 +667,7 @@ class EventPaymentService:
         discount_code_id: Optional[str] = None,
         discount_code: Optional[str] = None,
         discount_amount: Optional[float] = None,
-    ) -> str:
+    ) -> EventPurchase:
         purchase = EventPurchase(
             payer_name=order_info.payer.given_name,
             payer_surname=order_info.payer.surname,
@@ -627,7 +689,7 @@ class EventPaymentService:
             discount_code=discount_code,
             discount_amount=discount_amount,
         )
-        return self.purchase_repository.create_from_model(purchase)
+        return purchase
 
     def create_memberships_for_targets(
         self,
@@ -637,10 +699,14 @@ class EventPaymentService:
         purchase_id: str,
     ) -> List[MembershipRef]:
         membership_refs: List[MembershipRef] = []
+        processed_emails = set()
         fee_value = float(membership_fee) if membership_fee is not None else None
         for person in targets:
             # I target sono i partecipanti che devono ottenere o rinnovare la membership dal pagamento evento.
             normalized_email = normalize_email(person.email)
+            if normalized_email in processed_emails:
+                continue
+            processed_emails.add(normalized_email)
             existing = (
                 self.membership_repository.find_by_email(normalized_email)
                 if normalized_email
@@ -653,6 +719,8 @@ class EventPaymentService:
                 end_date = f"31-12-{fallback_year}"
 
             if existing:
+                if membership_matches_year(existing, datetime.now(timezone.utc).year):
+                    raise ConflictError("Tesseramento cambiato dopo l'incasso: verifica amministratore richiesta")
                 # Il payment decide che serve un rinnovo, ma la regola resta nel MembershipsService.
                 renewed = self._get_memberships_service().renew_existing(
                     existing,
@@ -717,6 +785,22 @@ class EventPaymentService:
         return membership_refs
 
     def handle_event_participants(
+        self, event_id: str, participants: List[CheckoutParticipantDTO],
+        membership_refs: List[MembershipRef], purchase_id: str, price: float,
+        existing_memberships: Dict[str, Membership], price_original: Optional[float] = None,
+        discount_code_id: Optional[str] = None, discount_code: Optional[str] = None,
+        capacity_reservation_id: Optional[str] = None,
+    ):
+        models = self._event_participants(event_id, participants, membership_refs, purchase_id,
+            price, existing_memberships, price_original, discount_code_id, discount_code)
+        for index, participant in enumerate(models):
+            if participant.membership_id:
+                self.membership_repository.add_attended_event_and_purchase(
+                    participant.membership_id, event_id, purchase_id)
+            self.participant_repository.create_for_purchase(event_id, participant, index,
+                capacity_reservation_id=capacity_reservation_id)
+
+    def _event_participants(
         self,
         event_id: str,
         participants: List[CheckoutParticipantDTO],
@@ -739,7 +823,8 @@ class EventPaymentService:
             if membership.id
         }
 
-        for participant_dto in participants:
+        result = []
+        for index, participant_dto in enumerate(participants):
             normalized_email = normalize_email(participant_dto.email)
             membership_id = (
                 membership_map.get(normalized_email)
@@ -756,6 +841,7 @@ class EventPaymentService:
                 ticket_sent=False,
                 location_sent=False,
                 purchase_id=purchase_id,
+                checkout_index=index,
                 price=price,
                 price_original=price_original,
                 discount_code_id=discount_code_id,
@@ -766,13 +852,8 @@ class EventPaymentService:
             )
             if membership_id:
                 participant.membership_id = membership_id
-                self.membership_repository.add_attended_event_and_purchase(
-                    membership_id,
-                    event_id,
-                    purchase_id,
-                )
-
-            self.participant_repository.create_from_model(event_id, participant)
+            result.append(participant)
+        return result
 
     def _participant_price_from_order(self, stored_order: EventOrder) -> float:
         if stored_order.discount_code_id and stored_order.discount_amount is not None:

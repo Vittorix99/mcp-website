@@ -34,3 +34,28 @@ def test_import_mode_still_selects_bulk_import_and_not_api_suite():
 def test_api_runner_rejects_cloud_configuration(incoming):
     with pytest.raises(ValueError):
         runner.build_run(api=True, environ={'PATH': '/usr/bin', **incoming})
+
+
+
+def test_auth_mode_selects_dedicated_auth_and_firestore_with_real_verifier_suite():
+    command, env = runner.build_run(auth=True, environ={'PATH': '/usr/bin'})
+    assert command[command.index('--only') + 1] == 'firestore,auth'
+    assert command[command.index('--project') + 1] == 'demo-mcp-test'
+    assert 'tests/synthetic_auth' in command[-1]
+    assert 'auth-results.xml' in command[-1]
+    assert env['FIREBASE_AUTH_EMULATOR_HOST'] == '127.0.0.1:9190'
+    assert env['SYNTHETIC_AUTH_TESTS'] == '1'
+    assert env['PAYPAL_MODE'] == 'fake' and env['SENDER_MODE'] == 'disabled'
+    assert 'GOOGLE_APPLICATION_CREDENTIALS' not in env
+
+
+def test_auth_and_api_modes_cannot_be_mixed():
+    with pytest.raises(ValueError):
+        runner.build_run(api=True, auth=True, environ={'PATH': '/usr/bin'})
+
+
+@pytest.mark.parametrize('incoming', [{'MCP_ENV': 'production'}, {'PAYPAL_MODE': 'live'},
+                                     {'GOOGLE_APPLICATION_CREDENTIALS': '/unused/key.json'}])
+def test_auth_runner_rejects_cloud_configuration(incoming):
+    with pytest.raises(ValueError):
+        runner.build_run(auth=True, environ={'PATH': '/usr/bin', **incoming})

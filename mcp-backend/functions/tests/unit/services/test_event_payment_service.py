@@ -3,6 +3,7 @@ import datetime
 from types import SimpleNamespace
 
 import pytest
+from tests.utils import DummyCapacityRepository
 from pydantic import ValidationError as PydanticValidationError
 
 from dto import CheckoutParticipantDTO, OrderCaptureDTO, PreOrderCartItemDTO, PreOrderDTO
@@ -54,6 +55,9 @@ class _DummyOrderRepo:
     def update_status(self, order_id, status):
         self.status_updates.append((order_id, status))
 
+    def mark_capture_started(self, order_id):
+        pass
+
     def mark_captured(self, order_id, payment_method):
         self.captured_updates.append((order_id, payment_method))
         self.status_updates.append((order_id, "PAYMENT_CAPTURED"))
@@ -87,6 +91,9 @@ class _DummyPurchaseRepo:
     def create(self, purchase):
         self.created.append(purchase)
         return "pur-1"
+
+    def create_for_order(self, purchase):
+        return self.create(purchase)
 
     def create_from_model(self, purchase):
         return self.create(purchase)
@@ -129,6 +136,9 @@ class _DummyParticipantRepo:
         self.created.append((event_id, payload))
         return "part-1"
 
+    def create_for_purchase(self, event_id, participant, checkout_index=0, capacity_reservation_id=None):
+        return self.create_from_model(event_id, participant)
+
     def create_from_model(self, event_id, participant):
         self.created.append((event_id, participant))
         return "part-1"
@@ -143,6 +153,7 @@ def _make_service():
     service.membership_repository = _DummyMembershipRepo()
     service.membership_settings_repository = _DummyMembershipSettingsRepo()
     service.order_repository = _DummyOrderRepo()
+    service.capacity_repository = DummyCapacityRepository()
     service.purchase_repository = _DummyPurchaseRepo()
     service.participant_repository = _DummyParticipantRepo()
     return service
@@ -457,6 +468,42 @@ def test_capture_amount_mismatch_records_capture_before_raising(monkeypatch):
     assert service.order_repository.captured_updates == [("order-1", "paypal")]
 
 
+def test_capture_loser_conflict_leaves_no_side_effects(monkeypatch):
+    """A lost capture claim must not use the discount, create a purchase or complete the order."""
+    service = _make_service()
+    future_date = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%d-%m-%Y")
+    service.event_repository = _DummyEventRepo(
+        model=Event(title="Test", date=future_date, start_time="20:00", end_time="23:00")
+    )
+    orders = _DummyOrderRepo(order_data=EventOrder(
+        order_id="order-1", event_id="evt-1", total=10.0, discount_code_id="disc-1",
+        participants=[_participant().to_payload()],
+    ))
+    conflict = ConflictError("Order capture already claimed")
+
+    def lost_claim(order_id, payment_method):
+        raise conflict
+
+    orders.mark_captured = lost_claim
+    service.order_repository = orders
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("Side effect after a lost capture claim")
+
+    service.discount_code_repository = SimpleNamespace(reserve_usage=lambda *args: "token", begin_capture=lambda *args: None,
+                                                       consume_reservation=forbidden)
+    service.purchase_repository = SimpleNamespace(create=forbidden, create_from_model=forbidden, create_for_order=forbidden,
+                                                  update_participants=forbidden)
+    monkeypatch.setattr(service, "save_purchase", forbidden)
+    monkeypatch.setattr(service, "capture_paypal_order", lambda order_id: _order_payload())
+
+    with pytest.raises(ConflictError) as raised:
+        service.capture_order_event(OrderCaptureDTO(order_id="order-1"))
+
+    assert raised.value is conflict
+    assert orders.purchase_updates == [] and orders.status_updates == []
+
+
 def test_capture_paypal_order_uses_stable_idempotency_key(monkeypatch):
     """Retries for one order must reuse the same PayPal-Request-Id."""
     response = SimpleNamespace(status_code=200, body=_order_payload())
@@ -470,10 +517,12 @@ def test_capture_paypal_order_uses_stable_idempotency_key(monkeypatch):
 
     service.capture_paypal_order("order-1")
     service.capture_paypal_order("order-1")
+    service.capture_paypal_order("order-2")
 
     assert [request["paypal_request_id"] for request in controller.capture_requests] == [
         "mcp-capture-order-1",
         "mcp-capture-order-1",
+        "mcp-capture-order-2",
     ]
 
 
@@ -607,3 +656,153 @@ def test_capture_order_event_happy_path(monkeypatch):
     assert service.purchase_repository.updated
     assert service.order_repository.deleted == []
     assert service.order_repository.status_updates[-1] == ("order-1", "COMPLETED")
+
+
+def test_exhausted_discount_is_rejected_before_any_capture(monkeypatch):
+    service = _make_service()
+    future_date = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%d-%m-%Y')
+    service.event_repository = _DummyEventRepo(
+        model=Event(title='Test', date=future_date, start_time='20:00', end_time='23:00'))
+    service.order_repository = _DummyOrderRepo(order_data=EventOrder(
+        order_id='order-1', event_id='evt-1', total=10, discount_code_id='disc-1'))
+
+    def exhausted(*args):
+        raise ConflictError('Discount exhausted')
+
+    def forbidden(*args):
+        pytest.fail('Losing checkout was sent to PayPal')
+
+    service.discount_code_repository = SimpleNamespace(reserve_usage=exhausted)
+    monkeypatch.setattr(service, 'capture_paypal_order', forbidden)
+    with pytest.raises(ConflictError, match='Discount exhausted'):
+        service.capture_order_event(OrderCaptureDTO(order_id='order-1'))
+
+
+@pytest.mark.parametrize('outcome,expected', [
+    ('declined', ['reserve', 'begin', 'provider', 'release']),
+    ('failed', ['reserve', 'begin', 'provider', 'release']),
+    ('transport', ['reserve', 'begin', 'provider']),
+    ('malformed', ['reserve', 'begin', 'provider']),
+    ('amount_mismatch', ['reserve', 'begin', 'provider']),
+    ('paid_local_failure', ['reserve', 'begin', 'provider', 'consume']),
+])
+def test_discount_reservation_tracks_payment_outcome(monkeypatch, outcome, expected):
+    service = _make_service()
+    future_date = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%d-%m-%Y')
+    service.event_repository = _DummyEventRepo(
+        model=Event(title='Test', date=future_date, start_time='20:00', end_time='23:00'))
+    service.order_repository = _DummyOrderRepo(order_data=EventOrder(
+        order_id='order-1', event_id='evt-1', total=10, discount_code_id='disc-1'))
+    operations = []
+
+    def reserve(discount_id, order_id):
+        assert (discount_id, order_id) == ('disc-1', 'order-1')
+        operations.append('reserve')
+        return 'attempt-1'
+
+    def transition(name):
+        def change(discount_id, order_id, token):
+            assert (discount_id, order_id, token) == ('disc-1', 'order-1', 'attempt-1')
+            operations.append(name)
+        return change
+
+    service.discount_code_repository = SimpleNamespace(
+        reserve_usage=reserve, begin_capture=transition('begin'),
+        release_reservation=transition('release'), consume_reservation=transition('consume'))
+
+    def provider(order_id):
+        operations.append('provider')
+        if outcome == 'transport':
+            raise ExternalServiceError('Unknown capture outcome')
+        payload = _order_payload()
+        capture = payload['purchase_units'][0]['payments']['captures'][0]
+        if outcome in ('declined', 'failed'):
+            capture['status'] = outcome.upper()
+        elif outcome == 'malformed':
+            capture.pop('id')
+        elif outcome == 'amount_mismatch':
+            capture['amount']['value'] = '99.00'
+        return payload
+
+    def provisioning_failure(*args, **kwargs):
+        raise RuntimeError('Failure after payment')
+
+    monkeypatch.setattr(service, 'capture_paypal_order', provider)
+    monkeypatch.setattr(service, 'save_purchase', provisioning_failure)
+    error = (ExternalServiceError if outcome == 'transport' else
+             RuntimeError if outcome == 'paid_local_failure' else ValidationError)
+    with pytest.raises(error):
+        service.capture_order_event(OrderCaptureDTO(order_id='order-1'))
+    assert operations == expected
+    assert service.purchase_repository.created == []
+
+
+@pytest.mark.parametrize('problem', ['unreadable_amount', 'missing_total', 'absent_total',
+    'nan_amount', 'infinite_amount', 'negative_amount', 'unreadable_total', 'nan_total',
+    'infinite_total', 'negative_total', 'amount_container_string', 'amount_container_list',
+    'extreme_amount', 'over_tolerance_precision', 'not_final', 'missing_final', 'string_final', 'numeric_final'])
+def test_unverifiable_capture_records_payment_but_never_provisions(monkeypatch, problem):
+    service = _make_service()
+    future = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%d-%m-%Y')
+    service.event_repository = _DummyEventRepo(model=Event(title='Event', date=future, start_time='20:00', end_time='23:00'))
+    order = EventOrder(order_id='order-1', event_id='evt-1', total=10,
+                       participants=[_participant().to_payload()])
+    body = _order_payload()
+    capture = body['purchase_units'][0]['payments']['captures'][0]
+    if problem.startswith('amount_container_'):
+        capture['amount'] = 'invalid' if problem.endswith('string') else ['10.00']
+    elif problem == 'extreme_amount':
+        capture['amount']['value'] = '1E+1000000'
+    elif problem == 'over_tolerance_precision':
+        capture['amount']['value'] = '10.010000000000000000000000000001'
+    elif problem == 'absent_total':
+        raw = order.to_firestore()
+        raw.pop('total')
+        order = EventOrder.from_firestore(raw, 'order-1')
+        capture['amount']['value'] = '0.00'
+    elif problem == 'missing_total':
+        order.total = None
+    elif problem.endswith('_total'):
+        order.total = {'unreadable_total': 'invalid', 'nan_total': float('nan'),
+                       'infinite_total': float('inf'), 'negative_total': -10}[problem]
+    elif problem.endswith('_amount'):
+        capture['amount']['value'] = {'unreadable_amount': 'invalid', 'nan_amount': 'NaN',
+                                    'infinite_amount': 'Infinity', 'negative_amount': '-10.00'}[problem]
+    elif problem == 'missing_final':
+        capture.pop('final_capture')
+    else:
+        capture['final_capture'] = {'not_final': False, 'string_final': 'false', 'numeric_final': 1}[problem]
+    service.order_repository = _DummyOrderRepo(order_data=order)
+    calls = []
+    def provider(order_id):
+        calls.append(order_id)
+        return body
+    monkeypatch.setattr(service, 'capture_paypal_order', provider)
+    with pytest.raises(ValidationError):
+        service.capture_order_event(OrderCaptureDTO(order_id='order-1'))
+    assert calls == ['order-1']
+    assert service.order_repository.captured_updates == [('order-1', 'paypal')]
+    assert service.purchase_repository.created == []
+    assert service.participant_repository.created == []
+
+
+@pytest.mark.parametrize('amount', ['10.01', '9.99', '10.009999999999999999999999999999',
+                                  '9.990000000000000000000000000001', '10.000000000000000000000000000001'])
+def test_decimal_tolerance_keeps_values_within_one_cent(amount):
+    from models import PayPalOrderInfo
+    body = _order_payload()
+    body['purchase_units'][0]['payments']['captures'][0]['amount']['value'] = amount
+    _make_service()._validate_capture_amount(PayPalOrderInfo.from_payload(body), EventOrder(total=10))
+
+
+def test_cleanup_winner_prevents_provider_capture(monkeypatch):
+    service = _make_service()
+    future = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime('%d-%m-%Y')
+    service.event_repository = _DummyEventRepo(model=Event(title='Event', date=future, start_time='20:00', end_time='23:00'))
+    service.order_repository = _DummyOrderRepo(order_data=EventOrder(order_id='order-1', event_id='evt-1', total=10))
+    def deleted(*args):
+        raise NotFoundError('Order removed by cleanup')
+    service.capacity_repository.begin_capture = deleted
+    monkeypatch.setattr(service, 'capture_paypal_order', lambda _: pytest.fail('Provider called after cleanup removed order'))
+    with pytest.raises(NotFoundError):
+        service.capture_order_event(OrderCaptureDTO(order_id='order-1'))

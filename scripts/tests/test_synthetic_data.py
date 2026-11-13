@@ -24,6 +24,8 @@ def test_full_dataset_has_exact_counts_and_every_member_participates():
     members = {p: d for p, d in rows.items() if p.startswith('memberships/')}
     events = {p: d for p, d in rows.items() if p.startswith('events/')}
     assert len(members) == 4000
+    birth_years = {int(member['birthdate'][-4:]) for member in members.values()}
+    assert birth_years == set(range(1985, 2009))
     assert len(events) == 50
     participation = Counter()
     for path, participant in rows.items():
@@ -32,6 +34,7 @@ def test_full_dataset_has_exact_counts_and_every_member_participates():
         member_id = participant['membershipId']
         participation[member_id] += 1
         assert f'memberships/{member_id}' in members
+        assert participant['birthdate'] == members[f'memberships/{member_id}']['birthdate']
         assert f"events/{participant['event_id']}" in events
         if participant.get('purchase_id'):
             assert f"purchases/{participant['purchase_id']}" in rows

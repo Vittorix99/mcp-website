@@ -3,6 +3,7 @@ import pytest
 
 from api.public import event_payment_api
 from config.firebase_config import db
+from errors.service_errors import ConflictError
 from models import DiscountCode, DiscountType
 from services.payments.paypal_gateway import PayPalGatewayResponse
 from tests.synthetic_api.test_purchase_entrance_stats import assert_revenue, order_payload
@@ -165,7 +166,7 @@ def test_group_discount_is_rejected_without_provider_or_usage(http, sample, gate
 
 @pytest.mark.parametrize('failure', ['http_error', 'declined'])
 def test_failed_capture_does_not_consume_discount(http, discount_case, gateway, failure):
-    """DIS-07: provider rejection precedes the usage claim and all provisioning."""
+    """DIS-07: release only a known failure; retain ambiguous provider outcomes."""
     case = discount_case
     response = http.post('/orders', json=checkout_payload(case))
     assert response.status_code == 201, response.get_json()
@@ -179,7 +180,12 @@ def test_failed_capture_does_not_consume_discount(http, discount_case, gateway, 
     assert capture.status_code == (502 if failure == 'http_error' else 400), capture.get_json()
     assert gateway.create_calls == gateway.capture_calls == 1
     assert db.document('orders/' + order_id).get().to_dict()['captured'] is False
-    assert case.discount_ref.get().to_dict() == before
+    after = case.discount_ref.get().to_dict()
+    assert after['usedCount'] == before['usedCount']
+    if failure == 'http_error':
+        assert after['reservations'][order_id]['state'] == 'capturing'
+    else:
+        assert after['reservations'] == {}
     assert_no_provisioning(http, case)
 
 
@@ -272,3 +278,76 @@ def test_zero_total_checkout_characterizes_fake_provider_path(http, discount_cas
     assert len(list(db.collection('purchases').stream())) == 1
     assert len(list(db.collection(f'participants/{case.event.id}/participants_event').stream())) == 1
     assert_revenue(http, case.event.id, 0, 0, 0, 1)
+
+
+def test_declined_payment_releases_last_slot_for_another_order(http, discount_case, gateway):
+    case = discount_case
+    case.discount_ref.update({'maxUses': 1})
+    order_ids = []
+    for _ in range(2):
+        response = http.post('/orders', json=checkout_payload(case))
+        assert response.status_code == 201, response.get_json()
+        order_ids.append(response.get_json()['id'])
+    gateway.bad_field, gateway.bad_state = 'capture_status', 'DECLINED'
+    rejected = http.post('/capture', json={'order_id': order_ids[0]})
+    assert rejected.status_code == 400, rejected.get_json()
+    assert case.discount_ref.get().to_dict()['reservations'] == {}
+    gateway.bad_field = gateway.bad_state = None
+    gateway.capture_net = '10.50'
+    accepted = http.post('/capture', json={'order_id': order_ids[1]})
+    assert accepted.status_code == 200, accepted.get_json()
+    assert case.discount_ref.get().to_dict()['usedCount'] == 1
+    assert gateway.capture_calls == 2
+    assert db.document('orders/' + order_ids[0]).get().to_dict()['captured'] is False
+    assert_revenue(http, case.event.id, 12, 10.5, 1.5, 1)
+
+
+@pytest.mark.parametrize('started', [False, True])
+def test_reservation_expiry_reclaims_only_unstarted_payment(
+        http, discount_case, gateway, started):
+    from datetime import timedelta
+
+    case = discount_case
+    case.discount_ref.update({'maxUses': 1})
+    response = http.post('/orders', json=checkout_payload(case))
+    assert response.status_code == 201, response.get_json()
+    order_id = response.get_json()['id']
+    repo = event_payment_api.event_payment_service.discount_code_repository
+    token = repo.reserve_usage(case.discount_ref.id, 'interrupted-order')
+    assert repo.reserve_usage(case.discount_ref.id, 'interrupted-order') == token
+    if started:
+        repo.begin_capture(case.discount_ref.id, 'interrupted-order', token)
+    reservations = case.discount_ref.get().to_dict()['reservations']
+    reservations['interrupted-order']['expiresAt'] = case.now - timedelta(days=1)
+    case.discount_ref.update({'reservations': reservations})
+    gateway.capture_net = '10.50'
+    capture = http.post('/capture', json={'order_id': order_id})
+    assert capture.status_code == (409 if started else 200), capture.get_json()
+    assert gateway.capture_calls == (0 if started else 1)
+    assert case.discount_ref.get().to_dict()['usedCount'] == (0 if started else 1)
+    if not started:
+        with pytest.raises(ConflictError):
+            repo.begin_capture(case.discount_ref.id, 'interrupted-order', token)
+    else:
+        assert_no_provisioning(http, case)
+
+
+@pytest.mark.parametrize('started', [False, True])
+def test_admin_capacity_update_respects_reserved_and_inflight_slots(
+        http, discount_case, started):
+    from errors.service_errors import ValidationError
+
+    case = discount_case
+    repo = event_payment_api.event_payment_service.discount_code_repository
+    tokens = {order: repo.reserve_usage(case.discount_ref.id, order) for order in ('a', 'b')}
+    if started:
+        for order, token in tokens.items():
+            repo.begin_capture(case.discount_ref.id, order, token)
+    with pytest.raises(ValidationError):
+        repo.update(case.discount_ref.id, {'max_uses': 1}, 'test-admin')
+    assert case.discount_ref.get().to_dict()['maxUses'] == 2
+    for order, token in tokens.items():
+        if not started:
+            repo.begin_capture(case.discount_ref.id, order, token)
+        repo.consume_reservation(case.discount_ref.id, order, token)
+    assert case.discount_ref.get().to_dict()['usedCount'] == 2

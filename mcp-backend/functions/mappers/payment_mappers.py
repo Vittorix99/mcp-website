@@ -26,8 +26,10 @@ def create_event_order_model(
     discount_code: Optional[str] = None,
     discount_amount: Optional[float] = None,
     original_price: Optional[float] = None,
+    capacity_reservation_id: Optional[str] = None,
 ) -> EventOrder:
     return EventOrder(
+        capacity_reservation_id=capacity_reservation_id,
         order_id=order_id,
         order_status=order_status,
         purchase_type=PurchaseTypes.EVENT,
