@@ -262,3 +262,68 @@ Superstatic resta quello preesistente. Nessun pin di rollback aggiunto.
 CI remota e ambienti distribuiti non verificati.
 Il prerequisito dipendenze rimane **aperto**: nessuna accettazione del rischio
 residuo né attivazione cloud autorizzata da questi risultati.
+
+
+### Secondo passaggio: Firebase Admin13 e tar7 — 15 novembre 2026
+
+Estensione approvata dall'owner dopo `c403cbf`: Firebase Admin13.10.0
+(`^13.10.0`) e override `firebase-tools.tar=7.5.21`, CLI14.26.0 e Node20
+invariati. Il framework SSR0.11.8 dichiara compatibilità peer con Admin13.
+Verificati import modulari app/auth/firestore e uso auth del framework;
+le API messaging rimosse in Admin13 non sono usate dai chiamanti osservati.
+Riferimenti: [release Admin](https://firebase.google.com/support/release-notes/admin/node)
+e [changelog tar7](https://github.com/isaacs/node-tar/blob/main/CHANGELOG.md).
+Admin14 richiede Node22: non viene introdotto in questo passaggio.
+
+`npm install --package-lock-only --ignore-scripts --no-audit`, poi installazione
+pulita Node20 PASS. La vecchia catena Admin11→google-gax3→protobufjs7.2.4 è
+rimossa: Firestore7.11.6/google-gax4.6.1 e protobufjs7.6.6 nel grafo aggiornato.
+La CLI risolve tar7.5.21; un'altra copia tar7.5.23 appartiene al tool opzionale
+node-gyp. Test nuovo sul packaging reale `archiveDirectory`: baseline tar6
+PASS, tar7 PASS con archivio gzip, Unicode, sottocartelle, esclusione di un
+.env sintetico, estrazione e confronto byte. Nessun file credenziale usato.
+
+| Audit Node20 | Dopo passaggio compatibile | Dopo Admin/tar |
+|---|---|---|
+| Completo | 50 (2critical/18high/29moderate/1low) | 47 (0critical/13high/33moderate/1low) |
+| Senza dev | 22 (1critical/12high/8moderate/1low) | 21 (0critical/7high/13moderate/1low) |
+
+Entrambi gli audit terminano ancora con exit1: **critical eliminati dal grafo
+segnalato, prerequisito dipendenze ancora aperto per i residui**. Nessuna
+accettazione implicita delle advisory rimanenti. Report precloud-major-audit*.json.
+
+L'owner richiede inoltre continuità API e trigger. Aggiunti allo smoke reale:
+- verifica token Admin e session cookie (incluse credenziali sintetiche invalide);
+- consegna automatica degli eventi Firestore per creazione socio/account/wallet
+  fake, creazione/arricchimento partecipante, quattro trigger analytics,
+  worker analytics, cancellazione scan e worker location senza destinatari;
+- scenari Firestore dei tre corpi pianificati: invalidazione annuale senza
+  alterare altri campi, enqueue notturno con replay senza duplicati e cleanup
+  con conservazione di token recenti/storico ingressi.
+
+La prima nuova prova trigger ha trovato un crash nativo macOS Python dopo
+fork: SIGSEGV in CoreFoundation/SystemConfiguration/get_proxy_settings durante
+la richiesta Auth. Correzione limitata ai comandi local/test: runtime guard
+e bridge emulatori fissano `NO_PROXY`/`no_proxy` a `127.0.0.1,localhost`, evitando
+il lookup proxy nativo per le richieste loopback anche nei processi Python
+figli della CLI. Due regressioni RED→GREEN; nessuna modifica all'adattatore
+deploy cloud, alle credenziali, alla validazione token o ai permessi.
+Dopo il fix lo smoke automatico completo passa con shutdown pulito.
+
+Evidenze finali già disponibili:1413unitari backend,87strumenti,52frontend,
+contratti126riferimenti/130export/0errori,lint0errori/53warning preesistenti,
+buildfixture Node20,57Auth,smoke2Python+clientHTTP+trigger PASS. I tre nuovi
+scenari scheduler passano anche in esecuzione focalizzata. Suite API completa
+522PASS in111.73s, JUnit API/Auth/scheduler0failure/error/skip; runner exit0 e
+shutdown pulito. Review indipendente unica Sol high conclusa senza rilievi,
+accettata dal coordinatore. Verificati risoluzione/engine, chiamanti framework,
+packaging, nuovi test, isolamento e log; non attestati Linux o ambienti cloud.
+Log ignorati `.local/staging/precloud-major-*`; scanner segreti0.
+
+Limiti: i corpi scheduler sono invocati esplicitamente nella suite API, non è
+provato l'avvio agli orari reali di Cloud Scheduler. Gli smoke HTTP eseguono
+percorsi rappresentativi;519scenari precedenti, tre nuovi e unitari non attestano
+ogni combinazione di tutti gli endpoint. SSR distribuito, provider reali,
+Linux e CI remota restano da verificare. Nessun deploy o mutazione cloud.
+Rollback locale delle dipendenze: package.json/lock del checkpoint `c403cbf`
+e `npm ci` Node20; nessuna migrazione o rollback dati richiesti.

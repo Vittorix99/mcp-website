@@ -12,7 +12,7 @@
     "build:next": "next build",
     "start": "next start",
     "lint": "eslint --ext .js,.jsx,.cjs,.mjs .",
-    "test:config": "node --test tests/runtime-policy.test.cjs tests/build-network-guard.test.cjs tests/build-fixture-server.test.mjs tests/firebase-discovery-bridge.test.cjs tests/paypal-section.test.cjs tests/emulator-admin-seed.test.mjs tests/api-contracts.test.mjs tests/event-contract-smoke.test.mjs tests/deployment-health.test.mjs tests/release-discovery.test.cjs tests/purchase-statistics.test.cjs",
+    "test:config": "node --test tests/runtime-policy.test.cjs tests/build-network-guard.test.cjs tests/build-fixture-server.test.mjs tests/firebase-discovery-bridge.test.cjs tests/paypal-section.test.cjs tests/emulator-admin-seed.test.mjs tests/api-contracts.test.mjs tests/event-contract-smoke.test.mjs tests/deployment-health.test.mjs tests/release-discovery.test.cjs tests/purchase-statistics.test.cjs tests/deployment-packaging.test.cjs",
     "check:contracts": "node scripts/check-api-contracts.mjs",
     "export": "next export",
     "tunnel": "cloudflared tunnel --url http://localhost:3000"
@@ -43,7 +43,7 @@
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "firebase": "^12.11.0",
-    "firebase-admin": "^11.11.1",
+    "firebase-admin": "^13.10.0",
     "firebase-frameworks": "^0.11.0",
     "firebase-functions": "^7.2.2",
     "framer-motion": "^12.4.2",
@@ -68,7 +68,8 @@
   "overrides": {
     "firebase-tools": {
       "@google-cloud/cloud-sql-connector": "1.10.0",
-      "universal-analytics": "0.5.3"
+      "universal-analytics": "0.5.3",
+      "tar": "7.5.21"
     }
   },
   "devDependencies": {

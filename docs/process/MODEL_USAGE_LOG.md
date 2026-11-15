@@ -511,3 +511,18 @@ vincoli transitivi e contratti deployment richiedono valutazione Sol.
 
 Conteggio dispatch effettivi:0task Luna,1review Sol high conclusa e accettata.
 Token/costi non disponibili. Nessuna modifica cloud/provider/credenziali.
+
+## Prerequisito cloud — Firebase Admin13 e tar7, 15 novembre 2026
+
+Owner approva migrazione Admin11.11.1→13.10.0 e override tar7.5.21 limitato
+alla CLI14.26.0, con verifica di continuità. Coordinatore Sol mantiene
+ownership di package.json/lockfile, migrazione e analisi di sicurezza.
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | firebase_packaging_contract: un test reale archiveDirectory della CLI, list/extract Unicode/nested ed esclusione .env sintetico | medium | Consegnato un solo file; baseline1test PASS, riletto e accettato da Sol. Dopo migrazione il test passa nella suite frontend51/51. Nessuna modifica dipendenze/documenti delegata. |
+| gpt-6-luna | scheduled_trigger_contracts: tre scenari dei corpi scheduler su Firestore dedicato | medium | Consegnato un file, py_compile PASS. Sol corregge l'aspettativa del replay queued (timestamp kick possono cambiare); 3 scenari focalizzati PASS su Firestore dedicato, accettati da Sol. |
+| gpt-6.1-sol | admin_tar_final_review: unica review indipendente del blocco Admin/tar, smoke trigger e correzione proxy locale | high | Conclusa senza rilievi; accettata da Sol.1413unitari/87strumenti/52frontend/522API/57Auth e smoke automatici PASS; limiti Linux/CI/cloud/scheduler reale conservati. |
+
+Dispatch effettivi:2task Luna accettati,1review Sol high conclusa e accettata.
+Token/costi non disponibili; nessuna attività cloud/provider/credenziali.

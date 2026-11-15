@@ -42,6 +42,8 @@ def command_environment(name, incoming):
         "BACKEND_URL": settings.backend_url,
         "FIREBASE_CLI_DISABLE_UPDATE_CHECK":"1", "NEXT_TELEMETRY_DISABLED":"1",
         "NO_COLOR":"1", "PYTHONUNBUFFERED":"1",
+        # macOS native proxy discovery is unsafe in forked emulator workers.
+        "NO_PROXY":"127.0.0.1,localhost", "no_proxy":"127.0.0.1,localhost",
     })
     for provider in ("paypal","mail","sender","pass2u","gender","soundcloud"):
         env[provider.upper()+"_MODE"] = getattr(settings.providers,provider).value

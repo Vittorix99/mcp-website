@@ -393,3 +393,30 @@ Critical residui:google-gax3→protobufjs7.2.4 da Admin11.11.1 e CLI14.26→tar6
 Valutazione e confini in SECURITY_HISTORY_REMEDIATION.md; niente accettazione
 implicita di residui o upgrade/downgrade major automatico. Linux/CI remota,
 browser e ambienti cloud non verificati; nessun deploy o provider reale.
+
+## Firebase Admin13/tar7 e continuità API/trigger — 15 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `core-age-data-integrity`, base `c403cbf`.
+Owner approva Admin13.10.0 e override tar7.5.21 della CLI14.26.0; Node20 resta.
+Packaging reale gzip/Unicode/sottocartelle/esclusione .env sintetico passa con
+baseline tar6 e nuova tar7. SDK auth token/session cookie e casi invalidi provati.
+
+Trovato nello smoke nuovo un crash nativo macOS Python/get_proxy_settings dopo
+fork. Fix solo local/test: NO_PROXY/no_proxy per127.0.0.1/localhost nel guard e
+bridge CLI. Due regressioni RED→GREEN; nessun indebolimento auth/permessi.
+Smoke automatico Firestore PASS per2trigger creazione,4analytics e2worker
+(analytics/location), con scan/delete e snapshot;3handler scheduler provati
+su Firestore dedicato, senza attestare l'avvio agli orari Cloud Scheduler.
+
+Finali:1413unitari,87strumenti,52frontend,522API in111.73s,57Auth PASS; JUnit
+API/Auth/scheduler0failure/error/skip,runner exit0/shutdown pulito. Contratti
+126riferimenti/130export/0errori,lint0errori/53warning esistenti,buildfixture
+Node20,2Python smoke+clientHTTP PASS. Log `.local/staging/precloud-major-*`.
+2task Luna accettati (uno corretto da Sol sui timestamp del replay queued);
+unica review Sol high senza rilievi, accettata. Token/costi non disponibili.
+
+Audit completo47(0critical/13high/33moderate/1low),senza dev21
+(0critical/7high/13moderate/1low): prerequisito dipendenze **ancora aperto**,
+nessuna accettazione dei residui. Linux,CI remota,SSR distribuito e provider
+reali non verificati. Nessuna mutazione cloud/credenziali/deploy o promozione
+produzione/Sender. Prossimo perimetro da discutere prima di avviarlo.
