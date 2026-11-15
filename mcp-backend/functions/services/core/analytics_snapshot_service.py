@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
 from domain.age_rules import calendar_age
+from domain.attendance_rules import ATTENDANCE_VERSION, summarize_attendance, build_entrance_flow
 from domain.membership_rules import is_membership_active
 from domain.purchase_rules import is_completed_event_purchase
 from domain.revenue_rules import manual_received_total
@@ -81,6 +82,8 @@ class AnalyticsSnapshotService:
         payload = self.analytics_snapshot_repository.get_event_snapshot(event_id)
         if payload is None:
             return {"exists": False, "event_id": event_id}
+        if payload.get('exists') is not False and payload.get('attendance_version') != ATTENDANCE_VERSION:
+            return {'exists': False, 'event_id': event_id, 'rebuild_required': True}
         return {"exists": True, **payload}
 
     def get_global_snapshot(self) -> Dict[str, Any]:
@@ -258,13 +261,16 @@ class AnalyticsSnapshotService:
 
         tier_payload = self._build_ticket_tier_payload(event_purchases)
         gender_counts = self._gender_distribution(participants)
-        entrance_flow = self._build_entrance_flow(event)
+        attendance = summarize_attendance(participants, self.entrance_scan_repository.list(event_id))
+        flow = build_entrance_flow(event, attendance)
+        entrance_flow = flow['buckets']
 
         max_participants = self._safe_int(getattr(event, "max_participants", 0))
         participants_count = len(participants)
-        entered_count = self._count_entered(entrance_flow)
+        entered_count = attendance.total_entered
 
         event_snapshot = {
+            "attendance_version": ATTENDANCE_VERSION,
             "event_id": event_id,
             "generated_at": datetime.now(timezone.utc),
             "event": {
@@ -274,6 +280,7 @@ class AnalyticsSnapshotService:
                 "start_time": event.start_time,
                 "max_participants": max_participants,
             },
+            "attendance": {key: value for key, value in flow.items() if key != 'buckets'},
             "kpis": {
                 "participants": participants_count,
                 "entered": entered_count,
@@ -665,48 +672,10 @@ class AnalyticsSnapshotService:
         return rows[-120:]
 
     def _build_entrance_flow(self, event) -> List[Dict[str, Any]]:
-        event_date = self._parse_date_like(getattr(event, "date", None))
-        if not event_date:
-            event_date = datetime.now(ROMA_TZ).date()
-
-        window_start = datetime.combine(event_date, time(22, 0), tzinfo=ROMA_TZ)
-        window_end = window_start + timedelta(hours=8)
-
-        total_buckets = int((window_end - window_start).total_seconds() // (30 * 60))
-        counts = [0 for _ in range(total_buckets)]
-
-        event_id = getattr(event, "id", None)
-        scans = self.entrance_scan_repository.list(event_id) if event_id else []
-        for scan in scans:
-            scanned_at = self._to_datetime(getattr(scan, "scanned_at", None))
-            if not scanned_at:
-                continue
-            local_ts = scanned_at.astimezone(ROMA_TZ)
-            if not (window_start <= local_ts < window_end):
-                continue
-
-            index = int((local_ts - window_start).total_seconds() // (30 * 60))
-            if 0 <= index < total_buckets:
-                counts[index] += 1
-
-        output = []
-        cumulative = 0
-        for index in range(total_buckets):
-            bucket_start = window_start + timedelta(minutes=30 * index)
-            bucket_end = bucket_start + timedelta(minutes=30)
-            count = counts[index]
-            cumulative += count
-            output.append(
-                {
-                    "bucket_start": bucket_start.isoformat(),
-                    "bucket_end": bucket_end.isoformat(),
-                    "label": f"{bucket_start.strftime('%H:%M')} - {bucket_end.strftime('%H:%M')}",
-                    "count": count,
-                    "cumulative": cumulative,
-                }
-            )
-
-        return output
+        event_id = getattr(event, 'id', None)
+        attendance = summarize_attendance(self.participant_repository.list(event_id),
+                                           self.entrance_scan_repository.list(event_id))
+        return build_entrance_flow(event, attendance)['buckets']
 
     def _build_omaggi_trend(self, participants: List[Any]) -> List[Dict[str, Any]]:
         months = defaultdict(int)
@@ -920,8 +889,6 @@ class AnalyticsSnapshotService:
             return "unknown"
         return max(payload.items(), key=lambda item: item[1])[0]
 
-    def _count_entered(self, entrance_flow: List[Dict[str, Any]]) -> int:
-        return sum(self._safe_int(bucket.get("count")) for bucket in entrance_flow)
 
     def _is_valid_event_purchase(self, purchase: Any) -> bool:
         return is_completed_event_purchase(purchase)

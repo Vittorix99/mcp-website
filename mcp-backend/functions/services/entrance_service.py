@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from domain.attendance_rules import summarize_attendance
 from domain.membership_rules import is_membership_active
 from errors.service_errors import NotFoundError, ValidationError
 from interfaces.repositories import (
@@ -55,10 +56,9 @@ class EntranceService:
 
     def _build_event_counts(self, event_id: str) -> dict:
         # I conteggi vengono ricalcolati dopo ogni mutazione per dare feedback live allo scanner.
-        return {
-            "participants_count": self.participant_repository.count(event_id),
-            "entered_count": self.entrance_scan_repository.count(event_id),
-        }
+        participants = self.participant_repository.list(event_id)
+        attendance = summarize_attendance(participants, self.entrance_scan_repository.list(event_id))
+        return {"participants_count": len(participants), "entered_count": attendance.total_entered}
 
     def _get_scan_token_doc(self, scan_token: str) -> ScanToken:
         # Il token non autorizza l'ingresso da solo: serve solo a legare lo scanner a un evento.

@@ -88,6 +88,7 @@ const TITLE_FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
 import { generateScanToken as apiGenerateScanToken, verifyScanToken as apiVerifyScanToken, deactivateScanToken as apiDeactivateScanToken, manualEntry as apiManualEntry } from "@/services/admin/entrance"
 import { listDiscountCodes } from "@/services/admin/discountCodes"
 import { getAllPurchases } from "@/services/admin/purchases"
+import { getEventFunnel } from "@/services/admin/stats"
 
 function parseMembershipDate(value) {
   if (!value) return null
@@ -224,6 +225,8 @@ export default function EventContent({ id: eventId }) {
   const [checkinSearch, setCheckinSearch] = useState("")
   const [checkinOnlyMissing, setCheckinOnlyMissing] = useState(true)
   const [checkinQuickOpen, setCheckinQuickOpen] = useState(false)
+  const [checkinAnalytics, setCheckinAnalytics] = useState(null)
+  const [checkinAnalyticsError, setCheckinAnalyticsError] = useState(false)
 
   // Entrance / scan token state
   const [scanToken, setScanToken] = useState(null)
@@ -257,6 +260,33 @@ export default function EventContent({ id: eventId }) {
   useEffect(() => {
     loadAll()
   }, [eventId, loadAll])
+
+  useEffect(() => {
+    if (!eventId) {
+      setCheckinAnalytics(null)
+      setCheckinAnalyticsError(false)
+      return
+    }
+    let cancelled = false
+    setCheckinAnalytics(null)
+    setCheckinAnalyticsError(false)
+    getEventFunnel(eventId).then((result) => {
+      if (cancelled) return
+      if (result?.error || result?.entered == null || result?.registered == null) {
+        setCheckinAnalytics(null)
+        setCheckinAnalyticsError(true)
+      } else {
+        setCheckinAnalytics(result)
+        setCheckinAnalyticsError(false)
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setCheckinAnalytics(null)
+        setCheckinAnalyticsError(true)
+      }
+    })
+    return () => { cancelled = true }
+  }, [eventId, participants])
 
   const filtersLoadedRef = useRef(false)
   useEffect(() => {
@@ -538,10 +568,10 @@ export default function EventContent({ id: eventId }) {
 
   // Checkin computed data
   const checkinCounters = useMemo(() => {
-    const total = participants.length
-    const entered = participants.filter((p) => !!p.entered).length
-    return { total, entered, missing: total - entered }
-  }, [participants])
+    const total = checkinAnalytics?.registered
+    const entered = checkinAnalytics?.entered
+    return { total, entered, missing: total != null && entered != null ? Math.max(0, total - entered) : null }
+  }, [checkinAnalytics])
 
   const checkinNormalized = useMemo(() => {
     const q = checkinSearch.trim().toLowerCase()
@@ -1377,17 +1407,31 @@ export default function EventContent({ id: eventId }) {
               <div className="grid grid-cols-3 gap-3">
                 <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-center">
                   <div className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Entrati</div>
-                  <div className="text-2xl font-bold text-emerald-400" style={{ fontFamily: TITLE_FONT }}>{checkinCounters.entered}</div>
+                  <div className="text-2xl font-bold text-emerald-400" style={{ fontFamily: TITLE_FONT }}>{checkinAnalyticsError ? "Non disponibile" : checkinCounters.entered ?? "…"}</div>
                 </div>
                 <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-center">
                   <div className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Mancanti</div>
-                  <div className="text-2xl font-bold text-[var(--color-yellow)]" style={{ fontFamily: TITLE_FONT }}>{checkinCounters.missing}</div>
+                  <div className="text-2xl font-bold text-[var(--color-yellow)]" style={{ fontFamily: TITLE_FONT }}>{checkinAnalyticsError ? "Non disponibile" : checkinCounters.missing ?? "…"}</div>
                 </div>
                 <div className="border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-center">
                   <div className="text-xs uppercase tracking-wide text-[var(--color-off)]" style={{ fontFamily: TITLE_FONT, fontWeight: 700 }}>Totale</div>
-                  <div className="text-2xl font-bold text-[var(--color-orange)]" style={{ fontFamily: TITLE_FONT }}>{checkinCounters.total}</div>
+                  <div className="text-2xl font-bold text-[var(--color-orange)]" style={{ fontFamily: TITLE_FONT }}>{checkinAnalyticsError ? "Non disponibile" : checkinCounters.total ?? "…"}</div>
                 </div>
               </div>
+
+              {(() => {
+                const a = checkinAnalytics?.anomalies || {}
+                const lines = [
+                  a.missing_scan > 0 && `${a.missing_scan} con flag ingresso ma senza scan (non contati)`,
+                  a.flag_mismatch > 0 && `${a.flag_mismatch} con scan ma flag ingresso non allineato`,
+                  a.orphan_scan > 0 && `${a.orphan_scan} scan senza partecipante`,
+                ].filter(Boolean)
+                return lines.length ? (
+                  <div className="border border-[var(--color-yellow)] p-3 text-xs text-[var(--color-yellow)]">
+                    Dati ingressi da verificare: {lines.join("; ")}. Il contatore «Entrati» conta solo gli scan.
+                  </div>
+                ) : null
+              })()}
 
               {/* Search + filter + actions */}
               <div className="flex flex-col sm:flex-row gap-2">

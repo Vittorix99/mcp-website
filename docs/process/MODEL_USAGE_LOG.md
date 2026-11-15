@@ -488,3 +488,14 @@ proteggono contatti canonici prima del provider e schede socio immutate
 prima dell'incasso. Nessuna seconda review. Provider reali e CI non verificati.
 
 Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.
+## Q-05 ingressi e finestre — 15 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | `q05_attendance_ui`: default orari evento e contatori canonici UI | medium | Concluso; ESLint senza errori, 50 test config passati; riletto da Sol |
+| gpt-6.1-sol | `q05_final_review`: review indipendente | high | Fallita: limite di utilizzo Codex raggiunto, nessun rilievo prodotto |
+| Claude Sonnet | review indipendente sostitutiva, sola lettura | high | Conclusa per decisione del proprietario (AGENTS.md aggiornato): 0 Critical, 3 Important, Minor. Corretti cambio d'ora in UTC, avviso anomalie nel check-in, test unit senza emulatore; scan scelto come unica prova di ingresso |
+
+Verifica finale: 1412 test unit e 519 API con emulatore passati, 50 test config
+frontend, ESLint senza errori. Nessuna seconda review. 1 incarico Luna, 1 review
+Sonnet; token e costi non disponibili. CI remota non verificata.

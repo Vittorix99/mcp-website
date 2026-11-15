@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -18,7 +18,7 @@ class AnalyticsBaseDTO(BaseModel):
 class EventAnalyticsQueryDTO(AnalyticsBaseDTO):
     event_id: str = Field(min_length=1)
     start_time: Optional[str] = Field(default=None)
-    span_hours: int = Field(default=6, ge=1, le=24)
+    span_hours: Optional[int] = Field(default=None, ge=1, le=24)
     bucket_minutes: int = Field(default=30)
 
     @field_validator("start_time", mode="before")
@@ -75,6 +75,8 @@ class _ResponseBase(BaseModel):
 # ---- Entrance Flow -------------------------------------------------------
 
 class EntranceFlowBucketDTO(_ResponseBase):
+    bucket_start: Optional[str] = Field(default=None, serialization_alias="bucketStart")
+    bucket_end: Optional[str] = Field(default=None, serialization_alias="bucketEnd")
     hour_label: str = Field(serialization_alias="hourLabel")
     count: int
     cumulative: int
@@ -84,6 +86,14 @@ class EntranceFlowResponseDTO(_ResponseBase):
     event_id: str = Field(serialization_alias="eventId")
     event_title: str = Field(serialization_alias="eventTitle")
     total_scanned: int = Field(serialization_alias="totalScanned")
+    total_entered: int = Field(default=0, serialization_alias="totalEntered")
+    in_window: int = Field(default=0, serialization_alias="inWindow")
+    outside_window: int = Field(default=0, serialization_alias="outsideWindow")
+    missing_timestamp: int = Field(default=0, serialization_alias="missingTimestamp")
+    window_start: Optional[str] = Field(default=None, serialization_alias="windowStart")
+    window_end: Optional[str] = Field(default=None, serialization_alias="windowEnd")
+    invalid_window: bool = Field(default=False, serialization_alias="invalidWindow")
+    anomalies: Dict[str, int] = Field(default_factory=dict)
     buckets: List[EntranceFlowBucketDTO]
 
 
@@ -147,6 +157,9 @@ class RevenueBreakdownResponseDTO(_ResponseBase):
 # ---- Event Funnel --------------------------------------------------------
 
 class EventFunnelResponseDTO(_ResponseBase):
+    entered: int = 0
+    registered: int = 0
+    anomalies: Dict[str, int] = Field(default_factory=dict)
     event_id: str = Field(serialization_alias="eventId")
     event_title: str = Field(serialization_alias="eventTitle")
     tickets_sold: int = Field(serialization_alias="ticketsSold")
