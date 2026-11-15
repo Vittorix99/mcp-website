@@ -306,3 +306,40 @@ Eventbrite/Xceed dopo ristrutturazione backend e frontend. Nessuna modalità
 o integrazione futura implementata adesso. Nessun push,merge,deploy,dato
 reale o gate cloud eseguito. PR#11 draft; tre diff owner preservati.
 Browser,CI remota e provider reali non verificati.
+
+
+## Q-07 integrità soci e partecipanti — 15 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `core-age-data-integrity`, base eae983d.
+Owner approva e richiede implementazione/verifica: partecipante collegato
+non può cambiare identità, socio o scollegarsi; correggere dal socio con
+cascata alle iscrizioni. Manuali senza membership ammessi e modificabili,
+anche agli eventi associativi; email facoltativa. Collegamento esplicito
+successivo definitivo; ingressi già presenti richiedono verifica manuale.
+Create manuale con socio esistente, nuovo socio contestuale o senza socio;
+rinnovo contestuale e riferimenti nella stessa batch, nessun orfano al retry.
+
+Merge atomico sul target scelto: partecipanti, scan, purchase.membership_ids,
+coupon vincolati al socio e storico; sorgente rimossa solo al consolidamento.
+Operatore e snapshot originali nel registro membership_operations. Pagante,
+importi, transazioni e timestamp ingresso preservati. Collisioni di evento,
+scan legacy inconsistenti, account source con UID diverso, checkout aperti
+e oltre400scritture bloccano senza parziali. Delete socio referenziato bloccato
+prima di provider/storage. Contatti canonici controllati prima di PayPal;
+fence tecnici separati lasciano immutate le schede socio prima dell'incasso.
+
+Finali1399unitari e503API in115.45s PASS;37scenari Q-07. JUnit0failure/error/
+skip,runnerexit0/shutdown pulito.87strumenti/50frontend PASS;build fixture
+Node20 PASS;contratti126riferimenti/130export/0errori;lint0errori/53warning
+esistenti. Review unica Sol high:7rilievi accettati e corretti con regressioni
+RED/GREEN;nessuna seconda review.1task Luna+1follow-up UI accettati;
+1review Sol high;token/costi non disponibili. Log privati q07-*.
+
+PR#11 draft;nessun push/merge/deploy/dato reale o bonifica autorizzato.
+Provider reali,CI remota e browser non verificati. Eventi non associativi
+senza tessera e integrazioni Eventbrite/Xceed restano rinviati. Prossimo
+blocco da discutere con owner;non avviare automaticamente altro workstream.
+Preservare i tre diff proprietario in AGENTS.md,MODEL_USAGE_LOG.md e
+NEXT_SESSION.md;staging dei documenti condivisi limitato alle append agente.
+
+Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.

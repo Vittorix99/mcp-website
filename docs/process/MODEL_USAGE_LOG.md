@@ -468,3 +468,23 @@ confini pagamento/concorrenza; nessuna implementazione provider futura.
 | Codex / gpt-6.1-sol | `q08_unique_final_review`: review unica vincolo nominativo, hold identità, admin e recovery | high | Conclusa con1P1 accettato e corretto inline: riservare anche identità dei soci scaduti e ricontrollarle prima di capture.2RED review poi19API GREEN; finali1399unitari/466API in109.36s PASS, JUnit0failure/error/skip, runnerexit0/shutdown pulito.87strumenti/50frontend PASS,lint0errori/53warning esistenti,scanner0/Firebase/130export/diff puliti. Nessuna seconda review o mutazione cloud. |
 
 Dispatch effettivi follow-up:0Luna,1Sol high. Token/costi non disponibili.
+
+
+## Q-07 integrità soci/partecipanti — 15 novembre 2026
+
+| Modello richiesto | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | q07_participant_ui: blocco identità/associazione form admin e filtro payload; un follow-up per email facoltativa e testo | medium | Accettato da Sol dopo revisione del diff. Lint finale 0 errori/53 warning esistenti, 50 frontend e build fixture Node20 PASS. |
+| gpt-6.1-sol | q07_final_review: unica review indipendente del blocco Q-07 | high | Conclusa: 7 rilievi accettati (checkout concorrente, delete socio, versione location, contatti null, scan legacy, rinnovo manuale, coupon concorrenti). Correzioni raggruppate con regressioni RED/GREEN; 503 API emulati e 1399 unitari PASS. Nessuna seconda review. |
+
+Dispatch: 1 task Luna con 1 follow-up, 1 review Sol high. Coordinamento e
+integrità/pagamenti/concorrenza Sol inline. Token/costi non disponibili.
+
+Verifica finale: 37 scenari Q-07 nel totale 503 API, 1399 unitari,
+87 strumenti e 50 frontend PASS; build fixture con Node20 PASS;
+contratti126riferimenti/130export/0errori; lint0errori/53warning esistenti.
+Le regressioni della review coprono tutti i sette rilievi; ulteriori prove
+proteggono contatti canonici prima del provider e schede socio immutate
+prima dell'incasso. Nessuna seconda review. Provider reali e CI non verificati.
+
+Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.

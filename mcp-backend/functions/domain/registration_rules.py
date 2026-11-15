@@ -16,7 +16,8 @@ def checkout_keys(participants, lookup):
     keys = set()
     for participant in participants:
         member = lookup.get(normalize_email(participant.get('email') or ''), {})
-        current = registration_keys({**participant, 'membershipId': member.get('id')})
+        current = (registration_keys({**participant, 'membershipId': member.get('id')})
+                   | registration_keys({**member, 'membershipId': member.get('id')}))
         if current & keys:
             raise ConflictError('Una sola iscrizione per persona e per evento')
         keys.update(current)

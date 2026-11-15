@@ -1,4 +1,5 @@
 import logging
+from utils.safe_logging import redact_sensitive
 from datetime import datetime, timezone
 from typing import Any, Optional, List
 
@@ -150,6 +151,8 @@ class ParticipantsService:
         price_value = self._normalize_price(dto.price)
         payment_method = self._resolve_payment_method(dto.payment_method, price_value, purchase_id)
 
+        membership_model = None
+        old_wallet_id = None
         membership_id = None
         is_member = False
         membership = None
@@ -182,7 +185,7 @@ class ParticipantsService:
             start_date = now.isoformat()
             end_date = calculate_end_of_year_membership(now)
             # Il partecipante può includere una tessera: il rinnovo passa comunque dal service membership.
-            membership = self._get_memberships_service().renew_existing(
+            membership_model = self._get_memberships_service().prepare_renewal(
                 membership,
                 RenewMembershipCommand(
                     membership_id=membership_id,
@@ -200,6 +203,8 @@ class ParticipantsService:
                     birthdate=birthdate,
                 ),
             )
+            old_wallet_id = membership.wallet_pass_id
+            membership_model._version = getattr(membership, '_version', None)
             is_member = True
 
         if membership_included and not is_member and not membership_id:
@@ -215,6 +220,8 @@ class ParticipantsService:
                 )
             ]
 
+            if not email and not phone:
+                raise ValidationError('Email o telefono obbligatorio per creare un socio')
             membership_model = Membership(
                 name=dto.name or "",
                 surname=dto.surname or "",
@@ -235,8 +242,12 @@ class ParticipantsService:
                 ),
             )
 
-            membership_id = self.membership_repository.create_from_model(membership_model)
-            self.logger.info("Nuova membership creata: %s", membership_id)
+            from uuid import uuid4
+            from utils.slug_utils import build_slug
+            membership_id = uuid4().hex
+            membership_model.id = membership_id
+            membership_model.slug = build_slug(membership_model.name, membership_model.surname,
+                                                suffix=membership_id[-6:])
 
         try:
             payment_enum = PaymentMethod(payment_method)
@@ -254,7 +265,16 @@ class ParticipantsService:
             created_at=firestore.SERVER_TIMESTAMP,
         )
 
-        participant_id = self.participant_repository.create_from_model(event_id, participant)
+        if membership_model is not None:
+            participant_id = self.participant_repository.create_from_model(event_id, participant,
+                                                                           membership=membership_model)
+        else:
+            participant_id = self.participant_repository.create_from_model(event_id, participant)
+        if old_wallet_id:
+            try:
+                self._get_memberships_service().pass2u_service.invalidate_membership_pass(old_wallet_id)
+            except Exception as exc:
+                self.logger.warning("Invalidazione wallet dopo rinnovo manuale fallita: %s", redact_sensitive(str(exc)))
         self.logger.info("Partecipante creato: %s", participant_id)
 
         return ParticipantActionResponseDTO(message="Participant created", id=participant_id)
@@ -269,42 +289,41 @@ class ParticipantsService:
         if not participant:
             raise NotFoundError("Participant not found")
 
-        manual_membership_override = "membership_id" in dto.model_fields_set
-        manual_membership_id = None
-        if manual_membership_override:
-            if dto.membership_id:
-                membership = self.membership_repository.get(dto.membership_id)
-                if not membership:
-                    raise NotFoundError("Membership not found")
-                manual_membership_id = dto.membership_id
-
+        changes = dto.changes()
+        if 'entered' in changes or 'entered_at' in changes:
+            if participant.membership_id:
+                raise ConflictError('Usare il controllo ingressi per i partecipanti collegati')
+            if changes.get('entered') is None:
+                raise ValidationError('Specificare entered per modificare l’ingresso')
+            changes['entered_at'] = firestore.SERVER_TIMESTAMP if changes['entered'] else None
+        identity_fields = {'name', 'surname', 'email', 'phone', 'birthdate',
+                           'membership_id', 'membership_included'}
+        if participant.membership_id and any(
+            field in changes and changes[field] != getattr(participant, field)
+            for field in identity_fields
+        ):
+            raise ConflictError('Partecipante collegato: modificare l’identità dalla scheda socio')
+        if 'purchase_id' in changes and changes['purchase_id'] != participant.purchase_id:
+            raise ConflictError('Il collegamento all’acquisto non è modificabile')
         if participant.purchase_id and dto.payment_method is not None:
             raise ValidationError("Cannot change payment_method for website purchase")
-
         if participant.purchase_id and dto.price is not None:
             raise ValidationError("Modifica del prezzo non permessa: purchase già registrato")
-
-        # Re-check membership when email changes
-        should_update_membership = False
-        new_membership_id = participant.membership_id  # default: keep existing
-        if not manual_membership_override and dto.email is not None:
-            new_email = dto.email
-            old_email = normalize_email(participant.email or "")
-            if new_email != old_email:
-                membership = self._find_membership(new_email, None)
-                should_update_membership = True
-                if membership:
-                    new_membership_id = membership.id
-                else:
-                    new_membership_id = None
-
-        updated_participant = apply_participant_update_dto_to_model(participant, dto)
-        if manual_membership_override:
-            updated_participant.membership_id = manual_membership_id
-            updated_participant.membership_included = bool(manual_membership_id)
-        elif should_update_membership:
-            updated_participant.membership_id = new_membership_id
-            updated_participant.membership_included = bool(new_membership_id)
+        if not participant.membership_id and dto.membership_id:
+            membership = self.membership_repository.get(dto.membership_id)
+            if not membership:
+                raise NotFoundError("Membership not found")
+            for field in ('name', 'surname', 'email', 'phone', 'birthdate'):
+                changes[field] = getattr(membership, field)
+            changes['membership_included'] = True
+        elif not participant.membership_id and dto.membership_included:
+            raise ConflictError('Selezionare esplicitamente un socio esistente')
+        from dataclasses import replace
+        if 'payment_method' in changes and changes['payment_method'] is not None:
+            changes['payment_method'] = PaymentMethod(changes['payment_method'])
+        updated_participant = replace(participant, **changes)
+        if hasattr(participant, '_version'):
+            updated_participant._version = participant._version
         self.participant_repository.update_from_model(event_id, participant_id, updated_participant)
 
         return ParticipantActionResponseDTO(message="Participant updated", id=participant_id)

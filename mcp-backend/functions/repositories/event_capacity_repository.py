@@ -3,11 +3,12 @@ from datetime import datetime, timedelta, timezone
 import datetime as datetime_types
 from uuid import uuid4
 
-from google.api_core.exceptions import Aborted, FailedPrecondition
+from google.api_core.exceptions import Aborted, AlreadyExists, FailedPrecondition
 from google.cloud import firestore
 
 from config.firebase_config import db
 from domain.registration_rules import assert_registration_available, checkout_keys
+from repositories.membership_integrity import identity, contact_fences, touch_contact_fences
 from errors.service_errors import ConflictError, NotFoundError, ValidationError
 from utils.events_utils import ensure_event_is_active
 
@@ -22,7 +23,7 @@ class EventCapacityRepository:
         for _ in range(8):
             try:
                 return operation()
-            except (Aborted, FailedPrecondition):
+            except (Aborted, AlreadyExists, FailedPrecondition):
                 continue
         raise ConflictError('Disponibilità modificata contemporaneamente: riprova')
 
@@ -51,8 +52,9 @@ class EventCapacityRepository:
                 .document(event_id).collection('participants_event').stream()]
 
     @staticmethod
-    def _commit(event, reservation_ref, data, *, create=False, previous=None, order=None, order_changes=None):
+    def _commit(event, reservation_ref, data, *, create=False, previous=None, order=None, order_changes=None, member_fences=()):
         batch = db.batch()
+        touch_contact_fences(batch, member_fences)
         batch.update(event.reference, {'capacityRevision': firestore.Increment(1)},
                      option=db.write_option(last_update_time=event.update_time))
         if create:
@@ -65,7 +67,7 @@ class EventCapacityRepository:
                          option=db.write_option(last_update_time=order.update_time))
         batch.commit()
 
-    def reserve(self, event_id: str, count: int, identity_keys) -> str:
+    def reserve(self, event_id: str, count: int, identity_keys, *, membership_lookup=None) -> str:
         if type(count) is not int or count <= 0:
             raise ConflictError('Numero posti non valido')
         token = uuid4().hex
@@ -74,6 +76,12 @@ class EventCapacityRepository:
             if not event.exists:
                 raise NotFoundError('Evento non trovato')
             maximum = self._validate_event(event.to_dict() or {})
+            member_fences = []
+            for expected in {member.id: member for member in (membership_lookup or {}).values()}.values():
+                member_fences.extend(contact_fences(expected.to_firestore()))
+                current = db.collection('memberships').document(expected.id).get()
+                if not current.exists or identity(current.to_dict() or {}) != identity(expected.to_firestore()):
+                    raise ConflictError('Socio modificato: nuovo checkout richiesto')
             people = self._participants(event_id)
             now = datetime.now(timezone.utc)
             holds = [(doc.id, doc.to_dict() or {}) for doc in self._reservations(event_id).stream()]
@@ -95,7 +103,7 @@ class EventCapacityRepository:
             self._commit(event, self._reservations(event_id).document(token), {
                 'count': count, 'state': 'reserved', 'createdAt': now, 'identityKeys': sorted(identity_keys),
                 'expiresAt': now + timedelta(minutes=10), 'orderId': None, 'purchaseId': None,
-            }, create=True)
+            }, create=True, member_fences=member_fences)
             return token
         return self._retry(change)
 

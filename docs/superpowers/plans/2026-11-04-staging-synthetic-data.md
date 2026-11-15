@@ -2093,3 +2093,59 @@ ordine tramite rilettura/verifica del participant deterministico già creato.
 Vecchie hold senza identità verificabile bloccate; nessuna migrazione cloud.
 Duplicati storici conservati per verifica separata,nessuna rimozione automatica.
 Eventi non associativi rinviati come concordato; nessuna seconda review.
+
+
+### Q-07 integrità soci e partecipanti — blocco approvato 15 novembre 2026
+
+Owner autorizza implementazione e verifica in chat. Base eae983d.
+Contratto: identità dei partecipanti collegati gestita dai soci; nessuna
+riassegnazione/scollegamento ordinaria. Partecipanti manuali senza socio
+ammessi e modificabili; collegamento esplicito definitivo. Creazione manuale
+con socio esistente, nuovo socio contestuale o senza tessera. Merge sul
+target scelto, blocco collisioni evento prima di scritture/provider,
+riallineamento partecipanti/scan/acquisti/storico, pruning source solo a
+consolidamento atomico. Conservare pagante/importi e provenienza storica.
+
+Passi: regressioni RED; transazioni e controlli backend; blocco form admin;
+regressioni GREEN, unitari e API emulati; unica review finale Sol high;
+correzioni, documentazione e commit locali. Nessun push/cloud/dato reale.
+Limite operativo: 400 scritture atomiche, oltre 409 senza effetti.
+Stato: implementato e verificato localmente; gate cloud invariati.
+
+
+Implementazione Q-07: il repository applica cascata identità con controllo
+versioni; creazione/rinnovo manuali includono socio e iscrizione nella stessa
+batch. Merge transazionale riallinea partecipanti, scan, acquisti e coupon
+vincolati al membership ID; membership_operations conserva sorgente,
+destinazione, dati originali e operatore autenticato. Pagante, importi,
+transazioni e timestamp scan non vengono riscritti. Prenotazioni verificano
+anche contatti canonici; fence tecnici separati evitano modifiche ai soci
+prima dell'incasso. Il form filtra i campi bloccati; il backend li protegge.
+
+Ruling: gli ingressi legacy con flag/timestamp ma senza scan bloccano il
+merge, anziché perdere o inventare evidenza. Collegamenti tardivi di righe
+già entrate richiedono verifica manuale. Costo: riconciliazione operatore.
+Ruling: source con UID diverso dal target e soci referenziati in delete
+vengono bloccati; nessun trasferimento/revoca account implicito. Costo:
+gestione amministrativa dei conflitti account, fuori dai gate cloud.
+Ruling: ordini e dati originali dei pagamenti rimangono evidenza storica;
+si aggiornano i riferimenti vivi, mantenendo la catena nel registro.
+Ruling: lookup scan legacy scorre la collection group perché il membership
+ID esiste solo nel path; nessuna migrazione automatica. Costo: letture
+proporzionali agli scan per operazioni amministrative di merge/delete.
+
+Review unica Sol high: sette rilievi accettati e corretti nel medesimo
+blocco con regressioni. Nessun nuovo workstream o provider futuro avviato.
+
+Checkpoint finale Q-07: 1399 unitari e 503 API emulati in115.45s PASS,
+JUnit0failure/error/skip,runnerexit0/shutdown pulito. I37 scenari Q-07
+includono creazione/rinnovo contestuali, blocchi identità, nullable,
+collisioni e rollback, scan legacy, audit operatore, UID, limite400,
+concorrenza contatti/coupon/prenotazioni e contatti canonici pre-provider.
+87strumenti e50frontend PASS; build fixture Node20 PASS; contratti126
+riferimenti/130export/0errori; lint0errori/53warning esistenti.
+La revisione ha avuto un solo giro Sol high con sette rilievi accettati,
+regressioni e correzioni raggruppate. Nessuna migrazione/bonifica, cloud,
+push, merge, deploy o provider reale. Log privati .local/staging/q07-*.
+
+Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.

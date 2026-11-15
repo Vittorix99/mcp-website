@@ -73,6 +73,7 @@ class _DummyParticipantRepo:
         self.updated = []
         self.membership_updates = []
         self.deleted = []
+        self.atomic_memberships = []
         self._participant = None
         self.list_items = []
 
@@ -85,7 +86,9 @@ class _DummyParticipantRepo:
     def assert_can_register(self, *args, **kwargs):
         pass
 
-    def create_from_model(self, event_id, participant):
+    def create_from_model(self, event_id, participant, *, membership=None):
+        if membership is not None:
+            self.atomic_memberships.append(membership)
         self.created.append((event_id, participant))
         return "part-1"
 
@@ -226,7 +229,8 @@ def test_create_upgrades_existing_inactive_membership():
     result = service.create(_create_dto(membership_included=True))
 
     assert result.id == "part-1"
-    assert service.membership_repository.updated
+    assert not service.membership_repository.updated
+    assert service.participant_repository.atomic_memberships[0].subscription_valid is True
     assert service.participant_repository.created
 
 
@@ -237,7 +241,8 @@ def test_create_creates_membership_when_missing():
     result = service.create(_create_dto(membership_included=True))
 
     assert result.id == "part-1"
-    assert service.membership_repository.created
+    assert not service.membership_repository.created
+    assert service.participant_repository.atomic_memberships[0].email == 'mario@example.com'
 
 
 def test_create_links_explicit_membership_without_renewal():
@@ -339,15 +344,12 @@ def test_update_allows_manual_membership_assignment():
     assert service.participant_repository.updated[-1][2].membership_id == "mem-42"
 
 
-def test_update_allows_manual_membership_clear():
+def test_update_rejects_manual_membership_clear():
     service = _make_service()
     service.participant_repository._participant = _participant_model(membership_id="mem-old")
-
-    result = service.update("evt-1", "part-1", _update_dto(membership_id=None))
-
-    assert result.message
-    assert service.participant_repository.updated
-    assert service.participant_repository.updated[-1][2].membership_id is None
+    with pytest.raises(ConflictError):
+        service.update("evt-1", "part-1", _update_dto(membership_id=None))
+    assert not service.participant_repository.updated
 
 
 def test_update_rejects_unknown_manual_membership():

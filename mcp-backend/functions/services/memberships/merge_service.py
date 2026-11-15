@@ -1,7 +1,6 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from domain.membership_rules import dedupe_renewals_by_year, membership_years_from_renewals
 from errors.service_errors import NotFoundError, ValidationError
 from interfaces.repositories import MembershipRepositoryProtocol, ParticipantRepositoryProtocol
 from interfaces.services import Pass2UServiceProtocol
@@ -33,20 +32,6 @@ class MergeService:
     def pass2u_service(self, service):
         self._pass2u_service = service
 
-    @staticmethod
-    def _unique_sorted(values: List[Optional[str]]) -> List[str]:
-        return sorted({value for value in values if value})
-
-    @staticmethod
-    def _coerce_years(values: List[object]) -> List[int]:
-        years: List[int] = []
-        for value in values or []:
-            try:
-                years.append(int(value))
-            except (TypeError, ValueError):
-                continue
-        return years
-
     def merge(self, source_id: str, target_id: str) -> Dict[str, object]:
         source_id = (source_id or "").strip()
         target_id = (target_id or "").strip()
@@ -63,88 +48,15 @@ class MergeService:
         if not target:
             raise NotFoundError("Membership destinazione non trovata")
 
-        # Marca source come in fase di merge immediatamente.
-        # Se un acquisto concorrente tenta di rinnovare source durante il merge,
-        # il secondo sweep (step 9b) riparerà i riferimenti prima della delete.
-        self.membership_repository.set_merging(source_id, True)
-
-        try:
-            merged_purchases = self._unique_sorted([
-                *(source.purchases or []),
-                *(target.purchases or []),
-                source.purchase_id,
-                target.purchase_id,
-            ])
-            merged_events = self._unique_sorted([
-                *(source.attended_events or []),
-                *(target.attended_events or []),
-            ])
-
-            merged_renewals = dedupe_renewals_by_year([
-                *(target.renewals or []),
-                *(source.renewals or []),
-            ])
-            merged_years = membership_years_from_renewals(
-                merged_renewals,
-                fallback_start_date=target.start_date or source.start_date,
-                fallback_end_date=target.end_date or source.end_date,
-            )
-            merged_years = sorted({
-                *merged_years,
-                *self._coerce_years(source.membership_years or []),
-                *self._coerce_years(target.membership_years or []),
-            })
-
-            # 6. Invalida wallet del source (non bloccante)
-            if source.wallet_pass_id:
-                try:
-                    self.pass2u_service.invalidate_membership_pass(source.wallet_pass_id)
-                except Exception as exc:
-                    self.logger.warning("Invalidazione source wallet fallita (non bloccante): %s", redact_sensitive(str(exc)))
-
-            # 7. Sposta riferimenti participant source -> target (primo sweep)
-            participants_updated = self.participant_repository.update_membership_reference(source_id, target_id)
-
-            # 8. Aggiorna target con i dati unificati (mantiene contatti del target)
-            target.name = target.name or source.name
-            target.surname = target.surname or source.surname
-            target.email = target.email or source.email
-            target.phone = target.phone or source.phone
-            target.birthdate = target.birthdate or source.birthdate
-            target.start_date = target.start_date or source.start_date
-            target.end_date = target.end_date or source.end_date
-            target.subscription_valid = bool(target.subscription_valid or source.subscription_valid)
-            target.membership_sent = bool(target.membership_sent or source.membership_sent)
-            target.membership_type = target.membership_type or source.membership_type
-            target.purchase_id = target.purchase_id or source.purchase_id
-            target.membership_fee = target.membership_fee if target.membership_fee is not None else source.membership_fee
-            target.purchases = merged_purchases
-            target.attended_events = merged_events
-            target.renewals = merged_renewals
-            target.membership_years = merged_years
-            self.membership_repository.update_from_model(target_id, target)
-            self.membership_repository.clear_wallet(target_id)
-
-            # 9b. Secondo sweep: cattura partecipanti creati su source_id durante
-            # la finestra di merge (tra step 7 e adesso).
-            late_refs = self.participant_repository.update_membership_reference(source_id, target_id)
-            if late_refs:
-                self.logger.info(
-                    "Merge second sweep: %d riferimento/i tardivo/i rerouted source=%s → target=%s",
-                    late_refs, source_id, target_id,
-                )
-                participants_updated += late_refs
-
-            # 9. Elimina source
-            self.membership_repository.delete(source_id)
-
-        except Exception:
-            # Se il merge fallisce, rimuovi il flag merging per lasciare source utilizzabile.
+        result = self.membership_repository.merge_atomic(source_id, target_id)
+        participants_updated = result['participants_updated']
+        merged_years = result['membership_years']
+        # Provider effects follow the atomic database commit, never a rejected merge.
+        for pass_id in set(result['old_wallet_ids']):
             try:
-                self.membership_repository.set_merging(source_id, None)
-            except Exception as cleanup_exc:
-                self.logger.warning("Impossibile rimuovere il flag merging da source %s: %s", source_id, redact_sensitive(str(cleanup_exc)))
-            raise
+                self.pass2u_service.invalidate_membership_pass(pass_id)
+            except Exception as exc:
+                self.logger.warning("Invalidazione wallet fallita (non bloccante): %s", redact_sensitive(str(exc)))
 
         # 10. Crea nuovo wallet per target (non bloccante)
         wallet_pass_id = None

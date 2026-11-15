@@ -14,6 +14,14 @@ class _DummyMembershipRepo:
         self.updated_calls = []
         self.merging_calls = []
 
+    def merge_atomic(self, source_id, target_id):
+        from domain.membership_rules import combine_membership_models
+        source, target = self.models[source_id], self.models[target_id]
+        self.models[target_id] = combine_membership_models(source, target)
+        self.delete(source_id)
+        return {'participants_updated': 3, 'membership_years': self.models[target_id].membership_years,
+                'old_wallet_ids': [source.wallet_pass_id, target.wallet_pass_id]}
+
     def set_merging(self, membership_id, value):
         self.merging_calls.append((membership_id, value))
 
@@ -130,9 +138,9 @@ def test_merge_combines_memberships_and_relinks_participants(monkeypatch):
     result = service.merge("source-1", "target-1")
 
     assert result["participants_updated"] == 3
-    assert participant_repo.calls == [("source-1", "target-1"), ("source-1", "target-1")]
-    assert membership_repo.merging_calls == [("source-1", True)]
-    assert invalidated == ["old-pass"]
+    assert participant_repo.calls == []
+    assert membership_repo.merging_calls == []
+    assert set(invalidated) == {"old-pass", "target-old-pass"}
     assert created == [("target-1", "target@example.com")]
     assert "source-1" in membership_repo.deleted
 

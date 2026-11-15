@@ -48,6 +48,13 @@ class _DummyMembershipRepo:
         self.updated.append((membership_id, membership))
         return True
 
+    def delete_unreferenced(self, membership_id):
+        membership = self.models.get(membership_id)
+        if membership is None:
+            raise NotFoundError('Membership non trovata')
+        self.delete(membership_id)
+        return membership
+
     def delete(self, membership_id):
         self.deleted.append(membership_id)
         self.models.pop(membership_id, None)

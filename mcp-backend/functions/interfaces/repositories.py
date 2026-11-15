@@ -87,6 +87,12 @@ class MembershipRepositoryProtocol(Protocol):
                         newsletter_consent: Optional[bool] = None) -> Membership:
         ...
 
+    def delete_unreferenced(self, membership_id: str) -> Membership:
+        ...
+
+    def merge_atomic(self, source_id: str, target_id: str) -> Dict[str, Any]:
+        ...
+
     def get(self, membership_id: str) -> Optional[Membership]:
         ...
 
@@ -188,7 +194,7 @@ class ParticipantRepositoryProtocol(Protocol):
     def get(self, event_id: str, participant_id: str) -> Optional[EventParticipant]:
         ...
 
-    def create_from_model(self, event_id: str, participant: EventParticipant) -> str:
+    def create_from_model(self, event_id: str, participant: EventParticipant, *, membership: Optional[Membership] = None) -> str:
         ...
 
     def update_from_model(self, event_id: str, participant_id: str, participant: EventParticipant) -> bool:

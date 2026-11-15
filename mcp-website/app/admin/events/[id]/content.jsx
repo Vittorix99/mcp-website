@@ -798,7 +798,12 @@ export default function EventContent({ id: eventId }) {
     try {
       if (isEditMode) {
         const diff = {}
+        const linkedInOriginal = !!(initialForm?.membership_id ?? initialForm?.membershipId)
+        const lockedFields = linkedInOriginal
+          ? new Set(["name", "surname", "email", "phone", "birthdate", "membership_id", "membershipId", "membership_included"])
+          : null
         Object.keys(participantForm).forEach((k) => {
+          if (lockedFields?.has(k)) return
           if (participantForm[k] !== initialForm[k]) diff[k] = participantForm[k]
         })
         if (Object.keys(diff).length) {
@@ -1758,6 +1763,7 @@ export default function EventContent({ id: eventId }) {
           membershipOptions={currentYearMemberships}
           currentMembershipYear={currentMembershipYear}
           membershipLoading={membershipsLoading}
+          identityLocked={isEditMode && !!(initialForm?.membership_id ?? initialForm?.membershipId)}
           onSubmit={handleParticipantSubmit}
           onInput={(e) =>
             setParticipantForm((f) => ({

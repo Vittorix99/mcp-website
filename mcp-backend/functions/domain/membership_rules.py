@@ -177,3 +177,30 @@ def is_membership_renewable(membership: Membership, now: Optional[datetime] = No
     if membership_year is None:
         return False
     return membership_year < current_year
+
+
+def combine_membership_models(source: Membership, target: Membership) -> Membership:
+    """Compose a survivor; storage keeps the original source in the operation log."""
+    from copy import deepcopy
+    merged = deepcopy(target)
+    for field in ('name', 'surname', 'email', 'phone', 'birthdate', 'start_date', 'end_date',
+                  'membership_type', 'purchase_id'):
+        setattr(merged, field, getattr(target, field) or getattr(source, field))
+    merged.subscription_valid = bool(target.subscription_valid or source.subscription_valid)
+    merged.membership_sent = bool(target.membership_sent or source.membership_sent)
+    merged.membership_fee = target.membership_fee if target.membership_fee is not None else source.membership_fee
+    merged.purchases = sorted({value for value in [*(source.purchases or []), *(target.purchases or []),
+                              source.purchase_id, target.purchase_id] if value})
+    merged.attended_events = sorted(set((source.attended_events or []) + (target.attended_events or [])))
+    merged.renewals = dedupe_renewals_by_year([*(target.renewals or []), *(source.renewals or [])])
+    years = membership_years_from_renewals(merged.renewals, fallback_start_date=merged.start_date,
+                                          fallback_end_date=merged.end_date)
+    for value in [*(source.membership_years or []), *(target.membership_years or [])]:
+        try:
+            years.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    merged.membership_years = sorted(set(years))
+    merged.wallet_pass_id = None
+    merged.wallet_url = None
+    return merged

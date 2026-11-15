@@ -45,9 +45,13 @@ class EntranceScanRepository:
                               .limit(1).stream(transaction=transaction))
             if not event.exists or not registered:
                 raise NotFoundError("Partecipante o evento non più presente")
+            member = db.collection('memberships').document(membership_id).get(transaction=transaction)
+            if not member.exists:
+                raise NotFoundError('Socio non più presente')
             existing = ref.get(transaction=transaction)
             if existing.exists:
                 return self._model_from_snapshot(existing)
+            transaction.update(member.reference, {'integrityRevision': firestore.Increment(1)})
             transaction.create(ref, model.to_firestore())
             return None
 
@@ -65,7 +69,15 @@ class EntranceScanRepository:
         ))
 
     def delete(self, event_id: str, membership_id: str) -> None:
-        self._collection(event_id).document(membership_id).delete()
+        @firestore.transactional
+        def delete(transaction):
+            member = db.collection('memberships').document(membership_id).get(transaction=transaction)
+            if not member.exists:
+                raise NotFoundError('Socio non più presente')
+            transaction.update(member.reference, {'integrityRevision': firestore.Increment(1)})
+            transaction.delete(self._collection(event_id).document(membership_id))
+
+        delete(db.transaction())
 
     def count(self, event_id: str) -> int:
         return sum(1 for _ in self._collection(event_id).stream())

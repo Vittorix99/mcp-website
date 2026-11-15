@@ -6,7 +6,12 @@ from google.api_core.exceptions import Aborted, FailedPrecondition
 from errors.service_errors import ConflictError, NotFoundError, ValidationError
 from google.cloud.firestore_v1 import FieldFilter
 
+from config.firebase_config import db
 from models import Membership
+from domain.membership_rules import combine_membership_models
+from repositories.membership_integrity import (identity, registrations, validate_registration,
+    check_write_limit, operation_record, contact_fences, assert_member_contacts_available, touch_contact_fences,
+    assert_no_active_holds, prepare_identity_cascade)
 from repositories.base import BaseRepository
 from utils.slug_utils import build_slug
 
@@ -14,6 +19,11 @@ from utils.slug_utils import build_slug
 class MembershipRepository(BaseRepository[Membership]):
     def __init__(self):
         super().__init__("memberships", Membership)
+
+    def _model_from_snapshot(self, snapshot):
+        model = super()._model_from_snapshot(snapshot)
+        model._version = snapshot.update_time
+        return model
 
     def get(self, membership_id: str) -> Optional[Membership]:
         if not membership_id:
@@ -67,7 +77,16 @@ class MembershipRepository(BaseRepository[Membership]):
     def create_from_model(self, membership: Membership) -> str:
         ref = self.collection.document()
         membership.slug = build_slug(membership.name, membership.surname, suffix=ref.id[-6:])
-        ref.set(membership.to_firestore(include_none=True))
+        data = membership.to_firestore(include_none=True)
+
+        @firestore.transactional
+        def create(transaction):
+            fences = contact_fences(data, transaction)
+            assert_member_contacts_available(data, transaction=transaction)
+            touch_contact_fences(transaction, fences)
+            transaction.create(ref, data)
+
+        create(db.transaction())
         return ref.id
 
     def append_purchase(self, membership_id: str, purchase_id: str) -> bool:
@@ -106,9 +125,158 @@ class MembershipRepository(BaseRepository[Membership]):
         return [self._model_from_snapshot(doc) for doc in docs]
 
     def update_from_model(self, membership_id: str, payload: Membership) -> bool:
-        # Il repository non contiene regole di rinnovo: persiste il model già deciso dal service.
-        self.collection.document(membership_id).set(payload.to_firestore(include_none=True), merge=True)
+        ref = self.collection.document(membership_id)
+        audit_ref = db.collection('membership_operations').document()
+
+        @firestore.transactional
+        def update(transaction):
+            current = ref.get(transaction=transaction)
+            if not current.exists:
+                raise ConflictError('Socio non più presente: ricaricare i dati')
+            if getattr(payload, '_version', current.update_time) != current.update_time:
+                raise ConflictError('Socio modificato contemporaneamente: ricaricare i dati')
+            before = current.to_dict() or {}
+            data = payload.to_firestore(include_none=True)
+            changed = identity(before) != identity(data)
+            fences = contact_fences({**before}, transaction) + contact_fences(data, transaction) if changed else []
+            if changed:
+                assert_member_contacts_available(data, [membership_id], transaction)
+            linked, events = prepare_identity_cascade(membership_id, before, data, transaction)
+            check_write_limit(1 + len(linked) + len(events) + len({row.reference.path for row in fences}) + int(changed))
+            touch_contact_fences(transaction, fences)
+            transaction.update(ref, data)
+            for row in linked:
+                transaction.update(row.reference, identity(data))
+            for event_id in events:
+                transaction.update(db.collection('events').document(event_id),
+                                   {'capacityRevision': firestore.Increment(1)})
+            if changed:
+                transaction.create(audit_ref, operation_record('member_identity_updated',
+                    source_id=membership_id, target_id=membership_id,
+                    before=identity(before), after=identity(data)))
+            return len({row.reference.path for row in fences})
+
+        transaction = db.transaction()
+        member_write_index = update(transaction)
+        payload._version = transaction.write_results[member_write_index].update_time
         return True
+
+    def merge_atomic(self, source_id: str, target_id: str):
+        source_ref, target_ref = [self.collection.document(value) for value in (source_id, target_id)]
+        audit_ref = db.collection('membership_operations').document()
+
+        @firestore.transactional
+        def merge(transaction):
+            source_snap = source_ref.get(transaction=transaction)
+            target_snap = target_ref.get(transaction=transaction)
+            if not source_snap.exists or not target_snap.exists:
+                raise NotFoundError('Membership sorgente o destinazione non trovata')
+            source = self._model_from_snapshot(source_snap)
+            target = self._model_from_snapshot(target_snap)
+            # A merge must not silently transfer a Firebase account binding.
+            if source.uid and source.uid != target.uid:
+                raise ConflictError('Account associato alla sorgente: verifica manuale richiesta')
+            merged = combine_membership_models(source, target)
+            linked = registrations([source_id, target_id], transaction)
+            by_event = {}
+            for row in linked:
+                event_id = row.reference.parent.parent.id
+                if event_id in by_event:
+                    raise ConflictError(f'Merge non consentito: due iscrizioni nello stesso evento ({event_id})')
+                by_event[event_id] = row
+            # Legacy scan documents use the member ID only in the path.
+            scans = [row for row in db.collection_group('scans').stream(transaction=transaction)
+                     if row.id in (source_id, target_id)]
+            scan_events = {}
+            for scan in scans:
+                event_id = scan.reference.parent.parent.id
+                if event_id in scan_events:
+                    raise ConflictError(f'Merge non consentito: due ingressi nello stesso evento ({event_id})')
+                scan_events[event_id] = scan
+            purchases = list(db.collection('purchases').where(filter=FieldFilter(
+                'membership_ids', 'array_contains_any', [source_id, target_id])).stream(transaction=transaction))
+            discounts = list(db.collection('discount_codes').where(filter=FieldFilter(
+                'restrictedMembershipId', '==', source_id)).stream(transaction=transaction))
+            assert_no_active_holds([{**source_snap.to_dict(), 'membershipId': source_id},
+                                    {**target_snap.to_dict(), 'membershipId': target_id}], transaction)
+            for event_id, row in by_event.items():
+                data = row.to_dict() or {}
+                if (data.get('entered') or data.get('entered_at')) and event_id not in scan_events:
+                    raise ConflictError(f'Ingresso storico senza scan: verifica manuale richiesta ({event_id})')
+            for event_id, row in by_event.items():
+                proposed = {**(row.to_dict() or {}), **identity(merged.to_firestore()), 'membershipId': target_id}
+                validate_registration(event_id, proposed, row.id, transaction)
+            moves = [scan for scan in scans if scan.id == source_id]
+            fences = contact_fences(source_snap.to_dict() or {}, transaction) + contact_fences(
+                target_snap.to_dict() or {}, transaction)
+            check_write_limit(3 + len(linked) + len(by_event) + len(purchases) + len(discounts)
+                              + len({row.reference.path for row in fences}) + 2 * len(moves))
+            merged.attended_events = sorted(set(merged.attended_events) | set(by_event) | set(scan_events))
+            merged.purchases = sorted(set(merged.purchases) | {row.id for row in purchases})
+            touch_contact_fences(transaction, fences)
+            for discount in discounts:
+                transaction.update(discount.reference, {'restrictedMembershipId': target_id})
+            for row in linked:
+                event_id = row.reference.parent.parent.id
+                scan = scan_events.get(event_id)
+                transaction.update(row.reference, {**identity(merged.to_firestore()), 'membershipId': target_id,
+                    'membership_included': True, 'entered': scan is not None,
+                    'entered_at': (scan.to_dict() or {}).get('scanned_at') if scan else None})
+            for scan in moves:
+                dest = scan.reference.parent.document(target_id)
+                transaction.create(dest, scan.to_dict())
+                transaction.delete(scan.reference)
+            for purchase in purchases:
+                ids = (purchase.to_dict() or {}).get('membership_ids') or []
+                transaction.update(purchase.reference, {'membership_ids': sorted(
+                    {target_id if value == source_id else value for value in ids})})
+            for event_id in by_event:
+                transaction.update(db.collection('events').document(event_id),
+                                   {'capacityRevision': firestore.Increment(1)})
+            transaction.update(target_ref, merged.to_firestore(include_none=True))
+            transaction.delete(source_ref)
+            transaction.create(audit_ref, operation_record('members_merged', source_id=source_id,
+                target_id=target_id, source_snapshot=source_snap.to_dict(),
+                target_snapshot=target_snap.to_dict(), events=sorted(set(by_event) | set(scan_events))))
+            return {'participants_updated': sum((row.to_dict() or {}).get('membershipId') == source_id
+                    for row in linked), 'membership_years': merged.membership_years,
+                    'old_wallet_ids': [value for value in (source.wallet_pass_id, target.wallet_pass_id) if value]}
+
+        return merge(db.transaction())
+
+    def delete_unreferenced(self, membership_id: str) -> Membership:
+        ref = self.collection.document(membership_id)
+        audit_ref = db.collection('membership_operations').document()
+
+        @firestore.transactional
+        def delete(transaction):
+            snapshot = ref.get(transaction=transaction)
+            if not snapshot.exists:
+                raise NotFoundError('Membership non trovata')
+            data = snapshot.to_dict() or {}
+            if data.get('uid') or data.get('purchases') or data.get('purchase_id') or data.get('attended_events'):
+                raise ConflictError('Socio con account o storico: eliminazione non consentita')
+            if registrations([membership_id], transaction):
+                raise ConflictError('Socio collegato a partecipanti: eliminazione non consentita')
+            purchases = list(db.collection('purchases').where(filter=FieldFilter(
+                'membership_ids', 'array_contains', membership_id)).limit(1).stream(transaction=transaction))
+            discounts = list(db.collection('discount_codes').where(filter=FieldFilter(
+                'restrictedMembershipId', '==', membership_id)).limit(1).stream(transaction=transaction))
+            scans = any(row.id == membership_id for row in db.collection_group('scans').stream(transaction=transaction))
+            if purchases or discounts or scans:
+                raise ConflictError('Socio con riferimenti o ingressi: eliminazione non consentita')
+            assert_no_active_holds([{**data, 'membershipId': membership_id}], transaction)
+            fences = contact_fences(data, transaction)
+            touch_contact_fences(transaction, fences)
+            transaction.delete(ref)
+            transaction.create(audit_ref, operation_record('member_deleted', source_id=membership_id,
+                target_id=None, source_snapshot=data))
+            return self._model_from_snapshot(snapshot)
+
+        return delete(db.transaction())
+
+    def delete(self, membership_id: str) -> None:
+        self.delete_unreferenced(membership_id)
 
     def list_by_purchase_ids(self, purchase_ids: List[str]) -> Iterable[Membership]:
         if not purchase_ids:

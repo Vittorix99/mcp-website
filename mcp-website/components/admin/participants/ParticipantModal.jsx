@@ -27,6 +27,7 @@ export function ParticipantModal({
   membershipOptions = [],
   currentMembershipYear = new Date().getFullYear().toString(),
   membershipLoading = false,
+  identityLocked = false,
   onSubmit,
   onInput,
   onCheckbox,
@@ -154,17 +155,17 @@ export function ParticipantModal({
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="name">Nome</Label>
-          <Input id="name" name="name" value={form.name || ""} onChange={onInput} required />
+          <Input id="name" name="name" value={form.name || ""} onChange={onInput} required disabled={identityLocked} />
         </div>
         <div>
           <Label htmlFor="surname">Cognome</Label>
-          <Input id="surname" name="surname" value={form.surname || ""} onChange={onInput} required />
+          <Input id="surname" name="surname" value={form.surname || ""} onChange={onInput} required disabled={identityLocked} />
         </div>
       </div>
 
       <div>
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" value={form.email || ""} onChange={onInput} required />
+        <Input id="email" name="email" type="email" value={form.email || ""} onChange={onInput} required={identityLocked} disabled={identityLocked} />
         {emailTypo && (
           <p className="mt-1 text-xs text-amber-400">
             Hai scritto '{emailTypo.typedDomain}'. Intendevi '{emailTypo.suggestedDomain}'?
@@ -175,7 +176,7 @@ export function ParticipantModal({
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="phone">Telefono</Label>
-          <Input id="phone" name="phone" value={form.phone || ""} onChange={onInput} />
+          <Input id="phone" name="phone" value={form.phone || ""} onChange={onInput} disabled={identityLocked} />
         </div>
         <div>
           <Label htmlFor="birthdate">Data di nascita</Label>
@@ -185,6 +186,7 @@ export function ParticipantModal({
             placeholder="DD-MM-YYYY"
             value={form.birthdate || ""}
             onChange={(e) => handleBirthdateChange(e.target.value)}
+            disabled={identityLocked}
           />
         </div>
       </div>
@@ -245,6 +247,20 @@ export function ParticipantModal({
 
       {isEditMode && (
         <div className="space-y-2 rounded-lg border border-zinc-700 p-3 bg-zinc-900/40">
+          {identityLocked ? (
+            <>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Associazione membership ({currentMembershipYear})</Label>
+                <span className="text-xs text-green-400">
+                  {selectedMembership ? `${selectedMembership.name} ${selectedMembership.surname}`.trim() : selectedMembershipId}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400">
+                Per correggere i dati anagrafici, modifica la scheda socio. Il collegamento non è modificabile.
+              </p>
+            </>
+          ) : (
+          <>
           <div className="flex items-center justify-between">
             <Label className="text-sm">Associazione membership ({currentMembershipYear})</Label>
             {isMember && (
@@ -281,6 +297,8 @@ export function ParticipantModal({
             >
               Rimuovi associazione membership
             </Button>
+          )}
+          </>
           )}
         </div>
       )}

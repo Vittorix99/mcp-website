@@ -149,25 +149,10 @@ class MembershipsService:
                 continue
         return renewals, sorted(set(years))
 
-    def renew_existing(
-        self,
-        existing: Membership,
-        command: RenewMembershipCommand,
-    ) -> Membership:
-        """Entry point unico per rinnovare una membership già esistente."""
-        membership_id = command.membership_id or existing.id
-        if not membership_id:
-            raise ValidationError("Membership id mancante")
-
-        self.logger.info(f"[renew] Renewing membership {membership_id} (start_date: {existing.start_date})")
-
-        # Il vecchio wallet non deve rappresentare una tessera rinnovata.
-        if command.invalidate_wallet and existing.wallet_pass_id:
-            try:
-                self.pass2u_service.invalidate_membership_pass(existing.wallet_pass_id)
-            except Exception as e:
-                self.logger.warning(f"[renew] Old pass invalidation failed (non-blocking): {e}")
-
+    def prepare_renewal(self, existing: Membership, command: RenewMembershipCommand) -> Membership:
+        """Compose the renewal before the caller commits it with its related writes."""
+        from copy import deepcopy
+        existing = deepcopy(existing)
         renewals, membership_years = self._compose_renewals_and_years(
             existing,
             new_start_date=command.start_date,
@@ -204,7 +189,29 @@ class MembershipsService:
         if command.birthdate and not existing.birthdate:
             existing.birthdate = command.birthdate
 
+        return existing
+
+    def renew_existing(
+        self,
+        existing: Membership,
+        command: RenewMembershipCommand,
+    ) -> Membership:
+        """Entry point unico per rinnovare una membership già esistente."""
+        membership_id = command.membership_id or existing.id
+        if not membership_id:
+            raise ValidationError("Membership id mancante")
+
+        self.logger.info(f"[renew] Renewing membership {membership_id} (start_date: {existing.start_date})")
+
+        old_wallet_id = existing.wallet_pass_id
+        existing = self.prepare_renewal(existing, command)
         self.membership_repository.update_from_model(membership_id, existing)
+        # Provider effects must not precede a rejected database update.
+        if command.invalidate_wallet and old_wallet_id:
+            try:
+                self.pass2u_service.invalidate_membership_pass(old_wallet_id)
+            except Exception as e:
+                self.logger.warning(f"[renew] Old pass invalidation failed (non-blocking): {e}")
 
         if command.create_wallet:
             try:
@@ -418,9 +425,7 @@ class MembershipsService:
         )
 
     def delete(self, membership_id) -> MembershipActionResponseDTO:
-        membership = self.membership_repository.get(membership_id)
-        if not membership:
-            raise NotFoundError("Membership non trovata")
+        membership = self.membership_repository.delete_unreferenced(membership_id)
 
         # Invalida il wallet pass se presente
         if membership.wallet_pass_id:
@@ -437,11 +442,6 @@ class MembershipsService:
                 blob.delete()
                 self.logger.info("[delete] Tessera rimossa dallo storage: %s", storage_path)
 
-        removed = self.participant_repository.clear_membership_reference(membership_id)
-        if removed:
-            self.logger.info("[delete] Rimosso membershipId da %d partecipanti", removed)
-
-        self.membership_repository.delete(membership_id)
         return MembershipActionResponseDTO(message="Membership eliminata e tessera rimossa", id=membership_id)
 
     def send_card(self, membership_id) -> MembershipActionResponseDTO:

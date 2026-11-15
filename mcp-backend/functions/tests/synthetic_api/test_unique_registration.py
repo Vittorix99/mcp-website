@@ -64,10 +64,11 @@ def test_membership_reassignment_rejects_duplicate_without_partial_edit(registra
         'participant_id': second, 'membership_id': sample.people[0].id, 'surname': 'Changed'})
     assert result.status_code == 409, result.get_json()
     assert database_state() == before
-    # Editing the same registration must not conflict with itself.
+    # Linked identity edits now require the member page, even without a duplicate.
     result = registration_http.put('/participants', json={'event_id': sample.event.id,
         'participant_id': first, 'surname': 'Updated'})
-    assert result.status_code == 200, result.get_json()
+    assert result.status_code == 409, result.get_json()
+    assert database_state() == before
 
 
 def test_pending_checkout_reserves_identity_as_well_as_seats(http, sample, gateway):

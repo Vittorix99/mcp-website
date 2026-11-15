@@ -152,8 +152,8 @@ class EventPaymentService:
             raise NotFoundError("Evento non trovato")
         return event_model
 
-    def _registration_keys(self, participants, membership_lookup=None):
-        # A known identity stays reserved even when its membership needs renewal.
+    def _registration_memberships(self, participants, membership_lookup=None):
+        # Include expired memberships so renewal checkouts share the same identity fence.
         identities = {}
         for person in participants:
             email = normalize_email(person.email)
@@ -161,7 +161,12 @@ class EventPaymentService:
             if member is None:
                 member = self.membership_repository.find_by_email(email)
             if member is not None:
-                identities[email] = {"id": member.id}
+                identities[email] = member
+        return identities
+
+    def _registration_keys(self, participants, membership_lookup=None):
+        identities = {email: {**member.to_firestore(), 'id': member.id} for email, member in
+                      self._registration_memberships(participants, membership_lookup).items()}
         return checkout_keys([person.model_dump() for person in participants], identities)
 
     def _membership_lookup_to_models(self, lookup: Dict[str, Any]) -> Dict[str, Membership]:
@@ -279,8 +284,10 @@ class EventPaymentService:
                 )
             ],
         )
+        registration_memberships = self._registration_memberships(normalized_participants, membership_lookup)
         capacity_token = self.capacity_repository.reserve(event_id, len(normalized_participants),
-            self._registration_keys(normalized_participants, membership_lookup))
+            self._registration_keys(normalized_participants, registration_memberships),
+            membership_lookup=registration_memberships)
         try:
             try:
                 order = self._get_paypal_gateway().create_order(order_request)
