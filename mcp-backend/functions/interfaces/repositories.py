@@ -200,6 +200,10 @@ class ParticipantRepositoryProtocol(Protocol):
     def count(self, event_id: str) -> int:
         ...
 
+    def assert_can_register(self, event_id: str, email: str, phone: str, membership_id: Optional[str] = None,
+                            participant_id: Optional[str] = None) -> None:
+        ...
+
     def any_with_contacts(self, event_id: str, emails: List[str], phones: List[str]) -> bool:
         ...
 

@@ -274,3 +274,35 @@ restano aperti, fuori dalle scelte delete di questa ripresa. Q-05 e gate cloud
 restano aperti. PR#11 draft, nessun push/merge/deploy o dato reale modificato.
 CI remota, provider reali e browser non verificati. Preservati i tre diff owner
 in AGENTS.md, MODEL_USAGE_LOG.md e NEXT_SESSION.md; nell'indice solo append agente.
+
+
+## Q-08 nominativa: decisione superata e nuova regola — 15 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `core-age-data-integrity`, base7a5fd0d.
+Owner revoca la precedente scelta delle iscrizioni multiple: per gli eventi
+associativi una sola iscrizione per socio/evento. Rimosso Consenti duplicati
+da UI, DTO, modello, mapper e generatore; il vecchio flag nei documenti
+non può aggirare il controllo. Le richieste API con il campo rimosso sono
+rifiutate. Nessuna bonifica dei duplicati storici: scanner/undo conservano
+la difesa precedente dell'ingresso unico.
+
+Vincolo su socio e contatti anche per admin, modifica/assegnazione tessera
+e riallineamento riferimenti. Hold capienza con hash identità e fence evento
+impediscono checkout/admin concorrenti duplicati prima delle chiamate
+provider. Identità dei soci scaduti inclusa senza cambiare criteri rinnovo.
+Capture ricontrolla identità correnti; hold vecchie non verificabili richiedono
+nuovo checkout o gestione manuale. Recovery dello stesso ordine idempotente;
+merge con collisioni note rifiutato prima di cambiare altri riferimenti.
+Q-07 riallineamento generale scan/purchase e storico soci resta aperto.
+
+Finali1399unitari,466API in109.36s,87strumenti,50frontend PASS. JUnit0
+failure/error/skip,runnerexit0/shutdown pulito;lint0errori/53warning esistenti,
+scanner0,Firebase valido,130export,diff puliti. Review unica Sol high:1P1
+corretto con2RED poi19GREEN e suite ripetute; nessuna seconda review.
+Log locali q08-unique-*.0Luna/1Sol high; costi non disponibili.
+
+Futuro concordato:eventi non associativi senza tessera e integrazioni
+Eventbrite/Xceed dopo ristrutturazione backend e frontend. Nessuna modalità
+o integrazione futura implementata adesso. Nessun push,merge,deploy,dato
+reale o gate cloud eseguito. PR#11 draft; tre diff owner preservati.
+Browser,CI remota e provider reali non verificati.

@@ -2064,3 +2064,32 @@ creazione iscrizione+attended_events nella stessa batch; persistenza snapshot
 protetta dall'esistenza evento in transazione e tombstone esclusi dall'indice.
 4RED review poiGREEN e suite ripetute; nessuna seconda review. Q-07 merge/
 riassegnazioni rimangono aperti; nessun gate produzione considerato superato.
+
+
+### Revisione owner Q-08 nominativa — 15 novembre 2026
+
+La decisione precedente di permettere iscrizioni multiple è superata.
+Regola approvata:unica iscrizione per socio/evento associativo. Rimuovere
+Consenti duplicati da UI e contratto eventi; bloccare nel backend ripetizioni
+di socio/contatti e checkout concorrenti prima delle chiamate provider.
+Riutilizzare hold capienza e relativo fence evento per riservare identità;
+admin e riallineamenti dei riferimenti non devono aggirare il vincolo.
+Conservare idempotenza dello stesso ordine e storico economico. Nessuna
+bonifica automatica dei duplicati già salvati; scanner continua a difendere
+l'ingresso unico su quei dati. Merge/riferimenti Q-07 restano da completare.
+Feature futura separata:eventi non associativi senza tessera,con successiva
+integrazione Eventbrite/Xceed,solo dopo ristrutturazione backend e frontend.
+Non implementare modalità,provider o nuove API per quel futuro perimetro.
+
+
+Checkpoint nominativo finale:1399unitari/466API in109.36s PASS,JUnit0
+failure/error/skip,runnerexit0/shutdown pulito;87strumenti/50frontend PASS,
+lint0errori/53warning esistenti,scanner0/Firebase/130export/diff puliti.
+Review unica Sol high:1P1 corretto inline (identità dei soci scaduti non
+riservata prima dell'incasso).2RED review poi19API GREEN e suite ripetute.
+Le hold identità non modificano i criteri rinnovo; capture ricalcola identità
+attuali prima del provider. Preservata recovery concorrente dello stesso
+ordine tramite rilettura/verifica del participant deterministico già creato.
+Vecchie hold senza identità verificabile bloccate; nessuna migrazione cloud.
+Duplicati storici conservati per verifica separata,nessuna rimozione automatica.
+Eventi non associativi rinviati come concordato; nessuna seconda review.

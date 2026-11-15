@@ -284,8 +284,9 @@ def test_declined_payment_releases_last_slot_for_another_order(http, discount_ca
     case = discount_case
     case.discount_ref.update({'maxUses': 1})
     order_ids = []
-    for _ in range(2):
-        response = http.post('/orders', json=checkout_payload(case))
+    from tests.synthetic_api.test_event_capacity import another_group
+    for group in (case, another_group(case, 'second')):
+        response = http.post('/orders', json=checkout_payload(group))
         assert response.status_code == 201, response.get_json()
         order_ids.append(response.get_json()['id'])
     gateway.bad_field, gateway.bad_state = 'capture_status', 'DECLINED'

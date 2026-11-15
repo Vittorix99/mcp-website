@@ -454,3 +454,17 @@ approvati dall'owner in questa sessione. Nessun nuovo dispatch Luna.
 | Codex / gpt-6.1-sol | `q06_q08_final_review`: unica review Q-06 e cancellazioni Q-07/ingressi Q-08, sola lettura | high | Conclusa: 2 P2 accettati e corretti da Sol inline (attended_events concorrente e snapshot/indice post-delete). 4 regressioni RED poi GREEN; finali 1399 unitari e449 API in108.89s PASS, JUnit0 failure/error/skip, runnerexit0/shutdown pulito. Nessuna seconda review o mutazione cloud. |
 
 Dispatch effettivi di questa ripresa:0 Luna,1 Sol high. Token/costi non disponibili.
+
+
+## Q-08 nominativa — 15 novembre 2026
+
+Owner cambia la regola Q-08: una sola iscrizione socio/evento; gli eventi
+non associativi senza tessera e le integrazioni Eventbrite/Xceed verranno
+dopo la ristrutturazione backend e frontend. Coordinatore Sol inline per
+confini pagamento/concorrenza; nessuna implementazione provider futura.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `q08_unique_final_review`: review unica vincolo nominativo, hold identità, admin e recovery | high | Conclusa con1P1 accettato e corretto inline: riservare anche identità dei soci scaduti e ricontrollarle prima di capture.2RED review poi19API GREEN; finali1399unitari/466API in109.36s PASS, JUnit0failure/error/skip, runnerexit0/shutdown pulito.87strumenti/50frontend PASS,lint0errori/53warning esistenti,scanner0/Firebase/130export/diff puliti. Nessuna seconda review o mutazione cloud. |
+
+Dispatch effettivi follow-up:0Luna,1Sol high. Token/costi non disponibili.

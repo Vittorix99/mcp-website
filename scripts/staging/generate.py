@@ -93,7 +93,7 @@ def generate(*, seed, as_of, email_base, member_count=4000, event_count=50):
             price=0.0 if i % 11 == 5 else float(money(1500 + (i % 5) * 500)),
             fee=2.0, purchase_mode=mode, status=status,
             over21_only=i % 7 == 3, only_females=i % 9 == 4,
-            allow_duplicates=i % 13 == 7, created_by='synthetic-seed',
+            created_by='synthetic-seed',
             note='Dati inventati. Nessuna transazione o invio reale.',
         )
         events[event_id] = event

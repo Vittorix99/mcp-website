@@ -1,8 +1,10 @@
 from typing import Iterable, List, Optional
 from hashlib import sha256
+from datetime import datetime, timezone
+from domain.registration_rules import assert_registration_available, registration_keys
 
 from google.api_core.exceptions import Aborted, AlreadyExists, FailedPrecondition
-from errors.service_errors import ConflictError
+from errors.service_errors import ConflictError, NotFoundError
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
@@ -39,10 +41,42 @@ class ParticipantRepository:
             return None
         return self._model_from_snapshot(doc, event_id)
 
+    def assert_can_register(self, event_id, email, phone, membership_id=None, participant_id=None):
+        self._assert_available(event_id, {'email': email, 'phone': phone, 'membershipId': membership_id}, participant_id)
+
+    @staticmethod
+    def _assert_available(event_id, data, participant_id=None, capacity_token=None):
+        people = [doc.to_dict() or {} for doc in db.collection('participants').document(event_id)
+                  .collection('participants_event').stream() if doc.id != participant_id]
+        holds = [(doc.id, doc.to_dict() or {}) for doc in db.collection('event_capacity').document(event_id)
+                 .collection('reservations').stream()]
+        assert_registration_available(registration_keys(data), people, holds, datetime.now(timezone.utc),
+                                      own_token=capacity_token)
+
     @staticmethod
     def _write(event_id, operation, ref, data=None, capacity_token=None):
+        for _ in range(8):
+            try:
+                return ParticipantRepository._write_once(event_id, operation, ref, data, capacity_token)
+            except (Aborted, FailedPrecondition):
+                continue
+        raise ConflictError('Iscrizione modificata contemporaneamente: riprova')
+
+    @staticmethod
+    def _write_once(event_id, operation, ref, data=None, capacity_token=None):
+        event = db.collection('events').document(event_id).get()
+        if not event.exists:
+            raise NotFoundError('Evento non trovato')
+        effective = (ref.get().to_dict() or {}) if operation == 'update' else {}
+        for key, value in (data or {}).items():
+            if value is firestore.DELETE_FIELD:
+                effective.pop(key, None)
+            else:
+                effective[key] = value
+        ParticipantRepository._assert_available(event_id, effective, ref.id, capacity_token)
         batch = db.batch()
-        batch.update(db.collection('events').document(event_id), {'capacityRevision': firestore.Increment(1)})
+        batch.update(event.reference, {'capacityRevision': firestore.Increment(1)},
+                     option=db.write_option(last_update_time=event.update_time))
         if capacity_token is not None:
             hold = db.collection('event_capacity').document(event_id).collection('reservations').document(capacity_token).get()
             held = hold.to_dict() or {}
@@ -107,8 +141,12 @@ class ParticipantRepository:
         ref = collection.document("checkout-" + sha256(key.encode()).hexdigest())
         try:
             self._write(event_id, 'create', ref, participant.to_firestore(include_none=True), capacity_reservation_id)
-        except AlreadyExists:
-            existing = self._model_from_snapshot(ref.get(), event_id)
+        except (AlreadyExists, ConflictError):
+            # Another recovery may have completed the hold after our initial lookup.
+            snapshot = ref.get()
+            if not snapshot.exists:
+                raise
+            existing = self._model_from_snapshot(snapshot, event_id)
             self.assert_same_checkout(existing, participant)
             return existing.id
         return ref.id
@@ -187,17 +225,10 @@ class ParticipantRepository:
         return EventParticipant.from_firestore(docs[0].to_dict() or {}, docs[0].id)
 
     def set_membership(self, event_id: str, participant_id: str, membership_id: Optional[str]) -> None:
-        """Set or clear the membershipId field on a participant document."""
-        if membership_id:
-            self._collection(event_id).document(participant_id).update({
-                "membershipId": membership_id,
-                "membership_included": True,
-            })
-        else:
-            self._collection(event_id).document(participant_id).update({
-                "membershipId": firestore.DELETE_FIELD,
-                "membership_included": False,
-            })
+        self._write(event_id, 'update', self._collection(event_id).document(participant_id), {
+            "membershipId": membership_id or firestore.DELETE_FIELD,
+            "membership_included": bool(membership_id),
+        })
 
     def clear_membership_reference(self, membership_id: str) -> int:
         if not membership_id:
@@ -252,9 +283,17 @@ class ParticipantRepository:
         query = db.collection_group("participants_event").where(
             filter=FieldFilter("membershipId", "==", old_membership_id)
         )
+        snapshots = list(query.stream())
+        events = set()
+        for snap in snapshots:
+            event_id = snap.reference.parent.parent.id
+            if event_id in events or self.get_by_membership_id(event_id, new_membership_id) is not None:
+                raise ConflictError('Merge non consentito: socio già iscritto allo stesso evento')
+            events.add(event_id)
         updated = 0
-        for snap in query.stream():
-            snap.reference.update({
+        for snap in snapshots:
+            event_id = snap.reference.parent.parent.id
+            self._write(event_id, 'update', snap.reference, {
                 "membershipId": new_membership_id,
                 "membership_included": True,
             })

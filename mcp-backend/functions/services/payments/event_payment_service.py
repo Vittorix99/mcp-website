@@ -19,6 +19,7 @@ from domain.membership_rules import (
     build_renewal_record, is_membership_active, membership_matches_year, membership_years_from_renewals,
 )
 from domain.participant_rules import run_basic_checks
+from domain.registration_rules import checkout_keys
 from dto.preorder import (
     CheckoutParticipantDTO,
     EventOrderCreateResponseDTO,
@@ -151,6 +152,18 @@ class EventPaymentService:
             raise NotFoundError("Evento non trovato")
         return event_model
 
+    def _registration_keys(self, participants, membership_lookup=None):
+        # A known identity stays reserved even when its membership needs renewal.
+        identities = {}
+        for person in participants:
+            email = normalize_email(person.email)
+            member = (membership_lookup or {}).get(email)
+            if member is None:
+                member = self.membership_repository.find_by_email(email)
+            if member is not None:
+                identities[email] = {"id": member.id}
+        return checkout_keys([person.model_dump() for person in participants], identities)
+
     def _membership_lookup_to_models(self, lookup: Dict[str, Any]) -> Dict[str, Membership]:
         membership_models: Dict[str, Membership] = {}
         for email, payload in (lookup or {}).items():
@@ -266,7 +279,8 @@ class EventPaymentService:
                 )
             ],
         )
-        capacity_token = self.capacity_repository.reserve(event_id, len(normalized_participants))
+        capacity_token = self.capacity_repository.reserve(event_id, len(normalized_participants),
+            self._registration_keys(normalized_participants, membership_lookup))
         try:
             try:
                 order = self._get_paypal_gateway().create_order(order_request)
@@ -397,7 +411,8 @@ class EventPaymentService:
             raise ValidationError(str(exc)) from exc
 
         self._validate_memberships_before_capture(stored_order)
-        self.capacity_repository.begin_capture(event_id, stored_order.capacity_reservation_id, order_id)
+        self.capacity_repository.begin_capture(event_id, stored_order.capacity_reservation_id, order_id,
+            self._registration_keys(self._participants_from_payload(stored_order.participants or [])))
         reservation_token = None
         try:
             if stored_order.discount_code_id:

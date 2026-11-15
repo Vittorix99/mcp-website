@@ -172,6 +172,8 @@ class ParticipantsService:
                 membership_id = membership.id
                 is_member = bool(membership.subscription_valid)
 
+        self.participant_repository.assert_can_register(event_id, email, phone, membership_id)
+
         if membership_included and is_member:
             raise ConflictError("Questo utente è già un membro attivo")
 
@@ -285,7 +287,6 @@ class ParticipantsService:
         # Re-check membership when email changes
         should_update_membership = False
         new_membership_id = participant.membership_id  # default: keep existing
-        clear_membership = False
         if not manual_membership_override and dto.email is not None:
             new_email = dto.email
             old_email = normalize_email(participant.email or "")
@@ -296,18 +297,15 @@ class ParticipantsService:
                     new_membership_id = membership.id
                 else:
                     new_membership_id = None
-                    clear_membership = True
 
         updated_participant = apply_participant_update_dto_to_model(participant, dto)
-        self.participant_repository.update_from_model(event_id, participant_id, updated_participant)
-
         if manual_membership_override:
-            self.participant_repository.set_membership(event_id, participant_id, manual_membership_id)
+            updated_participant.membership_id = manual_membership_id
+            updated_participant.membership_included = bool(manual_membership_id)
         elif should_update_membership:
-            if clear_membership:
-                self.participant_repository.set_membership(event_id, participant_id, None)
-            else:
-                self.participant_repository.set_membership(event_id, participant_id, new_membership_id)
+            updated_participant.membership_id = new_membership_id
+            updated_participant.membership_included = bool(new_membership_id)
+        self.participant_repository.update_from_model(event_id, participant_id, updated_participant)
 
         return ParticipantActionResponseDTO(message="Participant updated", id=participant_id)
 

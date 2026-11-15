@@ -82,6 +82,9 @@ class _DummyParticipantRepo:
     def get(self, event_id, participant_id):
         return self._participant
 
+    def assert_can_register(self, *args, **kwargs):
+        pass
+
     def create_from_model(self, event_id, participant):
         self.created.append((event_id, participant))
         return "part-1"
@@ -333,7 +336,7 @@ def test_update_allows_manual_membership_assignment():
 
     assert result.message
     assert service.participant_repository.updated
-    assert service.participant_repository.membership_updates == [("evt-1", "part-1", "mem-42")]
+    assert service.participant_repository.updated[-1][2].membership_id == "mem-42"
 
 
 def test_update_allows_manual_membership_clear():
@@ -344,7 +347,7 @@ def test_update_allows_manual_membership_clear():
 
     assert result.message
     assert service.participant_repository.updated
-    assert service.participant_repository.membership_updates == [("evt-1", "part-1", None)]
+    assert service.participant_repository.updated[-1][2].membership_id is None
 
 
 def test_update_rejects_unknown_manual_membership():

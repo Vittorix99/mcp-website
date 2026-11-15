@@ -51,7 +51,6 @@ export default function EventsPage() {
     status: EVENT_STATUSES.ACTIVE,
     purchaseMode: PURCHASE_MODES.PUBLIC,
     image: null,
-    allowDuplicates: false,
     onlyFemales: false,
     over21Only: false,
   }
@@ -87,7 +86,6 @@ export default function EventsPage() {
         note: ev.note || "",
         lineup: (ev.lineup || []).join("\n"),
         status: ev.status || EVENT_STATUSES.ACTIVE,
-        allowDuplicates: !!ev.allowDuplicates,
         purchaseMode: resolvePurchaseMode(ev),
         onlyFemales: !!ev.onlyFemales,
         over21Only: !!ev.over21Only,

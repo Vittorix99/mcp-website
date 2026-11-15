@@ -79,7 +79,6 @@ def test_events_service_purchase_mode_and_flags(events_service, event_repository
         payload.update(
             {
                 "purchaseMode": "ONLY_MEMBERS",
-                "allowDuplicates": True,
                 "over21Only": True,
                 "onlyFemales": True,
                 "maxParticipants": 80,
@@ -93,7 +92,6 @@ def test_events_service_purchase_mode_and_flags(events_service, event_repository
         stored = event_repository.get_model(event_id)
         assert stored is not None
         assert stored.purchase_mode == EventPurchaseAccessType.ONLY_MEMBERS
-        assert stored.allow_duplicates is True
         assert stored.over21_only is True
         assert stored.only_females is True
         assert stored.max_participants == 80
