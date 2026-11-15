@@ -499,3 +499,15 @@ Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error
 Verifica finale: 1412 test unit e 519 API con emulatore passati, 50 test config
 frontend, ESLint senza errori. Nessuna seconda review. 1 incarico Luna, 1 review
 Sonnet; token e costi non disponibili. CI remota non verificata.
+
+## Prerequisito cloud — dipendenze compatibili, 15 novembre 2026
+
+Coordinatore Sol inline per analisi di sicurezza e lockfile. Nessun task Luna:
+vincoli transitivi e contratti deployment richiedono valutazione Sol.
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | precloud_dependencies_review: unica review indipendente del lockfile, compatibilità e documentazione residui | high | Conclusa senza rilievi correggibili; accettata da Sol. Risoluzione/riferimenti nativi Linux coerenti, audit e log verificati; installazione/esecuzione Linux e CI remota non provate. |
+
+Conteggio dispatch effettivi:0task Luna,1review Sol high conclusa e accettata.
+Token/costi non disponibili. Nessuna modifica cloud/provider/credenziali.

@@ -44,6 +44,10 @@ provider reali e il deploy di staging/produzione non sono stati eseguiti.
   esplicitamente dal proprietario**. L'eventuale riuso di vecchie build distribuite
   resta da chiarire prima di attivare operazioni cloud.
 - `npm audit`: **49 vulnerabilità** (4 critical, 29 high, 14 moderate, 2 low).
+  Conteggio storico WS1: audit rivalidato il15novembre2026,62 pacchetti segnalati
+  (33 senza dev), poi50 residui dopo il passaggio compatibile (22 senza dev);
+  valutazione e piano correnti nel
+  [documento sicurezza](../operations/SECURITY_HISTORY_REMEDIATION.md#prerequisito-rilascio-audit-dipendenze-aggiornato--15-novembre-2026).
   La valutazione e gli aggiornamenti compatibili restano aperti prima di un
   rilascio cloud; nessun `audit fix --force` o upgrade maggiore automatico.
 - I 53 warning lint non sono stati nascosti; le violazioni cosmetiche pregresse

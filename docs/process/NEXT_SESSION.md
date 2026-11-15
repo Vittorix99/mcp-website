@@ -343,3 +343,53 @@ Preservare i tre diff proprietario in AGENTS.md,MODEL_USAGE_LOG.md e
 NEXT_SESSION.md;staging dei documenti condivisi limitato alle append agente.
 
 Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.
+
+## Q-05 concluso e prerequisiti cloud — 15 novembre 2026
+
+Commit applicativo `9374efb`, branch `core-age-data-integrity`, PR #12 dipendente
+da #11. Q-04/Q-06/Q-07/Q-08 e Q-05 completati nel perimetro locale concordato.
+Ingressi dei soci collegati provati solo dagli scan; manuali senza socio dal
+flag di ingresso. Totale indipendente dalla finestra del grafico; orari evento
+Europe/Rome, confini DST e bucket parziali coperti. `registered` conta identità
+uniche; `participants_count` può ancora contare righe storiche duplicate.
+
+Evidenza riusata dal checkpoint Q-05, non rieseguita in questa ripresa:
+1412 unitari backend, 519 API con emulatore, 50 test config frontend ed ESLint
+senza errori. Review sostitutiva Sonnet high autorizzata dall'owner: 0 Critical,
+3 Important corretti. Dettagli e dispatch in MODEL_USAGE_LOG.md.
+
+Chiusura sequenziale prima del rilascio, autorizzata dall'owner:
+- [ ] Chiudere dipendenze: audit rivalidato il15novembre,62 pacchetti segnalati
+  (4critical),33 senza dev (3critical); primo passaggio compatibile applicato:50 residui (2critical),22 senza dev
+  (1critical). Punto aperto; review Sol high conclusa senza rilievi. Piano e
+  valutazione in SECURITY_HISTORY_REMEDIATION.md;49 rilievi WS1 storici.
+- [ ] Chiarire eventuali vecchie build ancora distribuite, con verifica owner.
+  Restrizioni Firebase rinviate: nessuna modifica implicita.
+- [ ] Ricevere esito finale CI PR #12 dal proprietario, con SHA e run.
+- [ ] Inventario cloud e piano IAM concreto, poi autorizzazione separata.
+- [ ] Bootstrap staging e piano traffico pagamenti senza worker incompatibili;
+  E2E sandbox e prova reale rollback, senza promozione produzione implicita.
+
+Snapshot salvati da ricostruire solo nel futuro rollout autorizzato. Browser,
+provider reali e invio reale OPS-04 restano verifiche separate; Sender spento.
+Modelli distinti per host come chiarito in AGENTS.md. Nessuna mutazione cloud,
+provider o credenziale in questa ripresa; nessun polling CI.
+
+
+## Primo passaggio dipendenze — 15 novembre 2026
+
+Blocco approvato dall'owner. Lockfile aggiornato entro i vincoli del manifest;
+Next15.5.29, CLI14.26.0/override invariati, nessun major diretto o nuovo override.
+Node20.19.6/npm10.8.2: npmci pulito,50frontend,contratti126/130/0errori,
+lint0errori/53warning esistenti,buildfixture,55test deployment/secret PASS.
+Smoke standard bloccato da8080 occupata; processo preservato. Driver privato
+su porte dedicate:2Python+client HTTP/Firestore/Auth/Storage/Functions PASS,
+exit0/shutdown pulito. Review indipendente unica Sol high senza rilievi,
+accettata. Nessun task Luna,1review Sol; token/costi non disponibili.
+Audit finale completo50pacchetti(2critical/18high/29moderate/1low),senza dev22
+(1critical/12high/8moderate/1low). Report/log `.local/staging/precloud-*`.
+Dipendenze **ancora aperte**, non passare al punto successivo come se chiuse.
+Critical residui:google-gax3→protobufjs7.2.4 da Admin11.11.1 e CLI14.26→tar6.2.1.
+Valutazione e confini in SECURITY_HISTORY_REMEDIATION.md; niente accettazione
+implicita di residui o upgrade/downgrade major automatico. Linux/CI remota,
+browser e ambienti cloud non verificati; nessun deploy o provider reale.
