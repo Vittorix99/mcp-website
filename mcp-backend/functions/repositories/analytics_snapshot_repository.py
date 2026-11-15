@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from config.firebase_config import db
+from google.cloud import firestore
 
 
 class AnalyticsSnapshotRepository:
@@ -42,7 +43,17 @@ class AnalyticsSnapshotRepository:
         return payload
 
     def set_event_snapshot(self, event_id: str, payload: Dict[str, Any]) -> None:
-        self.event_collection.document(event_id).set(payload, merge=True)
+        @firestore.transactional
+        def persist(transaction):
+            event = db.collection("events").document(event_id).get(transaction=transaction)
+            # A rebuild started before deletion must not resurrect the full event snapshot.
+            data = payload if event.exists else {
+                "event_id": event_id, "exists": False,
+                "generated_at": payload.get("generated_at", firestore.SERVER_TIMESTAMP), "charts": {},
+            }
+            transaction.set(self.event_collection.document(event_id), data)
+
+        persist(db.transaction())
 
     def stream_event_snapshots(self) -> Iterable[Tuple[str, Dict[str, Any]]]:
         for doc in self.event_collection.stream():

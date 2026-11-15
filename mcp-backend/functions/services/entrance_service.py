@@ -157,6 +157,8 @@ class EntranceService:
         # Step 4: fast-path per doppia scansione gia' persistita.
         existing_scan = self.entrance_scan_repository.get(event_id, dto.membership_id)
         if existing_scan is not None:
+            self.participant_repository.sync_entered_by_membership_id(event_id, dto.membership_id)
+            counts = self._build_event_counts(event_id)
             scanned_at = existing_scan.scanned_at
             scanned_at_iso = scanned_at.isoformat() if scanned_at and hasattr(scanned_at, "isoformat") else None
             self.logger.info("validate_entry: già scansionato — %s evento %s", dto.membership_id, event_id)
@@ -171,6 +173,8 @@ class EntranceService:
         # Step 5: scrittura atomica; se due scanner leggono insieme, uno solo crea il record.
         race_scan = self.entrance_scan_repository.create_scan(event_id, dto.membership_id, dto.scan_token)
         if race_scan is not None:
+            self.participant_repository.sync_entered_by_membership_id(event_id, dto.membership_id)
+            counts = self._build_event_counts(event_id)
             scanned_at = race_scan.scanned_at
             scanned_at_iso = scanned_at.isoformat() if scanned_at and hasattr(scanned_at, "isoformat") else None
             self.logger.info("validate_entry: race condition risolta — %s", dto.membership_id)
@@ -183,7 +187,7 @@ class EntranceService:
             )
 
         # Lo scan e' la fonte anti-doppio-ingresso; il flag sul participant serve alla UI/admin.
-        self.participant_repository.update_entered(event_id, participant_model.id, entered=True)
+        self.participant_repository.sync_entered_by_membership_id(event_id, dto.membership_id)
         counts = self._build_event_counts(event_id)
         self.logger.info(
             "validate_entry: ingresso registrato membership=%s evento=%s token=%s",
@@ -211,28 +215,30 @@ class EntranceService:
         if dto.entered:
             # Entrata manuale: stessa sorgente dati dello scanner, ma marcata con operatore admin.
             if self.entrance_scan_repository.exists(dto.event_id, dto.membership_id):
+                self.participant_repository.sync_entered_by_membership_id(dto.event_id, dto.membership_id)
+                counts = self._build_event_counts(dto.event_id)
                 self.logger.info("manual_entry: già entrato — %s evento %s", dto.membership_id, dto.event_id)
                 return ManualEntryResponseDTO(
                     result="already_entered",
                     participants_count=counts["participants_count"],
                     entered_count=counts["entered_count"],
                 )
-            self.entrance_scan_repository.create_manual(dto.event_id, dto.membership_id, admin_uid)
-            self.participant_repository.update_entered(dto.event_id, participant_model.id, entered=True)
+            existing_scan = self.entrance_scan_repository.create_manual(dto.event_id, dto.membership_id, admin_uid)
+            self.participant_repository.sync_entered_by_membership_id(dto.event_id, dto.membership_id)
             self.logger.info(
                 "manual_entry: ingresso manuale membership=%s evento=%s operatore=%s",
                 safe_id(dto.membership_id), dto.event_id, safe_id(admin_uid),
             )
             counts = self._build_event_counts(dto.event_id)
             return ManualEntryResponseDTO(
-                result="entered",
+                result="already_entered" if existing_scan is not None else "entered",
                 participants_count=counts["participants_count"],
                 entered_count=counts["entered_count"],
             )
 
-        # Undo manuale: rimuove il record scan e riallinea il flag del partecipante.
+        # Undo manuale: rimuove il record scan e riallinea i flag di tutte le iscrizioni del socio.
         self.entrance_scan_repository.delete(dto.event_id, dto.membership_id)
-        self.participant_repository.update_entered(dto.event_id, participant_model.id, entered=False)
+        self.participant_repository.sync_entered_by_membership_id(dto.event_id, dto.membership_id)
         self.logger.info(
             "manual_entry: ingresso annullato membership=%s evento=%s operatore=%s",
             safe_id(dto.membership_id), dto.event_id, safe_id(admin_uid),

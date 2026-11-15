@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
+from domain.age_rules import calendar_age
 from domain.membership_rules import is_membership_active
 from domain.purchase_rules import is_completed_event_purchase
 from domain.revenue_rules import manual_received_total
@@ -441,10 +442,8 @@ class AnalyticsService:
         if not birth:
             return None
         today = datetime.now(ROMA_TZ).date()
-        age = today.year - birth.year
-        if (today.month, today.day) < (birth.month, birth.day):
-            age -= 1
-        return age if 0 <= age <= 120 else None
+        age = calendar_age(birth, today)
+        return age if age is not None and age <= 120 else None
 
     def get_membership_trend(self, year: int) -> MembershipTrendResponseDTO:
         all_memberships = list(self.membership_repository.stream())

@@ -426,3 +426,31 @@ rimozione circoscritta.8RED prima,1381unitari/392API PASS in99.67s,JUnit
 0failure/error/skip,exit0/shutdownpulito,scanner0/diff pulito. Il criterio
 owner supera il precedente requisito della review sulle varianti legacy.
 Nessuna nuova review indipendente, cloud o migrazione.
+
+
+## Q-06/Q-07/Q-08 — inventario e regole, 15 novembre 2026
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `q06_age_inventory`: inventario meccanico dei calcoli età e chiamanti, sola lettura | low | Fallito prima della consegna per limite di utilizzo segnalato dall'host. Nessun risultato accettato o file modificato. Escalation al coordinatore Sol, che ha eseguito l'inventario inline; nessun retry o cambio modello. |
+
+Dispatch effettivi finora:1 Luna fallita,0 review Sol delegate. I conteggi
+indicano incarichi, non token/costi; telemetria non disponibile.
+
+Checkpoint coordinatore Sol:Q-06 implementato inline dopo inventario;4RED
+iniziali,1399 unitari e399 API in100.29s PASS,JUnit0failure/error/skip,
+runnerexit0/shutdownpulito,scanner0/diff pulito. Review finale dell'intero
+blocco ancora pendente alle scelte Q-07/Q-08; nessuna review attestata.
+
+
+## Q-07/Q-08 — ripresa e review del blocco, 15 novembre 2026
+
+Coordinatore inline: Q-08 iscrizioni multiple/unico scan e sincronizzazione
+transazionale dei flag; Q-07 blocco storico e cascata dei soli dati gratuiti
+approvati dall'owner in questa sessione. Nessun nuovo dispatch Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `q06_q08_final_review`: unica review Q-06 e cancellazioni Q-07/ingressi Q-08, sola lettura | high | Conclusa: 2 P2 accettati e corretti da Sol inline (attended_events concorrente e snapshot/indice post-delete). 4 regressioni RED poi GREEN; finali 1399 unitari e449 API in108.89s PASS, JUnit0 failure/error/skip, runnerexit0/shutdown pulito. Nessuna seconda review o mutazione cloud. |
+
+Dispatch effettivi di questa ripresa:0 Luna,1 Sol high. Token/costi non disponibili.

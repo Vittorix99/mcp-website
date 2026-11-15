@@ -251,7 +251,6 @@ def test_create_links_explicit_membership_without_renewal():
     assert not service.membership_repository.created
     _, created_participant = service.participant_repository.created[0]
     assert created_participant.membership_id == "mem-42"
-    assert service.membership_repository.attended == [("mem-42", "evt-1")]
 
 
 def test_create_rejects_missing_explicit_membership():

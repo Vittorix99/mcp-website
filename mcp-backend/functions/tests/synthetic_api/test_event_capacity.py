@@ -315,8 +315,12 @@ def test_consumed_hold_cannot_recreate_participants_after_places_are_resold(http
         assert http.post('/capture', json={'order_id': first}).status_code == 500
     assert reservation(first).get().to_dict()['state'] == 'consumed'
     people = db.collection(f'participants/{sample.event.id}/participants_event')
+    # Simulate historical corruption bypassing the now-protected admin delete path.
+    from errors.service_errors import ConflictError
     for doc in people.stream():
-        ParticipantRepository().delete(sample.event.id, doc.id)
+        with pytest.raises(ConflictError):
+            ParticipantRepository().delete(sample.event.id, doc.id)
+        doc.reference.delete()
     second = create_order(http, sample)
     response = http.post('/recover-order', json={'order_id': first})
     assert response.status_code == 409, response.get_json()

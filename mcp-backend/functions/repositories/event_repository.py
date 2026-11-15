@@ -46,4 +46,6 @@ class EventRepository(BaseRepository[Event]):
         self.collection.document(event_id).set(event.to_firestore(include_none=True), merge=True)
 
     def delete(self, event_id: str) -> None:
-        self.collection.document(event_id).delete()
+        from repositories.event_deletion import delete_without_history
+
+        delete_without_history(event_id)

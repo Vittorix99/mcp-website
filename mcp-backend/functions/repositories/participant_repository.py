@@ -54,6 +54,10 @@ class ParticipantRepository:
                          option=db.write_option(last_update_time=hold.update_time))
         if operation == 'create':
             batch.create(ref, data)
+            if data.get('membershipId'):
+                batch.update(db.collection('memberships').document(data['membershipId']), {
+                    'attended_events': firestore.ArrayUnion([event_id]),
+                })
         elif operation == 'update':
             batch.set(ref, data, merge=True)
         else:
@@ -145,7 +149,9 @@ class ParticipantRepository:
         })
 
     def delete(self, event_id: str, participant_id: str) -> None:
-        self._write(event_id, 'delete', self._collection(event_id).document(participant_id))
+        from repositories.event_deletion import delete_without_history
+
+        delete_without_history(event_id, participant_id)
 
     def count(self, event_id: str) -> int:
         try:
@@ -220,11 +226,25 @@ class ParticipantRepository:
                 return EventParticipant.from_firestore(doc.to_dict() or {}, doc.id)
         return None
 
-    def update_entered(self, event_id: str, participant_id: str, entered: bool) -> None:
-        self._collection(event_id).document(participant_id).update({
-            "entered": entered,
-            "entered_at": firestore.SERVER_TIMESTAMP if entered else None,
-        })
+    def sync_entered_by_membership_id(self, event_id: str, membership_id: str) -> None:
+        """Mirror the single scan, including when entry and undo overlap."""
+        query = self._collection(event_id).where(filter=FieldFilter("membershipId", "==", membership_id))
+        references = [doc.reference for doc in query.stream()]
+        scan_ref = db.collection("entrance_scans").document(event_id).collection("scans").document(membership_id)
+
+        @firestore.transactional
+        def sync(transaction, refs):
+            scan = scan_ref.get(transaction=transaction)
+            snapshots = list(db.get_all(refs, transaction=transaction))
+            fields = {"entered": scan.exists,
+                      "entered_at": (scan.to_dict() or {}).get("scanned_at") if scan.exists else None}
+            for doc in snapshots:
+                data = doc.to_dict() or {}
+                if doc.exists and any(data.get(key) != value for key, value in fields.items()):
+                    transaction.update(doc.reference, fields)
+
+        for offset in range(0, len(references), 400):
+            sync(db.transaction(), references[offset:offset + 400])
 
     def update_membership_reference(self, old_membership_id: str, new_membership_id: str) -> int:
         if not old_membership_id or not new_membership_id:

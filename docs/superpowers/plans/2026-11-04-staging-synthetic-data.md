@@ -1998,3 +1998,69 @@ Follow-up verificato:8RED prima della rimozione, poi1381 unitari e392 API
 in99.67s PASS,JUnit senza failure/error/skip,runnerexit0 e shutdown pulito.
 Scanner sorgenti/staged0 e diff pulito. Nessun push, merge o deploy; dati
 reali non toccati. Log privati canonical-methods-*.
+
+### Blocco Q-06/Q-07/Q-08 — avvio 15 novembre 2026
+
+Owner ha richiesto i tre ambiti; branch `core-age-data-integrity`, base
+c647ea9, worktree `.worktrees/core-ws2`. Main/PR#11 restano congelati.
+Una review finale del blocco dopo definizione e implementazione dei contratti;
+nessuna nuova approvazione per i blocchi già conclusi. Nessuna operazione cloud.
+
+Q-06: difetto riprodotto nei soli check ammissione is_minor/is_Under_21,
+basati su giorni/365. Analytics diretto e snapshot usavano già compleanni
+e Europe/Rome. Condividere il calcolo dei soli anni compiuti, mantenendo
+parser/formati e limiti già previsti dai singoli chiamanti. Riferimento:
+oggi a Roma;18/21 inclusivi,29 febbraio dal1marzo nei non bisestili, come
+nelle statistiche esistenti. Nessun nuovo adattatore di formato o migrazione.
+Controlli invalidi/futuri restano prudenti; analytics conserva limite120anni.
+Unitari sui compleanni, bisestili, mezzanotte Roma/UTC; checkout API rifiuta
+prima del provider.4RED iniziali; prima suite1399unitari passata.
+
+Q-07: riscontri di codice prima delle modifiche. Delete evento/participant
+elimina solo il documento principale; non prova cascata su acquisti/scan o
+attended_events. Merge riallinea participants e liste membership, ma non
+riporta scan e purchase.membership_ids. Set membership del participant è
+separato dalla scrittura dei suoi altri campi. Nessuna correzione distruttiva
+o migrazione avviata. Domanda owner pendente: bloccare eliminazioni con
+storico economico/ingressi, oppure introdurre archiviazione dedicata.
+
+Q-08: scan indicizzato per socio/evento; ricerca participant restituisce una
+prima riga, non tutte le iscrizioni duplicate. Ingresso/undo aggiorna quella
+sola riga. Domanda owner pendente: mantenere iscrizioni con un ingresso per
+socio, vietare duplicati, oppure nuovi QR per iscrizione. Non cambiare questa
+regola né collassare storico prima della risposta. Le decisioni guideranno
+il piano unico delle modifiche Q-07/Q-08, con regressioni di integrità.
+
+Checkpoint Q-06 locale:1399 unitari (+18) e399 API (+7) in100.29s PASS,
+JUnit senza failure/error/skip,runnerexit0/shutdownpulito,scanner0/diff pulito.
+I casi API controllano compleanni18/21,bisestili e mezzanotte Roma prima
+del gateway; rifiuti senza nuovi ordini e senza modifiche a soci/acquisti/
+partecipanti. Nessun ulteriore calcolo età frontend trovato nella ricerca
+365/calculateAge/isAdult. Review finale raggruppata ancora da eseguire dopo
+Q-07/Q-08: non dichiarare il blocco completo. Nessun deploy o dato reale.
+
+
+Ripresa 15 novembre2026:handoff Q-08 approvato (iscrizioni multiple,unico
+ingresso socio/evento).Owner in chat approva Q-07:bloccare cancellazioni con
+storico economico/ingressi; evento solo gratuito:rimuovere anche iscrizioni
+e riferimenti gratuiti,non bloccare per la sola presenza di iscrizioni.
+Ruling:lo storico da proteggere non coincide con l'idoneità ai ricavi attuali.
+Acquisti persistiti anche rimborsati,link orfani,importi nonzero o invalidi
+richiedono verifica;ordini/provider e prenotazioni incerte bloccano delete.
+Cascata locale transazionale con soglia400scritture,oltre409 senza parziali.
+Per socio/evento i flag entered/entered_at sono copie dello scan unico;
+retry riallinea anche duplicati aggiunti dopo ingresso,undo concorrente
+non ripristina flag vecchi.Creazione scan/token ricontrolla dati in transazione.
+Iscrizioni/biglietti restano righe;ingressi restano scan unici.
+Q-07 riassegnazione socio/merge e riallineamento scan/purchase.membership_ids
+restano aperti:le scelte owner di questa ripresa riguardano cancellazioni.
+Nessuna migrazione o bonifica dati reali,push,merge o deploy autorizzato.
+
+
+Checkpoint finale del perimetro approvato:1399unitari/449API in108.89s PASS,
+JUnit0failure/error/skip,runnerexit0/shutdown pulito; Firebase valido,
+130export/scanner0/diff puliti. Review unica Sol high con2P2 corretti inline:
+creazione iscrizione+attended_events nella stessa batch; persistenza snapshot
+protetta dall'esistenza evento in transazione e tombstone esclusi dall'indice.
+4RED review poiGREEN e suite ripetute; nessuna seconda review. Q-07 merge/
+riassegnazioni rimangono aperti; nessun gate produzione considerato superato.

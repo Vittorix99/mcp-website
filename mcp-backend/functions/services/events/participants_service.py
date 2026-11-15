@@ -255,9 +255,6 @@ class ParticipantsService:
         participant_id = self.participant_repository.create_from_model(event_id, participant)
         self.logger.info("Partecipante creato: %s", participant_id)
 
-        if membership_id:
-            self.membership_repository.add_attended_event(membership_id, event_id)
-
         return ParticipantActionResponseDTO(message="Participant created", id=participant_id)
 
     def update(

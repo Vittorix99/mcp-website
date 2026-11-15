@@ -219,3 +219,58 @@ Nessuna presenza reale delle varianti verificata e nessun dato reale toccato.
 8RED poi1381unitari/392API in99.67s PASS,JUnit0failure/error/skip,runnerexit0
 e shutdown pulito;scanner0/diff pulito. Nessun nuovo dispatch per questo
 follow-up circoscritto. PR#11 draft, main congelato, nessun push/deploy.
+
+
+## Q-06 checkpoint locale e scelte Q-07/Q-08 — 15 novembre 2026
+
+Branch `core-age-data-integrity`, base c647ea9, worktree `.worktrees/core-ws2`.
+Q-06: helper calendar_age comune a controlli ammissione e analytics diretto/
+snapshot. Età compiuta oggi Europe/Rome,18/21 inclusivi,29febbraio dal1marzo
+negli anni non bisestili come nelle statistiche preesistenti. Parser/formati
+e limite120anni analytics preservati; invalidi/futuri non passano ammissione.
+4RED prima del fix;1399 unitari e399API in100.29s PASS,JUnit senza
+failure/error/skip,runnerexit0/shutdownpulito,scanner0/diff pulito. Nessun
+provider reale,cloud o merge. Review finale dell'intero blocco ancora aperta.
+
+Domande owner pendenti, non dedurre risposta dal tempo trascorso:
+Q-07 bloccare eliminazioni con storico economico/ingressi (proposto), oppure
+aggiungere archiviazione. Q-08 mantenere iscrizioni multiple con un ingresso
+per socio/evento (proposto), vietare duplicati, oppure nuovi QR per iscrizione.
+Codice attuale elimina solo record principali e merge non riallinea scan/
+purchase.membership_ids. Nessuna modifica Q-07/Q-08 finché regole indefinite.
+
+Luna q06_age_inventory fallita per limite utilizzo:nessun file o risultato
+accettato, inventario svolto da Sol.1 dispatch fallito,0 review delegate;
+costi non disponibili. PR#11 draft/noautomerge; main resta congelato.
+Preservare3owner diff in AGENTS,MODEL_USAGE_LOG,NEXT_SESSION.
+
+
+## Checkpoint Q-06 e cancellazioni Q-07 / ingressi Q-08 — 15 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `core-age-data-integrity`, base c647ea9.
+Q-06 già staged ripresa senza alterazioni funzionali: anni compiuti a Roma.
+Q-08 approvata: iscrizioni multiple, unico ingresso socio/evento; QR, manuale,
+undo e retry sincronizzano tutti i flag e timestamp dalla stessa fonte scan.
+I conteggi distinguono righe iscritte e scan unici. Le sovrapposizioni con
+undo/delete non ripristinano flag obsoleti o scan orfani.
+
+Q-07: owner approva blocco delete con storico e cascata dei soli gratuiti.
+Conservati anche acquisti rimborsati, link orfani, importi nonzero/invalidi,
+ordini e prenotazioni incerte. Free delete atomico: iscrizioni, link soci
+(attended_events solo dopo ultima iscrizione), token, luogo, guida, snapshot
+e contenitori locali. Oltre400scritture:409 senza cancellazioni parziali.
+Creazione iscrizione/link socio atomica; scan/token ricontrollano esistenza.
+Rebuild concorrenti producono solo tombstone esclusi dall'indice per eventi
+cancellati; il contratto exists:false resta disponibile dopo i trigger.
+
+Finali:1399 unitari e449 API in108.89s PASS; JUnit0 failure/error/skip,
+runnerexit0 e shutdown emulatore pulito. Scanner0, Firebase valido,130export,
+diff pulito. Una review Sol high:2P2 corretti con4RED poiGREEN e suite
+ripetute; nessuna seconda review.0 Luna in questa ripresa; costi ignoti.
+Log privati q06-q08-*-reviewed.log e q07-review-{red,green}.log.
+
+Q-07 riassegnazione socio/merge e riferimenti scan/purchase.membership_ids
+restano aperti, fuori dalle scelte delete di questa ripresa. Q-05 e gate cloud
+restano aperti. PR#11 draft, nessun push/merge/deploy o dato reale modificato.
+CI remota, provider reali e browser non verificati. Preservati i tre diff owner
+in AGENTS.md, MODEL_USAGE_LOG.md e NEXT_SESSION.md; nell'indice solo append agente.

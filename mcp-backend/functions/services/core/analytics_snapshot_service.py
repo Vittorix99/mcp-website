@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
+from domain.age_rules import calendar_age
 from domain.membership_rules import is_membership_active
 from domain.purchase_rules import is_completed_event_purchase
 from domain.revenue_rules import manual_received_total
@@ -91,6 +92,8 @@ class AnalyticsSnapshotService:
     def get_events_index(self) -> Dict[str, Any]:
         rows = []
         for event_id, data in self.analytics_snapshot_repository.stream_event_snapshots():
+            if data.get("exists") is False:
+                continue
             event_date = self._parse_date_like((data.get("event") or {}).get("date"))
             rows.append(
                 {
@@ -955,13 +958,8 @@ class AnalyticsSnapshotService:
             return None
 
         today = datetime.now(ROMA_TZ).date()
-        age = today.year - birth_date.year
-        if (today.month, today.day) < (birth_date.month, birth_date.day):
-            age -= 1
-
-        if age < 0 or age > 120:
-            return None
-        return age
+        age = calendar_age(birth_date, today)
+        return age if age is not None and age <= 120 else None
 
     def _parse_date_like(self, value: Any) -> Optional[date]:
         if value is None:

@@ -218,7 +218,7 @@ class ParticipantRepositoryProtocol(Protocol):
     def update_membership_reference(self, old_membership_id: str, new_membership_id: str) -> int:
         ...
 
-    def update_entered(self, event_id: str, participant_id: str, entered: bool) -> None:
+    def sync_entered_by_membership_id(self, event_id: str, membership_id: str) -> None:
         ...
 
 
@@ -398,7 +398,7 @@ class EntranceScanRepositoryProtocol(Protocol):
     def create_scan(self, event_id: str, membership_id: str, scan_token: str) -> Optional[EntranceScan]:
         ...
 
-    def create_manual(self, event_id: str, membership_id: str, admin_uid: str) -> None:
+    def create_manual(self, event_id: str, membership_id: str, admin_uid: str) -> Optional[EntranceScan]:
         ...
 
     def delete(self, event_id: str, membership_id: str) -> None:
