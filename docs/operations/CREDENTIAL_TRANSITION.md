@@ -646,3 +646,20 @@ né che autenticazione o pagamenti sandbox siano stati provati. Scelta dell'app
 staging e associazione all'account merchant ancora da confermare. Disponibilità
 di account sandbox Business/Personal per E2E ancora da verificare. Nessuna app,
 credenziale o transazione PayPal creata/modificata durante l'inventario.
+
+
+### Account PayPal sandbox — schermata owner del16novembre2026
+
+La pagina mostra2account sandbox, entrambi etichettati Default:
+
+| Tipo | Paese | App mostrate | Data creazione visualizzata |
+|---|---|---|---|
+| Business | IT | 1 | 20/12/24,13:40 |
+| Personal | IT | 0 | 20/12/24,13:40 |
+
+Email sandbox non trascritte perché non necessarie all'inventario; nessuna
+password o credenziale richiesta. La vista non mostra uno stato esplicito degli
+account né attesta login, fondi/currency di test o transazioni riuscite.
+L'associazione nominale fra l'unica app Business e Default Application resta
+da confermare nel dettaglio app: coincidenza di conteggi/date non è una prova.
+Nessun account/app creato o modificato, nessun pagamento eseguito.
