@@ -668,8 +668,9 @@ Nessun account/app creato o modificato, nessun pagamento eseguito.
 ## Proposta unica: bootstrap staging e IAM — 16 novembre 2026
 
 **Stato aggiornato:** blocco A repository completato nel commit0a17e98;
-stima economica nel commitb177bbd. Blocco B ancora proposto,non applicato.
-Nessuna mutazione cloud eseguita o autorizzata da questo testo. Il piano operativo del13novembre
+stima economica nel commitb177bbd. Blocco B avviato:creati i4account tecnici
+su richiesta esplicita owner,con verifica CLI. Nessun grant IAM assegnato ai
+nuovi account;il resto del provisioning resta nel prospetto da completare. Il piano operativo del13novembre
 rimane il riferimento; questa sezione ne concretizza i prerequisiti osservati
 e supera le precedenti ipotesi generiche di ruoli per lo staging.
 
@@ -802,7 +803,7 @@ Terraform/YAML applicabile o un diff delle policy cloud correnti. I file
 locali,sono configurazioni di rilascio e non assegnano permessi IAM. Nessuna
 assegnazione nuova elencata qui risulta applicata da questa sessione.
 
-I quattro destinatari da creare nel progetto staging sono precisamente:
+I quattro destinatari previsti nel progetto staging sono precisamente:
 
 | Nome usato nella tabella3 | Principale IAM completo |
 |---|---|
@@ -810,6 +811,19 @@ I quattro destinatari da creare nel progetto staging sono precisamente:
 | functions-build | `serviceAccount:functions-build@mcp-website-dev-39539.iam.gserviceaccount.com` |
 | app-runtime | `serviceAccount:app-runtime@mcp-website-dev-39539.iam.gserviceaccount.com` |
 | web-runtime | `serviceAccount:web-runtime@mcp-website-dev-39539.iam.gserviceaccount.com` |
+
+**Progresso verificato CLI —16novembre2026:**su richiesta esplicita owner,
+creati github-deploy,functions-build,app-runtime e web-runtime nel progetto
+mcp-website-dev-39539,numero1005755179074,lifecycleACTIVE verificato via API.
+Comandi con account owner e --project staging espliciti;progetto predefinito
+locale production lasciato invariato. Readback indipendente per tutti e4:
+account Enabled,0chiavi gestite dall'utente,0ruoli direttamente assegnati nella
+policy di progetto,0binding nella policy di ciascun nuovo service account.
+Nessun grant IAM o file chiave creato. Inventario prima della creazione:
+soltanto i due SA legacy già riportati dall'owner. La richiesta CLI supera
+la preferenza per console manuale in questo passaggio;restano le approvazioni
+previste per i binding IAM e le fasi deploy/dati. Non si deduce assenza di ogni
+possibile accesso ereditato dal solo conteggio dei ruoli diretti.
 
 Le righe a scope P sono binding nella policy di
 `projects/mcp-website-dev-39539`,mai produzione. Le altre risorse esatte sono:

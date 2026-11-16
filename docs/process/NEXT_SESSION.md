@@ -494,3 +494,16 @@ va concordato/adattato il comportamento prima di accendere i flag. Nessun
 limite runtime,cleanup,policy o risorsa cloud modificata ora. Prossimo:
 concordarebudget e completaremanifest B conAPI/IAM/risorse esatti prima di
 qualsiasi mutazione. Stopintegrazionemain e approvazioni cloud/dati invariati.
+
+## Blocco B — quattro account creati via CLI,16 novembre 2026
+
+Owner chiede esplicitamente CLI al posto della console guidata. Creati
+ github-deploy,functions-build,app-runtime,web-runtime (tutti @mcp-website-dev-39539.iam.gserviceaccount.com).
+Progetto stagingACTIVE/1005755179074 verificato viaAPI;CLIaccountowner,
+--projectstaging esplicito su ogni comando,defaultlocaleproduction invariato.
+Readback per tutti4:Enabled,0userkeys,0ruoliprogettodiretti,0bindingpolicyaccount.
+Nessun grantIAM o downloadchiavi;due SAlegacy invariati. Nessun deploy o
+modifica dati. Prossimo passaggio:verificareAPI/policy epermissioncustom/risorse
+prima dei grantnominativi;non assegnare ruoli per superare errori deldeploy.
+La creazioneidentità non attiva WIF,flagautomatici o pipeline e non autorizza
+revoche/deploy/dati. Il prospetto B resta in CREDENTIAL_TRANSITION.md3/3a.
