@@ -464,3 +464,19 @@ aperto o richiesto. Il nome del file non identifica il suo progetto o client_ema
 non associare automaticamente questa credenziale a `firebase-admin-test`.
 Il collegamento storico produzione→MCP Dev resta da ricostruire.
 Nessuna modifica IAM, chiave o configurazione effettuata.
+
+
+### Account di servizio staging — elenco owner del16novembre2026
+
+| Account visualizzato | Stato account | Descrizione visualizzata | Colonna chiavi |
+|---|---|---|---|
+| `firebase-admin-test@mcp-website-dev-39539.iam.gserviceaccount.com` | Enabled | Firebase Admin SDK for test environment | Un identificativo chiave visualizzato; identificativo non trascritto |
+| `firebase-adminsdk-fbsvc@mcp-website-dev-39539.iam.gserviceaccount.com` | Enabled | Firebase Admin SDK Service Agent | No keys |
+
+Provenienza: schermata dell'elenco account fornita dall'owner. La schermata
+non stabilisce tipo, stato attivo/disabilitato, date o utilizzo della chiave
+elencata per firebase-admin-test; Enabled è lo stato dell'account. No keys è
+il riscontro della colonna per il secondo account, non prova dell'assenza di
+ogni meccanismo di autenticazione. Non dimostrata l'associazione fra la chiave
+elencata e il file ./service_account.json referenziato dal backend produzione.
+Nessun payload/ID chiave registrato, nessuna chiave creata, usata o modificata.
