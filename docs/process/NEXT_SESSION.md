@@ -569,3 +569,17 @@ planSHA c3eef5a6fe4540f80e0de53f4b916d3ec712c95759bdd020864c25272d2a9cdc.
 Prossimo:ARgcf-artifactsus-central1+optout+2grant,secretcontainer/valoreowner
 +2grant,sorgentibucket+viewer,WIF/GitHub,Hosting/Auth,budget. Riassunto3e
 CREDENTIAL_TRANSITION. Non dichiarare B/deploycompleti;mainhold e datigate restano.
+
+## Blocco B — repository immagini pronto,16 novembre 2026
+
+Owner prosegue sulrepo. Creato gcf-artifacts DockerSTANDARD us-central1 nel
+progetto staging,inizialmenteassente. LabelFirebasecleanupoptouttrue,0cleanup
+policy,scanningvulnerabilitàDISABLED(secondopiano costi).2grant solosulrepo:
+functions-buildWriter egithub-deployReader. Readbackmetadati/IAM/immagini
+all_pass,0immagini. Google aggiungeautomaticamente ArtifactRegistryServiceAgent
+sulprogetto aservice-1005755179074@gcp-sa-artifactregistry.iam.gserviceaccount.com;
+0rimozioni,altriruoliinvariati. Nessunabuild/deploy/secret/dati,nessuncodiceapp.
+Evidenzeprivate registry_* in.local/staging/cloud-b-verification;resoconto3f
+CREDENTIAL_TRANSITION. Prossimo:secretPayPalcontainer+valoreowner+2grant,
+sorgentibucket+viewerbuild,WIF/GitHub,Hosting/Auth,budget. NoEditorcleanup,
+mainhold e datigate invariati;retentiondefinitivasolodopoprovarollback.

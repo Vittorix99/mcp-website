@@ -670,9 +670,10 @@ Nessun account/app creato o modificato, nessun pagamento eseguito.
 **Stato aggiornato:** blocco A repository completato0a17e98;stima costi
 b177bbd. Blocco B in corso:4account dedicati creati,8API autorizzate abilitate
 (con2dipendenze Google),5ruoli custom e17grant nominativi ora applicati e
+verificati. Repository Docker gcf-artifacts us-central1 creato e2grant scoped
 verificati. Editor default invariati per decisione owner. Controllo Functions
-aggiornato43192d4. Repository/secret,WIF e altre configurazioni ancora aperti;
-nessun deploy o aggiornamento dati. Evidenze e avanzamento nelle sezioni3c–3e.
+aggiornato43192d4. Secret,WIF e altre configurazioni ancora aperti;nessun
+deploy o aggiornamento dati. Evidenze e avanzamento nelle sezioni3c–3f.
 
 **Obiettivo:** ottenere uno staging autonomo, con codice approvato, identità
 separate e prima baseline verificata, prima di attivare il deploy automatico.
@@ -1197,6 +1198,61 @@ poi secretAccessor backend/viewer deploy;bucket sorgenti reali e objectViewer
 build;WIF/Environment GitHub,Hosting/Auth,monitoraggio budget. Eventarc,
 Scheduler e invocazioni worker prima della loro fase. Staging non dichiarato
 pronto al deploy finché mancano questi prerequisiti e il consenso sullo SHA.
+
+### 3f. Repository immagini creato e verificato —16novembre2026
+
+Owner autorizza di proseguire con il repository dopo la spiegazione delle
+immagini container. Preflight via API conferma progetto staging ACTIVE,
+numero1005755179074 e nessun repository presente in us-central1.
+
+Creato il solo repository
+`projects/mcp-website-dev-39539/locations/us-central1/repositories/gcf-artifacts`,
+formato DOCKER,mode STANDARD_REPOSITORY,con descrizione staging rollback.
+Label `firebase-functions-cleanup-opted-out=true`,nessuna cleanup policy.
+Scansione vulnerabilità esplicitamente DISABLED alla creazione,coerente con
+il piano costi che non attiva scansioni opzionali a pagamento. Non modificati
+controlli di scansione di repository esistenti;eventuali requisiti futuri di
+scansione restano una decisione distinta.
+
+Policy iniziale del repository letta e verificata senza binding diretti.
+Applicate due sole assegnazioni,entrambe sul repository esatto:
+
+| Principale | Ruolo |
+|---|---|
+| `functions-build@mcp-website-dev-39539.iam.gserviceaccount.com` | `roles/artifactregistry.writer` |
+| `github-deploy@mcp-website-dev-39539.iam.gserviceaccount.com` | `roles/artifactregistry.reader` |
+
+Readback con richieste separate conferma nome/regione/formato/mode,label
+opt-out,0cleanup policy,scanningDISABLED e differenza IAM esattamente uguale
+ai2grant previsti,non condizionati. Elenco immagini restituisce[]:repository
+vuoto. Nessun comando di build o deploy eseguito in questo passaggio. I grant di progetto e gli
+accessi ereditati non sono esclusi dalla presenza dei soli2binding diretti.
+
+Nella rilettura della policy progetto è comparsa la sola assegnazione
+`roles/artifactregistry.serviceAgent` a
+`service-1005755179074@gcp-sa-artifactregistry.iam.gserviceaccount.com`,
+identità gestita Google creata durante il provisioning. Nessun grant di
+progetto manuale aggiunto;0rimozioni rispetto allo snapshot successivo al
+lotto IAM3e. Grant preesistenti,compresi gli Editor accettati,conservati.
+
+Evidenze private metadata-only in.local/staging/cloud-b-verification:
+registry_create_result.json,registry_metadata_before_grants.json,
+registry_iam_before_grants.json,registry_grants_result.json,readback metadata/
+IAM/immagini,registry_verified_summary.json(all_pass=true) e delta policy
+progetto. Comandi con --project staging e account owner espliciti,nessun
+cambio di default locale. Nessuna API aggiuntiva abilitata dall'agente,
+secret,chiave,contenuto applicativo o dati manipolati. Documentazione e
+checkpoint aggiornati;nessuna modifica al codice applicativo.
+
+Opt-out e assenza DELETE restano iniziali per proteggere bootstrap/rollback,
+non una retention indefinita definitiva. La pulizia successiva dovrà
+preservare immagini attive e baseline nella finestra30giorni concordata.
+Questo passaggio prepara lo spazio;non dimostra un deploy o il rollback.
+
+Prossimo B:secret PayPal sandbox con valore inserito dall'owner fuori chat,
+poi2grant su quel solo secret;bucket sorgenti reali e objectViewer build;
+WIF/GitHub,Hosting/Auth e monitoraggio budget. Gate deploy,dati e main hold
+invariati;B non ancora dichiarato completo.
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 
