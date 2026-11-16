@@ -353,3 +353,11 @@ quale dei due bucket sia il default Firebase o quello usato da backend/frontend,
 né lo scopo del secondo bucket. Verificare queste associazioni e gli eventuali
 bucket di build prima di proporre modifiche al catalogo o ai permessi.
 Nessun contenuto, regola o policy del bucket letto/modificato dall'agente.
+
+
+L'owner conferma che Firebase Storage seleziona all'apertura
+`gs://mcp-website-dev-39539.firebasestorage.app` (16novembre2026). È il bucket
+presentato dalla console Firebase; uso effettivo di backend/frontend distribuiti
+e finalità del bucket `mcp-website-dev-39539` ancora da verificare. Il nome
+`.appspot.com` del catalogo resta una discrepanza aperta: nessuna configurazione
+applicativa o IAM modificata in questa fase d'inventario.
