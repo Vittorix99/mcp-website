@@ -619,3 +619,15 @@ L'elenco domini staging resta da riconciliare con URL e flussi Auth effettivi
 nel piano bootstrap. Non si deduce che ogni operazione Email/Password sia
 impossibile dalla sola assenza di domini riportata. Stato email-link ancora
 non verificato. Nessun dominio aggiunto/rimosso o provider modificato.
+
+
+### Email-link staging — schermata provider owner del16novembre2026
+
+Il dettaglio del provider mostra **Email/Password attivo** ed **Email link
+(passwordless sign-in) disattivato**. Questo completa il riscontro precedente:
+abilitare Email/Password non attesta l'abilitazione dell'accesso senza password.
+La schermata precedente dei template email non era una prova di questo stato.
+
+La configurazione dei flussi login/ritorno email staging va concordata nel
+bootstrap insieme ai domini e alle URL effettive. Nessuna opzione del provider,
+nessun template e nessun dominio modificati durante l'inventario.
