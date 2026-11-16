@@ -507,3 +507,20 @@ modifica dati. Prossimo passaggio:verificareAPI/policy epermissioncustom/risorse
 prima dei grantnominativi;non assegnare ruoli per superare errori deldeploy.
 La creazioneidentità non attiva WIF,flagautomatici o pipeline e non autorizza
 revoche/deploy/dati. Il prospetto B resta in CREDENTIAL_TRANSITION.md3/3a.
+
+## Blocco B — API e IAM verificati in sola lettura,16 novembre 2026
+
+Owner richiede verificaAPI/policy,non abilitazioni o grant.44API prima/dopo
+identiche,billingEnabled=true verificatoAPI. Mancano8API:cloudfunctions,run,
+cloudbuild,artifactregistry,eventarc,cloudscheduler,secretmanager,sts (suffisso
+.googleapis.com). Nessun ruolo diretto ai4nuoviSA;policyprogetto10bindinglegacy/
+owner/serviceagentFirebase.0ruolicustom e0poolWIF.9permessi custom GA/SUPPORTED
+verificatiIAM REST(14pagine),23definizioni ruoli predefiniti lette. EventarcAdmin
+includeIAMwritesrisorseEventarc:rinviare/limitare prima del grant,non serveHTTP.
+BucketappUS,ACLlegacy/UBLAfalse,softdelete7giorni;IAMbucketlegacyowner/reader,
+nessunallUsersIAM,maACLsingolioggetti nonletti. Solo2bucket,niente sorgentigcf
+osservate. DBnam5Native,PITR e deleteprotectiondisabled;backup nonriinterrogati.
+Metadati privati in.local/staging/cloud-b-verification/,nessunpayloadsegreto.
+Esito aggiornato inCREDENTIAL_TRANSITION3b. Nessunamutazionecloud nécodiceapp.
+Prossimo lotto da discutere:abilitare sole8API e verificareserviceagent;grant,
+WIF eprotezionedati rimangono separati. Nessunaattivazionepipeline/deploy.

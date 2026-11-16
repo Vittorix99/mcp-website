@@ -848,8 +848,10 @@ Le righe a scope P sono binding nella policy di
   quattro nuovi account sopra,con membro github-deploy e
   `roles/iam.serviceAccountUser`.
 
-I cinque ruoli custom proposti hanno questi soli permessi;la creazione è
-ancora da verificare con queryTestablePermissions/SUPPORTED nel progetto:
+I cinque ruoli custom proposti hanno questi soli permessi. Il16novembre2026
+queryTestablePermissions sul progetto ha confermato tutti i9permessi distinti
+GA e SUPPORTED (valore di default del campo omesso). I ruoli non sono ancora
+stati creati:
 
 | ID ruolo custom nel progetto staging | includedPermissions esatti |
 |---|---|
@@ -860,8 +862,8 @@ ancora da verificare con queryTestablePermissions/SUPPORTED nel progetto:
 | `stagingBucketMetadata` | `storage.buckets.get` |
 
 Ogni ID completo è `projects/mcp-website-dev-39539/roles/ID`.
-I permessi firebaseauth sono presenti nel catalogo ufficiale verificato;
-questo non equivale a una creazione riuscita del custom role nel progetto.
+I permessi firebaseauth sono presenti sia nel catalogo ufficiale sia nella
+query del progetto;questo non equivale a una creazione riuscita del custom role.
 I ruoli `roles/...` della tabella3 sono pacchetti predefiniti Google,non
 permessi atomici: prima dell'applicazione salvare gli includedPermissions
 correnti insieme al diff,senza promettere che un'etichetta contenga un solo
@@ -917,6 +919,99 @@ Riferimenti verificati16novembre2026:
 [permessi Auth](https://docs.cloud.google.com/iam/docs/roles-permissions/firebaseauth),
 [condizione database](https://firebase.google.com/docs/firestore/manage-databases#configure_database_access_conditions),
 [service agent Functions](https://docs.cloud.google.com/functions/docs/concepts/iam).
+
+### 3b. Verifica API e policy effettive —16novembre2026
+
+Richiesta owner:verificare API e policy,senza correzioni. Controlli eseguiti
+in sola lettura con identità owner,progetto staging esplicito. Nessuna API
+abilitata,nessun grant/revoca,nessuna modifica bucket/database. Inventario API
+prima e dopo identico:44servizi. BillingEnabled=true verificato via API,
+oltre alla precedente conferma owner.
+
+**Differenza API rispetto alla allowlist B:**
+
+| Servizio richiesto | Stato attuale |
+|---|---|
+| `cloudfunctions.googleapis.com` | Non abilitato |
+| `run.googleapis.com` | Non abilitato |
+| `cloudbuild.googleapis.com` | Non abilitato |
+| `artifactregistry.googleapis.com` | Non abilitato |
+| `eventarc.googleapis.com` | Non abilitato |
+| `cloudscheduler.googleapis.com` | Non abilitato |
+| `secretmanager.googleapis.com` | Non abilitato |
+| `sts.googleapis.com` | Non abilitato |
+
+Le altre12API della allowlist sono già abilitate:iam,iamcredentials,
+serviceusage,cloudresourcemanager,firebase,firebasehosting,firestore,storage,
+firebasestorage,pubsub,identitytoolkit,logging (tutte con suffisso.googleapis.com).
+Non si deduce assenza di risorse dall'API disabilitata:Functions/Run/Build,
+Artifact Registry,Eventarc,Scheduler e Secret Manager non sono stati interrogati
+per evitare qualsiasi richiesta interattiva di abilitazione. Esistenza e
+policy di repository/secret/worker restano da verificare nella fase pertinente.
+
+**IAM attuale e differenza rispetto al prospetto:**
+
+- Policy progetto letta:10binding,tutti relativi all'owner,ai due account
+  legacy e ai service agent Firebase/Firestore già esistenti. Nessun binding
+  diretto per github-deploy,functions-build,app-runtime o web-runtime.
+- Ruoli custom di progetto:0. Tutti e5i ruoli custom proposti sono quindi da
+  creare;nessun grant è stato applicato a seguito di questa verifica.
+- Tutti i9permessi distinti dei5ruoli custom risultano testabili sul progetto,
+  GA,non limitati ai soli ruoli predefiniti e supportati nei custom role.
+  IAM omette il campo per lo stato predefinito SUPPORTED e i booleani false:
+  la normalizzazione è documentata nel riepilogo locale,non è una prova di
+  creazione/applicazione del ruolo.
+- Scaricate in sola lettura le definizioni correnti di23ruoli predefiniti
+  proposti,compresi i service agent. Per i ruoli proposti al deploy non
+  risultano resourcemanager.projects.setIamPolicy,secretmanager.versions.access
+  o serviceusage.services.enable/disable. Il binding actAs resta limitato ai
+  quattro nuovi account come da prospetto.
+- **Rilievo prima del grant:**roles/eventarc.admin contiene88permessi e include
+  setIamPolicy sulle risorse Eventarc,ad esempio eventarc.triggers.setIamPolicy.
+  Non è amministrazione IAM del progetto,ma è più della sola gestione codice.
+  Non serve alla prima tranche HTTP+SSR;prima di assegnarlo decidere se
+  rinviare il grant alla fase trigger o definire un ruolo più ristretto.
+  Il prospetto originale non è stato applicato né sostituito silenziosamente.
+- Pool Workload Identity Federation globali:0. Il pool/provider proposto resta
+  da creare;nessun collegamento GitHub è attivo per questi nuovi account.
+- Nessun nuovo binding Functions/Build/Eventarc/PubSub/Scheduler serviceAgent
+  presente nella policy progetto. Non si deduce da ciò l'assenza di ogni
+  identità Google:verificare identità e binding dopo l'abilitazione concordata.
+
+**Risorse dati e policy lette:**
+
+| Risorsa | Evidenza attuale |
+|---|---|
+| Bucket applicativo firebasestorage.app | US,uniform_bucket_level_access=false,public_access_prevention=inherited;soft delete604800secondi (=7giorni) |
+| IAM bucket applicativo | roles/storage.legacyBucketOwner per projectOwner/projectEditor e roles/storage.legacyBucketReader per projectViewer;nessun nuovo account e nessun allUsers/allAuthenticatedUsers nella policy letta |
+| Altri bucket | Solo mcp-website-dev-39539 oltre al bucket applicativo;nessun bucket gcf-v2-sources/upload osservato nell'elenco corrente |
+| Firestore(default) | Native,nam5;deleteProtectionState=DELETE_PROTECTION_DISABLED e pointInTimeRecoveryEnablement=POINT_IN_TIME_RECOVERY_DISABLED |
+
+Con uniform access disabilitato,gli ACL degli oggetti possono aggiungere
+accessi rispetto alla sola policy del bucket. Non sono stati letti contenuti
+o ACL di singoli oggetti;non dichiarare privati tutti i file da questa verifica.
+PITR e delete protection disattivati sono elementi del gate protezione dati
+prima di reset/import:non sono stati cambiati automaticamente. Non è stata
+eseguita una nuova query dei backup pianificati;il dato precedente deriva
+dalla schermata owner e non diventa verifica API per deduzione.
+
+Evidenza privata di soli metadati in
+`.local/staging/cloud-b-verification/` (file0600,directory0700,non versionata):
+policy correnti,definizioni ruoli,query permessi e riepilogo. Nessun token,
+refresh token,chiave o payload Secret Manager salvato negli artifact.
+Il comando generico CLI dei testable permissions è andato in timeout;la query
+IAM REST mirata con pagina1000 e TLS verificato ha trovato tutti i9permessi
+in14pagine. Gli errori tecnici iniziali di lettura delle definizioni sono
+stati risolti;le23definizioni finali risultano tutte lette correttamente.
+
+**Esito:**verifica terminata,staging non ancora pronto al deploy. Il prossimo
+lotto concreto da discutere è l'abilitazione delle sole8API mancanti,seguita
+dal readback di API e service agent creati dal servizio. Grant custom/runtime,
+WIF,repository/secret,configurazione Auth e policy dati restano passaggi distinti.
+Questa verifica non autorizza l'applicazione del lotto successivo.
+
+Fonte sul significato dei campi della query:
+[queryTestablePermissions](https://docs.cloud.google.com/iam/docs/reference/rest/v1/permissions/queryTestablePermissions).
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 
