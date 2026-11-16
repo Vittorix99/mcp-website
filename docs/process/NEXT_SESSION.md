@@ -595,3 +595,24 @@ mittenteverificato/destinatariautorizzatifuoriGit. Chiestiowner viaquestion
 asincronai soliindirizzi mittente/destinatario,maiAPIkey. Nessuninvio,grant,
 secret o toggleruntime fattiora. Datasetmassivononinvia;testrealmailseparato.
 DettaglioCREDENTIAL_TRANSITION3g;altriprovidermodiinvariati.
+
+## Staging provider e secret predisposti —16 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `core-age-data-integrity`, baseab050b4.
+Release ora mail/gender/SoundCloud staging,PayPal sandbox,Pass2U fake;allowlist
+email esatta obbligatoria/digested/workflow e preflight di tutti i secretattivi.
+Runtime vietaPass2U reale in staging e richiedechiavegender. Default catalogo
+prudenti e produzione invariati. Sender sospeso:chiestoowner se riattivarlo,
+necessario suo lotto binding/webhook/isolamento prima diabilitare.
+Mittenteowner e5destinatariapprovati salvatiin.local/staging/mail-public-config.json
+0600;recipients.json giàesistente. GmailDev get_profileconfermato casellatest;
+nessunmessaggioletto/inviato. API MailerSend,non credenzialiSMTP.
+Creati4secretvuoti PAYPAL_CLIENT_SECRET/MAILERSEND_API_KEY/SOUNDCLOUD_CLIENT_SECRET/
+GENDER_API_KEY,8grant resourceonly(app-runtime accessor,github-deploy metadataviewer).
+0versioni:ownerinseriscevalori direttamenteinSM,maichat. PrimoCLI nullpolicy
+fermato dopo1creazione;readback e ripresaesplicita daemptyPayPal,nessunretrycieco.
+ReviewSolhigh1P2correttoRED/GREEN;1415unit,112tooling,70config,5privatechecksPASS.
+Evidenzeprivateprovider_secret_*;dettaglioCREDENTIAL_TRANSITION3h.
+Prossimo:inserimentovalori e preflightmetadata,Senderchiarimento,WIF/GitHub,
+Hosting/Auth,budget,sorgentibucket. No deploy/import/production/mainmerge;gates
+baseline/rolloutimmutati. Residuihigh differitiowner,nonrisolti.

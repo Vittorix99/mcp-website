@@ -74,9 +74,16 @@ def public_configuration(environment, env, sha):
         MCP_RUNTIME_SERVICE_ACCOUNT=identities['RUNTIME_SERVICE_ACCOUNT'],
         PAYPAL_CLIENT_ID=public_value(env, 'PAYPAL_CLIENT_ID'))
     backend.update({f'{provider.upper()}_MODE':mode for provider, mode in resource['providers'].items()})
-    if environment == 'production':
-        for key in ['MAILERSEND_FROM_EMAIL', 'MAILERSEND_FROM_NAME', 'SOUNDCLOUD_CLIENT_ID']:
-            backend[key] = public_value(env, key)
+    # The release profile enables explicit E2E integrations; bare runtime defaults stay offline-safe.
+    if environment == 'staging':
+        backend.update(MAIL_MODE='staging', PASS2U_MODE='fake', GENDER_MODE='staging',
+            SOUNDCLOUD_MODE='staging')
+        recipients = public_value(env, 'MAIL_ALLOWED_RECIPIENTS')
+        require(all(re.fullmatch(r'[^\s@,;<>*]+@[^\s@,;<>*]+\.[^\s@,;<>*]+', address)
+            for address in recipients.split(',')), 'MAIL_ALLOWED_RECIPIENTS exact addresses')
+        backend['MAIL_ALLOWED_RECIPIENTS'] = recipients
+    for key in ['MAILERSEND_FROM_EMAIL', 'MAILERSEND_FROM_NAME', 'SOUNDCLOUD_CLIENT_ID']:
+        backend[key] = public_value(env, key)
     frontend = dict(NEXT_PUBLIC_ENV=environment, NEXT_PUBLIC_BASE_URL=resource['backend_url'],
         NEXT_PUBLIC_FIREBASE_PROJECT_ID=project, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=resource['storage_bucket'],
         NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=f'{project}.firebaseapp.com',
@@ -352,9 +359,11 @@ def cloud_preflight(manifest, *, cloud=None):
     for account in manifest['identities'].values():
         require(cloud(manifest, 'iam', 'service-accounts', 'describe', account, '--format=value(email)').strip()
             == account, 'existing service identity')
-    secrets = ['PAYPAL_CLIENT_SECRET']
-    if manifest['environment'] == 'production':
-        secrets += ['MAILERSEND_API_KEY', 'PASS2U_API_KEY', 'SOUNDCLOUD_CLIENT_SECRET']
+    secrets = [secret for provider, secret in [
+        ('PAYPAL', 'PAYPAL_CLIENT_SECRET'), ('MAIL', 'MAILERSEND_API_KEY'),
+        ('PASS2U', 'PASS2U_API_KEY'), ('SOUNDCLOUD', 'SOUNDCLOUD_CLIENT_SECRET'),
+        ('GENDER', 'GENDER_API_KEY')]
+        if manifest['backend'].get(provider + '_MODE') in {'sandbox', 'staging', 'live'}]
     for secret in secrets:
         require(cloud(manifest, 'secrets', 'versions', 'describe', 'latest', '--secret', secret,
             '--format=value(state)').strip() == 'ENABLED', 'enabled provider secret version')

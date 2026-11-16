@@ -570,3 +570,10 @@ Nessuna stima token/costi. Editor default lasciati invariati come richiesto.
 
 Dispatch effettivi:0Luna,1reviewSolhigh. Operazioni cloud eseguite dal
 coordinatore su richiesta owner;nessuna stima token/costi disponibile.
+
+## 2026-11-16 — Staging provider profile and scoped secret provisioning
+
+- Dispatch: staging_provider_profile_review; model gpt-6.1-sol; reasoning high; fresh context; read-only review of release/runtime/workflow/tests plus private provisioning plan/script.
+- Result: one P2, unexpected initial direct secret grants could survive delta-only verification. Sol accepted finding, reproduced RED with fake cloud, fixed to require empty initial and exact final direct grants; GREEN5private provisioning tests. No second review needed for the covered fix.
+- Verification:1415backend unit tests;112tooling tests plus5private provisioning tests;70frontend/config tests PASS with Node20. Initial bootstrap selector check failed under host Node; corrected to required Node20 and complete tooling suite passed. Reviewer independently passed101focused checks.
+- Dispatch count:1Sol review task,0Luna tasks. No host token/cost telemetry available. Cloud result:4empty secret containers,8exact resource grants,0versions; second independent readback PASS and project IAM unchanged since registry. Details CREDENTIAL_TRANSITION3h.

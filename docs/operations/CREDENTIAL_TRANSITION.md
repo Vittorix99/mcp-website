@@ -1,6 +1,16 @@
 # Transizione credenziali — Core WS1
 
-**Stato aggiornato al 2026-11-15:** preparazione repository segreti/deploy integrata nel worktree `.worktrees/core-ws2`, ramo `core-age-data-integrity`; ultimo commit applicativo `9374efb` (Q-05), PR #12 draft dipendente da PR #11. CI #11 passata sul commit `0b85eb7` secondo il checkpoint storico; CI #12 non confermata. Le prove locali Q-05 sono registrate in `docs/process/NEXT_SESSION.md` e non attestano un deploy. Il ramo originario `ci/staging-deployment` resta un riferimento storico. Inventario cloud e identità build, piano IAM concreto e autorizzazione di attivazione restano aperti. Nessuna creazione di identità, modifica IAM, rotazione/revoca o deploy deriva dalla sola presenza di questo documento.
+**Stato corrente —16 novembre 2026:** inventario staging raccolto, quattro
+identità dedicate create, API abilitate e lotto IAM applicato; repository
+`us-central1/gcf-artifacts` predisposto. Profilo E2E e quattro contenitori secret
+vuoti predisposti (dettagli3h); valori ancora da inserire. Gmail di test collegata.
+Sender resta sospeso in attesa del chiarimento richiesto all'owner. WIF/GitHub,
+Hosting/Auth, budget, bucket sorgenti e prove bootstrap/E2E/rollback restano aperti.
+La valutazione dei residui high è differita su indicazione owner. Nessun deploy,
+aggiornamento dati cloud o intervento in produzione; main hold invariato.
+I checkpoint precedenti sotto riportati sono storici, non lo stato corrente.
+
+**Checkpoint storico del 2026-11-15:** preparazione repository segreti/deploy integrata nel worktree `.worktrees/core-ws2`, ramo `core-age-data-integrity`; ultimo commit applicativo `9374efb` (Q-05), PR #12 draft dipendente da PR #11. CI #11 passata sul commit `0b85eb7` secondo il checkpoint storico; CI #12 non confermata. Le prove locali Q-05 sono registrate in `docs/process/NEXT_SESSION.md` e non attestano un deploy. Il ramo originario `ci/staging-deployment` resta un riferimento storico. Inventario cloud e identità build, piano IAM concreto e autorizzazione di attivazione restano aperti. Nessuna creazione di identità, modifica IAM, rotazione/revoca o deploy deriva dalla sola presenza di questo documento.
 
 Prima del rilascio restano da chiudere in sequenza: valutazione aggiornata delle dipendenze, eventuale riuso di vecchie build distribuite e risultato CI sullo SHA da rilasciare. Inventario/IAM precedono una separata autorizzazione cloud; bootstrap, traffico pagamenti compatibile, E2E sandbox e rollback richiedono evidenze reali. Checklist corrente: [NEXT_SESSION.md](../process/NEXT_SESSION.md#q-05-concluso-e-prerequisiti-cloud--15-novembre-2026).
 
@@ -1278,6 +1288,77 @@ restano esclusi;la prova finale deve verificare richiesta al provider e
 ricezione effettiva,non soltanto un HTTP200 locale. Nessuna modifica cloud,
 configurazione runtime o invio eseguito da questo chiarimento. Altri provider
 conservano i modi attuali finché non richiesto diversamente.
+
+### 3h. Profilo E2E staging e contenitori dei secret —16 novembre 2026
+
+Owner richiede servizi reali nello staging, salvo Pass2U per evitare consumo
+crediti; PayPal resta sandbox. Mittente MailerSend comunicato dall'owner,
+destinatari esatti recuperati da `.local/staging/recipients.json` (fuori Git).
+Connettore Gmail Dev verificato tramite get_profile sulla casella corrispondente:
+nessun messaggio letto o inviato. Autorizzata futura lettura limitata ai test
+staging, inclusa verifica contenuti/allegati e resa grafica quando disponibile.
+Credenziali SMTP della schermata non equivalgono al token API usato dal codice.
+
+Piano del lotto autorizzato: configurazione release esplicita mail, gender e
+SoundCloud in modo staging, Pass2U fake, allowlist email di soli indirizzi esatti
+obbligatoria e inclusa nel digest. Default del catalogo per avvio senza release
+rimangono prudenti. Preflight legge soltanto metadati/versioni/IAM di tutti i
+provider attivi; mai payload. Runtime rifiuta Pass2U reale in staging anche con
+chiave presente e richiede chiave per gender reale. Produzione invariata.
+
+Sender.net è un'eccezione ancora da chiarire: la precedente sospensione è
+imposta dal runtime, manca la mappatura SecretParam e il webhook accetta
+richieste senza autenticazione se manca il suo secret. Non riattivarlo con un
+semplice flag. Chiesto all'owner se la nuova decisione include anche Sender;
+nessuna riattivazione in questo lotto. Eventuale lotto dedicato richiede
+binding, autenticazione webhook obbligatoria e isolamento contatti/campagne.
+
+Risorse concrete da predisporre in `mcp-website-dev-39539`:
+PAYPAL_CLIENT_SECRET (sandbox), MAILERSEND_API_KEY, SOUNDCLOUD_CLIENT_SECRET,
+GENDER_API_KEY. Quattro contenitori vuoti con replica automatica; zero versioni.
+Su ciascuno soltanto due grant diretti e senza condizioni:
+- `roles/secretmanager.secretAccessor` a
+  `app-runtime@mcp-website-dev-39539.iam.gserviceaccount.com`;
+- `roles/secretmanager.viewer` a
+  `github-deploy@mcp-website-dev-39539.iam.gserviceaccount.com` (metadati, non valori).
+Nessun grant al build/web, nessun grant SM a livello progetto; nessuna chiave
+Pass2U o Sender. Piano/script/evidenze private `provider_secret_*` in
+`.local/staging/cloud-b-verification`. Review Sol high prima delle mutazioni;
+readback di replica, zero versioni e8grant, confronto IAM progetto invariato.
+I valori verranno inseriti dall'owner direttamente in SM, senza chat/log/Git.
+
+Costi: la precedente stima includeva una sola versione secret; a4versioni
+attive la componente lorda versioni diventa0,24USD/mese invece di0,06, prima
+delle quote e degli accessi. Costi/quote MailerSend, SoundCloud e Gender da
+verificare sugli account prima delle prove reali; non inclusi nel vecchio totale.
+Nessun deploy, import dati o invio massivo autorizzato da questo lotto; gate
+main, baseline rollback e rilascio restano invariati.
+
+Esito del lotto3h: review indipendente Sol high con un P2 sul confronto IAM;
+corretto con regressione RED→GREEN (policy iniziale vuota, policy finale esatta).
+Verifica locale:1415unit backend,112tooling,70frontend/config e5test privati di
+provisioning PASS. Verifica contratto release→runtime→SecretParam conferma
+assenza di binding Pass2U e secret necessari per ciascuna funzione.
+
+Provisioning eseguito:4contenitori,8grant diretti,0versioni. Primo tentativo
+fermato dopo la sola creazione PayPal perché il CLI proietta una policy vuota
+come null; confermati inventario, replica, zero versioni e assenza grant prima
+della ripresa esplicita. Adeguamento coperto da test, nessun retry alla cieca.
+Seconda lettura indipendente: esattamente2grant per secret,0versioni e IAM
+di progetto identico al checkpoint registry precedente al primo tentativo.
+Evidenze `provider_secret_result.json` e
+`provider_secret_independent_readback.json` nella cartella privata.
+I campi email approvati sono in `.local/staging/mail-public-config.json`0600;
+nessun indirizzo personale aggiunto ai documenti versionati.
+
+Passo owner MailerSend:Developer Tools→API tokens→Create new token; token
+dedicato staging con Sending access e dominio del mittente approvato; verificare
+la scadenza scelta. Inserire il valore direttamente come nuova versione nel
+secret MAILERSEND_API_KEY dello staging,mai in chat/Git. Fonte ufficiale:
+https://www.mailersend.com/help/managing-api-tokens.
+Anche PayPal sandbox,SoundCloud eGender richiedono i rispettivi valori; nessun
+riuso automatico dei segreti produzione. Preflight resta bloccante finché le
+versioni non sono abilitate. Ricezione/contenuto/grafica email ancora da provare.
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 
