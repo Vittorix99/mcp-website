@@ -606,3 +606,16 @@ utenti o dato personale richiesto. Configurazione email-link/passwordless,
 domini autorizzati, template email e stato degli altri provider non verificati
 indipendentemente; non dedurre email-link abilitato dalla sola voce Email/Password.
 Nessun provider, account, dominio o template modificato.
+
+
+### Domini Authentication staging — riscontro owner del16novembre2026
+
+L'owner riporta **nessun dominio autorizzato nello staging** e precisa che
+l'unico dominio è in produzione. Il nome di quel dominio e l'elenco produzione
+non sono stati forniti; non trasferire automaticamente la configurazione fra
+progetti. Riscontro owner, non lettura API indipendente.
+
+L'elenco domini staging resta da riconciliare con URL e flussi Auth effettivi
+nel piano bootstrap. Non si deduce che ogni operazione Email/Password sia
+impossibile dalla sola assenza di domini riportata. Stato email-link ancora
+non verificato. Nessun dominio aggiunto/rimosso o provider modificato.
