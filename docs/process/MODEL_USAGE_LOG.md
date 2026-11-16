@@ -584,3 +584,10 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Result: Sol accepted one P2: optimized Python could remove assert safeguards. Explicit non-assert entry guard added; RED/GREEN with python -O and external-call sentinels confirms rejection before any cloud/GitHub call. No other P1/P2.
 - Verification: actual-condition equality checks1positive/14negative PASS; reviewer stubbed normal path exactly5mutations and broadened provider stops before grant. Full public configuration/runtime policy offline PASS with synthetic SHA. Live metadata readback PASS: ACTIVE restricted pool/provider, exact one SA grant, project IAM unchanged and14public GitHubvariables. Initial post-create readback incomplete; independently verified exact resources before resuming only3remaining mutations. Signed-token/STS proof pending; details CREDENTIAL_TRANSITION section4.
 - Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
+
+## 2026-11-17 — Auth email-link and upload bucket prerequisites
+
+- Dispatch: auth_upload_prerequisite_review; gpt-6.1-sol, reasoning high, fresh context, read-only review before Auth/IAM mutations. Scope: one masked Auth field and one bucket-only build viewer grant; no deploy, data, mail or production.
+- Result: Sol accepted1P2 evidence gap and captured both original bucket IAM policies before grant. Same review followed up after live Auth false was omitted by ProtoJSON: verifier now normalizes only that absent field; reviewer accepted with no additional P1/P2. No PATCH retry or rollback.
+- Verification:7offline Auth checks PASS under normal Python and python -O, including RED/GREEN omitted-false regression. Independent final readback9checks PASS: exact Auth delta, one upload-bucket grant, unchanged project/both original bucket IAM, zero Functions/Hosting releases/regional+global builds, exact3bucket inventory. Single generateUploadUrl created upload bucket; signed URL discarded and no source uploaded. Source bucket remains absent and bootstrap readiness is false; billing API disabled, no API mutation.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.

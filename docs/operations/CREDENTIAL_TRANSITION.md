@@ -10,8 +10,10 @@ Gender fake; non serve inserire GENDER_API_KEY per il prossimo gate.
 Sender resta sospeso in attesa del chiarimento richiesto all'owner. Environment
 GitHub staging main-only con14variabili pubbliche e WIF ristretto configurato;
 prova con token GitHub autentico e scambio STS ancora da eseguire. Hosting site
-esistente senza release; domini Auth staging presenti, email-link disabilitato.
-Budget, bucket sorgenti e prove bootstrap/E2E/rollback restano aperti.
+esistente senza release; domini Auth staging presenti, email-link ora abilitato.
+Budget15EUR/mese con soli avvisi verificato; bucket upload creato con viewer
+build dedicato. Bucket sorgenti e prove bootstrap/E2E/rollback restano aperti;
+billingEnabled non attestato via REST (Cloud Billing API disabilitata).
 La valutazione dei residui high è differita su indicazione owner. Nessun deploy,
 aggiornamento dati cloud o intervento in produzione; main hold invariato.
 I checkpoint precedenti sotto riportati sono storici, non lo stato corrente.
@@ -1581,6 +1583,66 @@ configurazione; dopo, readback esatto e verifica di nessun'altra modifica.
 Nessun invio email, creazione utente o deploy è incluso in questa proposta.
 L'applicazione rimane soggetta al gate di configurazione cloud concreto;
 bootstrap, prova WIF reale, main hold e flag deploy restano separati.
+
+### 4b. Prerequisiti Auth e bucket upload —17 novembre 2026
+
+Owner approva l'avvio del punto1 del percorso staging (Auth, bucket sorgenti
+e permessi build); nessuna autorizzazione main/deploy/dati/produzione derivata.
+La proposta anticipata di runner cloud non è stata approvata né implementata:
+resta un requisito successivo alle risorse/bootstrap, con limiti da definire.
+
+Preflight nuovo: progetto ACTIVE e numero1005755179074, functions-build attivo,
+Auth Email/Password e soli tre domini attesi. Cloud Billing GET403 ha reason
+SERVICE_DISABLED: API disabilitata, non prova di billing inattivo. Nessuna
+abilitazione API o variazione billing proposta/applicata in questo lotto.
+
+Una sola chiamata Functions v2 generateUploadUrl, environment GEN_2 e regione
+us-central1, ha creato il bucket restituito dal servizio:
+`gcf-v2-uploads-1005755179074.us-central1.cloudfunctions.appspot.com`.
+Metadati confermano progetto1005755179074, US-CENTRAL1; bucket inizialmente vuoto.
+URL firmato ricevuto e scartato in memoria, mai salvato/stampato né utilizzato.
+Nessun archivio caricato, build o funzione distribuita. IAM progetto invariato.
+
+Review indipendente Sol high del solo lotto Auth/grant:1P2 sulle evidenze IAM
+dei bucket originali, corretto prima del grant catturando entrambe le policy.
+Applicato un solo grant roles/storage.objectViewer a
+`functions-build@mcp-website-dev-39539.iam.gserviceaccount.com`, esclusivamente
+sul bucket upload osservato. Delta verificato:1aggiunta,0rimozioni/altre
+aggiunte. Policy progetto e dei due bucket originali identiche agli snapshot;
+ruoli Editor/Owner e account legacy lasciati invariati.
+
+Applicata una sola PATCH Auth con updateMask=signIn.email.passwordRequired,
+valore false. Enabled resta true, domini e ogni altro campo invariati.
+Il primo confronto letterale ha fermato il flusso: l'API ometteva il solo
+booleano false secondo ProtoJSON, invece di restituirlo esplicitamente.
+Rilettura indipendente dimostra un'unica differenza di percorso, proprio il
+campo previsto. Corretto il verificatore normalizzando soltanto quel campo
+assente a false; null o altre differenze restano rifiutate. Regressione
+RED/GREEN,7test offline PASS normali e con python -O; seguito mirato della
+stessa review accetta la correzione senza altri P1/P2. Nessuna seconda PATCH,
+retry o rollback. Nessun utente creato, login reale o invio email effettuato.
+
+**Prerequisito ancora aperto:** generateUploadUrl non ha creato il bucket
+`gcf-v2-sources`; nessuna policy assegnata a risorse inesistenti/nomi presunti,
+nessun viewer globale di progetto. La documentazione descrive la copia nel
+bucket sorgenti durante il deployment; risolvere il provisioning/accesso
+prima della prima build senza aggirare il gate deploy. Non dichiarare il
+bootstrap pronto o il punto1 completamente chiuso. Prima di ogni ripresa,
+leggere inventario/stato attuale; non rieseguire i comandi già applicati.
+
+Evidenze private0600 in cloud-b-verification: prerequisites_preflight,
+source_upload_provision_before/after/result/response_metadata,
+upload_bucket_before_grant, original_buckets_iam_before_grant,
+upload_bucket_grant_after/result, auth_prerequisite_first_attempt/result,
+auth_prerequisite_delta_paths/after/independent_readback e
+auth_upload_final_independent_readback. Gli snapshot Auth contengono campi
+sensibili: confrontare in memoria, stampare solo percorsi/booleani/contatori.
+Non trascrivere configurazioni complete nei log o nei documenti tracciati.
+
+Riferimenti: [updateConfig](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v2/projects/updateConfig),
+[generateUploadUrl](https://docs.cloud.google.com/functions/docs/reference/rest/v2/projects.locations.functions/generateUploadUrl),
+[build process](https://docs.cloud.google.com/functions/docs/building),
+[ProtoJSON](https://protobuf.dev/programming-guides/json/).
 
 ### 5. Sequenza con risultati verificabili
 
