@@ -488,3 +488,16 @@ mostra un tipo testuale né date di creazione/scadenza: non dedurli dall'icona.
 Questo aggiorna il solo stato della chiave osservata, senza attestare utilizzo
 corrente, contenuto del file credenziali del backend o assenza di altre chiavi
 fuori dalla porzione visibile. Nessuna modifica o revoca eseguita.
+
+
+### Cloud Build staging — schermata owner del16novembre2026
+
+Aprendo la cronologia Cloud Build dello staging, l'owner viene indirizzato alla
+pagina Cloud Build API (`cloudbuild.googleapis.com`) con pulsante **Enable**,
+progetto selezionato `mcp-website-dev`. Registrato come API da abilitare nello
+staging, sulla base della schermata owner; nessuna attivazione effettuata.
+
+La cronologia non è stata consultata: non si deducono zero build storiche,
+assenza di service agent o identità di build predefinita dal solo invito
+all'abilitazione. Abilitazione API, verifica dell'identità build effettiva e
+relativi permessi entreranno nel piano bootstrap autorizzato separatamente.
