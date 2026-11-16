@@ -631,3 +631,18 @@ La schermata precedente dei template email non era una prova di questo stato.
 La configurazione dei flussi login/ritorno email staging va concordata nel
 bootstrap insieme ai domini e alle URL effettive. Nessuna opzione del provider,
 nessun template e nessun dominio modificati durante l'inventario.
+
+
+### PayPal sandbox — schermata owner del16novembre2026
+
+La pagina API Credentials mostra esplicitamente modalità sandbox e una REST API
+app visibile chiamata **Default Application**. La colonna Date and time riporta
+`20/12/24,13:40` (fuso non indicato). Secret mascherato nella schermata; nessun
+Client ID o Secret trascritto, richiesto, usato o caricato nel repository.
+
+Questo prova la presenza dell'app visualizzata nella vista sandbox, non che sia
+dedicata a MCP, che le credenziali correnti nel codice appartengano a quell'app,
+né che autenticazione o pagamenti sandbox siano stati provati. Scelta dell'app
+staging e associazione all'account merchant ancora da confermare. Disponibilità
+di account sandbox Business/Personal per E2E ancora da verificare. Nessuna app,
+credenziale o transazione PayPal creata/modificata durante l'inventario.
