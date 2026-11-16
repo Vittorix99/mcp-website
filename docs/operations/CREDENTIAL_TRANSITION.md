@@ -1646,13 +1646,30 @@ non Firebase App Hosting: usare il listino Hosting corretto.
 
 Il dataset sintetico locale già generato contiene53684 documenti; l'export
 occupa33,14MiB. È una misura dei file locali,non dei byte Firestore cloud:
-indici,metadati e copie hanno dimensioni diverse. Il piano resta4000 soci e50
-eventi con scenari completi; nessuna riduzione del dataset decisa per i costi.
+indici,metadati e copie hanno dimensioni diverse. **Aggiornamento owner del
+17 novembre 2026:** il dataset4000 soci/50 eventi e le prove massive restano
+negli emulatori. Non importare quel dataset nello staging cloud per il gate.
+Sul cloud usare pochi record sintetici isolati e scenari rappresentativi per
+provare infrastruttura e integrazioni reali. Nessun test di carico o import
+massivo cloud fa parte dell'autorizzazione corrente.
+
+Prima di ogni sessione cloud fissare il numero massimo di scenari, chiamate,
+record coinvolti ed email effettive; contare anche richieste SDK, trigger,
+letture/scritture, scheduler e fan-out indiretto. Preparare il runner con limiti
+di operazioni e invii verificabili prima di eseguire i test. Al raggiungimento
+del limite fermare nuove operazioni, senza replay o retry automatici delle
+azioni con effetti esterni. Eseguire soltanto le prove necessarie e le
+regressioni invalidate da modifiche; niente ripetizioni dell'intera suite
+locale sul cloud. Email vere soltanto ai destinatari autorizzati e in numero
+minimo per verificare consegna, contenuto e resa; non inviare a tutti gli alias
+per ciascuno scenario né abilitare invii dal caricamento dati.
+
 I due scheduler giornalieri (cleanup03:00 e rebuild05:15 Europe/Rome) e quello
 annuale restano nel modello. Le letture dei job e i trigger vanno conteggiati,
-anche quando nessuno apre il sito. Il caricamento massivo e i test di carico
-hanno un budget separato prima dell'esecuzione e non sono compresi nell'uso
-ordinario qui ipotizzato.
+anche quando nessuno apre il sito. Questi limiti operativi non sono un tetto
+monetario garantito del provider; gli alert budget non arrestano la spesa.
+Runner e limiti della futura sessione cloud ancora da predisporre/verificare;
+questa nota non attesta un controllo tecnico già installato.
 
 **Nessuna telemetria cloud disponibile:** durata e tipo macchina delle build,
 riuso effettivo,dimensione media delle immagini,CPU/memoria/tempo fatturati,

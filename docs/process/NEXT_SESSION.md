@@ -643,3 +643,17 @@ Non chiedere nuovamente all'owner l'inserimento manuale dei tre valori.
 Prossimi: chiarimento Sender; WIF/GitHub,Hosting/Auth,budget,bucket sorgenti;
 preflight completo e prove reali MailerSend/SoundCloud non ancora eseguiti.
 Nessun deploy,invio email,import dati,produzione/mainmerge; gate invariati.
+
+## Limiti dei test cloud confermati dall'owner —17 novembre 2026
+
+Dataset massivi e carico soltanto negli emulatori. Il precedente piano di
+4000soci/50eventi non va importato sul cloud per il gate; costo/dati del vecchio
+modello economico non costituiscono autorizzazione a prove massive.
+Cloud: pochi record sintetici, casi rappresentativi, conteggio di chiamate,
+letture/scritture, trigger/fan-out, scheduler e vere email. Prima di eseguire
+preparare e verificare limiti espliciti del runner per sessione e invii; fermare
+nuove operazioni al limite e niente replay automatici con effetti esterni.
+Non rieseguire la suite massiva locale sul cloud né inviare a tutti gli alias
+in ogni scenario. Limiti operativi non equivalgono a un tetto di fatturazione.
+Documentata policy in CREDENTIAL_TRANSITION, runner futuro ancora da adeguare;
+nessun test cloud, invio, import o mutazione cloud eseguito in questo passaggio.
