@@ -361,3 +361,23 @@ presentato dalla console Firebase; uso effettivo di backend/frontend distribuiti
 e finalità del bucket `mcp-website-dev-39539` ancora da verificare. Il nome
 `.appspot.com` del catalogo resta una discrepanza aperta: nessuna configurazione
 applicativa o IAM modificata in questa fase d'inventario.
+
+
+### Firestore staging — schermata owner del16novembre2026
+
+| Elemento | Riscontro visualizzato |
+|---|---|
+| Database ID | `(default)` |
+| Stato | Indicatore verde di stato |
+| Edizione | Standard |
+| Modalità | Firestore Native |
+| Località | `nam5` (United States) |
+| Creazione | 15gennaio2026,21:02:52 (UTC+1, come mostrato dalla console) |
+| Backup pianificati | Disabled |
+| Cifratura | Google-managed |
+
+Provenienza: schermata dell'elenco database fornita dall'owner, non lettura
+API indipendente. Nessun documento del database aperto o modificato. La voce
+backup pianificati disabilitati non dimostra l'assenza di export, backup manuali
+o altre forme di recupero; queste restano da verificare prima di eventuali
+sostituzioni dei dati staging. Nessuna attivazione backup effettuata.
