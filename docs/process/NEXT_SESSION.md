@@ -674,3 +674,28 @@ github_staging_environment_result.json nella cartella cloud-b-verification.
 Prossimo:WIF con vincoli repo/main/workflow/environment e config app Firebase;
 poi Hosting/Auth,budget,sorgentibucket e gate. Sender sospeso/Genderfake/Pass2Ufake;
 test cloud ridotti, nessun import massivo. No produzione/mainmerge o flagon.
+
+## WIF staging e variabili Firebase configurati —17 novembre 2026
+
+Worktree .worktrees/core-ws2, branch core-age-data-integrity, base019fc23.
+Creati poolgithub-actions/providermain-release nel progetto mcp-website-dev-39539,
+ACTIVE,6vincoli esatti repoID899139661/repo/main/release.yml/reusabledeploy/
+Environmentstaging. Un solo grant roles/iam.workloadIdentityUser sul SA
+github-deploy al principalSetrepositoryID del pool; IAMprogetto invariato.
+OIDCGitHubsubjectdefault verificato,nessuna personalizzazione/SAkey. Audience
+default compatibile con actionfissata7c6bc.
+SDKconfig appesistenteMCP WEB TEST ACTIVE verificata(progetto/bucket/authDomain);
+aggiunte2variabili browser Firebase:Environment ora14variabili,0secretprivati.
+I valoriSDK sono in.local/staging/firebase-web-public-config.json0600.
+ReviewSolhigh1P2corretto conguardia antiPython-O RED/GREEN;1positivo14negativi
+solooffline,5mutazioni testate dalreviewer. Primo readbackpostcreate incompleto
+(causa nonattestata); verificati indipendentemente stato/vincoli/IAM, ripresi
+solo3passi mancanti. ReadbackfinaleindipendentePASS. Evidenzeprivatewif_* e
+firebase_web_app_config_check;CREDENTIAL_TRANSITIONsezione4.
+TokenGitHubautentico/STSexchange NONprovati: richiedono canale main/SHA
+autorizzato. Nessun workflow/build/deploy/dati/mail/produzione/mainmerge.
+Flagdeployrepoassenti,baseline/rolloutfalse; mainholdpreservato.
+Prossimo blocco:Hosting/Auth,budget/scheduler/costi,bucket sorgenti e IAM residuo,
+poi integrazionemainapprovata/bootstrap/E2Eridotti/rollback. Cloudsolo pochi
+record/chiamate/email conlimiti,maimassiccio datasetlocale. Gender/Pass2Ufake;
+Senderancorasospesoinattesachiarimentoowner.

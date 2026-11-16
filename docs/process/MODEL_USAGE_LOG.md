@@ -577,3 +577,10 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Result: one P2, unexpected initial direct secret grants could survive delta-only verification. Sol accepted finding, reproduced RED with fake cloud, fixed to require empty initial and exact final direct grants; GREEN5private provisioning tests. No second review needed for the covered fix.
 - Verification:1415backend unit tests;112tooling tests plus5private provisioning tests;70frontend/config tests PASS with Node20. Initial bootstrap selector check failed under host Node; corrected to required Node20 and complete tooling suite passed. Reviewer independently passed101focused checks.
 - Dispatch count:1Sol review task,0Luna tasks. No host token/cost telemetry available. Cloud result:4empty secret containers,8exact resource grants,0versions; second independent readback PASS and project IAM unchanged since registry. Details CREDENTIAL_TRANSITION3h.
+
+## 2026-11-17 — Staging WIF activation and Firebase public variables
+
+- Dispatch: staging_wif_activation_review; gpt-6.1-sol, reasoning high, fresh context, read-only review before provisioning. Scope: exact restricted OIDC provider, one resource-level SA grant, two public Firebase Environment variables; no deploy/production/token payloads.
+- Result: Sol accepted one P2: optimized Python could remove assert safeguards. Explicit non-assert entry guard added; RED/GREEN with python -O and external-call sentinels confirms rejection before any cloud/GitHub call. No other P1/P2.
+- Verification: actual-condition equality checks1positive/14negative PASS; reviewer stubbed normal path exactly5mutations and broadened provider stops before grant. Full public configuration/runtime policy offline PASS with synthetic SHA. Live metadata readback PASS: ACTIVE restricted pool/provider, exact one SA grant, project IAM unchanged and14public GitHubvariables. Initial post-create readback incomplete; independently verified exact resources before resuming only3remaining mutations. Signed-token/STS proof pending; details CREDENTIAL_TRANSITION section4.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.

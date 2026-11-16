@@ -1,6 +1,6 @@
 # Transizione credenziali — Core WS1
 
-**Stato corrente —16 novembre 2026:** inventario staging raccolto, quattro
+**Stato corrente —17 novembre 2026:** inventario staging raccolto, quattro
 identità dedicate create, API abilitate e lotto IAM applicato; repository
 `us-central1/gcf-artifacts` predisposto. Profilo E2E e quattro contenitori secret
 predisposti (dettagli3h); versioni1 PayPal sandbox, MailerSend e SoundCloud
@@ -8,9 +8,9 @@ inserite e abilitate; Gender resta vuoto. Gmail di test collegata.
 API Gender non funzionante secondo owner: correzione differita, profilo staging
 Gender fake; non serve inserire GENDER_API_KEY per il prossimo gate.
 Sender resta sospeso in attesa del chiarimento richiesto all'owner. Environment
-GitHub staging creato il17novembre, main-only; WIF e due variabili Firebase
-ancora mancanti. Hosting/Auth, budget, bucket sorgenti e prove
-bootstrap/E2E/rollback restano aperti.
+GitHub staging main-only con14variabili pubbliche e WIF ristretto configurato;
+prova con token GitHub autentico e scambio STS ancora da eseguire. Hosting/Auth,
+budget, bucket sorgenti e prove bootstrap/E2E/rollback restano aperti.
 La valutazione dei residui high è differita su indicazione owner. Nessun deploy,
 aggiornamento dati cloud o intervento in produzione; main hold invariato.
 I checkpoint precedenti sotto riportati sono storici, non lo stato corrente.
@@ -1407,7 +1407,63 @@ Evidenze private `provider_local_source_check.json` e
 `provider_secret_upload_result.json`. Restano prove di invio/ricezione mail,
 SoundCloud, preflight completo e gate bootstrap/E2E/rollback.
 
-### 4. WIF e GitHub: Environment creato, WIF ancora da attivare
+### 4. WIF e GitHub: configurazione applicata, prova OIDC reale pendente
+
+**Aggiornamento corrente —17 novembre 2026:** creati pool global
+`github-actions` e provider `main-release` nel solo progetto staging. Entrambi
+ACTIVE, non disabilitati. Readback esatto di issuer, mapping, sei condizioni e
+assenza di audience aggiuntive: nessun allargamento dei vincoli elencati sotto.
+Concesso `roles/iam.workloadIdentityUser` solo su
+`github-deploy@mcp-website-dev-39539.iam.gserviceaccount.com` al principalSet
+repository ID899139661 del pool. Nessun altro grant aggiunto o rimosso; IAM di
+progetto invariato. Nessuna chiave SA creata e nessun intervento produzione.
+
+GitHub OIDC customization conferma use_default=true, use_immutable_subject=false
+e sub_claim_prefix repo:Vittorix99/mcp-website. Nessuna personalizzazione
+applicata. Condizione vincola il subject standard all'Environment staging,
+ref main, caller release.yml e reusable deploy-environment.yml. Audience default
+verificata sul sorgente della action fissata a7c6bc770dae815cd3e89ee6cdf493a5fab2cc093:
+https://iam.googleapis.com/ seguito dalla risorsa provider concordata. Non
+aggiunta audience generica GitHub.
+
+Individuata tramite Firebase Management API l'app web esistente ACTIVE
+`MCP WEB TEST`, appID `1:1005755179074:web:773eff0b586742e443cddb`; non creata una
+nuova app. SDK config conferma progetto staging, authDomain firebaseapp staging
+e bucket firebasestorage osservato. Richieste REST con x-goog-user-project
+esplicito sullo staging. I due valori browser pubblici FIREBASE_API_KEY e
+FIREBASE_APP_ID inseriti nell'Environment: totale14variabili, valori riletti.
+Nessun segreto privato aggiunto a GitHub. Identificativi e chiave web non
+provengono dalla configurazione produzione.
+
+Review indipendente Sol high: un P2 corretto (Python ottimizzato rimuoveva
+assert; ora guardia esplicita non-assert all'ingresso, regressione RED→GREEN
+con -O e zero chiamate esterne). Offline:1caso ammesso/14rifiutati sulla
+condizione effettiva; reviewer verifica cinque mutazioni previste e stop prima
+del grant se il provider live fosse più ampio. Validatori configurazione
+pubblica e runtime policy PASS su14variabili e SHA sintetico zero, senza
+creare attestazioni o release. Non è una prova JWT firmato/scambio STS.
+
+Prima esecuzione fermata dopo creazione pool/provider, prima di qualsiasi grant:
+il primo readback non completato, diagnostica iniziale non conservata e causa
+non attestata. Rilettura indipendente successiva conferma tutte le condizioni
+esatte e IAM invariato; ripresi esplicitamente soltanto grant e due variabili,
+senza ripetere le creazioni o ridurre i vincoli. Secondo readback completo
+PASS: un solo provider ristretto, un solo grant atteso sul SA,14variabili,
+main-only, IAM progetto invariato. Flag repository deploy ancora assenti,
+PAYMENT_ROLLOUT_APPROVED/ROLLBACK_BASELINE_VERIFIED false.
+
+Evidenze private in `.local/staging/cloud-b-verification`: wif_activation_plan,
+wif_activation_result, wif_activation_independent_readback,
+wif_firebase_public_config_validation, firebase_web_app_config_check e snapshot
+IAM. Valori pubblici SDK in `.local/staging/firebase-web-public-config.json`0600;
+nessun token OAuth/OIDC persistito. Nessun workflow/build/deploy, invio mail o
+import dati eseguito. Prova con token GitHub autentico e STS da fare soltanto
+nel canale main/SHA autorizzato, prima di dichiarare WIF funzionante end-to-end.
+Riferimenti: https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines,
+https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-with-reusable-workflows,
+https://github.com/google-github-actions/auth/blob/7c6bc770dae815cd3e89ee6cdf493a5fab2cc093/src/main.ts.
+
+**Checkpoint precedente della sola creazione Environment:**
 
 **Eseguito il17 novembre 2026 su richiesta owner:** tramite `gh api` con
 identità Vittorix99 e permesso admin, verificato repository ID899139661,
@@ -1439,7 +1495,7 @@ Documentazione API di riferimento:
 https://docs.github.com/en/rest/deployments/environments e
 https://docs.github.com/en/rest/deployments/branch-policies.
 
-**WIF seguente: piano concordato, non ancora applicato.**
+**Piano WIF concordato e ora applicato come descritto sopra:**
 
 Pool global `github-actions`,provider OIDC `main-release`,issuer
 https://token.actions.githubusercontent.com,progetto1005755179074.
