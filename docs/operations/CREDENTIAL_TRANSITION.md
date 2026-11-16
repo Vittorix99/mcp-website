@@ -381,3 +381,22 @@ API indipendente. Nessun documento del database aperto o modificato. La voce
 backup pianificati disabilitati non dimostra l'assenza di export, backup manuali
 o altre forme di recupero; queste restano da verificare prima di eventuali
 sostituzioni dei dati staging. Nessuna attivazione backup effettuata.
+
+
+### Funzioni e topologia storica — riscontro owner del16novembre2026
+
+- L'owner riporta **zero funzioni** nell'elenco Firebase Functions del progetto
+  staging `mcp-website-dev-39539`; nessuna lettura API indipendente effettuata.
+- L'owner spiega che in passato usava funzioni distribuite sul progetto di
+  produzione, collegandole al database staging MCP Dev. Non era un backend
+  staging distribuito separatamente nel progetto dev.
+- La spiegazione è un riscontro storico: stato attuale di routing, progetti
+  selezionati dai client Firebase, account runtime e accessi cross-project non
+  ancora verificati. Non si deduce che tutte le funzioni di produzione usino
+  oggi il database staging o che il collegamento sia selezionato dal frontend.
+
+Implicazioni per il piano: il backend URL staging del catalogo è un target
+previsto, non una release operativa dimostrata. Occorre inventariare gli
+account runtime delle funzioni esistenti, i loro accessi a MCP Dev e il routing
+prima del bootstrap separato. Non modificare/reimpiegare le funzioni di
+produzione né revocare accessi durante l'inventario. Nessun deploy eseguito.
