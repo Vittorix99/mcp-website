@@ -41,26 +41,32 @@ def public_value(env, key):
 
 
 def prepare(environment, env):
-    catalog = json.loads((ROOT / 'mcp-backend/functions/config/environment_catalog.json').read_text())
     require(environment in {'staging', 'production'}, 'environment')
-    resource = catalog['environments'][environment]
-    project = resource['project_id']
     require(env.get('GITHUB_REPOSITORY') == REPOSITORY and
         str(env.get('GITHUB_REPOSITORY_ID')) == str(REPOSITORY_ID), 'repository identity')
     require(env.get('GITHUB_REF') == 'refs/heads/main', 'main ref')
     require(env.get('GITHUB_WORKFLOW_REF') == f'{REPOSITORY}/{WORKFLOW}@refs/heads/main', 'workflow identity')
     require(env.get('GITHUB_EVENT_NAME') in {'push', 'workflow_dispatch'}, 'trusted event')
     sha = env.get('GITHUB_SHA', '')
+    return public_configuration(environment, env, sha)
+
+
+def public_configuration(environment, env, sha):
+    """Public release inputs only; callers must independently authenticate their source."""
+    catalog = json.loads((ROOT / 'mcp-backend/functions/config/environment_catalog.json').read_text())
+    require(environment in {'staging', 'production'}, 'environment')
+    resource = catalog['environments'][environment]
+    project = resource['project_id']
     require(re.fullmatch(SHA, sha), 'release SHA')
     for key in SECRET_KEYS:
         require(not env.get(key), 'provider credentials must stay in Secret Manager')
     require(not any(key.startswith('NEXT_PUBLIC_') for key in env), 'unexpected frontend inputs')
     identities = {}
-    for key in ['DEPLOY_SERVICE_ACCOUNT', 'RUNTIME_SERVICE_ACCOUNT', 'WEB_RUNTIME_SERVICE_ACCOUNT']:
+    for key in ['DEPLOY_SERVICE_ACCOUNT', 'BUILD_SERVICE_ACCOUNT', 'RUNTIME_SERVICE_ACCOUNT', 'WEB_RUNTIME_SERVICE_ACCOUNT']:
         value = public_value(env, key)
         require(re.fullmatch(r'[a-z][a-z0-9-]{4,28}[a-z0-9]@' + re.escape(project) + r'\.iam\.gserviceaccount\.com', value), key)
         identities[key] = value
-    require(len(set(identities.values())) == 3, 'separate deploy/backend/web identities')
+    require(len(set(identities.values())) == 4, 'separate deploy/build/backend/web identities')
     provider = public_value(env, 'WIF_PROVIDER')
     require(re.fullmatch(r'projects/[0-9]+/locations/global/workloadIdentityPools/[a-z0-9-]+/providers/[a-z0-9-]+', provider), 'WIF provider')
     backend = dict(MCP_ENV=environment, STORAGE_BUCKET=resource['storage_bucket'],
@@ -79,7 +85,8 @@ def prepare(environment, env):
         NEXT_PUBLIC_PAYPAL_ENV='sandbox' if environment == 'staging' else 'production',
         **{('NEXT_PUBLIC_PAYPAL_CLIENT_ID' if environment == 'staging' else 'NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID'):backend['PAYPAL_CLIENT_ID']})
     digest = hashlib.sha256(json.dumps(dict(backend=backend,frontend=frontend,
-        web_runtime=identities['WEB_RUNTIME_SERVICE_ACCOUNT']), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        web_runtime=identities['WEB_RUNTIME_SERVICE_ACCOUNT'],
+        build_account=identities['BUILD_SERVICE_ACCOUNT']), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     backend.update(MCP_RELEASE_SHA=sha, MCP_CONFIG_DIGEST=digest)
     frontend.update(NEXT_PUBLIC_RELEASE_SHA=sha, NEXT_PUBLIC_CONFIGURATION_DIGEST=digest)
     return dict(schema=1, environment=environment, project=project, sha=sha, digest=digest,
@@ -151,8 +158,8 @@ def gcloud(manifest, *args):
     return command(['gcloud', *args, '--project', manifest['project'], '--quiet'])
 
 
-def hosting(manifest, path, *, version=None):
-    token = gcloud(manifest, 'auth', 'print-access-token').strip()
+def hosting(manifest, path, *, version=None, cloud=None):
+    token = (cloud or gcloud)(manifest, 'auth', 'print-access-token').strip()
     url = 'https://firebasehosting.googleapis.com/v1beta1/sites/' + manifest['project'] + path
     if version is not None:
         url += '?' + urlencode({'versionName':version})
@@ -162,16 +169,16 @@ def hosting(manifest, path, *, version=None):
         return json.load(response)
 
 
-def cloud_functions(manifest):
+def cloud_functions(manifest, *, cloud=None):
     # Select public metadata only; never request environment values or secret payloads.
-    records = json.loads(gcloud(manifest, 'functions', 'list', '--v2', '--regions', REGION,
+    records = json.loads((cloud or gcloud)(manifest, 'functions', 'list', '--v2', '--regions', REGION,
         '--format=json(name,labels,serviceConfig.service,serviceConfig.revision)'))
     codebases = {'python_codebase', 'firebase-frameworks-' + manifest['project']}
     return [item for item in records if item.get('labels', {}).get('firebase-functions-codebase') in codebases]
 
 
-def service_state(manifest, service):
-    data = json.loads(gcloud(manifest, 'run', 'services', 'describe', service, '--region', REGION,
+def service_state(manifest, service, *, cloud=None):
+    data = json.loads((cloud or gcloud)(manifest, 'run', 'services', 'describe', service, '--region', REGION,
         '--format=json(status.traffic)'))
     traffic = {}
     for row in data.get('status', {}).get('traffic', []):
@@ -330,27 +337,28 @@ def verify_revision_secrets(manifest, revision):
     return references
 
 
-def cloud_preflight(manifest):
-    require(gcloud(manifest, 'projects', 'describe', manifest['project'], '--format=value(projectId)').strip()
+def cloud_preflight(manifest, *, cloud=None):
+    cloud = cloud or gcloud
+    require(cloud(manifest, 'projects', 'describe', manifest['project'], '--format=value(projectId)').strip()
         == manifest['project'], 'actual project')
     bucket = manifest['backend']['STORAGE_BUCKET']
-    require(gcloud(manifest, 'storage', 'buckets', 'describe', 'gs://' + bucket, '--format=value(name)').strip()
+    require(cloud(manifest, 'storage', 'buckets', 'describe', 'gs://' + bucket, '--format=value(name)').strip()
         .removeprefix('gs://').rstrip('/') == bucket, 'actual storage bucket')
-    enabled = set(gcloud(manifest, 'services', 'list', '--enabled', '--format=value(config.name)').split())
+    enabled = set(cloud(manifest, 'services', 'list', '--enabled', '--format=value(config.name)').split())
     require({'cloudfunctions.googleapis.com', 'cloudbuild.googleapis.com', 'run.googleapis.com',
         'artifactregistry.googleapis.com', 'secretmanager.googleapis.com', 'firebasehosting.googleapis.com',
         'eventarc.googleapis.com', 'pubsub.googleapis.com', 'firestore.googleapis.com',
         'storage.googleapis.com', 'identitytoolkit.googleapis.com', 'cloudscheduler.googleapis.com'} <= enabled, 'pre-enabled deployment APIs')
     for account in manifest['identities'].values():
-        require(gcloud(manifest, 'iam', 'service-accounts', 'describe', account, '--format=value(email)').strip()
+        require(cloud(manifest, 'iam', 'service-accounts', 'describe', account, '--format=value(email)').strip()
             == account, 'existing service identity')
     secrets = ['PAYPAL_CLIENT_SECRET']
     if manifest['environment'] == 'production':
         secrets += ['MAILERSEND_API_KEY', 'PASS2U_API_KEY', 'SOUNDCLOUD_CLIENT_SECRET']
     for secret in secrets:
-        require(gcloud(manifest, 'secrets', 'versions', 'describe', 'latest', '--secret', secret,
+        require(cloud(manifest, 'secrets', 'versions', 'describe', 'latest', '--secret', secret,
             '--format=value(state)').strip() == 'ENABLED', 'enabled provider secret version')
-        policy = json.loads(gcloud(manifest, 'secrets', 'get-iam-policy', secret, '--format=json(bindings)'))
+        policy = json.loads(cloud(manifest, 'secrets', 'get-iam-policy', secret, '--format=json(bindings)'))
         member = 'serviceAccount:' + manifest['identities']['RUNTIME_SERVICE_ACCOUNT']
         require(any(binding.get('role') == 'roles/secretmanager.secretAccessor' and
             member in binding.get('members', []) and not binding.get('condition')
@@ -389,17 +397,18 @@ def write_configuration(manifest):
         target.symlink_to('../../.venv', target_is_directory=True)
 
 
-def verify_function_releases(manifest):
-    records = cloud_functions(manifest)
+def verify_function_releases(manifest, *, cloud=None):
+    cloud = cloud or gcloud
+    records = cloud_functions(manifest, cloud=cloud)
     managed = [item for item in records if item.get('labels', {}).get('firebase-functions-codebase') == 'python_codebase']
     require(managed, 'deployed backend inventory')
     for item in managed:
         service = item.get('serviceConfig', {}).get('service', '').rsplit('/', 1)[-1]
         require(re.fullmatch(NAME, service), 'managed backend service')
-        state = service_state(manifest, service)
+        state = service_state(manifest, service, cloud=cloud)
         require(state['traffic'], 'active backend revision')
         for revision in state['traffic']:
-            data = json.loads(gcloud(manifest, 'run', 'revisions', 'describe', revision, '--region', REGION,
+            data = json.loads(cloud(manifest, 'run', 'revisions', 'describe', revision, '--region', REGION,
                 '--format=json(metadata.name,spec.containers.env.name,spec.containers.env.value)'))
             require(data.get('metadata', {}).get('name') == revision, 'active immutable revision')
             # These are literal runtime configuration values, not Secret Manager

@@ -21,7 +21,7 @@
     },
     "staging": {
       "project_id": "mcp-website-dev-39539",
-      "storage_bucket": "mcp-website-dev-39539.appspot.com",
+      "storage_bucket": "mcp-website-dev-39539.firebasestorage.app",
       "backend_url": "https://us-central1-mcp-website-dev-39539.cloudfunctions.net",
       "allowed_origins": ["https://mcp-website-dev-39539.web.app"],
       "credential_mode": "adc",

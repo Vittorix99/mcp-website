@@ -30,6 +30,28 @@ function releaseBuildInvocation(executable, args, options, root) {
   return {executable:process.execPath, args:[path.join(root,'mcp-website/scripts/build-safe.mjs'),'--release']}
 }
 
+function installAdapters(root, cliRequire, manifest, credentialPath, options = {}) {
+  const restoreGuards = require('./cli-guards.cjs').installCliGuards(cliRequire,manifest,options)
+  const python = cliRequire('./lib/functions/python.js')
+  const originalDiscovery = python.runWithVirtualEnv
+  python.runWithVirtualEnv = (command,cwd,env,...rest) => originalDiscovery(command,cwd,
+    discoveryEnvironment(manifest,env,credentialPath),...rest)
+  // Firebase 14.26.0 ignores custom package.json build commands. Substitute only
+  // its Next build spawn, preserving framework analysis and SSR code generation.
+  const crossSpawn = cliRequire('cross-spawn')
+  const originalSpawn = crossSpawn.spawn
+  crossSpawn.spawn = function(executable,args,options) {
+    const replacement = releaseBuildInvocation(executable,args,options,root)
+    return replacement ? originalSpawn(replacement.executable,replacement.args,options)
+      : originalSpawn(executable,args,options)
+  }
+  return () => {
+    python.runWithVirtualEnv = originalDiscovery
+    crossSpawn.spawn = originalSpawn
+    restoreGuards()
+  }
+}
+
 function main() {
   if (process.versions.node.split('.')[0] !== '20') throw new Error('Release requires Node.js 20')
   const root = path.resolve(__dirname,'../..')
@@ -44,20 +66,8 @@ function main() {
   const args = process.argv.slice(2)
   if (args.length === 1 && args[0] === 'validate') return
   if (!['backend','hosting'].includes(args[0]) || args.length !== 1) throw new Error('Select a scoped release target')
-  const python = require(path.join(cliRoot,'lib/functions/python.js'))
-  const originalDiscovery = python.runWithVirtualEnv
-  python.runWithVirtualEnv = (command,cwd,env,...rest) => originalDiscovery(command,cwd,
-    discoveryEnvironment(manifest,env,credentialPath),...rest)
-  // Firebase 14.26.0 ignores custom package.json build commands. Substitute only
-  // its Next build spawn, preserving framework analysis and SSR code generation.
   const cliRequire = createRequire(path.join(cliRoot,'package.json'))
-  const crossSpawn = cliRequire('cross-spawn')
-  const originalSpawn = crossSpawn.spawn
-  crossSpawn.spawn = function(executable,args,options) {
-    const replacement = releaseBuildInvocation(executable,args,options,root)
-    return replacement ? originalSpawn(replacement.executable,replacement.args,options)
-      : originalSpawn(executable,args,options)
-  }
+  installAdapters(root,cliRequire,manifest,credentialPath)
   Object.assign(process.env, manifest.frontend)
   process.env.__NEXT_PROCESSED_ENV = 'true'
   const cli = path.join(cliRoot,'lib/bin/firebase.js')
@@ -67,7 +77,7 @@ function main() {
   require(cli)
 }
 
-module.exports = {validateFederation, discoveryEnvironment, releaseBuildInvocation}
+module.exports = {installAdapters, validateFederation, discoveryEnvironment, releaseBuildInvocation}
 if (require.main === module) {
   try { main() } catch { console.error('Guarded Firebase release failed'); process.exitCode = 1 }
 }

@@ -18,6 +18,7 @@ def inputs(environment='staging'):
         GITHUB_WORKFLOW_REF='Vittorix99/mcp-website/.github/workflows/release.yml@refs/heads/main',
         WIF_PROVIDER='projects/123456789/locations/global/workloadIdentityPools/github/providers/release',
         DEPLOY_SERVICE_ACCOUNT=f'github-deploy@{project}.iam.gserviceaccount.com',
+        BUILD_SERVICE_ACCOUNT=f'functions-build@{project}.iam.gserviceaccount.com',
         RUNTIME_SERVICE_ACCOUNT=f'app-runtime@{project}.iam.gserviceaccount.com',
         WEB_RUNTIME_SERVICE_ACCOUNT=f'web-runtime@{project}.iam.gserviceaccount.com',
         FIREBASE_API_KEY='public-web-api-key', FIREBASE_APP_ID='1:123456789:web:abc',
@@ -59,6 +60,35 @@ def test_rejects_unsafe_release_inputs_without_echoing_values(key, value):
 def test_production_cannot_reuse_staging_identities():
     with pytest.raises(ValueError):
         release.prepare('production', inputs())
+
+
+def test_build_identity_is_explicit_separate_and_bound_into_the_digest():
+    manifest = release.prepare('staging', inputs())
+    assert manifest['identities']['BUILD_SERVICE_ACCOUNT'] == inputs()['BUILD_SERVICE_ACCOUNT']
+    changed = release.prepare('staging', {**inputs(),
+        'BUILD_SERVICE_ACCOUNT':'another-build@mcp-website-dev-39539.iam.gserviceaccount.com'})
+    assert changed['digest'] != manifest['digest']
+    for value in ['', inputs()['RUNTIME_SERVICE_ACCOUNT'],
+                  'build@mcp-website-2a1ad.iam.gserviceaccount.com',
+                  '1005755179074-compute@developer.gserviceaccount.com']:
+        with pytest.raises(ValueError):
+            release.prepare('staging', {**inputs(), 'BUILD_SERVICE_ACCOUNT':value})
+
+
+def test_public_configuration_can_be_shared_without_forging_github_identity():
+    public = {key:value for key,value in inputs().items() if not key.startswith('GITHUB_')}
+    manifest = release.public_configuration('staging', public, 'a' * 40)
+    assert manifest == release.prepare('staging', inputs())
+    with pytest.raises(ValueError, match='repository identity'):
+        release.prepare('staging', public)
+    with pytest.raises(ValueError):
+        release.public_configuration('staging', public, 'main')
+
+
+def test_reusable_job_receives_the_environment_build_identity():
+    import yaml
+    workflow = yaml.safe_load((ROOT / '.github/workflows/deploy-environment.yml').read_text())
+    assert workflow['jobs']['release']['env']['BUILD_SERVICE_ACCOUNT'] == '${{ vars.BUILD_SERVICE_ACCOUNT }}'
 
 
 def test_rollback_artifact_requires_this_repository_main_release_workflow():
@@ -269,10 +299,10 @@ def test_disabled_previous_secret_version_blocks_rollback_before_traffic(monkeyp
 def test_release_verifies_active_revisions_after_a_rollback_not_latest_function_metadata(monkeypatch):
     manifest = release.prepare('staging', inputs())
     revision = 'public-api-00001-abc'
-    monkeypatch.setattr(release, 'cloud_functions', lambda _:[dict(
+    monkeypatch.setattr(release, 'cloud_functions', lambda _, **kwargs:[dict(
         name='deployment_health', labels={'firebase-functions-codebase':'python_codebase'},
         serviceConfig={'service':'public-api', 'environmentVariables':{'MCP_RELEASE_SHA':'b' * 40}})])
-    monkeypatch.setattr(release, 'service_state', lambda *args:{'traffic':{revision:100}})
+    monkeypatch.setattr(release, 'service_state', lambda *args, **kwargs:{'traffic':{revision:100}})
     response = dict(metadata={'name':revision}, spec={'containers':[{'env':[
         {'name':'MCP_RELEASE_SHA','value':manifest['sha']},
         {'name':'MCP_CONFIG_DIGEST','value':manifest['digest']},

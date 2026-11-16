@@ -824,7 +824,7 @@ questo piano propone di attendere l'integrazione main autorizzata.
 
 ### 5. Sequenza con risultati verificabili
 
-- [ ] **A — Preparazione repository,senza cloud.** Correggere il solo bucket
+- [x] **A — Preparazione repository,senza cloud.** Correggere il solo bucket
   staging nel catalogo e relativi assert. Aggiungere BUILD_SERVICE_ACCOUNT a
   release.py/manifest/workflow e al digest/attestazione di configurazione.
   L'adattatore firebase.cjs dovrà impostare buildConfig.serviceAccount tramite
@@ -832,7 +832,7 @@ questo piano propone di attendere l'integrazione main autorizzata.
   node_modules,validando progetto/codebase/account. CLI14.26.0 non inoltra oggi
   un build account custom nel converter: creare un account senza questo
   adattamento lascerebbe le build sull'identità di default non verificata.
-- [ ] **A — Bootstrap esplicito staging-only.** Nuovo percorso controllato in
+- [x] **A — Bootstrap esplicito staging-only.** Nuovo percorso controllato in
   scripts/deployment/bootstrap_staging.py e relativo adattatore
   scripts/deployment/firebase-bootstrap.cjs,riusando solo i validator/configuratori
   pubblici di release.py,per prima release senza baseline. Il bootstrap usa
@@ -848,7 +848,7 @@ questo piano propone di attendere l'integrazione main autorizzata.
   non falsifica PAYMENT_ROLLOUT_APPROVED o ROLLBACK_BASELINE_VERIFIED. Se una
   creazione parziale esiste,fermare e inventariare: nessuna cancellazione/retry
   distruttivo automatico. Il normale rilascio continua a richiedere baseline.
-- [ ] **A — Prove prima dell'approvazione cloud.** Regressioni per bucket,
+- [x] **A — Prove prima dell'approvazione cloud.** Regressioni per bucket,
   build account su Python/SSR,converter realeCLI,wrong-project,WIF non valido,
   prima baseline e rifiuto bootstrap produzione. Test di separazione owner
   OAuth/WIF,identità operatore diversa dal manifest,chiavi private e secret nei
@@ -877,7 +877,12 @@ questo piano propone di attendere l'integrazione main autorizzata.
   la preparazione sorgenti non deve distribuire funzioni né modificare dati
   applicativi e rientra nel manifest di provisioning autorizzato.
 - [ ] **B — Configurazioni concordate.** Creare4SA,WIF,Environment staging,
-  site/repository mancanti. Owner inserisce sandbox secret e Client ID della
+  site/repository mancanti. Sul solo repository gcf-artifacts di us-central1,
+  concordare e predisporre opt-out Firebase cleanup
+  (`firebase-functions-cleanup-opted-out=true`) e nessuna policy DELETE durante
+  il bootstrap: immagini conservate fino alla prova rollback e successiva
+  decisione esplicita di retention. Nessun --force o default di un giorno.
+  Owner inserisce sandbox secret e Client ID della
   stessa app verificata; abilitazione email-link e domini/return URL della web
   app staging,senza import utenti produzione. Verificare regole Firestore/Storage
   e indici cloud rispetto ai file tracciati: nessuna distribuzione automatica
@@ -933,3 +938,78 @@ Fonti primarie controllate il16novembre2026:
 2P1 (separazione auth owner/WIF e IAM implicito della CLI) e1P2 (metadati bucket),
 accettati e corretti in questa proposta. Nessun secondo dispatch; nessuna
 implementazione o prova cloud dedotta dalla review documentale.
+
+### Blocco A — preparazione repository del 16 novembre 2026
+
+Autorizzato dall'owner il solo lavoro locale. Implementazione e prove locali
+non autorizzano il provisioning B o l'esecuzione cloud C.
+
+- Catalogo staging corretto al bucket osservato
+  `mcp-website-dev-39539.firebasestorage.app`; produzione invariata.
+- Quattro identità distinte nel manifest. `BUILD_SERVICE_ACCOUNT` entra nel
+  digest e nel workflow; il converter reale Functions v2 della CLI14.26.0
+  riceve l'account build esplicito per Python e SSR, mantenendo i runtime separati.
+- Il deploy ordinario conserva autenticazione WIF, vincoli main e baseline.
+  L'adattatore legge i binding IAM richiesti e blocca le scritture di progetto;
+  modifiche alla policy invoker esistente richiedono provisioning esplicito.
+  Solo il bootstrap autorizzato può inizializzare l'invoker pubblico dei nuovi
+  servizi HTTP approvati. Non assegna ruoli al Compute account di default.
+- `bootstrap_staging.py prepare` prepara un piano pubblico offline. Discovery
+  SDK in ambiente demo, con connessioni socket bloccate:130 HTTP,8 Firestore,
+  3 scheduler. Il selettore reale CLI include esattamente i130 HTTP.
+- `bootstrap_staging.py apply` è un comando cloud futuro, non eseguito nel
+  blocco A. Rifiuta produzione,CI,checkout sporco,SHA diverso o non integrato
+  in origin/main. Confronta il piano con configurazione e discovery correnti;
+  verifica operatore gcloud e OAuth personale, credenziale privata
+  `authorized_user`, email verificata e profilo Firebase temporaneo vuoto.
+  Non accetta WIF o chiavi service account nel percorso operatore.
+- Prima di creare risorse controlla inventario Functions in tutte le regioni,
+  Cloud Run managed globale e assenza di release Hosting. Una creazione
+  parziale blocca il nuovo tentativo: nessuna cancellazione o rollback automatici.
+  Dopo deploy verifica endpoint,account build/runtime,SHA/digest attivi e health.
+  L'esito HTTP+SSR non viene dichiarato baseline della topologia completa.
+
+**Input futuri, da predisporre insieme dopo B e approvazione C:** configurazione
+pubblica già prevista per staging,`BOOTSTRAP_APPROVED_SHA` (commit main
+approvato),`BOOTSTRAP_OPERATOR_EMAIL`,e solo per l'esecuzione
+`BOOTSTRAP_OPERATOR_ADC` (percorso assoluto di OAuth ADC personale, mai il suo
+contenuto in chat o negli artifact). `BOOTSTRAP_CLOUD_APPROVED=true` e
+`BOOTSTRAP_DATA_REVIEWED=true` attestano due consensi distinti dell'owner;
+non impostarli come conseguenza dei test locali. Restano necessari checkout
+pulito,Node20,Python3.11,CLI14.26.0 e assenza di dotenv ereditati nel checkout
+di rilascio. Non aggiungere `PAYMENT_ROLLOUT_APPROVED` o
+`ROLLBACK_BASELINE_VERIFIED` per simulare una baseline iniziale.
+
+Sequenza dei comandi, **documentata e non eseguita sul cloud**:
+
+```sh
+.venv/bin/python scripts/deployment/bootstrap_staging.py prepare --environment staging
+# Solo dopo provisioning, revisione del piano e consensi cloud/dati:
+.venv/bin/python scripts/deployment/bootstrap_staging.py apply --environment staging
+```
+
+Il piano e il risultato contengono solo metadati pubblici in `.local/release/`.
+La credenziale non viene copiata; gli errori dei processi esterni non vengono
+stampati perché potrebbero includere dati di autenticazione. In caso di
+fallimento dopo l'avvio,`bootstrap-result.json` indica la necessità di inventario
+manuale prima di qualsiasi seguito. Un esito positivo lascia separati data gate,
+trigger/cron,E2E sandbox e prova baseline completa A→B→rollback A.
+
+
+**Verifica locale finale A:**1413 unitari backend,522 scenari API,57 Auth,
+103 strumenti e68 configurazione/frontend passati. Build e smoke isolato
+Firestore/Auth/Storage/Functions/API/8 trigger passati. Lint0 errori e53 warning
+preesistenti. Review indipendente unica Sol high:3P1 e1P2 accettati e corretti
+con regressioni RED→GREEN (formato OAuth SDK reale,cancellazione/retry del
+Fabricator reale,inventario incompleto con exit0,retention prima del deploy).
+OAuth accetta esclusivamente true booleano o "true" testuale; false e stringhe
+arbitrarie sono rifiutati. Gli inventari globali con stderr non vuoto si fermano
+senza stampare diagnostica. In bootstrap la CLI non può eliminare o aggiornare
+funzioni,né configurare automaticamente cleanup policy.
+
+Decisione di conservazione iniziale: preflight Python e CLI richiedono opt-out
+Firebase e nessuna policy DELETE nel repository esatto. È più restrittiva del
+solo minimo30giorni: evita di applicare una retention non ancora concordata
+alla prima baseline. La configurazione concreta e gli eventuali costi di
+conservazione appartengono al successivo blocco B, da discutere con l'owner.
+Nessuna prova OAuth/IAM/deploy reale né CI remota attestata da questi test.

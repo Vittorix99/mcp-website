@@ -12,6 +12,17 @@ test('all four environments select their own resources', () => {
   }
 })
 
+test('staging selects its observed Firebase bucket and refuses the obsolete override', () => {
+  const staging = {NEXT_PUBLIC_ENV:'staging', NEXT_PUBLIC_PAYPAL_CLIENT_ID:'fake-sandbox-client'}
+  assert.equal(validatePublicRuntime(staging,catalog).firebase.storageBucket,
+    'mcp-website-dev-39539.firebasestorage.app')
+  assert.throws(() => validatePublicRuntime({...staging,
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:'mcp-website-dev-39539.appspot.com'},catalog))
+  const production = validatePublicRuntime({NEXT_PUBLIC_ENV:'production',
+    NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID:'fake-live-client'},catalog)
+  assert.equal(production.firebase.storageBucket,'mcp-website-2a1ad.appspot.com')
+})
+
 test('cloud PayPal requires the selected client ID and never accepts sandbox demo IDs', () => {
   for (const env of [
     {NEXT_PUBLIC_ENV:'production',NEXT_PUBLIC_PAYPAL_CLIENT_ID:'sb'},

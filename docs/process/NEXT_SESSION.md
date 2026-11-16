@@ -447,3 +447,32 @@ flagdeployoff. Primo deployHTTP+SSR;data gate separato prima di trigger/cron,
 poi topologiacompleta,E2Esandbox,baselineA→releaseB→rollbackA verificato.
 Produzione/Senderoff;residuihigh rinviati non risolti. Non attivare API/IAM
 come conseguenza della sola approvazione del piano locale.
+
+## Blocco A repository completato — 16 novembre 2026
+
+Worktree `.worktrees/core-ws2`,branch `core-age-data-integrity`; base18f54b9.
+Owner ha approvato il blocco A. Implementati bucket staging osservato,quarto
+account build nel manifest/digest/workflow,converter CLI14.26 Python+SSR,
+bootstrap locale OAuth distinto da WIF e controlli IAM senza grant impliciti.
+Discovery SDK offline141endpoint:solo130HTTP nella prima tranche;8Firestore e
+3scheduler esclusi,più SSR via Hosting. Il comando richiede SHA approvato,
+checkout pulito e integrazione main; verifica account operatore e credenziale
+OAuth privata senza chiavi serviceaccount,e rifiuta inventari globali incompleti
+o non vuoti. Nessun rollbackbaselineflag falsificato.
+
+Review Solhigh unica:3P1+1P2 accettati/corretti RED→GREEN:OAuthstringtrue,
+Fabricator delete/retry,warningunreachableexit0,retention AR prima deldeploy.
+Preflight richiede repository gcf-artifacts us-central1 con opt-out Firebase
+cleanup e nessuna policy DELETE,da concordare/provisionare soltanto in B.
+
+Evidenza locale:1413unitari,522API,57Auth,103strumenti,68frontend/config PASS;
+build e smokeisolato automatico con8trigger PASS;lint0errori/53warningesistenti.
+Cloud OAuth/IAM/deploy e CI remota non verificati. Residuihigh rinviati.
+1task Luna corretto/accettato,1review Solhigh;token/costi indisponibili.
+
+**Prossimo perimetro:discutere B prima di iniziare.** Manifest concreto delle
+risorse/API/4SA/WIF/Environment,scope IAM e retention;consenso cloud separato.
+Prima di C classificare/proteggere i dati esistenti e verificare legami legacy.
+Nessun deploy,aggiornamento dati cloud,push,merge main o flagautomatici ora.
+Dopo B/C:HTTP+SSR,dati sintetici cloud con gate separato,trigger/cron,
+E2Esandbox,baseline completa A→B→rollback A. Produzione/Sender restano off.

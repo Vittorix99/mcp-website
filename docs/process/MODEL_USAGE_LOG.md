@@ -539,3 +539,16 @@ aggiornato nel documento operativo esistente,non creato un report duplicato.
 
 Dispatch effettivi:0incarichi Luna,1review Sol high. Nessun secondo dispatch;
 token/costi non disponibili.
+
+## Blocco A bootstrap staging — 16 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | bootstrap_build_tests: test converter CLI reale per account build Python/SSR,un solo file assegnato | medium | Consegnato; Sol corregge percorso import e aspettativa mail runtime,esegue RED→GREEN suNode20 e accetta. Test finale integrato nei68 frontend/config. |
+| gpt-6.1-sol | bootstrap_a_final_review: unica review indipendente bootstrap OAuth/WIF,IAM,source,selector e confini CLI | high | Conclusa:3P1+1P2 accettati e corretti da Sol in un passaggio con regressioni RED→GREEN. SDK OAuth/Fabricator reali con transport inerti; inventario warning/exit0 e retention verificati offline. Nessuna seconda review. |
+
+Dispatch effettivi:1incarico Luna corretto/accettato,1review Sol high conclusa.
+Verifica coordinatore:1413unitari/522API/57Auth/103strumenti/68frontendconfig
+PASS;build e fullsmokeisolato API/8trigger PASS;lint0errori/53warningpreesistenti.
+Nessuna autenticazione cloud reale,provisioning,deploy,push o merge main.
+Token/costi indisponibili; conteggi task non rappresentano risparmi misurati.
