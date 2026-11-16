@@ -657,3 +657,20 @@ Non rieseguire la suite massiva locale sul cloud né inviare a tutti gli alias
 in ogni scenario. Limiti operativi non equivalgono a un tetto di fatturazione.
 Documentata policy in CREDENTIAL_TRANSITION, runner futuro ancora da adeguare;
 nessun test cloud, invio, import o mutazione cloud eseguito in questo passaggio.
+
+## Environment GitHub staging creato —17 novembre 2026
+
+Owner autorizza creazione. gh accountVittorix99/admin; repoID899139661 verificato.
+Environment staging ID27524025438, custom branch policy unico main di tipo
+branch.12variabili pubbliche inserite e verificate,0secretGitHub. FlagEnvironment
+PAYMENT_ROLLOUT_APPROVED eROLLBACK_BASELINE_VERIFIED false; flagrepository deploy
+staging/production assenti e invariati. Nessun workflow/build/deploy avviato.
+WIF_PROVIDER soltanto riferimento concordato, WIF non ancora provisionato.
+Mancano FIREBASE_API_KEY/FIREBASE_APP_ID staging. Altre variabili:4SA,PayPalID,
+SoundCloudID,mittente/nome/allowlistemail. Valori privati non riportati nei docs.
+Readback REST completo per_page100+total_count e validatore release PASS;
+prima lettura10di12variabili, nessuna mutazione ripetuta. Evidenza privata
+github_staging_environment_result.json nella cartella cloud-b-verification.
+Prossimo:WIF con vincoli repo/main/workflow/environment e config app Firebase;
+poi Hosting/Auth,budget,sorgentibucket e gate. Sender sospeso/Genderfake/Pass2Ufake;
+test cloud ridotti, nessun import massivo. No produzione/mainmerge o flagon.

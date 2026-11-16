@@ -7,8 +7,10 @@ predisposti (dettagli3h); versioni1 PayPal sandbox, MailerSend e SoundCloud
 inserite e abilitate; Gender resta vuoto. Gmail di test collegata.
 API Gender non funzionante secondo owner: correzione differita, profilo staging
 Gender fake; non serve inserire GENDER_API_KEY per il prossimo gate.
-Sender resta sospeso in attesa del chiarimento richiesto all'owner. WIF/GitHub,
-Hosting/Auth, budget, bucket sorgenti e prove bootstrap/E2E/rollback restano aperti.
+Sender resta sospeso in attesa del chiarimento richiesto all'owner. Environment
+GitHub staging creato il17novembre, main-only; WIF e due variabili Firebase
+ancora mancanti. Hosting/Auth, budget, bucket sorgenti e prove
+bootstrap/E2E/rollback restano aperti.
 La valutazione dei residui high è differita su indicazione owner. Nessun deploy,
 aggiornamento dati cloud o intervento in produzione; main hold invariato.
 I checkpoint precedenti sotto riportati sono storici, non lo stato corrente.
@@ -1405,7 +1407,39 @@ Evidenze private `provider_local_source_check.json` e
 `provider_secret_upload_result.json`. Restano prove di invio/ricezione mail,
 SoundCloud, preflight completo e gate bootstrap/E2E/rollback.
 
-### 4. WIF e GitHub: target concreto, attivazione differita
+### 4. WIF e GitHub: Environment creato, WIF ancora da attivare
+
+**Eseguito il17 novembre 2026 su richiesta owner:** tramite `gh api` con
+identità Vittorix99 e permesso admin, verificato repository ID899139661,
+creato Environment `staging` (ID27524025438). Policy
+`protected_branches=false, custom_branch_policies=true`; unica regola esplicita
+`name=main,type=branch` (nessuna regola tag). Nessun reviewer o attesa aggiuntiva
+per staging; protezioni produzione restano un gate separato.
+
+Inserite e rilette esattamente12variabili pubbliche: DEPLOY_SERVICE_ACCOUNT,
+BUILD_SERVICE_ACCOUNT,RUNTIME_SERVICE_ACCOUNT,WEB_RUNTIME_SERVICE_ACCOUNT,
+WIF_PROVIDER,PAYPAL_CLIENT_ID,SOUNDCLOUD_CLIENT_ID,MAILERSEND_FROM_EMAIL,
+MAILERSEND_FROM_NAME,MAIL_ALLOWED_RECIPIENTS,PAYMENT_ROLLOUT_APPROVED,
+ROLLBACK_BASELINE_VERIFIED. I due flag di approvazione sono false. Nome mittente
+`MCP Staging`; indirizzi e client ID recuperati dai file privati già approvati,
+non trascritti qui.0Environment secrets: i valori provider restano in SM.
+Mancano FIREBASE_API_KEY e FIREBASE_APP_ID dell'app staging: non copiare quelli
+produzione. WIF_PROVIDER è per ora il riferimento concordato, non una prova
+che il pool/provider siano stati creati o funzionino.
+
+Readback completo REST e validatore release.validate_environment PASS:
+regola main-only,12nomi/valori esatti,0secret,unico Environment staging.
+La prima lettura delle variabili restituiva10di12elementi: riletti tutti con
+per_page=100 e controllo total_count, senza ripetere mutazioni. Flag repository
+ENABLE_STAGING_DEPLOY/ENABLE_PRODUCTION_DEPLOY assenti prima e dopo; nessun
+workflow/build/deploy avviato. Nessun Environment production creato o modifica
+Google Cloud in questo lotto. Evidenza privata:
+`.local/staging/cloud-b-verification/github_staging_environment_result.json`.
+Documentazione API di riferimento:
+https://docs.github.com/en/rest/deployments/environments e
+https://docs.github.com/en/rest/deployments/branch-policies.
+
+**WIF seguente: piano concordato, non ancora applicato.**
 
 Pool global `github-actions`,provider OIDC `main-release`,issuer
 https://token.actions.githubusercontent.com,progetto1005755179074.
