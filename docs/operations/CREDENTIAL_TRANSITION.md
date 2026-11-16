@@ -667,8 +667,9 @@ Nessun account/app creato o modificato, nessun pagamento eseguito.
 
 ## Proposta unica: bootstrap staging e IAM — 16 novembre 2026
 
-**Stato:** piano da approvare; sola preparazione documentale. Nessuna mutazione
-cloud eseguita o autorizzata da questo testo. Il piano operativo del13novembre
+**Stato aggiornato:** blocco A repository completato nel commit0a17e98;
+stima economica nel commitb177bbd. Blocco B ancora proposto,non applicato.
+Nessuna mutazione cloud eseguita o autorizzata da questo testo. Il piano operativo del13novembre
 rimane il riferimento; questa sezione ne concretizza i prerequisiti osservati
 e supera le precedenti ipotesi generiche di ruoli per lo staging.
 
@@ -736,7 +737,7 @@ dell'applicazione, non una prova cloud di minimo privilegio.
 
 | Principale | Scope | Ruolo/permessi proposti |
 |---|---|---|
-| app-runtime | P,Firestore `(default)` | roles/datastore.user; limitarne lo scope al database se supportato dalla policy verificata |
+| app-runtime | Policy sul progetto P con condizione `resource.name == "projects/mcp-website-dev-39539/databases/(default)"` | roles/datastore.user; condizione documentata da Firebase,da verificare sul binding effettivo prima del grant |
 | app-runtime | P | Ruolo custom `stagingAppAuth`: firebaseauth.users.create,get,update,delete,sendEmail (nomi completi firebaseauth.users.* elencati,senza wildcard) |
 | app-runtime | Solo bucket applicativo | roles/storage.objectAdmin |
 | app-runtime | Solo secret PAYPAL_CLIENT_SECRET | roles/secretmanager.secretAccessor |
@@ -791,6 +792,117 @@ Mantenere solo i ruoli di servizio documentati sulle rispettive identità;
 non assegnare ruoli serviceAgent agli account applicativi o GitHub. Per eventuali
 Token Creator del trasporto verificare il requisito reale e il target prima
 del binding; nessuna concessione indiscriminata al progetto.
+
+### 3a. Manifest B: destinatari nominativi e stato delle assegnazioni
+
+Qui **manifest** significa prospetto delle modifiche desiderate. La tabella
+IAM della sezione3 è questo prospetto umano: non esiste ancora un file
+Terraform/YAML applicabile o un diff delle policy cloud correnti. I file
+`.local/release/config.json` e `bootstrap-plan.json`,generati dai comandi
+locali,sono configurazioni di rilascio e non assegnano permessi IAM. Nessuna
+assegnazione nuova elencata qui risulta applicata da questa sessione.
+
+I quattro destinatari da creare nel progetto staging sono precisamente:
+
+| Nome usato nella tabella3 | Principale IAM completo |
+|---|---|
+| github-deploy | `serviceAccount:github-deploy@mcp-website-dev-39539.iam.gserviceaccount.com` |
+| functions-build | `serviceAccount:functions-build@mcp-website-dev-39539.iam.gserviceaccount.com` |
+| app-runtime | `serviceAccount:app-runtime@mcp-website-dev-39539.iam.gserviceaccount.com` |
+| web-runtime | `serviceAccount:web-runtime@mcp-website-dev-39539.iam.gserviceaccount.com` |
+
+Le righe a scope P sono binding nella policy di
+`projects/mcp-website-dev-39539`,mai produzione. Le altre risorse esatte sono:
+
+- Database autorizzato dalla condizione:
+  `projects/mcp-website-dev-39539/databases/(default)`. datastore.user permette
+  lettura e scrittura,inclusa cancellazione,dei documenti del database;
+  non è un filtro per singola collezione.
+- Bucket applicativo:`gs://mcp-website-dev-39539.firebasestorage.app`.
+  objectAdmin concede gestione degli oggetti,inclusa cancellazione;il deploy
+  riceve invece soltanto storage.buckets.get sul bucket tramite ruolo custom.
+- Secret sandbox:
+  `projects/mcp-website-dev-39539/secrets/PAYPAL_CLIENT_SECRET`.
+  secretAccessor al backend;secretmanager.viewer al deploy,per i metadati.
+- Repository immagini:
+  `projects/mcp-website-dev-39539/locations/us-central1/repositories/gcf-artifacts`.
+  writer alla build e reader al deploy.
+- Firma SSR:policy sul solo service account
+  `web-runtime@mcp-website-dev-39539.iam.gserviceaccount.com`,assegnata allo
+  stesso web-runtime. Nessun signBlob sul backend o su altri account.
+- actAs del deploy:quattro binding separati,uno sulla policy di ciascuno dei
+  quattro nuovi account sopra,con membro github-deploy e
+  `roles/iam.serviceAccountUser`.
+
+I cinque ruoli custom proposti hanno questi soli permessi;la creazione è
+ancora da verificare con queryTestablePermissions/SUPPORTED nel progetto:
+
+| ID ruolo custom nel progetto staging | includedPermissions esatti |
+|---|---|
+| `stagingAppAuth` | `firebaseauth.users.create`, `firebaseauth.users.get`, `firebaseauth.users.update`, `firebaseauth.users.delete`, `firebaseauth.users.sendEmail` |
+| `stagingWebAuth` | `firebaseauth.users.get`, `firebaseauth.users.createSession` |
+| `stagingBlobSigner` | `iam.serviceAccounts.signBlob` |
+| `stagingReleaseMetadata` | `resourcemanager.projects.getIamPolicy` |
+| `stagingBucketMetadata` | `storage.buckets.get` |
+
+Ogni ID completo è `projects/mcp-website-dev-39539/roles/ID`.
+I permessi firebaseauth sono presenti nel catalogo ufficiale verificato;
+questo non equivale a una creazione riuscita del custom role nel progetto.
+I ruoli `roles/...` della tabella3 sono pacchetti predefiniti Google,non
+permessi atomici: prima dell'applicazione salvare gli includedPermissions
+correnti insieme al diff,senza promettere che un'etichetta contenga un solo
+permesso o che il suo contenuto sia immutabile.
+
+**Accesso GitHub WIF proposto:**membro
+`principalSet://iam.googleapis.com/projects/1005755179074/locations/global/workloadIdentityPools/github-actions/attribute.repository_id/899139661`,
+ruolo `roles/iam.workloadIdentityUser` sulla sola policy di github-deploy.
+Le condizioni del provider della sezione4 devono restringere congiuntamente
+repository,workflow,main ed Environment staging. Non assegnare questo ruolo
+agli account runtime/build né un ruolo Owner all'utente GitHub. Il principalSet
+è completo come stringa,ma il binding resta non applicabile finché claim e
+provider effettivi non sono verificati.
+
+**Identità Google gestite,distinte dai quattro account applicativi:**
+
+| Principale completo da censire dopo abilitazione API | Ruolo di servizio sul solo progetto staging |
+|---|---|
+| `serviceAccount:service-1005755179074@gcf-admin-robot.iam.gserviceaccount.com` | `roles/cloudfunctions.serviceAgent` |
+| `serviceAccount:service-1005755179074@gcp-sa-cloudbuild.iam.gserviceaccount.com` | `roles/cloudbuild.serviceAgent` |
+| `serviceAccount:service-1005755179074@gcp-sa-eventarc.iam.gserviceaccount.com` | `roles/eventarc.serviceAgent` |
+| `serviceAccount:service-1005755179074@gcp-sa-pubsub.iam.gserviceaccount.com` | `roles/pubsub.serviceAgent` |
+| `serviceAccount:service-1005755179074@gcp-sa-cloudscheduler.iam.gserviceaccount.com` | `roles/cloudscheduler.serviceAgent` |
+
+Si verificano i binding già creati dal servizio;non si aggiungono duplicati
+né questi ruoli agli account applicativi. Il controllo CLI iniziale richiede
+Functions/Build;Eventarc/PubSub e eventarc.eventReceiver servono con i trigger
+nella fase C successiva. Scheduler e trigger rimangono esclusi dal primo
+deploy HTTP+SSR. Un eventuale Token Creator per il trasporto non è un grant
+di progetto approvato:necessità e destinatario specifico vanno verificati.
+
+**Righe ancora incomplete,da completare prima del consenso pertinente:**
+
+1. Nome reale di ogni bucket sorgenti/upload:nessun binding objectViewer a
+   wildcard o a tutti i bucket del progetto. Da rilevare nel provisioning
+   tecnico concordato,prima della build.
+2. Nomi reali dei servizi Cloud Run worker ed esatta identità invocante:
+   roles/run.invoker va assegnato sul singolo servizio nella fase trigger C,
+   non su tutto il progetto. Non esiste ancora una lista finale di binding
+   Run Invoker applicabili per gli8trigger/3scheduler.
+3. Policy correnti,condizioni sovrapposte,permessi custom supportati e claim
+   GitHub effettivi:finché non osservati,questa è una proposta e non un
+   confronto verificato fra situazione attuale e desiderata.
+
+Queste lacune devono apparire nel prospetto di approvazione;non si richiede
+un'approvazione generica per colmarle durante un deploy. Il primo operatore
+sarà l'owner con sessione personale già esistente:nessuna nuova assegnazione
+Owner/Editor alla persona o ai nuovi account,nessuna modifica ai due SA legacy.
+Distribuire codice può esercitare i permessi runtime:separare i quattro
+account chiarisce le responsabilità,non rende innocuo codice di deploy malevolo.
+
+Riferimenti verificati16novembre2026:
+[permessi Auth](https://docs.cloud.google.com/iam/docs/roles-permissions/firebaseauth),
+[condizione database](https://firebase.google.com/docs/firestore/manage-databases#configure_database_access_conditions),
+[service agent Functions](https://docs.cloud.google.com/functions/docs/concepts/iam).
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 
@@ -921,9 +1033,10 @@ proposta,non è dichiarato esaustivo: uso del secondo bucket,origine dei dati,
 lineage della chiave legacy,billingEnabled,piano GitHub/claim reali e permessi
 cloud effettivi restano verifiche esplicite ai gate prima delle azioni pertinenti.
 
-**Prossima approvazione richiesta:** il solo bloccoA di preparazione repository
-con review e test; non le operazioniB/C. Niente cloud finché manca il distinto
-consenso su manifest concreto dopo A. I gate dati e produzione restano separati.
+**Prossima approvazione cloud:** solo dopo completamento del prospetto B con
+risorse nominate,policy correnti e differenze da applicare. A è già completato.
+Il prospetto sotto è lo stato desiderato proposto,non un diff IAM verificato
+sul cloud né un file eseguibile. I gate deploy,dati e produzione restano separati.
 
 Fonti primarie controllate il16novembre2026:
 [build account e scope](https://docs.cloud.google.com/functions/docs/building),
