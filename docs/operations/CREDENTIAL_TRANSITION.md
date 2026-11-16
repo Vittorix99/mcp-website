@@ -1550,6 +1550,22 @@ Gli elenchi hanno nextPageToken assente: risultati completi per queste query.
   Richiesta all'owner verifica console dello stato e del budget filtrato staging,
   con importo/valuta/soglie, senza dati di pagamento o segreti. Esito pendente.
 
+**Verifica budget successiva,17novembre2026:** su richiesta esplicita owner,
+controllata direttamente la console Chrome autenticata, in sola lettura.
+Budget esistente `Firebase Project mcp-website-dev-39539`, importo salvato15EUR
+mensili (aggiornato dall'owner, prima25EUR). Il selettore Projects mostra come
+unica voce selezionata `mcp-website-dev / mcp-website-dev-39539`; elenco budget
+Applies to: Project mcp-website-dev. Tutti i servizi inclusi; savings programs
+e other savings inclusi nel calcolo. Avvisi su spesa Actual50/90/100%, ossia
+7,50/13,50/15EUR; email a billing admins and users attiva, nessun canale
+Monitoring o Pub/Sub collegato. Alerts only selezionato; Spend cap enforcement
+non selezionato e controllo disabilitato; elenco riporta Not applicable.
+Quindi15EUR è un budget di avviso, non un tetto che arresta questa spesa.
+Spesa visualizzata0EUR, non prova di assenza di costi ancora da contabilizzare.
+Nessuna modifica o salvataggio da parte dell'agente; chiusi selettore e editor
+con Cancel. Il riscontro console chiude l'incertezza sul budget, non certifica
+da solo billingEnabled/capacità build; il precedente403 REST resta documentato.
+
 Evidenze private0600 nella cartella cloud-b-verification:
 `hosting_sites_current.json`, `hosting_releases_current.json`,
 `hosting_channels_current.json`, `auth_config_current.json`,
