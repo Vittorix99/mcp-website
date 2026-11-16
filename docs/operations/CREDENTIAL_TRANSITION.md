@@ -9,8 +9,9 @@ API Gender non funzionante secondo owner: correzione differita, profilo staging
 Gender fake; non serve inserire GENDER_API_KEY per il prossimo gate.
 Sender resta sospeso in attesa del chiarimento richiesto all'owner. Environment
 GitHub staging main-only con14variabili pubbliche e WIF ristretto configurato;
-prova con token GitHub autentico e scambio STS ancora da eseguire. Hosting/Auth,
-budget, bucket sorgenti e prove bootstrap/E2E/rollback restano aperti.
+prova con token GitHub autentico e scambio STS ancora da eseguire. Hosting site
+esistente senza release; domini Auth staging presenti, email-link disabilitato.
+Budget, bucket sorgenti e prove bootstrap/E2E/rollback restano aperti.
 La valutazione dei residui high è differita su indicazione owner. Nessun deploy,
 aggiornamento dati cloud o intervento in produzione; main hold invariato.
 I checkpoint precedenti sotto riportati sono storici, non lo stato corrente.
@@ -1524,6 +1525,46 @@ approva l'integrazione finale. Nessun trust temporaneo al ramo di sviluppo e
 nessuna attivazione push/main per aggirare la decisione. Il primo deploy potrà
 partire solo su SHA esplicitamente approvato con canale di rilascio concordato;
 questo piano propone di attendere l'integrazione main autorizzata.
+
+### 4a. Inventario Hosting/Auth e prerequisiti residui —17 novembre 2026
+
+Letture GET con account operatore esplicito e progetto/quota project soltanto
+`mcp-website-dev-39539`; nessuna mutazione cloud o accesso ai dati applicativi.
+Gli elenchi hanno nextPageToken assente: risultati completi per queste query.
+
+- Hosting: sito `mcp-website-dev-39539` già esistente, zero release e un canale.
+  Non ricreare il sito. Questo aggiorna il riscontro owner storico del16novembre:
+  assenza di frontend distribuito confermata, assenza del sito smentita dall'API.
+- Auth: domini autorizzati `localhost`, `mcp-website-dev-39539.firebaseapp.com`,
+  `mcp-website-dev-39539.web.app`. Nessuna aggiunta necessaria per questi host.
+  Email enabled=true e passwordRequired=true: email-link ancora disabilitato.
+  Il login in `mcp-website/app/login/page.jsx` richiede email-link e costruisce
+  il ritorno `/login/verify` sull'origine corrente; nessun invio effettuato.
+- Bucket: presenti soltanto `mcp-website-dev-39539` e
+  `mcp-website-dev-39539.firebasestorage.app`, entrambi US. Nessun bucket
+  sorgenti/upload elencato; nessuna creazione o assegnazione objectViewer.
+- Scheduler: zero job nella sola regione interrogata `us-central1`;
+  non costituisce censimento di altre regioni.
+- Billing: GET billingInfo HTTP403. Causa non diagnosticata; non dedurre billing
+  disattivo o account scollegato. Nessun tentativo di grant/abilitazione API.
+  Richiesta all'owner verifica console dello stato e del budget filtrato staging,
+  con importo/valuta/soglie, senza dati di pagamento o segreti. Esito pendente.
+
+Evidenze private0600 nella cartella cloud-b-verification:
+`hosting_sites_current.json`, `hosting_releases_current.json`,
+`hosting_channels_current.json`, `auth_config_current.json`,
+`source_buckets_current.json`, `scheduler_current.json`, `billing_current.json`.
+
+**Diff Auth pronto da autorizzare:** soltanto
+`signIn.email.passwordRequired: true -> false`, lasciando enabled=true,
+domini e altre impostazioni invariati. La semantica ufficiale mantiene accesso
+con password e permette anche email-link:
+https://docs.cloud.google.com/identity-platform/docs/reference/rest/v2/Config.
+Prima dell'applicazione rileggere il valore e confrontare il resto della
+configurazione; dopo, readback esatto e verifica di nessun'altra modifica.
+Nessun invio email, creazione utente o deploy è incluso in questa proposta.
+L'applicazione rimane soggetta al gate di configurazione cloud concreto;
+bootstrap, prova WIF reale, main hold e flag deploy restano separati.
 
 ### 5. Sequenza con risultati verificabili
 
