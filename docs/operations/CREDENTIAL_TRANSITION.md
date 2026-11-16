@@ -4,6 +4,8 @@
 identità dedicate create, API abilitate e lotto IAM applicato; repository
 `us-central1/gcf-artifacts` predisposto. Profilo E2E e quattro contenitori secret
 vuoti predisposti (dettagli3h); valori ancora da inserire. Gmail di test collegata.
+API Gender non funzionante secondo owner: correzione differita, profilo staging
+Gender fake; non serve inserire GENDER_API_KEY per il prossimo gate.
 Sender resta sospeso in attesa del chiarimento richiesto all'owner. WIF/GitHub,
 Hosting/Auth, budget, bucket sorgenti e prove bootstrap/E2E/rollback restano aperti.
 La valutazione dei residui high è differita su indicazione owner. Nessun deploy,
@@ -1356,9 +1358,20 @@ dedicato staging con Sending access e dominio del mittente approvato; verificare
 la scadenza scelta. Inserire il valore direttamente come nuova versione nel
 secret MAILERSEND_API_KEY dello staging,mai in chat/Git. Fonte ufficiale:
 https://www.mailersend.com/help/managing-api-tokens.
-Anche PayPal sandbox,SoundCloud eGender richiedono i rispettivi valori; nessun
-riuso automatico dei segreti produzione. Preflight resta bloccante finché le
+PayPal sandbox e SoundCloud richiedono i rispettivi valori; Gender è differito
+(aggiornamento sotto). Nessun riuso automatico dei segreti produzione. Preflight resta bloccante finché le
 versioni non sono abilitate. Ricezione/contenuto/grafica email ancora da provare.
+
+**Aggiornamento owner —16 novembre 2026, successivo al lotto3h:** API Gender
+non funzionante, correzione rinviata. Release staging usa ora GENDER_MODE=fake:
+nessuna richiesta HTTP Gender, nessun binding GENDER_API_KEY alle funzioni e
+nessun requisito di versione secret Gender nel preflight. Il contenitore vuoto
+e i due grant già creati restano invariati; non è stata eseguita una revoca.
+Il simulatore produce risultati sintetici: la qualità del servizio Gender reale
+non è validata e resta un punto rinviato. Nessun fix dell'API dichiarato.
+Tre versioni provider da inserire ora (PayPal sandbox, MailerSend, SoundCloud),
+non quattro; nel precedente modello di costo la voce versioni diventerebbe
+0,18USD/mese prima di quote/accessi. Verifica mirata release/bootstrap PASS.
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 

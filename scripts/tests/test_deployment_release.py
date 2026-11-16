@@ -358,7 +358,7 @@ def test_staging_release_uses_real_providers_and_fake_wallet_without_changing_pr
     backend = manifest['backend']
     assert {key: backend[key] for key in ['PAYPAL_MODE', 'MAIL_MODE', 'PASS2U_MODE',
         'GENDER_MODE', 'SOUNDCLOUD_MODE']} == dict(PAYPAL_MODE='sandbox', MAIL_MODE='staging',
-        PASS2U_MODE='fake', GENDER_MODE='staging', SOUNDCLOUD_MODE='staging')
+        PASS2U_MODE='fake', GENDER_MODE='fake', SOUNDCLOUD_MODE='staging')
     assert backend['MAILERSEND_FROM_EMAIL'] == 'hello@example.com'
     assert backend['MAIL_ALLOWED_RECIPIENTS'] == 'test@example.com,admin@example.com'
     assert backend['SOUNDCLOUD_CLIENT_ID'] == 'public-soundcloud-id'
@@ -396,7 +396,7 @@ def test_release_preflight_requires_every_active_provider_secret_and_never_walle
         pytest.fail('Unexpected cloud operation')
     release.cloud_preflight(manifest, cloud=cloud)
     assert set(requested) == {'PAYPAL_CLIENT_SECRET', 'MAILERSEND_API_KEY',
-        'SOUNDCLOUD_CLIENT_SECRET', 'GENDER_API_KEY'}
+        'SOUNDCLOUD_CLIENT_SECRET'}
     def missing_mail(_, *args):
         if args[:3] == ('secrets', 'versions', 'describe') and 'MAILERSEND_API_KEY' in args:
             return 'DISABLED'
@@ -413,7 +413,7 @@ def test_release_profile_loads_runtime_and_binds_only_needed_provider_secrets():
     env = {key:os.environ[key] for key in ['PATH', 'HOME', 'TMPDIR'] if key in os.environ}
     env.update(manifest['backend'])
     env.update(PAYPAL_CLIENT_SECRET='synthetic-paypal', MAILERSEND_API_KEY='synthetic-mail',
-        SOUNDCLOUD_CLIENT_SECRET='synthetic-radio', GENDER_API_KEY='synthetic-gender')
+        SOUNDCLOUD_CLIENT_SECRET='synthetic-radio')
     code = """import json
 from config.runtime_settings import get_runtime_settings
 from config.function_secrets import secrets_for_function
@@ -429,5 +429,5 @@ for name in ['capture_order_event','create_wallet_pass','on_membership_created',
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == {
         'capture_order_event':['PAYPAL_CLIENT_SECRET', 'MAILERSEND_API_KEY'],
-        'create_wallet_pass':[], 'on_membership_created':['GENDER_API_KEY', 'MAILERSEND_API_KEY'],
+        'create_wallet_pass':[], 'on_membership_created':['MAILERSEND_API_KEY'],
         'admin_create_radio_episode':['SOUNDCLOUD_CLIENT_SECRET'], 'deployment_health':[]}

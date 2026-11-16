@@ -76,7 +76,7 @@ def public_configuration(environment, env, sha):
     backend.update({f'{provider.upper()}_MODE':mode for provider, mode in resource['providers'].items()})
     # The release profile enables explicit E2E integrations; bare runtime defaults stay offline-safe.
     if environment == 'staging':
-        backend.update(MAIL_MODE='staging', PASS2U_MODE='fake', GENDER_MODE='staging',
+        backend.update(MAIL_MODE='staging', PASS2U_MODE='fake', GENDER_MODE='fake',
             SOUNDCLOUD_MODE='staging')
         recipients = public_value(env, 'MAIL_ALLOWED_RECIPIENTS')
         require(all(re.fullmatch(r'[^\s@,;<>*]+@[^\s@,;<>*]+\.[^\s@,;<>*]+', address)

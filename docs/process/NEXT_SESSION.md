@@ -616,3 +616,13 @@ Evidenzeprivateprovider_secret_*;dettaglioCREDENTIAL_TRANSITION3h.
 Prossimo:inserimentovalori e preflightmetadata,Senderchiarimento,WIF/GitHub,
 Hosting/Auth,budget,sorgentibucket. No deploy/import/production/mainmerge;gates
 baseline/rolloutimmutati. Residuihigh differitiowner,nonrisolti.
+
+## Gender rinviato dall'owner —16 novembre 2026
+
+API Gender segnalata non funzionante; owner rinvia la correzione. Release staging
+GENDER_MODE=fake, niente richieste reali né binding/controllo versione Gender.
+Il contenitore GENDER_API_KEY vuoto e i grant già creati restano invariati.
+Inserire ora soltanto i valori PayPal sandbox, MailerSend e SoundCloud.
+Simulazione non valida l'API Gender reale: difetto ancora aperto e differito.
+Regressioni confermano profilo, preflight senza Gender e avvio runtime senza
+chiave Gender, con binding funzioni corretti. Nessuna mutazione cloud o deploy.
