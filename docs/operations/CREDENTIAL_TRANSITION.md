@@ -501,3 +501,40 @@ La cronologia non è stata consultata: non si deducono zero build storiche,
 assenza di service agent o identità di build predefinita dal solo invito
 all'abilitazione. Abilitazione API, verifica dell'identità build effettiva e
 relativi permessi entreranno nel piano bootstrap autorizzato separatamente.
+
+
+### API abilitate staging — due schermate owner del16novembre2026
+
+La schermata finale indica `1–44 of44`,100righe per pagina. Le due porzioni
+fornite coprono44nomi nella dashboard API abilitate; evidenza owner, non
+interrogazione indipendente Service Usage. Nessuna attivazione/disattivazione.
+
+| Ambito rilevante | Nomi presenti nell'elenco |
+|---|---|
+| Dati e Storage | Cloud Firestore API; Cloud Datastore API; Cloud Storage for Firebase API; Cloud Storage; Cloud Storage API; Google Cloud Storage JSON API |
+| Identità | Identity Toolkit API; Identity and Access Management (IAM) API; IAM Service Account Credentials API; Token Service API |
+| Applicazione Firebase | Firebase Hosting API; Firebase Management API; Firebase Rules API |
+| Infrastruttura | Cloud Pub/Sub API; Cloud Logging API; Cloud Monitoring API; Cloud Resource Manager API; Service Management API; Service Usage API |
+
+Altri nomi visualizzati: Analytics Hub API; App Engine Admin API; BigQuery API;
+BigQuery Connection API; BigQuery Data Policy API; BigQuery Data Transfer API;
+BigQuery Migration API; BigQuery Reservation API; BigQuery Storage API;
+Cloud Dataplex API; Cloud Runtime Configuration API; Cloud SQL; Cloud Testing API;
+Cloud Trace API; Dataform API; FCM Registration API; Firebase App Distribution API;
+Firebase Cloud Messaging API; Firebase Installations API; Firebase Remote Config API;
+Firebase Remote Config Realtime API; Gemini for Google Cloud API; Gmail API;
+Google Cloud APIs; Telemetry API.
+
+**Non compaiono nell'elenco mostrato:** Cloud Build, Cloud Functions, Cloud Run,
+Artifact Registry, Eventarc, Cloud Scheduler, Secret Manager. Cloud Build è
+anche confermato dalla precedente pagina Enable. Per gli altri, registrare
+assenza nell'elenco; riconciliare gli identificativi di servizio esatti col piano
+bootstrap prima delle mutazioni. Presenza di un'API non attesta risorse create,
+permessi sufficienti o utilizzo attuale; le metriche del periodo non sono
+usate per dedurre servizi inattivi o eliminabili.
+
+`Token Service API` viene trascritto come nome visualizzato: non è una prova
+dell'abilitazione di `sts.googleapis.com` (Security Token Service per WIF).
+Stato STS e pool/provider WIF ancora da verificare. L'abilitazione di Gmail,
+Cloud SQL e BigQuery non dimostra che l'app li usi; nessuna pulizia proposta
+sulla sola base dell'inventario API.
