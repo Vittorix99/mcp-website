@@ -11,8 +11,9 @@ Sender resta sospeso in attesa del chiarimento richiesto all'owner. Environment
 GitHub staging main-only con14variabili pubbliche e WIF ristretto configurato;
 prova con token GitHub autentico e scambio STS ancora da eseguire. Hosting site
 esistente senza release; domini Auth staging presenti, email-link ora abilitato.
-Budget15EUR/mese con soli avvisi verificato; bucket upload creato con viewer
-build dedicato. Bucket sorgenti e prove bootstrap/E2E/rollback restano aperti;
+Budget15EUR/mese con soli avvisi verificato; bucket upload e sorgenti predisposti
+con viewer build dedicato. Riuso sorgenti da parte di Functions e prove
+bootstrap/E2E/rollback restano da validare durante il rilascio autorizzato;
 billingEnabled non attestato via REST (Cloud Billing API disabilitata).
 La valutazione dei residui high è differita su indicazione owner. Nessun deploy,
 aggiornamento dati cloud o intervento in produzione; main hold invariato.
@@ -1622,7 +1623,7 @@ RED/GREEN,7test offline PASS normali e con python -O; seguito mirato della
 stessa review accetta la correzione senza altri P1/P2. Nessuna seconda PATCH,
 retry o rollback. Nessun utente creato, login reale o invio email effettuato.
 
-**Prerequisito ancora aperto:** generateUploadUrl non ha creato il bucket
+**Residuo di questo checkpoint, predisposto nella sezione4c:** generateUploadUrl non ha creato il bucket
 `gcf-v2-sources`; nessuna policy assegnata a risorse inesistenti/nomi presunti,
 nessun viewer globale di progetto. La documentazione descrive la copia nel
 bucket sorgenti durante il deployment; risolvere il provisioning/accesso
@@ -1643,6 +1644,64 @@ Riferimenti: [updateConfig](https://docs.cloud.google.com/identity-platform/docs
 [generateUploadUrl](https://docs.cloud.google.com/functions/docs/reference/rest/v2/projects.locations.functions/generateUploadUrl),
 [build process](https://docs.cloud.google.com/functions/docs/building),
 [ProtoJSON](https://protobuf.dev/programming-guides/json/).
+
+### 4c. Bucket sorgenti precreato e grant build —17 novembre 2026
+
+Su richiesta owner «risolviamo», predisposto prima della build il bucket
+Cloud Storage ordinario `gcf-v2-sources-1005755179074-us-central1`, usando il
+nome documentato da Functions per sorgenti senza CMEK. Preflight indipendente
+conferma assenza del bucket (GET404 e inventario completo di3bucket), progetto
+ACTIVE1005755179074 e identità build attiva. Il service agent Functions ha già
+roles/cloudfunctions.standardServiceAgent e i permessi Storage necessari:
+nessun nuovo grant di progetto o ruolo legacy aggiunto per farlo funzionare.
+
+Creazione esplicita nel solo staging: US-CENTRAL1, STANDARD, accesso uniforme
+e publicAccessPrevention=enforced. Nessun lifecycle/retention lock/versioning
+o KMS richiesto. Readback soft delete predefinito604800secondi (7giorni),
+distinto da un retention lock; nessun oggetto presente o caricato.
+
+Review indipendente Sol high preventiva: nessun P1/P2, accettata la sola
+preparazione della risorsa e del grant. Primo tentativo crea il bucket e si
+ferma PRIMA del PUT IAM: la guardia ammetteva solo i default legacyBucketOwner/
+legacyBucketReader; Google assegna anche legacyObjectOwner/legacyObjectReader
+agli stessi gruppi projectOwner/projectEditor/projectViewer. Sono i medesimi
+default già osservati sul bucket upload, non destinatari nuovi. Snapshot
+indipendente conferma esattamente4binding/6archi default e nessuna condizione.
+Corretta solo la whitelist dei default, con regressione RED/GREEN e test di
+rifiuto allUsers;10test offline PASS normali e con python -O. Seguito mirato
+della stessa review accetta helper/protocollo di ripresa, senza nuovi P1/P2.
+
+Nessuna ripetizione di --apply o della creazione. Ripreso soltanto il grant,
+dopo confronto fresco del fingerprint di creazione, configurazione e policy
+osservate, bucket vuoto e snapshot di progetto/tre bucket preesistenti.
+Marker separato prima del PUT; policy iniziale e suo etag preservati.
+Applicata una sola aggiunta roles/storage.objectViewer a
+`functions-build@mcp-website-dev-39539.iam.gserviceaccount.com` sul solo nuovo
+bucket,0rimozioni/altre aggiunte. IAM progetto e policy dei3bucket precedenti
+invariati. Editor/Owner/default/legacy preservati come richiesto dall'owner.
+
+Readback finale indipendente12controlli PASS: identità/protezioni source,
+assenza lifecycle/retention lock, delta IAM esatto, policy progetto e3bucket
+immutate, inventario completo4bucket, sorgenti vuote, zero Functions/release
+Hosting/build regionali e globali. Nessun deploy, codice caricato, login o
+invio email, dato applicativo o intervento produzione/main.
+
+**Limite esplicito:** precreare il nome documentato prepara risorsa e permessi,
+non dimostra che Functions la riusi senza adeguamenti. Il riuso reale, eventuali
+configurazioni richieste dal servizio e build riuscita si verificano solo nel
+bootstrap sullo SHA/main autorizzato. Fermarsi se il servizio rifiuta il bucket
+o richiede modifiche fuori manifest; nessun ampliamento IAM o retry implicito.
+Questa fase chiude la preparazione del bucket sorgenti, non tutti i gate B/C.
+
+Evidenze private0600: source_bucket_preflight/plan/created,
+source_bucket_initial_policy_inspection, source_bucket_creation_first_attempt,
+source_bucket_grant_resume_result, source_bucket_result,
+source_bucket_policy_after, source_bucket_final_metadata e
+source_bucket_independent_readback nella cartella cloud-b-verification.
+Il marker risultato vieta il replay; conservare le evidenze della creazione
+parziale e della ripresa esplicita. Helper/test locali ignorati da Git.
+Riferimenti: [nome e processo sorgenti](https://docs.cloud.google.com/functions/docs/building),
+[creazione bucket](https://docs.cloud.google.com/storage/docs/creating-buckets).
 
 ### 5. Sequenza con risultati verificabili
 
