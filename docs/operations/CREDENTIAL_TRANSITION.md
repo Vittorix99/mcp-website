@@ -596,3 +596,13 @@ censisce variabili/segreti Actions di repository o di organizzazione.
 Nessun Environment, secret, variabile o regola creato/modificato.
 Disponibilità di required reviewers/protezioni da riconciliare con piano
 GitHub e visibilità repository prima di approvare il piano produzione.
+
+
+### Authentication staging — riscontro owner del16novembre2026
+
+Alla verifica dei metodi di accesso Firebase Authentication, l'owner riporta
+**Email/Password** come provider abilitato nello staging. Nessuna schermata
+utenti o dato personale richiesto. Configurazione email-link/passwordless,
+domini autorizzati, template email e stato degli altri provider non verificati
+indipendentemente; non dedurre email-link abilitato dalla sola voce Email/Password.
+Nessun provider, account, dominio o template modificato.
