@@ -476,3 +476,21 @@ Prima di C classificare/proteggere i dati esistenti e verificare legami legacy.
 Nessun deploy,aggiornamento dati cloud,push,merge main o flagautomatici ora.
 Dopo B/C:HTTP+SSR,dati sintetici cloud con gate separato,trigger/cron,
 E2Esandbox,baseline completa A→B→rollback A. Produzione/Sender restano off.
+
+## Blocco B — stima costi pronta,16 novembre 2026
+
+Owner conferma billing a posto (non verifica indipendente) e prevede4deploy
+completi/mese. Richiede staging completo con costi contenuti. Stima e formule
+in CREDENTIAL_TRANSITION.md,sezione Stima economica:scenario di riferimento
+13,015USD/mese lordo prima quote gratuite (11,575cloud+1,44GitHub),intervallo
+condizionato5–15USD. Scenario senza riuso build48,3382USD; non un tetto.
+CLI14.26 prevede riuso immagini per default; nessuna telemetria reale prova
+quante build verranno eseguite. Dataset locale53684doc/33,14MiBexport,non
+misura Firestore cloud. Backup legacy,abbonamentoGitHub,carico e primo mese
+bootstrap da quantificare separatamente. Proposta minInstances0,retention
+protetta,4rilasci e budgetmonitoraggio15USD con avvisi50/80/100,pending owner.
+Pipeline attualeflagoff farà deploy a ogni pushmain una volta attivata:
+va concordato/adattato il comportamento prima di accendere i flag. Nessun
+limite runtime,cleanup,policy o risorsa cloud modificata ora. Prossimo:
+concordarebudget e completaremanifest B conAPI/IAM/risorse esatti prima di
+qualsiasi mutazione. Stopintegrazionemain e approvazioni cloud/dati invariati.

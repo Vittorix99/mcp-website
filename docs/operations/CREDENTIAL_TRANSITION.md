@@ -1013,3 +1013,124 @@ solo minimo30giorni: evita di applicare una retention non ancora concordata
 alla prima baseline. La configurazione concreta e gli eventuali costi di
 conservazione appartengono al successivo blocco B, da discutere con l'owner.
 Nessuna prova OAuth/IAM/deploy reale né CI remota attestata da questi test.
+
+### Stima economica staging e proposta costi — 16 novembre 2026
+
+**Richiesta owner:** mantenere staging completo e contenere la spesa; frequenza
+indicata: **4 deploy completi al mese**. Billing dichiarato a posto dall'owner
+nella conversazione; non verificato indipendentemente via API. Questa sezione
+è una stima e una proposta: non autorizza provisioning,modifiche runtime,
+cleanup,nuove restrizioni di accesso o attivazione della pipeline.
+
+**Perimetro e ipotesi:** staging us-central1,Firestore esistente nam5,bucket
+applicativo US;141 endpoint Python (130 HTTP,8 trigger,3 scheduler) e1 SSR.
+Tutte le funzioni e i flussi restano presenti. Istanze minime0 proposte per
+backend e SSR; limiti massimi da validare con concorrenza e worker. Nessuna
+riduzione arbitraria della memoria per risparmiare: nel codice attuale non ci
+sono limiti memoria/min/max espliciti. Il frontend è Firebase Hosting con SSR,
+non Firebase App Hosting: usare il listino Hosting corretto.
+
+Il dataset sintetico locale già generato contiene53684 documenti; l'export
+occupa33,14MiB. È una misura dei file locali,non dei byte Firestore cloud:
+indici,metadati e copie hanno dimensioni diverse. Il piano resta4000 soci e50
+eventi con scenari completi; nessuna riduzione del dataset decisa per i costi.
+I due scheduler giornalieri (cleanup03:00 e rebuild05:15 Europe/Rome) e quello
+annuale restano nel modello. Le letture dei job e i trigger vanno conteggiati,
+anche quando nessuno apre il sito. Il caricamento massivo e i test di carico
+hanno un budget separato prima dell'esecuzione e non sono compresi nell'uso
+ordinario qui ipotizzato.
+
+**Nessuna telemetria cloud disponibile:** durata e tipo macchina delle build,
+riuso effettivo,dimensione media delle immagini,CPU/memoria/tempo fatturati,
+traffico,spesa legacy e quote gratuite residue sono ancora da misurare. La
+CLI14.26.0 installata ha functionsv2deployoptimizations=true di default e
+prevede riuso immagini attraverso sourceToken; non equiparare141 funzioni a
+141 build distinte misurate. Il riuso è una possibilità,non un risparmio
+attestato. Non attivare Artifact Analysis/scansioni a pagamento per ipotesi;
+eventuali obblighi di scansione vanno verificati e quantificati separatamente.
+
+**Modello mensile di riferimento,in USD senza IVA/cambio,sconti o crediti:**
+
+| Voce | Ipotesi di calcolo (non misura) | Importo USD |
+|---|---|---:|
+| Cloud Build |4 rilasci ×10 build effettive ipotizzate ×5 minuti ×0,0156/min,e2-highcpu-8 come tariffa di scenario,non macchina effettiva verificata |3,12|
+| Artifact Registry |20GiB medi fatturabili ×circa0,10/GiB-mese; nessuna deduzione quota gratuita |2,00|
+| Esecuzione backend/SSR/worker |100000 richieste complessive;100000 vCPU-secondi e50000 GiB-secondi,comprendendo startup:0,000024/vCPU-s +0,0000025/GiB-s +0,40/milione richieste |2,565|
+| Firestore,Hosting,file,backup piccoli e trasferimenti |Accantonamento3,50USD per uso funzionale e dati sintetici contenuti; non derivato da una fattura o da una tariffa nam5 misurata |3,50|
+| Scheduler |3 job ×0,10/mese,quota gratuita non dedotta |0,30|
+| Secret Manager |1 versione automatica e10000 accessi:0,06 +0,03,quote gratuite non dedotte |0,09|
+| GitHub Actions |240 minuti Linux2core ×0,006/min; minuti inclusi/pubblico non dedotti; ulteriore CI PR non compresa |1,44|
+| **Totale di scenario** |Cloud11,575 +GitHub1,44 |**13,015**|
+
+I20GiB sono uno spazio medio ipotizzato,non una retention applicata né un
+limite automatico. Il tempo runtime è tempo fatturato ipotizzato,non una
+promessa che ogni richiesta duri1secondo;cold start,funzioni pesanti e durata
+reale dei rebuild possono cambiare il risultato. Il prezzo orario Registry
+pubblicato è0,000136986USD/GiB-ora,dunque circa0,10 con730ore. Al totale
+possono aggiungersi altri dati/risorse legacy,retention backup maggiore,
+scansioni opzionali,traffico extra e un eventuale abbonamento GitHub necessario
+alle protezioni; questi elementi non sono ancora inventariati. La stima
+riguarda l'assetto target staging: non è una differenza riconciliata rispetto
+alla fattura attuale e non comprende produzione,domini personalizzati o
+servizi provider live.
+
+**Intervallo di pianificazione:**circa5–15USD/mese per4 rilasci e uso leggero,
+se il riuso è efficace e i volumi restano nelle ipotesi. È una stima
+condizionata,non un preventivo garantito o un tetto. Le quote gratuite possono
+ridurre l'addebito ma non sono assunte disponibili: per Cloud Build la quota
+2500minuti è promozionale e limitata a e2-standard-2 nel default pool,quindi
+non è applicata alla tariffa e2-highcpu-8 del modello. Altre quote sono
+condivise fra progetti dello stesso billing account; Logging ha quota50GiB
+per progetto/mese,ipotesi uso inferiore con retention ordinaria30giorni.
+
+**Sensibilità senza riuso:**4 rilasci ×142 build ×4minuti ×0,0156 =35,4432USD
+solo build. Con50GiB medi Registry (=5USD) e le altre ipotesi uguali,il totale
+è48,3382USD/mese. Anche questo è un caso ipotetico,non il massimo possibile:
+più minuti,memoria,traffico o dati possono superarlo. Il primo mese contiene
+bootstrap e prove baseline/rollback aggiuntive,che vanno conteggiate oltre ai
+4 rilasci se non ricadono in quei4.
+
+**Proposta operativa da concordare prima dell'attivazione:**
+
+- Obiettivo di pianificazione5–15USD/mese,budget iniziale di monitoraggio15USD
+  equivalente nella valuta di fatturazione,con avvisi50/80/100%. Un budget di
+  soli avvisi non interrompe la spesa. Nessun automatismo che disabiliti
+  billing,cancelli risorse o tagli un rilascio in corso.
+- Staging completo disponibile con minInstances0,accettando cold start;
+  scalabilità massima per funzione/SSR misurata e validata. Un limite per
+  funzione non è un limite globale di spesa su142 servizi.
+- Raggruppare modifiche in4 rilasci mensili e separare test/CI da pubblicazione.
+  **La pipeline attuale,pur disattivata dai flag,prevede deploy a ogni push
+  main dopo attivazione:** il comportamento di attivazione va concordato e
+  adattato prima di accendere i flag; non è già manual-only.
+- Repository senza DELETE durante bootstrap/prova rollback come da blocco A.
+  Dopo la prova concordare cleanup che protegga immagini attive e baseline
+  per tutta la finestra30giorni. Non applicare ora una semplice cancellazione
+  per età o per numero di versioni. Verificare crescita settimanalmente
+  durante bootstrap; nessuna conservazione illimitata adottata come politica
+  definitiva e nessuna cancellazione automatica implementata da questa stima.
+- Dopo il primo deploy autorizzato raccogliere soltanto metadati costi:
+  buildId/macchina/minuti,byte unici Registry,tempo fatturato e min/max istanze,
+  letture/scritture e trasferimenti. Ricalcolare la stima prima del successivo
+  deploy se il riuso non funziona o i volumi superano le ipotesi. Confermare
+  piano GitHub,visibilità repo,minuti residui e spesa preesistente prima di
+  dichiarare un costo complessivo effettivo.
+
+Fonti primarie consultate16novembre2026:
+[Cloud Build](https://cloud.google.com/build/pricing),
+[Cloud Run](https://cloud.google.com/run/pricing),
+[Artifact Registry](https://cloud.google.com/artifact-registry/pricing),
+[Firestore](https://cloud.google.com/firestore/pricing),
+[Cloud Storage](https://cloud.google.com/storage/pricing),
+[Firebase Hosting](https://firebase.google.com/pricing),
+[Secret Manager](https://cloud.google.com/secret-manager/pricing),
+[Scheduler](https://cloud.google.com/scheduler/pricing),
+[Eventarc](https://cloud.google.com/eventarc/pricing),
+[Logging](https://cloud.google.com/products/observability/pricing),
+[GitHub runner](https://docs.github.com/en/billing/reference/actions-runner-pricing),
+[GitHub Actions](https://docs.github.com/en/billing/concepts/product-billing/github-actions),
+[budget](https://docs.cloud.google.com/billing/docs/how-to/budgets).
+
+**Stato:**stima pronta per discussione; nessuna risorsa creata o modifica
+cloud/codice di esecuzione applicata. Procedere dopo scelta del budget e
+manifest B nominativo approvato,non come conseguenza automatica della stima.
