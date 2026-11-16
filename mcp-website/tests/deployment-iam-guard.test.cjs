@@ -15,7 +15,7 @@ const endpoint = {project,region:'us-central1',platform:'gcfv2',id:'on_member_cr
   serviceAccount:manifest.identities.RUNTIME_SERVICE_ACCOUNT,
   eventTrigger:{eventType:'google.cloud.firestore.document.v1.created',eventFilters:{database:'(default)'}}}
 const policy = {bindings:[
-  ['roles/cloudfunctions.serviceAgent',`service-${number}@gcf-admin-robot.iam.gserviceaccount.com`],
+  ['roles/cloudfunctions.standardServiceAgent',`service-${number}@gcf-admin-robot.iam.gserviceaccount.com`],
   ['roles/cloudbuild.serviceAgent',`service-${number}@gcp-sa-cloudbuild.iam.gserviceaccount.com`],
   ['roles/eventarc.serviceAgent',`service-${number}@gcp-sa-eventarc.iam.gserviceaccount.com`],
   ['roles/pubsub.serviceAgent',`service-${number}@gcp-sa-pubsub.iam.gserviceaccount.com`],
@@ -46,6 +46,44 @@ test('first Firestore deployment validates explicit bindings and cannot write pr
     resource.getIamPolicy = savedGet
     resource.setIamPolicy = savedSet
   }
+})
+
+test('existing legacy Functions service-agent binding remains compatible', async () => {
+  const resource = cli('./lib/gcp/resourceManager.js')
+  const checks = cli('./lib/deploy/functions/checkIam.js')
+  const savedGet = resource.getIamPolicy
+  const legacy = structuredClone(policy)
+  legacy.bindings[0].role = 'roles/cloudfunctions.serviceAgent'
+  resource.getIamPolicy = async () => legacy
+  const restore = installCliGuards(cli,manifest)
+  try {
+    await checks.ensureServiceAgentRoles(project,number,
+      {endpoints:{'us-central1':{on_member_created:endpoint}}},{endpoints:{}},false)
+  } finally {restore();resource.getIamPolicy = savedGet}
+})
+
+test('Functions service-agent compatibility still requires the exact unconditional principal', async () => {
+  const resource = cli('./lib/gcp/resourceManager.js')
+  const checks = cli('./lib/deploy/functions/checkIam.js')
+  const savedGet = resource.getIamPolicy
+  const restore = installCliGuards(cli,manifest)
+  try {
+    for (const role of ['roles/cloudfunctions.standardServiceAgent','roles/cloudfunctions.serviceAgent']) {
+      for (const change of [
+        {members:['serviceAccount:' + manifest.identities.RUNTIME_SERVICE_ACCOUNT]},
+        {members:[`serviceAccount:service-999999999@gcf-admin-robot.iam.gserviceaccount.com`]},
+        {condition:{title:'synthetic-condition',expression:'true'}},
+        {role:'roles/editor'},
+        {role:'roles/cloudfunctions.admin'},
+      ]) {
+        const invalid = structuredClone(policy)
+        invalid.bindings[0] = {...invalid.bindings[0],role,...change}
+        resource.getIamPolicy = async () => invalid
+        await assert.rejects(checks.ensureServiceAgentRoles(project,number,
+          {endpoints:{'us-central1':{on_member_created:endpoint}}},{endpoints:{}},false),/IAM/)
+      }
+    }
+  } finally {restore();resource.getIamPolicy = savedGet}
 })
 
 test('ordinary releases preserve invoker policy and refuse implicit policy changes', async () => {

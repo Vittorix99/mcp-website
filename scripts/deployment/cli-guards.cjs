@@ -35,15 +35,18 @@ function withBuildIdentity(endpoint, manifest, convert) {
 
 function assertProjectBindings(policy, required) {
   for (const expected of required) {
+    const roles = Array.isArray(expected.role) ? expected.role : [expected.role]
     requireCondition(expected.members.every(member => (policy.bindings || []).some(binding =>
-      binding.role === expected.role && !binding.condition && binding.members?.includes(member))),
+      roles.includes(binding.role) && !binding.condition && binding.members?.includes(member))),
     'Required project IAM binding is missing; owner provisioning required')
   }
 }
 
 function requiredProjectBindings(manifest, number, endpoints) {
   const rows = [
-    ['roles/cloudfunctions.serviceAgent',`service-${number}@gcf-admin-robot.iam.gserviceaccount.com`],
+    // Existing projects may still carry the deprecated service-agent role.
+    [['roles/cloudfunctions.standardServiceAgent','roles/cloudfunctions.serviceAgent'],
+      `service-${number}@gcf-admin-robot.iam.gserviceaccount.com`],
     ['roles/cloudbuild.serviceAgent',`service-${number}@gcp-sa-cloudbuild.iam.gserviceaccount.com`],
   ]
   if (endpoints.some(endpoint => endpoint.eventTrigger)) {

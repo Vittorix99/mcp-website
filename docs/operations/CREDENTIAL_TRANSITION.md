@@ -671,8 +671,9 @@ Nessun account/app creato o modificato, nessun pagamento eseguito.
 stima economica nel commitb177bbd. Blocco B avviato:creati i4account tecnici
 su richiesta esplicita owner,con verifica CLI. Abilitate anche le8API
 autorizzate,con2dipendenze e grant di sistema comparsi automaticamente. Nessun
-ruolo diretto ai4account dedicati;2Editor sugli account default da valutare
-prima di proseguire col deploy. Dettaglio ed esiti nella sezione3c. Il piano operativo del13novembre
+ruolo diretto ai4account dedicati. Owner chiede di lasciare invariati i2Editor
+sugli account default;controllo locale Functions aggiornato e verificato.
+Dettaglio degli effettiAPI nella sezione3c e correzione nella3d. Il piano operativo del13novembre
 rimane il riferimento; questa sezione ne concretizza i prerequisiti osservati
 e supera le precedenti ipotesi generiche di ruoli per lo staging.
 
@@ -884,7 +885,7 @@ provider effettivi non sono verificati.
 
 | Principale completo da censire dopo abilitazione API | Ruolo di servizio sul solo progetto staging |
 |---|---|
-| `serviceAccount:service-1005755179074@gcf-admin-robot.iam.gserviceaccount.com` | `roles/cloudfunctions.serviceAgent` |
+| `serviceAccount:service-1005755179074@gcf-admin-robot.iam.gserviceaccount.com` | `roles/cloudfunctions.standardServiceAgent`;compatibilità locale col ruolo legacy solo se già assegnato |
 | `serviceAccount:service-1005755179074@gcp-sa-cloudbuild.iam.gserviceaccount.com` | `roles/cloudbuild.serviceAgent` |
 | `serviceAccount:service-1005755179074@gcp-sa-eventarc.iam.gserviceaccount.com` | `roles/eventarc.serviceAgent` |
 | `serviceAccount:service-1005755179074@gcp-sa-pubsub.iam.gserviceaccount.com` | `roles/pubsub.serviceAgent` |
@@ -1093,6 +1094,41 @@ approvazione di deploy,dati,revoca o modifica produzione implicita.
 Riferimenti sui grant automatici:
 [default service account e Editor](https://docs.cloud.google.com/iam/docs/troubleshoot-org-policies),
 [verifica impatto prima di cambiare ruoli](https://docs.cloud.google.com/compute/docs/instances/change-service-account).
+
+### 3d. Controllo Functions corretto;Editor lasciati invariati —16novembre2026
+
+Owner dispone di non proseguire il riesame/restrizione dei2Editor automatici
+e di occuparsi soltanto del controllo locale Functions. I due grant restano
+invariati per sua scelta;non sono un blocco imposto da questa sessione.
+Nessuna operazione cloud eseguita in questo intervento.
+
+Correzione minima in scripts/deployment/cli-guards.cjs:il binding del service
+agent Functions ammette roles/cloudfunctions.standardServiceAgent oppure il
+legacy roles/cloudfunctions.serviceAgent,per compatibilità con ambienti già
+provisionati. Resta obbligatorio il preciso membro
+serviceAccount:service-PROJECT_NUMBER@gcf-admin-robot.iam.gserviceaccount.com,
+con binding non condizionato e nel progetto/numero attesi. Editor o Functions
+Admin non sostituiscono il binding richiesto. Gli altri ruoli di servizio e i
+blocchi sulle scritture IAM rimangono attivi;nessun ruolo deprecato viene
+assegnato per superare il controllo.
+
+Prova RED→GREEN:la fixture del primo trigger Firestore con il ruolo corrente
+falliva prima della patch per Required project IAM binding missing e passa
+dopo. Regressioni confermano compatibilità legacy e rifiuto di membro errato,
+numero progetto diverso,binding condizionato,Editor e FunctionsAdmin.
+
+Verifica locale Node20:8test IAM mirati,70configurazione/frontend e103strumenti
+PASS;lint mirato PASS. Replay offline della policy staging già acquisita,
+per la tranche HTTP:PASS,0scritture IAM. È una prova del controllo su snapshot,
+non un deploy o un'attestazione di tutti i prerequisiti cloud. Non rieseguite
+build/API/backendunit perché non modificati codice applicativo o build.
+Review indipendente unica Solhigh functions_agent_role_review:nessunP1/P2,
+8/8mirati verificati anche dal reviewer;accettata dal coordinatore.
+
+Prossimo B:custom role e grant nominativi,WIF,repository/secret/configurazioni,
+con le approvazioni e i gate dati/deploy già previsti. Non riproporre la
+rimozione degli Editor senza nuova richiesta owner. Nessun cambio alle
+identità legacy,alla produzione o ai flag della pipeline.
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 

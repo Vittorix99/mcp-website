@@ -542,3 +542,15 @@ ruolodeprecato;serviràfixmiratoconregressione/review,nonfattopassaggioAPI.
 CREDENTIAL_TRANSITION3c aggiornata,evidenzeprivatein.local/staging/cloud-b-verification.
 Prossimo:chiuderequestieffetti,poi customrole/grant/WIF/repository/secret.
 Nessundeploy,dati,produzione,revoca oattivazionepipelineeseguiti/autorizzati.
+
+## Blocco B — controllo Functions corretto,16 novembre 2026
+
+Owner lascia invariati i2Editor default e chiede solofixcontrolloFunctions;
+non riproporre riesame/revoca senza nuova richiesta. Patchlocaleminima accetta
+standardServiceAgent olegacyserviceAgent sulprecisoGCFrobot,unconditional;
+noEditor/Admin/wrongprincipal sostitutivi,restantiguardieIAMpreservate.
+RED→GREEN sufixtureAPIcorrente;8IAM/70config/103strumenti PASS,lintmiratoPASS.
+ReplayofflinepolicystagingperHTTPPASS0scritture.1reviewSolhigh
+functions_agent_role_review senzaP1/P2,8testPASSindipendenti,accettata.
+Nessunamutazionecloud/deploy/credenziali inquestopassaggio. Bprossimo:
+customrole/grantnominativi,WIF,repository/secret/configprimaC e datigate.

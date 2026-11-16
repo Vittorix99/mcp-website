@@ -552,3 +552,12 @@ Verifica coordinatore:1413unitari/522API/57Auth/103strumenti/68frontendconfig
 PASS;build e fullsmokeisolato API/8trigger PASS;lint0errori/53warningpreesistenti.
 Nessuna autenticazione cloud reale,provisioning,deploy,push o merge main.
 Token/costi indisponibili; conteggi task non rappresentano risparmi misurati.
+
+## Compatibilità service agent Functions —16 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | functions_agent_role_review: review indipendente di cli-guards.cjs e regressioni,compatibilità ruoli Functions attuale/legacy | high | Nessun P1/P2;8test Node20 mirati verificati indipendentemente. Accettata dal coordinatore;70config/103strumenti e replayofflinepolicyHTTP0scritture PASS. Nessuna chiamata cloud o modifica file del reviewer. |
+
+Dispatch effettivi:0Luna,1reviewSolhigh;patch minima eseguita inline.
+Nessuna stima token/costi. Editor default lasciati invariati come richiesto.
