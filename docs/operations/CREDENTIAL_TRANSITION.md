@@ -3,7 +3,8 @@
 **Stato corrente —16 novembre 2026:** inventario staging raccolto, quattro
 identità dedicate create, API abilitate e lotto IAM applicato; repository
 `us-central1/gcf-artifacts` predisposto. Profilo E2E e quattro contenitori secret
-vuoti predisposti (dettagli3h); valori ancora da inserire. Gmail di test collegata.
+predisposti (dettagli3h); versioni1 PayPal sandbox, MailerSend e SoundCloud
+inserite e abilitate; Gender resta vuoto. Gmail di test collegata.
 API Gender non funzionante secondo owner: correzione differita, profilo staging
 Gender fake; non serve inserire GENDER_API_KEY per il prossimo gate.
 Sender resta sospeso in attesa del chiarimento richiesto all'owner. WIF/GitHub,
@@ -1372,6 +1373,37 @@ non è validata e resta un punto rinviato. Nessun fix dell'API dichiarato.
 Tre versioni provider da inserire ora (PayPal sandbox, MailerSend, SoundCloud),
 non quattro; nel precedente modello di costo la voce versioni diventerebbe
 0,18USD/mese prima di quote/accessi. Verifica mirata release/bootstrap PASS.
+
+**Inserimento diretto dei secret autorizzato dall'owner —16 novembre 2026:**
+l'owner chiede di provvedere tramite CLI. Questa istruzione supera, per i soli
+tre valori seguenti, il precedente passaggio di inserimento manuale owner.
+Lettura locale in memoria dei soli campi provider necessari dalle configurazioni
+backend esistenti `.env` e `.env.integration` nel checkout principale; valori
+coincidenti per PayPal, MailerSend e SoundCloud. Nessun export completo, nessuna
+lettura delle chiavi Firebase/Gmail e nessun download da Doppler.
+
+La modalità legacy dei file è production: non è stata usata per scegliere le
+credenziali. La coppia PAYPAL_CLIENT_ID/SECRET è distinta da PAYPAL_LIVE_* e
+l'autenticazione sull'endpoint `api-m.sandbox.paypal.com/v1/oauth2/token` ha
+restituito200 con access token valido, mantenuto soltanto in memoria. Nessuna
+creazione ordine/capture/pagamento. MAILERSEND_API_KEY è presente e distinta
+dalla password SMTP; riusato il token API esistente, senza creare o ruotare token.
+SoundCloud riusa la coppia esistente. Validità operativa MailerSend/SoundCloud
+ancora da provare; stato ENABLED in SM non equivale a successo del provider.
+
+Creati tramite `gcloud secrets versions add --data-file=-` (payload su stdin,
+mai negli argomenti/log/file intermedi) soltanto:
+- PAYPAL_CLIENT_SECRET versione1, ENABLED;
+- MAILERSEND_API_KEY versione1, ENABLED;
+- SOUNDCLOUD_CLIENT_SECRET versione1, ENABLED.
+Readback delle versioni tramite soli metadati, senza leggere i payload da SM.
+GENDER_API_KEY conserva0versioni; nessun secret Pass2U inserito. Produzione,
+file sorgenti, IAM, deploy e dati applicativi invariati. Client ID pubblici
+salvati in `.local/staging/provider-public-config.json`0600 per la futura
+configurazione release; valori dei secret non salvati in nuovi file locali.
+Evidenze private `provider_local_source_check.json` e
+`provider_secret_upload_result.json`. Restano prove di invio/ricezione mail,
+SoundCloud, preflight completo e gate bootstrap/E2E/rollback.
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 

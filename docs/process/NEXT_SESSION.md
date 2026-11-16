@@ -626,3 +626,20 @@ Inserire ora soltanto i valori PayPal sandbox, MailerSend e SoundCloud.
 Simulazione non valida l'API Gender reale: difetto ancora aperto e differito.
 Regressioni confermano profilo, preflight senza Gender e avvio runtime senza
 chiave Gender, con binding funzioni corretti. Nessuna mutazione cloud o deploy.
+
+## Tre valori provider inseriti via CLI —16 novembre 2026
+
+Su richiesta owner, recuperati in memoria i soli campi provider da .env e
+.env.integration backend del checkout principale, coincidenti. PayPal legacy
+production nel file, ma coppia base distinta da PAYPAL_LIVE e autenticazione
+sandbox verificata HTTP200; nessun pagamento. Token MailerSend API distinto
+dalla password SMTP, SoundCloud coppia esistente; nessuna rotazione.
+Staging SM: PAYPAL_CLIENT_SECRET,MAILERSEND_API_KEY,SOUNDCLOUD_CLIENT_SECRET
+versione1 ENABLED, readback metadati. Payload via stdin, mai argomenti/log/Git.
+Gender0versioni e fake,Pass2U escluso. Client ID pubblici in file privato
+.local/staging/provider-public-config.json0600; evidenze provider_local_source_check
+e provider_secret_upload_result nella cartella cloud-b-verification.
+Non chiedere nuovamente all'owner l'inserimento manuale dei tre valori.
+Prossimi: chiarimento Sender; WIF/GitHub,Hosting/Auth,budget,bucket sorgenti;
+preflight completo e prove reali MailerSend/SoundCloud non ancora eseguiti.
+Nessun deploy,invio email,import dati,produzione/mainmerge; gate invariati.
