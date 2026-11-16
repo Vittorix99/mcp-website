@@ -526,3 +526,16 @@ ownership di package.json/lockfile, migrazione e analisi di sicurezza.
 
 Dispatch effettivi:2task Luna accettati,1review Sol high conclusa e accettata.
 Token/costi non disponibili; nessuna attività cloud/provider/credenziali.
+
+## Piano bootstrap/IAM staging — 16 novembre 2026
+
+Coordinamento Sol inline: inventario owner,verifica codice CLI/pipeline e fonti
+primarie Google; nessun codice applicativo o risorsa cloud modificato. Piano
+aggiornato nel documento operativo esistente,non creato un report duplicato.
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | cloud_bootstrap_plan_review: review indipendente della proposta4identità/IAM/WIF e sequenza prima baseline/dati | high | Review conclusa:2P1 (bootstrap auth owner/WIF,IAM implicito CLI) e1P2 (storage.buckets.get deploy) accettati da Sol e corretti nel piano. Nessuna implementazione o prova cloud. |
+
+Dispatch effettivi:0incarichi Luna,1review Sol high. Nessun secondo dispatch;
+token/costi non disponibili.

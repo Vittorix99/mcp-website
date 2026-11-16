@@ -420,3 +420,30 @@ Audit completo47(0critical/13high/33moderate/1low),senza dev21
 nessuna accettazione dei residui. Linux,CI remota,SSR distribuito e provider
 reali non verificati. Nessuna mutazione cloud/credenziali/deploy o promozione
 produzione/Sender. Prossimo perimetro da discutere prima di avviarlo.
+
+## Gate cloud — inventario e proposta bootstrap,16novembre2026
+
+Inventario owner registrato in CREDENTIAL_TRANSITION.md: staging dev39539,
+numero1005755179074,Firestoredefault/nam5,bucket Firebase firebasestorage.app
+(diverso dal catalogo appspot.com),nessun frontend/backend distribuito.
+CloudBuildAPI da abilitare e altri servizi deploy assenti nell'elenco44API.
+Due SA legacy Enabled,chiave admin-test Active;nessuna revoca. Nessun poolWIF
+o GitHubEnvironment. Billing collegato,Active/billingEnabled da confermare.
+Authpassword attivo,email-link spento,domini assenti secondo owner. PayPal
+sandbox DefaultApplication+Business/Personal presenti,nessuna transazione.
+Lineage accessi produzione→dev,secondo bucket e natura dei dati ancora aperti.
+
+Proposta unica aggiornata nel documento operativo:4SA dedicati (deploy,build,
+backend,SSR),WIFmain-only,SecretManager sandbox,permessi espliciti senzaOwner/
+Editor. Prima baseline richiede percorso staging-only separato. Bootstrap
+operator OAuth distinto dal release WIF; blocco IAM automatico CLI e lettura
+metadati bucket compresi nel piano dopo reviewSolhigh(2P1+1P2 corretti).
+0Luna,1review;token/costi indisponibili. Nessun codice o risorsa cloud cambiato.
+
+Prossimo consenso richiesto:solo bloccoA repository (bucket,buildaccount,
+bootstrap,regressioni),non provisioning/deploy. CloudB/C richiedono distinto
+manifest e consenso. Mantenere stopintegrazione main,nessun trust branchdev,
+flagdeployoff. Primo deployHTTP+SSR;data gate separato prima di trigger/cron,
+poi topologiacompleta,E2Esandbox,baselineA→releaseB→rollbackA verificato.
+Produzione/Senderoff;residuihigh rinviati non risolti. Non attivare API/IAM
+come conseguenza della sola approvazione del piano locale.

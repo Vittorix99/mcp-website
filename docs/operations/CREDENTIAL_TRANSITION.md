@@ -663,3 +663,273 @@ account né attesta login, fondi/currency di test o transazioni riuscite.
 L'associazione nominale fra l'unica app Business e Default Application resta
 da confermare nel dettaglio app: coincidenza di conteggi/date non è una prova.
 Nessun account/app creato o modificato, nessun pagamento eseguito.
+
+
+## Proposta unica: bootstrap staging e IAM — 16 novembre 2026
+
+**Stato:** piano da approvare; sola preparazione documentale. Nessuna mutazione
+cloud eseguita o autorizzata da questo testo. Il piano operativo del13novembre
+rimane il riferimento; questa sezione ne concretizza i prerequisiti osservati
+e supera le precedenti ipotesi generiche di ruoli per lo staging.
+
+**Obiettivo:** ottenere uno staging autonomo, con codice approvato, identità
+separate e prima baseline verificata, prima di attivare il deploy automatico.
+**Architettura:** frontend Hosting+SSR Node20 e Functions Python3.11 in
+us-central1; Firestore esistente `(default)`/nam5 e Storage già presente.
+GitHub OIDC/WIF impersona solo l'identità deploy; runtime e build usano account
+Google gestiti senza file chiave. Nessun collegamento nuovo alla produzione.
+**Spec:** piano Segreti/deploy in questo documento, inventario owner soprastante,
+config/environment_catalog.json e contratti di scripts/deployment/.
+
+### 1. Riepilogo verificato e confini
+
+| Elemento | Stato osservato / conseguenza |
+|---|---|
+| Progetto | mcp-website-dev-39539,numero1005755179074 |
+| Dati | Firestore `(default)`,Native,nam5; backup pianificati disabilitati; contenuto/provenienza e altre copie di recupero non classificati |
+| Storage | Firebase apre mcp-website-dev-39539.firebasestorage.app; secondo bucket mcp-website-dev-39539 con uso ignoto |
+| Backend/frontend | Nessuna funzione e nessun sito distribuito secondo owner; i target del catalogo non sono una baseline |
+| Identità legacy | Due account staging Enabled; chiave osservata Active su firebase-admin-test. Non riusare o revocare durante il bootstrap |
+| Build | Cloud Build API da abilitare; identità effettiva di build staging non osservata |
+| API |44abilitate; servizi di deploy mancanti nell'elenco; STS da verificare per ID esatto |
+| GitHub/WIF | Nessun Environment e nessun pool secondo owner; protezioni produzione e piano GitHub non verificati |
+| Auth | Email/Password attivo,email-link spento; domini staging assenti secondo owner |
+| PayPal | Default Application sandbox e account Business/Personal presenti; associazione merchant/credenziali ed E2E non provati |
+
+**Confini invariati:** nessuna modifica a mcp-website-2a1ad, nessuna cancellazione
+staging, nessun import/copia dati produzione, nessuna revoca/rotazione legacy.
+Sender, mail applicativa e Pass2U restano disabilitati; gender/SoundCloud fake,
+PayPal sandbox. Invii Auth di prova soltanto a destinatari di test concordati.
+La valutazione dei residui high è rinviata per decisione owner, non risolta.
+
+### 2. Risorse proposte, tutte nel progetto staging
+
+Account nuovi, senza chiavi scaricabili:
+
+| ID account | Responsabilità |
+|---|---|
+| github-deploy | Deploy delle release approvate; nessun accesso diretto ai payload Secret Manager |
+| functions-build | Build Python e SSR; nessun accesso a dati/Auth/secret provider |
+| app-runtime | Backend Python e identità di consegna Eventarc/Scheduler |
+| web-runtime | SSR e operazioni Auth del framework; nessun Firestore amministrativo o secret provider |
+
+Ogni email termina in `@mcp-website-dev-39539.iam.gserviceaccount.com`.
+Bucket applicativo proposto: `mcp-website-dev-39539.firebasestorage.app`, già
+presente; niente creazione/rinomina/spostamento bucket o database. Prima del
+binding verificare che sia il bucket voluto; non toccare il secondo bucket.
+Hosting site ID proposto `mcp-website-dev-39539`,da creare solo se non già
+provisionato; URL atteso https://mcp-website-dev-39539.web.app. Auth domain del
+progetto da verificare rispetto alla Firebase web app effettiva.
+Artifact Registry Docker `gcf-artifacts`,us-central1; bucket sorgenti/upload
+creati dal servizio Functions v2 inventariati dopo il provisioning. Conservare
+immagini/revisioni della baseline per almeno la finestra rollback30giorni;
+non accettare una cleanup policy automatica che la invalidi.
+Secret unico iniziale: `PAYPAL_CLIENT_SECRET`,valore sandbox inserito dall'owner
+fuori chat/Git/log; Client ID pubblico della stessa app in configurazione.
+Non creare secret dei provider disabilitati.
+
+### 3. Binding IAM proposti: nessun Owner/Editor ai nuovi account
+
+`P` nella tabella è esclusivamente mcp-website-dev-39539. I ruoli sono una
+proposta nominativa da verificare con policy/supported permissions prima
+dell'applicazione, non una prova cloud di minimo privilegio.
+
+| Principale | Scope | Ruolo/permessi proposti |
+|---|---|---|
+| app-runtime | P,Firestore `(default)` | roles/datastore.user; limitarne lo scope al database se supportato dalla policy verificata |
+| app-runtime | P | Ruolo custom `stagingAppAuth`: firebaseauth.users.create,get,update,delete,sendEmail (nomi completi firebaseauth.users.* elencati,senza wildcard) |
+| app-runtime | Solo bucket applicativo | roles/storage.objectAdmin |
+| app-runtime | Solo secret PAYPAL_CLIENT_SECRET | roles/secretmanager.secretAccessor |
+| app-runtime | P | roles/eventarc.eventReceiver |
+| app-runtime,identità Eventarc/Scheduler | Solo servizi trigger/scheduler del manifest approvato | roles/run.invoker; nessun allUsers sui worker |
+| web-runtime | P | Custom `stagingWebAuth`: firebaseauth.users.get e firebaseauth.users.createSession |
+| web-runtime | Solo se stesso | Custom `stagingBlobSigner`: iam.serviceAccounts.signBlob,per createCustomToken del framework; non su altri account |
+| functions-build | P | roles/logging.logWriter |
+| functions-build | Solo repository gcf-artifacts | roles/artifactregistry.writer |
+| functions-build | Solo bucket sorgenti/upload inventariati | roles/storage.objectViewer; nessun accesso al bucket applicativo |
+| github-deploy | P | roles/cloudfunctions.developer,roles/run.developer,roles/firebasehosting.admin,roles/cloudbuild.builds.editor,roles/eventarc.admin,roles/cloudscheduler.admin,roles/serviceusage.serviceUsageConsumer |
+| github-deploy | P | Custom `stagingReleaseMetadata`: resourcemanager.projects.getIamPolicy,per preflight IAM della CLI; nessuna scrittura policy |
+| github-deploy | Solo4account nuovi | roles/iam.serviceAccountUser (actAs/get); nessun binding su account produzione/legacy |
+| github-deploy | Solo secret PAYPAL_CLIENT_SECRET | roles/secretmanager.viewer (metadati,non payload) |
+| github-deploy | Solo repository gcf-artifacts | roles/artifactregistry.reader,per metadati del deploy |
+| github-deploy | Solo bucket applicativo | Custom `stagingBucketMetadata`: storage.buckets.get,per cloud_preflight; nessun accesso oggetti |
+| Principal WIF vincolato | Solo github-deploy | roles/iam.workloadIdentityUser |
+
+Ruoli custom completi: `projects/P/roles/stagingAppAuth`,stagingWebAuth,
+stagingBlobSigner,stagingReleaseMetadata e stagingBucketMetadata. Verificare che le singole permission
+siano supportate nei custom role; nessun allargamento automatico in caso di403.
+Lo Storage Admin SDK corrente non mostra chiamate generate_signed_url: nessun
+signBlob aggiunto al backend per ipotesi. Entrambi i runtime potranno ottenere
+le proprie credenziali ADC; nessun GOOGLE_APPLICATION_CREDENTIALS persistente.
+
+**Bootstrap privilegiato:** la CLI14.26.0 richiede functions.setIamPolicy per
+creare nuovi HTTP. Quando si aggiungono i primi trigger a un backend prima
+solo HTTP,ensureServiceAgentRoles propone anche Token Creator per il service
+agent Pub/Sub e Run Invoker/Eventarc Receiver per il default Compute a scope
+progetto,anche se i runtime sono custom. La sessione owner potrebbe applicarli:
+non è consentito lasciare questa mutazione implicita.
+
+Prima creazione eseguita dall'owner con sessione personale esistente,dopo
+autorizzazione puntuale e attraverso un percorso operator OAuth separato.
+L'adattatore bootstrap deve sostituire l'automatismo IAM della CLI con sola
+validazione dei binding già applicati dall'owner nel manifest approvato:
+nessun setIamPolicy di progetto durante il deploy,nessun default Compute o
+Token Creator indiscriminato. Registrare/dimostrare con test il passaggio
+HTTP-only→primi trigger. Non assegnare Owner/IAM Admin a github-deploy. Per i normali rilasci
+si ammette solo topologia già verificata; nuovi endpoint/trigger richiedono
+un nuovo bootstrap controllato. Non assumere che Functions Developer basti
+per il primo deploy. Deploy di codice fidato può comunque esercitare i diritti
+del runtime: assenza di Secret Accessor sul deploy non isola da codice malevolo.
+
+Service agent da censire dopo abilitazione: Functions
+`service-1005755179074@gcf-admin-robot.iam.gserviceaccount.com`,Cloud Build
+`service-1005755179074@gcp-sa-cloudbuild.iam.gserviceaccount.com`,Eventarc
+`service-1005755179074@gcp-sa-eventarc.iam.gserviceaccount.com`,Scheduler
+`service-1005755179074@gcp-sa-cloudscheduler.iam.gserviceaccount.com` e Pub/Sub
+`service-1005755179074@gcp-sa-pubsub.iam.gserviceaccount.com`,se creati.
+Mantenere solo i ruoli di servizio documentati sulle rispettive identità;
+non assegnare ruoli serviceAgent agli account applicativi o GitHub. Per eventuali
+Token Creator del trasporto verificare il requisito reale e il target prima
+del binding; nessuna concessione indiscriminata al progetto.
+
+### 4. WIF e GitHub: target concreto, attivazione differita
+
+Pool global `github-actions`,provider OIDC `main-release`,issuer
+https://token.actions.githubusercontent.com,progetto1005755179074.
+Provider resource:
+`projects/1005755179074/locations/global/workloadIdentityPools/github-actions/providers/main-release`.
+Mapping google.subject=assertion.sub e attributi per repository_id,repository,
+ref,workflow_ref,job_workflow_ref. Condizione proposta congiunta:
+- repository_id == '899139661' e repository == 'Vittorix99/mcp-website';
+- ref == 'refs/heads/main';
+- workflow_ref == 'Vittorix99/mcp-website/.github/workflows/release.yml@refs/heads/main';
+- job_workflow_ref == 'Vittorix99/mcp-website/.github/workflows/deploy-environment.yml@refs/heads/main';
+- sub == 'repo:Vittorix99/mcp-website:environment:staging'.
+
+Binding SA per principalSet del pool/attribute.repository_id/899139661,con
+restrizione provider sopra. Confermare subject effettivo e customizzazione
+OIDC prima del grant; test negativi per fork,PR,altro branch/workflow/Environment.
+Non indebolire a solo nome repository o solo branch. Nessun trust production
+nel provider staging. Environment GitHub iniziale solo `staging`,main-only.
+Variabili Environment:4account (`BUILD_SERVICE_ACCOUNT` nuovo incluso),WIF_PROVIDER,
+FIREBASE_API_KEY,FIREBASE_APP_ID,PAYPAL_CLIENT_ID e flag di baseline solo dopo prove.
+Flag repository ENABLE_STAGING_DEPLOY/ENABLE_PRODUCTION_DEPLOY restano assenti
+o false. Environment production/protezioni verranno trattati nel gate produzione.
+
+**Decisione main preservata:** niente merge aggiuntivi finché l'owner non
+approva l'integrazione finale. Nessun trust temporaneo al ramo di sviluppo e
+nessuna attivazione push/main per aggirare la decisione. Il primo deploy potrà
+partire solo su SHA esplicitamente approvato con canale di rilascio concordato;
+questo piano propone di attendere l'integrazione main autorizzata.
+
+### 5. Sequenza con risultati verificabili
+
+- [ ] **A — Preparazione repository,senza cloud.** Correggere il solo bucket
+  staging nel catalogo e relativi assert. Aggiungere BUILD_SERVICE_ACCOUNT a
+  release.py/manifest/workflow e al digest/attestazione di configurazione.
+  L'adattatore firebase.cjs dovrà impostare buildConfig.serviceAccount tramite
+  il converter Functions v2 della CLI fissata,per Python e SSR,senza patchare
+  node_modules,validando progetto/codebase/account. CLI14.26.0 non inoltra oggi
+  un build account custom nel converter: creare un account senza questo
+  adattamento lascerebbe le build sull'identità di default non verificata.
+- [ ] **A — Bootstrap esplicito staging-only.** Nuovo percorso controllato in
+  scripts/deployment/bootstrap_staging.py e relativo adattatore
+  scripts/deployment/firebase-bootstrap.cjs,riusando solo i validator/configuratori
+  pubblici di release.py,per prima release senza baseline. Il bootstrap usa
+  esclusivamente l'owner OAuth interattivo locale autorizzato,con identità
+  operatore/progetto/SHA verificati e gestione delle credenziali confinata ai
+  comandi owner: niente JSON service_account/chiavi private,token stampati o
+  credenziali negli artifact. Non riusare validateFederation per la sessione
+  personale e non indebolirne la validazione external_account dei normali job
+  WIF. Input bootstrap nominativi: BOOTSTRAP_APPROVED_SHA e
+  BOOTSTRAP_OPERATOR_EMAIL,confrontati con checkout e sessione operatore attiva.
+  Separare esplicitamente autenticazione operator-bootstrap e release.
+  Rifiuta produzione,inventario inatteso e SHA non approvato;
+  non falsifica PAYMENT_ROLLOUT_APPROVED o ROLLBACK_BASELINE_VERIFIED. Se una
+  creazione parziale esiste,fermare e inventariare: nessuna cancellazione/retry
+  distruttivo automatico. Il normale rilascio continua a richiedere baseline.
+- [ ] **A — Prove prima dell'approvazione cloud.** Regressioni per bucket,
+  build account su Python/SSR,converter realeCLI,wrong-project,WIF non valido,
+  prima baseline e rifiuto bootstrap produzione. Test di separazione owner
+  OAuth/WIF,identità operatore diversa dal manifest,chiavi private e secret nei
+  log/artifact. Test contro il modulo realeCLI del primo deploy con trigger:
+  nessuna chiamata setIamPolicy di progetto e nessun grant/default Compute
+  implicito; un binding mancante deve bloccare,non essere aggiunto. Regressione
+  cloud_preflight con deploy autorizzato al solo storage.buckets.get sul bucket
+  applicativo. Test del selettore realeCLI:
+  prima tranche solo HTTP Python+SSR,nessun Firestore trigger o scheduler.
+  Filtri per funzione `functions:python_codebase:NAME`,confronto insieme esatto
+  con manifest SDK; non basta un prefisso. Test e build pertinenti,unica review
+  Sol high del blocco codice; preparare manifest risorse/policy redatto.
+- [ ] **B — Approvazione cloud separata.** Presentare SHA,API,identità,scope e
+  diff IAM reali. Owner abilita solo API mancanti della allowlist:
+  cloudfunctions.googleapis.com,run.googleapis.com,cloudbuild.googleapis.com,
+  artifactregistry.googleapis.com,eventarc.googleapis.com,cloudscheduler.googleapis.com,
+  secretmanager.googleapis.com,sts.googleapis.com,iamcredentials.googleapis.com,
+  iam.googleapis.com,serviceusage.googleapis.com,cloudresourcemanager.googleapis.com,
+  firebase.googleapis.com,firebasehosting.googleapis.com,firestore.googleapis.com,
+  storage.googleapis.com,firebasestorage.googleapis.com,pubsub.googleapis.com,
+  identitytoolkit.googleapis.com,logging.googleapis.com. API già abilitate restano.
+  BillingEnabled,quote e supported IAM verificati; inventariare service agent e
+  sorgenti generate,poi applicare soltanto i binding nominativi approvati.
+  Se i bucket sorgente/upload non esistono ancora,provisionarli e rilevarli
+  prima di avviare la prima build,senza concedere accesso globale ai bucket:
+  la preparazione sorgenti non deve distribuire funzioni né modificare dati
+  applicativi e rientra nel manifest di provisioning autorizzato.
+- [ ] **B — Configurazioni concordate.** Creare4SA,WIF,Environment staging,
+  site/repository mancanti. Owner inserisce sandbox secret e Client ID della
+  stessa app verificata; abilitazione email-link e domini/return URL della web
+  app staging,senza import utenti produzione. Verificare regole Firestore/Storage
+  e indici cloud rispetto ai file tracciati: nessuna distribuzione automatica
+  di rules/indexes o riuso permissivo senza diff e autorizzazione owner.
+- [ ] **C — Prima release controllata.** Prima di esporre nuovi handler:
+  classificare dati/file esistenti,verificare dipendenze legacy e avere piano
+  di conservazione/ripristino approvato. Deploy iniziale solo HTTP+SSR sullo SHA
+  autorizzato; health e configurazione staging,nessun trigger dati/cron ancora.
+  Se fallisce la prima release non c'è vecchia baseline da ripristinare:
+  fermare la promozione e gestire le sole risorse create secondo manifest owner,
+  mantenendo i dati. Mai fallback verso funzioni di produzione.
+- [ ] **C — Dati staging,gate dedicato.** Dopo bootstrap iniziale e prima E2E:
+  owner autorizza eventuale export/reset/import di soli dati sintetici. Gli
+  attuali loader demo/emulator-only non vanno puntati al cloud o privati delle
+  guardie. Piano loader cloud con scope,collisioni,AuthUID,pulizia e recupero
+  va definito/revisionato separatamente prima di ogni applicazione.
+- [ ] **C — Completamento topologia.** Dopo messa in sicurezza dei dati,deploy
+  degli8trigger Firestore e3scheduler dal manifest approvato; rispettare
+  Eventarc nam5 per database nam5 e destinazione funzioni us-central1. Verificare
+  account invocanti e Run Invoker per i soli worker. La prima tranche non è
+  una baseline completa e non può abilitare la pipeline ordinaria.
+- [ ] **C — Baseline/E2E/rollback.** Verificare manifest completo,provider
+  sandbox/disabilitati,login admin/socio e operazioni critiche su dati sintetici.
+  Produrre baselineA completa,rilascioB stessa topologia e rollback realeB→A
+  con numeri versione secret e health. Solo dopo prove owner valide impostare
+  i flag di baseline/rollout e,con separata decisione di integrazione,il flag
+  repository staging. Flag produzione resta false;nessuna promozione implicita.
+
+### 6. Criteri di stop e approvazione richiesta
+
+Fermarsi su identità/default build non attesi,permessi non supportati,403,
+creazione parziale,configurazione produzione,API fuori allowlist,indice/regola
+non revisionati,claim OIDC diverso o dati non classificati. Nessuna correzione
+IAM automatica per superare un errore. L'inventario è sufficiente per questa
+proposta,non è dichiarato esaustivo: uso del secondo bucket,origine dei dati,
+lineage della chiave legacy,billingEnabled,piano GitHub/claim reali e permessi
+cloud effettivi restano verifiche esplicite ai gate prima delle azioni pertinenti.
+
+**Prossima approvazione richiesta:** il solo bloccoA di preparazione repository
+con review e test; non le operazioniB/C. Niente cloud finché manca il distinto
+consenso su manifest concreto dopo A. I gate dati e produzione restano separati.
+
+Fonti primarie controllate il16novembre2026:
+[build account e scope](https://docs.cloud.google.com/functions/docs/building),
+[IAM Functions](https://docs.cloud.google.com/functions/docs/concepts/iam),
+[WIF pipeline](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines),
+[Eventarc locations](https://docs.cloud.google.com/eventarc/docs/locations),
+[Auth permissions](https://docs.cloud.google.com/identity-platform/docs/audit-logging),
+[service-account signing](https://docs.cloud.google.com/iam/docs/service-account-permissions).
+
+
+**Review del piano:** unica review indipendente Sol high del16novembre2026;
+2P1 (separazione auth owner/WIF e IAM implicito della CLI) e1P2 (metadati bucket),
+accettati e corretti in questa proposta. Nessun secondo dispatch; nessuna
+implementazione o prova cloud dedotta dalla review documentale.
