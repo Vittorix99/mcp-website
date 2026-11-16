@@ -538,3 +538,21 @@ dell'abilitazione di `sts.googleapis.com` (Security Token Service per WIF).
 Stato STS e pool/provider WIF ancora da verificare. L'abilitazione di Gmail,
 Cloud SQL e BigQuery non dimostra che l'app li usi; nessuna pulizia proposta
 sulla sola base dell'inventario API.
+
+
+### Hosting staging — conferma owner del16novembre2026
+
+L'owner conferma: nello staging non è presente il sito; il progetto è usato
+per il database. Registrato come **nessun sito frontend staging distribuito
+secondo conferma owner**, non come censimento API indipendente di siti o
+canali Hosting provisionati. Nessuna release o URL frontend operativo verificato.
+
+L'espressione owner «solo il db» descrive l'uso del progetto, non annulla le
+risorse già osservate: Firestore, due bucket Storage, due account di servizio
+e API abilitate. Non si deduce assenza di dati/file nei bucket.
+
+Implicazione: primo bootstrap sia backend sia frontend staging; i target
+cloudfunctions.net/web.app del catalogo repository sono configurazioni previste,
+non prova di release attive. Build e smoke staging dovranno usare configurazione
+staging esplicita e identità dedicate, dopo piano IAM e autorizzazione separata.
+Nessuna creazione sito, deploy o aggiornamento dati effettuati.
