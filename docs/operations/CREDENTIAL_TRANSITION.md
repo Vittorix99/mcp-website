@@ -480,3 +480,11 @@ il riscontro della colonna per il secondo account, non prova dell'assenza di
 ogni meccanismo di autenticazione. Non dimostrata l'associazione fra la chiave
 elencata e il file ./service_account.json referenziato dal backend produzione.
 Nessun payload/ID chiave registrato, nessuna chiave creata, usata o modificata.
+
+
+La successiva schermata Chiavi di firebase-admin-test fornita dall'owner
+(16novembre2026) mostra stato **Active** per la riga visibile. Il ritaglio non
+mostra un tipo testuale né date di creazione/scadenza: non dedurli dall'icona.
+Questo aggiorna il solo stato della chiave osservata, senza attestare utilizzo
+corrente, contenuto del file credenziali del backend o assenza di altre chiavi
+fuori dalla porzione visibile. Nessuna modifica o revoca eseguita.
