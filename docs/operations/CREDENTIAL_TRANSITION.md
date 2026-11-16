@@ -1254,6 +1254,31 @@ poi2grant su quel solo secret;bucket sorgenti reali e objectViewer build;
 WIF/GitHub,Hosting/Auth e monitoraggio budget. Gate deploy,dati e main hold
 invariati;B non ancora dichiarato completo.
 
+### 3g. Prova reale MailerSend da includere nello staging —16novembre2026
+
+Owner chiarisce che lo staging deve permettere anche la consegna reale delle
+email di test. MAIL_MODE=disabled è lo stato iniziale attuale,non il risultato
+finale sufficiente per l'E2E mail. Correggere il piano che limitava i secret
+iniziali al solo PayPal:per il profilo con invii reali serve anche
+`projects/mcp-website-dev-39539/secrets/MAILERSEND_API_KEY`.
+
+RuntimeSettings e MailerSendMailService supportano già MAIL_MODE=staging con
+MAIL_ALLOWED_RECIPIENTS obbligatorio e blocco dei destinatari non consentiti.
+I binding SecretParam per le funzioni mail esistono già. Prima dell'attivazione
+occorre adeguare la configurazione di release:oggi legge il default disabled
+dal catalogo,non inoltra l'allowlist e include il mittente solo in produzione;
+il preflight staging richiede ancora soltanto il secret PayPal.
+
+Lotto da preparare:secret MailerSend (valore inserito dall'owner fuori chat),
+secretAccessor app-runtime e viewer metadata github-deploy sul solo secret;
+MAIL_MODE=staging,mittente verificato e destinatari test espliciti fuori Git;
+aggiornamento manifest/digest/workflow/preflight e regressioni. Destinatari e
+mittente richiesti all'owner,senza chiedere API key. Invii massivi del dataset
+restano esclusi;la prova finale deve verificare richiesta al provider e
+ricezione effettiva,non soltanto un HTTP200 locale. Nessuna modifica cloud,
+configurazione runtime o invio eseguito da questo chiarimento. Altri provider
+conservano i modi attuali finché non richiesto diversamente.
+
 ### 4. WIF e GitHub: target concreto, attivazione differita
 
 Pool global `github-actions`,provider OIDC `main-release`,issuer

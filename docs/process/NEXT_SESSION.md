@@ -583,3 +583,15 @@ Evidenzeprivate registry_* in.local/staging/cloud-b-verification;resoconto3f
 CREDENTIAL_TRANSITION. Prossimo:secretPayPalcontainer+valoreowner+2grant,
 sorgentibucket+viewerbuild,WIF/GitHub,Hosting/Auth,budget. NoEditorcleanup,
 mainhold e datigate invariati;retentiondefinitivasolodopoprovarollback.
+
+## MailerSend reale nello staging richiesto —16 novembre 2026
+
+Owner contesta maildisabled perstagingcompleto:serveprovareconsegnareale.
+RuntimegiàsupportaMAIL_MODE=staging+allowlist,SecretParam mailgiàpresenti.
+Releaseinvececatalogdisabled,mittentesoloprod,nienteallowlist,preflightstage
+soloPayPal:prepararecorrezionecoerenteconregressioni,non basta inserirechiave.
+ServeMAILERSEND_API_KEYinSMstage+Accessorapp/viewerdeploy,configurazionerelease
+mittenteverificato/destinatariautorizzatifuoriGit. Chiestiowner viaquestion
+asincronai soliindirizzi mittente/destinatario,maiAPIkey. Nessuninvio,grant,
+secret o toggleruntime fattiora. Datasetmassivononinvia;testrealmailseparato.
+DettaglioCREDENTIAL_TRANSITION3g;altriprovidermodiinvariati.
