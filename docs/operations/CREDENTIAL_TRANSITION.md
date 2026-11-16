@@ -400,3 +400,43 @@ previsto, non una release operativa dimostrata. Occorre inventariare gli
 account runtime delle funzioni esistenti, i loro accessi a MCP Dev e il routing
 prima del bootstrap separato. Non modificare/reimpiegare le funzioni di
 produzione né revocare accessi durante l'inventario. Nessun deploy eseguito.
+
+
+### Esempio funzione produzione — YAML fornito dall'owner,16novembre2026
+
+L'owner riporta regione `us-central1` e fornisce un export Cloud Run Service
+(`serving.knative.dev/v1`) relativo a `admin-create-event`, non `get_all_events`.
+L'export contiene anche configurazione sensibile: nessun payload sensibile è
+riportato, copiato nel repository o usato per autenticarsi.
+
+| Metadato | Riscontro nell'export |
+|---|---|
+| Funzione/target | `admin_create_event` |
+| Service Cloud Run | `admin-create-event`, gestito da Cloud Functions |
+| Progetto indicato | `mcp-website-2a1ad`; namespace/numero `407185703168` |
+| Regione | `us-central1` |
+| Runtime | `python310`, base image Google22 full |
+| Account runtime | `407185703168-compute@developer.gserviceaccount.com` |
+| Account dichiarato per build | `projects/mcp-website-2a1ad/serviceAccounts/407185703168-compute@developer.gserviceaccount.com` |
+| Build indicata | `projects/407185703168/locations/us-central1/builds/0492faeb-deeb-4d5f-bb62-f415bf235d4e` |
+| Revisione ready | `admin-create-event-00029-hip`,100% traffico nell'export |
+| Ready | True nell'export |
+| Configurazione pubblica progetto | `GCLOUD_PROJECT` e `FIREBASE_CONFIG.projectId`: `mcp-website-2a1ad` |
+| Configurazione pubblica bucket | `STORAGE_BUCKET` e `FIREBASE_CONFIG.storageBucket`: `mcp-website-2a1ad.firebasestorage.app` |
+| Bucket sorgenti build referenziato | `gcf-v2-sources-407185703168-us-central1` (progetto produzione) |
+| Repository immagine referenziato | Artifact Registry `gcf-artifacts` in `us-central1`, progetto produzione |
+
+Limiti: metadati di un export fornito dall'owner, non verifica API corrente
+né inventario di tutte le funzioni. L'account dichiarato per build coincide
+con quello runtime in questo export; ruoli e utilizzo nell'esecuzione build
+restano da verificare. Non dedurre minimo privilegio dal solo nome account.
+
+Questo export **non conferma accesso al database MCP Dev**. Le configurazioni
+pubbliche indicano produzione, ma è presente `GOOGLE_APPLICATION_CREDENTIALS`:
+progetto/identità effettivi del client Firestore dipendono anche dal codice e
+dalle credenziali selezionate, non solo da `GCLOUD_PROJECT` o dal service account
+runtime. Verificare binding IAM cross-project e configurazione effettiva senza
+richiedere file credenziali o payload. Sono presenti variabili provider sensibili
+con `value` inline; ciò non prova che i rispettivi provider siano attivi o che i
+valori siano validi. La futura migrazione a Secret Manager resta distinta.
+Nessuna invocazione della funzione, modifica IAM, revoca o deploy eseguiti.
