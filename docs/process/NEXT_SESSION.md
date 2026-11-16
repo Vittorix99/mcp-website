@@ -524,3 +524,21 @@ Metadati privati in.local/staging/cloud-b-verification/,nessunpayloadsegreto.
 Esito aggiornato inCREDENTIAL_TRANSITION3b. Nessunamutazionecloud nécodiceapp.
 Prossimo lotto da discutere:abilitare sole8API e verificareserviceagent;grant,
 WIF eprotezionedati rimangono separati. Nessunaattivazionepipeline/deploy.
+
+## Blocco B — otto API abilitate,16 novembre 2026
+
+Owner autorizza le8API mancanti. Singologcloudservicesenable solo8ID,
+progettostagingesplicito,exit0;readback tuttepresenti.44→54API:Google aggiunge
+containerregistry e source(LegacyCloudSourceRepositories)comedipendenze.
+SnapshotIAMdelta8assegnazioniruolo/principale:CloudBuildlegacybuilder,CloudBuildServiceAgent,
+FunctionsstandardServiceAgent,SchedulerServiceAgent,ContainerRegistryServiceAgent,
+RunServiceAgent e **Editor suComputeDefault/AppEngineDefault**. Nessun grant
+manuale nérevoca;4SAdedicati ancora0ruoliprogettodiretti. Funzioni/Run[]
+verificati globalmenteexit0stderrvuoto;altriutilizziaccountdefault nonverificati.
+Duepuntiprimadeploy:analisi/rimozionemirataEditor soloconconsensoesnapshot;
+guardiaCLIattendecloudfunctions.serviceAgentdeprecato,Googleusa ora
+cloudfunctions.standardServiceAgent(GA265permessi,13ARinmeno). Non aggiungere
+ruolodeprecato;serviràfixmiratoconregressione/review,nonfattopassaggioAPI.
+CREDENTIAL_TRANSITION3c aggiornata,evidenzeprivatein.local/staging/cloud-b-verification.
+Prossimo:chiuderequestieffetti,poi customrole/grant/WIF/repository/secret.
+Nessundeploy,dati,produzione,revoca oattivazionepipelineeseguiti/autorizzati.

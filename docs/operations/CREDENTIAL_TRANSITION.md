@@ -669,8 +669,10 @@ Nessun account/app creato o modificato, nessun pagamento eseguito.
 
 **Stato aggiornato:** blocco A repository completato nel commit0a17e98;
 stima economica nel commitb177bbd. Blocco B avviato:creati i4account tecnici
-su richiesta esplicita owner,con verifica CLI. Nessun grant IAM assegnato ai
-nuovi account;il resto del provisioning resta nel prospetto da completare. Il piano operativo del13novembre
+su richiesta esplicita owner,con verifica CLI. Abilitate anche le8API
+autorizzate,con2dipendenze e grant di sistema comparsi automaticamente. Nessun
+ruolo diretto ai4account dedicati;2Editor sugli account default da valutare
+prima di proseguire col deploy. Dettaglio ed esiti nella sezione3c. Il piano operativo del13novembre
 rimane il riferimento; questa sezione ne concretizza i prerequisiti osservati
 e supera le precedenti ipotesi generiche di ruoli per lo staging.
 
@@ -1012,6 +1014,85 @@ Questa verifica non autorizza l'applicazione del lotto successivo.
 
 Fonte sul significato dei campi della query:
 [queryTestablePermissions](https://docs.cloud.google.com/iam/docs/reference/rest/v1/permissions/queryTestablePermissions).
+
+### 3c. Otto API abilitate e confronto IAM successivo —16novembre2026
+
+Owner autorizza esplicitamente l'abilitazione delle8API elencate nella
+sezione3b. Eseguito un solo comando gcloud services enable con quei8ID,
+--project=mcp-website-dev-39539 e account owner espliciti. Progetto verificato
+ACTIVE/1005755179074 prima del comando. Operazione conclusa con exit0 e tutte
+le8API richieste presenti nel readback. Nessun nuovo grant applicativo,
+nessun deploy o aggiornamento dati eseguito dall'agente.
+
+**Delta effettivo:**44→54API abilitate. Oltre alle8autorizzate sono comparse
+come dipendenze `containerregistry.googleapis.com` (Container Registry API) e
+`source.googleapis.com` (Legacy Cloud Source Repositories API),non nominate
+esplicitamente nel comando. Nessuna API rimossa o disabilitata. Conservare
+questo delta nel manifest;non disabilitare dipendenze per ricondurre il numero
+artificialmente a52.
+
+**Assegnazioni ruolo/principale comparse fra i due snapshot,senza comandi
+manuali set/add/remove IAM:**
+
+| Principale | Ruolo osservato dopo abilitazione |
+|---|---|
+| `1005755179074@cloudbuild.gserviceaccount.com` | `roles/cloudbuild.builds.builder` |
+| `service-1005755179074@gcp-sa-cloudbuild.iam.gserviceaccount.com` | `roles/cloudbuild.serviceAgent` |
+| `service-1005755179074@gcf-admin-robot.iam.gserviceaccount.com` | `roles/cloudfunctions.standardServiceAgent` |
+| `service-1005755179074@gcp-sa-cloudscheduler.iam.gserviceaccount.com` | `roles/cloudscheduler.serviceAgent` |
+| `service-1005755179074@containerregistry.iam.gserviceaccount.com` | `roles/containerregistry.ServiceAgent` |
+| `service-1005755179074@serverless-robot-prod.iam.gserviceaccount.com` | `roles/run.serviceAgent` |
+| `1005755179074-compute@developer.gserviceaccount.com` | **`roles/editor`** |
+| `mcp-website-dev-39539@appspot.gserviceaccount.com` | **`roles/editor`** |
+
+Il suffisso serverless-robot-prod è il dominio dell'identità di servizio
+Google;questo binding è nella policy del progetto staging e non indica un
+accesso al progetto applicativo di produzione. Nessun binding preesistente
+rimosso. github-deploy,functions-build,app-runtime e web-runtime continuano
+ad avere0ruoli direttamente assegnati nella policy del progetto.
+
+**Due effetti da chiudere prima del deploy:**
+
+1. I due account default Compute/AppEngine sono comparsi Enabled con Editor.
+   È compatibile con i grant automatici documentati di Google quando non
+   impediti dalla policy effettiva;non è stata eseguita una query dei vincoli
+   organizzativi né un'analisi completa dei loro utilizzi. Non equipararli
+   ai4account dedicati e non iniziare a usarli per runtime/build. Valutare
+   rimozione mirata dei2Editor solo dopo verifica delle dipendenze e consenso
+   esplicito,con snapshot IAM per ripristino. Nessuna revoca automatica fatta.
+   Anche il ruolo builder dell'account CloudBuild legacy va considerato nel
+   riesame delle identità default;nessun comando di build è stato eseguito.
+2. Il ruolo Functions assegnato oggi è
+   roles/cloudfunctions.standardServiceAgent (GA,265permessi),non il vecchio
+   roles/cloudfunctions.serviceAgent (titolo Deprecated,278permessi).
+   Le definizioni API lette mostrano13permessi Artifact Registry aggiuntivi
+   solo nel ruolo vecchio,nessuna aggiunta nel nuovo. La guardia locale in
+   scripts/deployment/cli-guards.cjs requiredProjectBindings attende ancora
+   il ruolo vecchio e bloccherebbe questo progetto. Prima del deploy serve
+   adeguamento con regressione/review al ruolo corrente,non l'assegnazione
+   del ruolo deprecato per far passare il controllo. Codice non modificato
+   durante questa operazione di abilitazione API.
+
+**Readback runtime:**gcloud functions list --regions=- e Cloud Run managed
+globale restituiscono entrambi[] con exit0 e stderr vuoto. Confermata assenza
+di funzioni/servizi Run,non assenza di ogni possibile workload Compute/App
+Engine o altri utilizzi delle identità default. Nessuna affermazione di
+inutilizzo generale derivata dal solo inventario Functions/Run.
+
+Eventarc/PubSub serviceAgent non compaiono come nuovi binding nello snapshot;
+la loro eventuale inizializzazione mirata resta un'azione separata prima dei
+trigger. PoolWIF,customrole e grant runtime/build/deploy non creati da questo
+passaggio. Repository,secret e configurazioni applicative restano da preparare.
+
+Evidenze private metadata-only in.local/staging/cloud-b-verification:
+api_enable_result.json,api_enable_readback_summary.json,policy e inventari
+prima/dopo,definizioni dei due ruoli Functions. Nessuna credenziale o payload
+secret salvati. Operazione API completata;blocco B ancora in corso,nessuna
+approvazione di deploy,dati,revoca o modifica produzione implicita.
+
+Riferimenti sui grant automatici:
+[default service account e Editor](https://docs.cloud.google.com/iam/docs/troubleshoot-org-policies),
+[verifica impatto prima di cambiare ruoli](https://docs.cloud.google.com/compute/docs/instances/change-service-account).
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 
