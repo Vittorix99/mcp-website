@@ -440,3 +440,27 @@ richiedere file credenziali o payload. Sono presenti variabili provider sensibil
 con `value` inline; ciò non prova che i rispettivi provider siano attivi o che i
 valori siano validi. La futura migrazione a Secret Manager resta distinta.
 Nessuna invocazione della funzione, modifica IAM, revoca o deploy eseguiti.
+
+
+### IAM staging — schermata owner del16novembre2026
+
+Ruoli visualizzati nella schermata IAM fornita dall'owner:
+
+| Principale | Ruoli mostrati |
+|---|---|
+| `firebase-admin-test@mcp-website-dev-39539.iam.gserviceaccount.com` | Firebase Admin |
+| `firebase-adminsdk-fbsvc@mcp-website-dev-39539.iam.gserviceaccount.com` | Firebase Admin SDK Administrator Service Agent; Firebase Authentication Admin; Service Account Token Creator; Storage Admin |
+| Account personale del proprietario | Owner (Legacy) |
+
+`407185703168-compute@developer.gserviceaccount.com` non compare nell'elenco
+visibile. Non è una verifica esaustiva dell'IAM effettivo: non esclude altri
+binding, ereditarietà o un'identità applicativa diversa dal runtime.
+L'elenco IAM non coincide necessariamente con l'elenco di tutti gli account
+di servizio esistenti e non attesta chiavi, utilizzi o stato degli account.
+
+Dal solo campo pubblico di percorso nello YAML già fornito:
+`GOOGLE_APPLICATION_CREDENTIALS=./service_account.json`. Nessun file credenziali
+aperto o richiesto. Il nome del file non identifica il suo progetto o client_email:
+non associare automaticamente questa credenziale a `firebase-admin-test`.
+Il collegamento storico produzione→MCP Dev resta da ricostruire.
+Nessuna modifica IAM, chiave o configurazione effettuata.
