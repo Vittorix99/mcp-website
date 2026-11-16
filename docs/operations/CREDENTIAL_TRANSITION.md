@@ -320,3 +320,21 @@ App attesa15368; approvazioni aggiuntive richieste0 per l'owner unico.
 Nessun deploy o workflow cloud attivato. Il disegno di attivazione staging
 andrà riconciliato con questa decisione prima del gate cloud, senza cambiare
 ora i trigger o le condizioni WIF della pipeline preparata.
+
+
+## Inventario cloud staging — 16 novembre 2026
+
+Inventario di sola lettura avviato su richiesta dell'owner. Nessuna modifica
+a risorse, dati, IAM o credenziali autorizzata da questa ricognizione.
+
+| Elemento | Riscontro | Provenienza |
+|---|---|---|
+| Nome progetto | `mcp-website-dev` | Schermata impostazioni Firebase fornita dall'owner |
+| ID progetto | `mcp-website-dev-39539` | Stessa schermata; corrisponde al catalogo repository staging |
+| Numero progetto | `1005755179074` | Stessa schermata |
+
+La schermata conferma i metadati visualizzati, non l'inventario delle risorse
+né i permessi effettivi. Bucket, database, release distribuite, identità
+runtime/build, service agent e policy IAM restano da verificare.
+La decisione d'integrazione main riportata sopra rimane in vigore; questa
+ricognizione non modifica workflow o condizioni WIF.
