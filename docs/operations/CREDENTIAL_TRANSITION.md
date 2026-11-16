@@ -585,3 +585,14 @@ Pool/provider GitHub previsti dal piano restano da creare nel bootstrap,
 con vincoli repository/workflow/ref/Environment e identità deploy espliciti,
 soltanto dopo autorizzazione delle risorse e dei binding concreti. Nessun
 pool, provider, service account, binding IAM o variabile GitHub creato ora.
+
+
+### GitHub Environments — schermata owner del16novembre2026
+
+Settings→Environments mostra «There are no environments for this repository»;
+l'owner conferma assenza di Environment per `Vittorix99/mcp-website`.
+`staging` e `production` restano quindi da predisporre. Questo dato non
+censisce variabili/segreti Actions di repository o di organizzazione.
+Nessun Environment, secret, variabile o regola creato/modificato.
+Disponibilità di required reviewers/protezioni da riconciliare con piano
+GitHub e visibilità repository prima di approvare il piano produzione.
