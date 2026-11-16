@@ -338,3 +338,18 @@ né i permessi effettivi. Bucket, database, release distribuite, identità
 runtime/build, service agent e policy IAM restano da verificare.
 La decisione d'integrazione main riportata sopra rimane in vigore; questa
 ricognizione non modifica workflow o condizioni WIF.
+
+
+### Bucket staging — riscontro owner del16novembre2026
+
+| Bucket | Località riportata | Provenienza |
+|---|---|---|
+| `mcp-website-dev-39539.firebasestorage.app` | Multi-region `us` | Elenco Cloud Storage fornito dall'owner |
+| `mcp-website-dev-39539` | Multi-region `us` | Stesso elenco |
+
+**Discrepanza aperta:** il catalogo repository staging indica
+`mcp-website-dev-39539.appspot.com`, assente dall'elenco fornito. Non si deduce
+quale dei due bucket sia il default Firebase o quello usato da backend/frontend,
+né lo scopo del secondo bucket. Verificare queste associazioni e gli eventuali
+bucket di build prima di proporre modifiche al catalogo o ai permessi.
+Nessun contenuto, regola o policy del bucket letto/modificato dall'agente.
