@@ -561,3 +561,12 @@ Token/costi indisponibili; conteggi task non rappresentano risparmi misurati.
 
 Dispatch effettivi:0Luna,1reviewSolhigh;patch minima eseguita inline.
 Nessuna stima token/costi. Editor default lasciati invariati come richiesto.
+
+## Primo lotto IAM staging —16 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | staging_iam_lot_review: verifica preventiva piano5customrole/17grant e22comandi CLI,snapshot e condizioneFirestore | high | NessunP1/P2;scope ehash piano verificati,dryrun esatto e semanticaSDKcondition=None confermati. Accettata prima di applicare. Coordinatore applica22operazioni e verifica indipendentemente6policy+5role:17aggiunteesatte,0rimozioni/inattese. Reviewer nessuna chiamata cloud o modifica. |
+
+Dispatch effettivi:0Luna,1reviewSolhigh. Operazioni cloud eseguite dal
+coordinatore su richiesta owner;nessuna stima token/costi disponibile.

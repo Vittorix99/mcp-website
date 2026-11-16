@@ -554,3 +554,18 @@ ReplayofflinepolicystagingperHTTPPASS0scritture.1reviewSolhigh
 functions_agent_role_review senzaP1/P2,8testPASSindipendenti,accettata.
 Nessunamutazionecloud/deploy/credenziali inquestopassaggio. Bprossimo:
 customrole/grantnominativi,WIF,repository/secret/configprimaC e datigate.
+
+## Blocco B — primo lotto IAM applicato,16 novembre 2026
+
+Owner prosegue dopofixFunctions. Creati5customroleGA con9permessi distinti
+approvati eapplicati17grant:10progetto,5policySA,2bucketapp. Firestoredatastore.user
+condizionato alDB(default);webselfsignBlob;githubactAssolo4SAdedicati. ARrepo e
+secretassenti,rimandatigrant;Eventarc/Schedulerrinviati,noEventarcAdminora.
+1reviewSolhigh staging_iam_lot_review senzaP1/P2,accettata prima applicazione;
+dryrun22comandi e snapshot6policycoerenti.22operazioniOK,readback6policy+5role
+defsall_pass:17aggiunteesatte,0rimozioni,0inattese. Editor/legacy/produzioneinvariati.
+Nessundeploy,dati,WIF,pipelineosecretvalore. Evidenzein.local/staging/cloud-b-verification,
+planSHA c3eef5a6fe4540f80e0de53f4b916d3ec712c95759bdd020864c25272d2a9cdc.
+Prossimo:ARgcf-artifactsus-central1+optout+2grant,secretcontainer/valoreowner
++2grant,sorgentibucket+viewer,WIF/GitHub,Hosting/Auth,budget. Riassunto3e
+CREDENTIAL_TRANSITION. Non dichiarare B/deploycompleti;mainhold e datigate restano.

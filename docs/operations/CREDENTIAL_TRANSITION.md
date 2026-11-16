@@ -667,15 +667,12 @@ Nessun account/app creato o modificato, nessun pagamento eseguito.
 
 ## Proposta unica: bootstrap staging e IAM — 16 novembre 2026
 
-**Stato aggiornato:** blocco A repository completato nel commit0a17e98;
-stima economica nel commitb177bbd. Blocco B avviato:creati i4account tecnici
-su richiesta esplicita owner,con verifica CLI. Abilitate anche le8API
-autorizzate,con2dipendenze e grant di sistema comparsi automaticamente. Nessun
-ruolo diretto ai4account dedicati. Owner chiede di lasciare invariati i2Editor
-sugli account default;controllo locale Functions aggiornato e verificato.
-Dettaglio degli effettiAPI nella sezione3c e correzione nella3d. Il piano operativo del13novembre
-rimane il riferimento; questa sezione ne concretizza i prerequisiti osservati
-e supera le precedenti ipotesi generiche di ruoli per lo staging.
+**Stato aggiornato:** blocco A repository completato0a17e98;stima costi
+b177bbd. Blocco B in corso:4account dedicati creati,8API autorizzate abilitate
+(con2dipendenze Google),5ruoli custom e17grant nominativi ora applicati e
+verificati. Editor default invariati per decisione owner. Controllo Functions
+aggiornato43192d4. Repository/secret,WIF e altre configurazioni ancora aperti;
+nessun deploy o aggiornamento dati. Evidenze e avanzamento nelle sezioni3c–3e.
 
 **Obiettivo:** ottenere uno staging autonomo, con codice approvato, identità
 separate e prima baseline verificata, prima di attivare il deploy automatico.
@@ -800,11 +797,12 @@ del binding; nessuna concessione indiscriminata al progetto.
 ### 3a. Manifest B: destinatari nominativi e stato delle assegnazioni
 
 Qui **manifest** significa prospetto delle modifiche desiderate. La tabella
-IAM della sezione3 è questo prospetto umano: non esiste ancora un file
-Terraform/YAML applicabile o un diff delle policy cloud correnti. I file
+IAM della sezione3 descrive lo stato desiderato;il lotto eseguito ha un
+piano JSON privato e snapshot/diff delle policy,riepilogati nella sezione3e. I file
 `.local/release/config.json` e `bootstrap-plan.json`,generati dai comandi
 locali,sono configurazioni di rilascio e non assegnano permessi IAM. Nessuna
-assegnazione nuova elencata qui risulta applicata da questa sessione.
+assegnazione elencata qui va dedotta dal solo prospetto:lo stato applicato
+è registrato separatamente nella sezione3e.
 
 I quattro destinatari previsti nel progetto staging sono precisamente:
 
@@ -853,8 +851,8 @@ Le righe a scope P sono binding nella policy di
 
 I cinque ruoli custom proposti hanno questi soli permessi. Il16novembre2026
 queryTestablePermissions sul progetto ha confermato tutti i9permessi distinti
-GA e SUPPORTED (valore di default del campo omesso). I ruoli non sono ancora
-stati creati:
+GA e SUPPORTED (valore di default del campo omesso). I ruoli sono stati poi
+creati e verificati nel lotto3e:
 
 | ID ruolo custom nel progetto staging | includedPermissions esatti |
 |---|---|
@@ -1129,6 +1127,76 @@ Prossimo B:custom role e grant nominativi,WIF,repository/secret/configurazioni,
 con le approvazioni e i gate dati/deploy già previsti. Non riproporre la
 rimozione degli Editor senza nuova richiesta owner. Nessun cambio alle
 identità legacy,alla produzione o ai flag della pipeline.
+
+### 3e. Primo lotto IAM applicato e verificato —16novembre2026
+
+Owner autorizza di proseguire dopo la correzione del controllo Functions.
+Applicato il sottoinsieme nominativo del prospetto su risorse già esistenti:
+5creazioni custom role e17assegnazioni ruolo/principale (22operazioni).
+Repository e secret risultavano assenti nella verifica metadata,quindi quei
+grant sono rinviati. Eventarc/Scheduler rinviati alla fase trigger,senza
+applicare EventarcAdmin nel frattempo. Nessun WIF,deploy o aggiornamento dati.
+
+Piano concreto e22comandi verificati prima dell'esecuzione da Solhigh
+staging_iam_lot_review:nessunP1/P2,accettato. Hash piano
+`c3eef5a6fe4540f80e0de53f4b916d3ec712c95759bdd020864c25272d2a9cdc`.
+Prima della prima scrittura ricontrollati ID/numero progetto,assenza ruoli
+custom e uguaglianza delle6policy ai rispettivi snapshot. Solo aggiunte
+incrementali con gcloud,progetto/account espliciti;nessun reset di policy,
+revoca o retry/rollback automatico. Tutte le22operazioni concluse con successo.
+
+**Cinque ruoli custom creati GA**,tutti nel namespace
+`projects/mcp-website-dev-39539/roles/`:stagingAppAuth,stagingWebAuth,
+stagingBlobSigner,stagingReleaseMetadata,stagingBucketMetadata. Readback delle
+5definizioni conferma esattamente gli includedPermissions della tabella3a,
+nessuna permission aggiuntiva e nessun ruolo cancellato/disabilitato.
+
+**Diciassette assegnazioni effettive:**
+
+| Principale (suffisso @mcp-website-dev-39539.iam.gserviceaccount.com) | Risorsa | Ruolo applicato |
+|---|---|---|
+| app-runtime | Progetto staging | Custom stagingAppAuth |
+| app-runtime | Policy progetto,condizione solo DB(default) | roles/datastore.user |
+| web-runtime | Progetto staging | Custom stagingWebAuth |
+| functions-build | Progetto staging | roles/logging.logWriter |
+| github-deploy | Progetto staging | roles/cloudfunctions.developer |
+| github-deploy | Progetto staging | roles/run.developer |
+| github-deploy | Progetto staging | roles/firebasehosting.admin |
+| github-deploy | Progetto staging | roles/cloudbuild.builds.editor |
+| github-deploy | Progetto staging | roles/serviceusage.serviceUsageConsumer |
+| github-deploy | Progetto staging | Custom stagingReleaseMetadata |
+| github-deploy | Solo account github-deploy | roles/iam.serviceAccountUser |
+| github-deploy | Solo account functions-build | roles/iam.serviceAccountUser |
+| github-deploy | Solo account app-runtime | roles/iam.serviceAccountUser |
+| github-deploy | Solo account web-runtime | roles/iam.serviceAccountUser |
+| web-runtime | Solo proprio account web-runtime | Custom stagingBlobSigner |
+| app-runtime | Solo bucket applicativo firebasestorage.app | roles/storage.objectAdmin |
+| github-deploy | Solo bucket applicativo firebasestorage.app | Custom stagingBucketMetadata |
+
+La condizione Firestore ha titolo staging-default-firestore-only ed espressione
+`resource.name == "projects/mcp-website-dev-39539/databases/(default)"`.
+Gli altri16grant sono non condizionati sulla risorsa nominata;
+non è stato assegnato actAs a livello progetto né signBlob su altri account.
+
+**Verifica API successiva con letture separate:**rilette le6policy e le5definizioni
+custom role. Differenza esatta:10aggiunte progetto,5sulle policy dei4account,
+2sul bucket;0rimozioni e0aggiunte inattese. Tutti i binding preesistenti
+conservati,inclusi i2Editor lasciati invariati per scelta owner. Readback
+all_pass=true con17grant attesi e5definizioni corrispondenti. È verifica delle
+policy,non un test di accesso runtime impersonato o un deploy applicativo.
+
+Evidenze private metadata-only in.local/staging/cloud-b-verification:
+iam_lot_plan.json,iam_lot_commands.json,6snapshot before/after,
+iam_lot_apply_result.json(status applied-and-verified),iam_lot_verified_summary.json
+più definizioni ruoli. Nessuna chiave o valore secret salvato. Nessun codice
+applicativo modificato né suite applicative rieseguite per questo lotto cloud.
+
+**Ancora aperti nel B:**repository gcf-artifacts us-central1 e relativo opt-out
+cleanup/permessi writer-reader;secret sandbox e valore inserito dall'owner,
+poi secretAccessor backend/viewer deploy;bucket sorgenti reali e objectViewer
+build;WIF/Environment GitHub,Hosting/Auth,monitoraggio budget. Eventarc,
+Scheduler e invocazioni worker prima della loro fase. Staging non dichiarato
+pronto al deploy finché mancano questi prerequisiti e il consenso sullo SHA.
 
 ### 4. WIF e GitHub: target concreto, attivazione differita
 
