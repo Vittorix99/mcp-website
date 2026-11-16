@@ -556,3 +556,18 @@ cloudfunctions.net/web.app del catalogo repository sono configurazioni previste,
 non prova di release attive. Build e smoke staging dovranno usare configurazione
 staging esplicita e identità dedicate, dopo piano IAM e autorizzazione separata.
 Nessuna creazione sito, deploy o aggiornamento dati effettuati.
+
+
+### Fatturazione staging — schermata owner del16novembre2026
+
+La pagina Account management dell'account **Firebase Payment**, tipo **Direct**,
+mostra `mcp-website-dev` / `mcp-website-dev-39539` tra i progetti collegati.
+L'account personale dell'owner compare come Billing Account Administrator.
+Registrato il collegamento progetto→account sulla base della schermata.
+Identificativo billing ed email personale non necessari all'inventario tecnico
+non trascritti. Nessuna informazione di pagamento richiesta o usata.
+
+La schermata fornita non espone un campo esplicito Active/billingEnabled:
+non certifica autonomamente stato pagamenti, budget, quote o capacità di build.
+Eventuale conferma operativa resta nel preflight bootstrap; nessuna modifica
+all'account, al collegamento, ai ruoli billing o al piano effettuata.
