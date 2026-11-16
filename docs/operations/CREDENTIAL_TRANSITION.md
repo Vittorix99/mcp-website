@@ -571,3 +571,17 @@ La schermata fornita non espone un campo esplicito Active/billingEnabled:
 non certifica autonomamente stato pagamenti, budget, quote o capacità di build.
 Eventuale conferma operativa resta nel preflight bootstrap; nessuna modifica
 all'account, al collegamento, ai ruoli billing o al piano effettuata.
+
+
+### WIF staging — riscontro owner del16novembre2026
+
+Dopo apertura della pagina Workload Identity Federation del progetto staging,
+l'owner riporta che non esiste nulla. Registrato come **nessun pool WIF
+presente secondo il riscontro owner nell'elenco consultato**; non una chiamata
+API indipendente né verifica di eventuali pool eliminati/nascosti.
+Non si deducono gli stati di tutte le API IAM/STS dalla sola vista vuota.
+
+Pool/provider GitHub previsti dal piano restano da creare nel bootstrap,
+con vincoli repository/workflow/ref/Environment e identità deploy espliciti,
+soltanto dopo autorizzazione delle risorse e dei binding concreti. Nessun
+pool, provider, service account, binding IAM o variabile GitHub creato ora.
