@@ -34,9 +34,10 @@ def no_provider_http(monkeypatch):
 
 def configure(monkeypatch, *, wallet='disabled', gender='fake'):
     settings = load_runtime_settings({'MCP_ENV': 'test', 'PASS2U_MODE': wallet, 'GENDER_MODE': gender})
-    for module in (gender_service, pass2u_service, sender_sync):
-        monkeypatch.setattr(module, 'get_runtime_settings', lambda: settings)
-    monkeypatch.setattr(registration_trigger, 'get_runtime_settings', lambda: settings)
+    for module in (gender_service, pass2u_service):
+        monkeypatch.setattr(module, 'get_provider_settings', lambda provider: settings)
+    monkeypatch.setattr(sender_sync, 'get_runtime_policy', lambda: settings)
+    monkeypatch.setattr(registration_trigger, 'get_runtime_policy', lambda: settings)
     mail = mail_module.build_mail_service(settings)
     monkeypatch.setattr(registration_trigger, 'mail_service', mail)
 

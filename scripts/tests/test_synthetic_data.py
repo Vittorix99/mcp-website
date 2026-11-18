@@ -121,6 +121,8 @@ def test_bad_purchase_states_are_isolated_and_delta_is_not_a_fake_payment():
         assert original['status'] == original['capture_status'] == 'COMPLETED'
         assert replacement['data'][variant['field']] == variant['state']
         assert variant['expected_delta']['event_gross_cents'] < 0
+        assert variant['expected_delta']['general_purchases'] == -1
+        assert 'legacy_general_purchases' not in variant['expected_delta']
         assert variant['execution'] == 'not_run'
     assert all(v['status'] == 'not_run' for v in data['manifest']['api_cases'])
 

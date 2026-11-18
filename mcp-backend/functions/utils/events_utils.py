@@ -3,7 +3,9 @@ import logging
 import re
 from datetime import datetime as dt
 from typing import Any, Dict, Optional, Union
+from zoneinfo import ZoneInfo
 
+from domain.age_rules import calendar_age
 from domain.event_rules import is_event_finished
 from models import Event, EventPurchaseAccessType
 
@@ -15,24 +17,27 @@ EMAIL_REGEX = re.compile(
 )
 
 
-def is_minor(birthdate_str):
-    """Restituisce True se la persona è minorenne. Accetta formato 'gg-mm-aaaa'."""
+def _age_from_canonical_birthdate(birthdate_str):
     try:
         birthdate = datetime.datetime.strptime(birthdate_str, "%d-%m-%Y").date()
-        today = datetime.date.today()
-        return (today - birthdate).days // 365 < 18
-    except Exception:
-        return True  # In caso di parsing fallito, consideriamo minorenne per sicurezza
+    except (TypeError, ValueError):
+        return None
+    today = datetime.datetime.now(ZoneInfo('Europe/Rome')).date()
+    return calendar_age(birthdate, today)
+
+
+def is_minor(birthdate_str):
+    """Restituisce True se la persona è minorenne. Accetta formato 'gg-mm-aaaa'."""
+    age = _age_from_canonical_birthdate(birthdate_str)
+    # In caso di parsing fallito, consideriamo minorenne per sicurezza
+    return age is None or age < 18
 
 
 def is_Under_21(birthdate_str):
-    """Restituisce True se la persona è minorenne. Accetta formato 'gg-mm-aaaa'."""
-    try:
-        birthdate = datetime.datetime.strptime(birthdate_str, "%d-%m-%Y").date()
-        today = datetime.date.today()
-        return (today - birthdate).days // 365 < 21
-    except Exception:
-        return True  # In caso di parsing fallito, consideriamo minorenne per sicurezza
+    """Restituisce True sotto i 21 anni compiuti. Accetta formato 'gg-mm-aaaa'."""
+    age = _age_from_canonical_birthdate(birthdate_str)
+    # In caso di parsing fallito, consideriamo minorenne per sicurezza
+    return age is None or age < 21
 
 
 def calculate_end_of_year(date_input):

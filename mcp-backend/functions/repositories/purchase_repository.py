@@ -88,11 +88,19 @@ class PurchaseRepository:
         return ref.id
 
     def update_participants(self, purchase_id: str, participants_count: int, membership_ids: list[str]) -> None:
-        payload = {
-            "participants_count": participants_count,
-            "membership_ids": membership_ids,
-        }
-        self.collection.document(purchase_id).update(payload)
+        ref = self.collection.document(purchase_id)
+
+        @firestore.transactional
+        def update(transaction):
+            members = [db.collection('memberships').document(identifier).get(transaction=transaction)
+                       for identifier in membership_ids]
+            if any(not member.exists for member in members):
+                raise ConflictError('Socio modificato o unificato: verifica manuale dell’acquisto richiesta')
+            for member in members:
+                transaction.update(member.reference, {'integrityRevision': firestore.Increment(1)})
+            transaction.update(ref, {'participants_count': participants_count, 'membership_ids': membership_ids})
+
+        update(db.transaction())
 
     def stream_models(self) -> Iterable[Purchase]:
         for snap in self.collection.stream():

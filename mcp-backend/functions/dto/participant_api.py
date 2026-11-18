@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -97,6 +98,8 @@ class ParticipantCreateRequestDTO(ParticipantEventRequestDTO):
 
 
 class ParticipantUpdateRequestDTO(ParticipantCreateRequestDTO):
+    entered: Optional[bool] = None
+    entered_at: Optional[datetime] = None
     participant_id: str = Field(min_length=1, alias="participantId")  # frontend sends camelCase for this one
 
     @model_validator(mode="after")

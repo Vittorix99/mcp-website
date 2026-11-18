@@ -7,7 +7,11 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
+from domain.age_rules import calendar_age
+from domain.attendance_rules import summarize_attendance, build_entrance_flow
 from domain.membership_rules import is_membership_active
+from domain.purchase_rules import is_completed_event_purchase
+from domain.revenue_rules import manual_received_total
 from dto.analytics_api import (
     AgeBandDTO,
     AgeDistributionResponseDTO,
@@ -33,7 +37,6 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import PurchaseStatus, PurchaseTypes
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
 from repositories.membership_repository import MembershipRepository
@@ -69,63 +72,23 @@ class AnalyticsService:
         self,
         event_id: str,
         start_time: Optional[str] = None,
-        span_hours: int = 6,
+        span_hours: Optional[int] = None,
         bucket_minutes: int = 30,
     ) -> EntranceFlowResponseDTO:
         event = self.event_repository.get_model(event_id)
         if not event:
             raise NotFoundError(f"Evento non trovato: {event_id}")
 
-        scans = self.entrance_scan_repository.list(event_id)
-        safe_span_hours = max(1, min(24, self._safe_int(span_hours) or 6))
-        safe_bucket_minutes = self._sanitize_bucket_minutes(bucket_minutes)
-
-        start_clock = (
-            self._parse_clock(start_time)
-            or self._parse_clock(getattr(event, "start_time", None))
-            or time(22, 0)
-        )
-        start_minutes = start_clock.hour * 60 + start_clock.minute
-        window_start_minutes = start_minutes
-        window_end_minutes = start_minutes + safe_span_hours * 60
-        buckets_count = max(1, int((safe_span_hours * 60) // safe_bucket_minutes))
-
-        counts = [0] * buckets_count
-        for scan in scans:
-            ts = self._to_datetime(getattr(scan, "scanned_at", None))
-            if not ts:
-                continue
-            local = ts.astimezone(ROMA_TZ)
-            minute_of_day = local.hour * 60 + local.minute
-            # Orari post-mezzanotte appartengono alla stessa finestra notturna
-            # quando sono "prima" dell'ora di inizio (es. start 22:00, scan 01:20).
-            if minute_of_day < start_minutes:
-                minute_of_day += 24 * 60
-            if minute_of_day < window_start_minutes or minute_of_day >= window_end_minutes:
-                continue
-            idx = (minute_of_day - window_start_minutes) // safe_bucket_minutes
-            if 0 <= idx < buckets_count:
-                counts[idx] += 1
-
-        buckets = []
-        cumulative = 0
-        for i in range(buckets_count):
-            slot_start_min = (window_start_minutes + i * safe_bucket_minutes) % (24 * 60)
-            label = f"{slot_start_min // 60:02d}:{slot_start_min % 60:02d}"
-            count = counts[i]
-            cumulative += count
-            buckets.append(EntranceFlowBucketDTO(
-                hour_label=label,
-                count=count,
-                cumulative=cumulative,
-            ))
-
-        return EntranceFlowResponseDTO(
-            event_id=event_id,
-            event_title=event.title or "",
-            total_scanned=sum(counts),
-            buckets=buckets,
-        )
+        attendance = summarize_attendance(self.participant_repository.list(event_id),
+                                           self.entrance_scan_repository.list(event_id))
+        flow = build_entrance_flow(event, attendance, start_time=start_time, span_hours=span_hours,
+                                  bucket_minutes=bucket_minutes)
+        return EntranceFlowResponseDTO(event_id=event_id, event_title=event.title or '',
+            total_scanned=flow['total_scanned'], total_entered=flow['total_entered'],
+            in_window=flow['in_window'], outside_window=flow['outside_window'],
+            missing_timestamp=flow['missing_timestamp'], window_start=flow['window_start'],
+            window_end=flow['window_end'], invalid_window=flow['invalid_window'], anomalies=flow['anomalies'],
+            buckets=[EntranceFlowBucketDTO(**bucket) for bucket in flow['buckets']])
 
     def get_sales_over_time(self, event_id: str) -> SalesOverTimeResponseDTO:
         event = self.event_repository.get_model(event_id)
@@ -302,6 +265,7 @@ class AnalyticsService:
             total_gross += b["gross"]
             total_net += b["net"]
 
+        manual_received = manual_received_total(self.participant_repository.list(event_id))
         return RevenueBreakdownResponseDTO(
             event_id=event_id,
             event_title=event.title or "",
@@ -309,6 +273,8 @@ class AnalyticsService:
             total_net=round(total_net, 2),
             paypal_fees=round(total_gross - total_net, 2),
             by_tier=by_tier,
+            manual_received=manual_received,
+            total_received=round(total_gross + manual_received, 2),
         )
 
     def get_event_funnel(self, event_id: str) -> EventFunnelResponseDTO:
@@ -325,9 +291,9 @@ class AnalyticsService:
         )
 
         participants = self.participant_repository.list(event_id)
-        entered_flag = sum(1 for p in participants if bool(getattr(p, "entered", False)))
-
-        scanned = len(self.entrance_scan_repository.list(event_id))
+        attendance = summarize_attendance(participants, self.entrance_scan_repository.list(event_id))
+        entered_flag = attendance.entered_flag
+        scanned = attendance.total_scanned
         max_participants = self._safe_int(getattr(event, "max_participants", 0))
 
         return EventFunnelResponseDTO(
@@ -335,11 +301,14 @@ class AnalyticsService:
             event_title=event.title or "",
             tickets_sold=tickets_sold,
             entered_flag=entered_flag,
+            entered=attendance.total_entered,
+            registered=attendance.registered,
+            anomalies=attendance.anomalies,
             scanned=scanned,
             max_participants=max_participants,
             fill_rate_pct=self._pct(tickets_sold, max_participants),
-            show_rate_pct=self._pct(entered_flag, tickets_sold),
-            scan_coverage_pct=self._pct(scanned, entered_flag),
+            show_rate_pct=min(100.0, self._pct(attendance.total_entered, attendance.registered)),
+            scan_coverage_pct=self._pct(scanned, attendance.total_entered),
         )
 
     def get_gender_distribution(self, event_id: str) -> GenderDistributionResponseDTO:
@@ -437,10 +406,8 @@ class AnalyticsService:
         if not birth:
             return None
         today = datetime.now(ROMA_TZ).date()
-        age = today.year - birth.year
-        if (today.month, today.day) < (birth.month, birth.day):
-            age -= 1
-        return age if 0 <= age <= 120 else None
+        age = calendar_age(birth, today)
+        return age if age is not None and age <= 120 else None
 
     def get_membership_trend(self, year: int) -> MembershipTrendResponseDTO:
         all_memberships = list(self.membership_repository.stream())
@@ -543,6 +510,7 @@ class AnalyticsService:
         ticket_total = sum(self._safe_int(getattr(p, "participants_count", 0)) for p in purchases)
         avg_unit_payment = round(gross_total / ticket_total, 2) if ticket_total > 0 else 0.0
 
+        manual_received = manual_received_total(self.participant_repository.stream_all())
         return DashboardKpisResponseDTO(
             total_revenue_net=round(revenue_net_total, 2),
             events_count=len(events),
@@ -552,25 +520,14 @@ class AnalyticsService:
             this_month_revenue=round(revenue_net_month, 2),
             total_omaggi=total_omaggi,
             avg_unit_payment=avg_unit_payment,
+            manual_received=manual_received,
+            total_received=round(gross_total + manual_received, 2),
         )
 
     # ---- Internal helpers ------------------------------------------------
 
-    _VALID_EVENT_TYPE_VALUES = {PurchaseTypes.EVENT.value, "event_and_membership"}
-
     def _is_valid_event_purchase(self, purchase: Any) -> bool:
-        purchase_type = getattr(purchase, "purchase_type", None)
-        type_value = str(getattr(purchase_type, "value", purchase_type or "")).lower()
-        if type_value not in self._VALID_EVENT_TYPE_VALUES:
-            return False
-        if not getattr(purchase, "ref_id", None):
-            return False
-        if self._safe_int(getattr(purchase, "participants_count", 0)) <= 0:
-            return False
-        status = str(getattr(purchase, "status", "") or "").upper()
-        capture = str(getattr(purchase, "capture_status", "") or "").upper()
-        bad = PurchaseStatus.invalid_statuses()
-        return status not in bad and capture not in bad
+        return is_completed_event_purchase(purchase)
 
     def _map_tiers(self, rows: List[Dict]) -> Dict[Optional[str], str]:
         if not rows:

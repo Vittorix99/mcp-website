@@ -8,7 +8,7 @@ from config.runtime_settings import (
     ProviderMode,
     RuntimeConfigurationError,
     RuntimeSettings,
-    get_runtime_settings,
+    get_provider_settings,
 )
 from models import Membership, MembershipPass, MembershipPassResult
 from clients.pass2u_client import Pass2URoutes
@@ -210,7 +210,7 @@ class DisabledPass2UService:
 
 
 def build_pass2u_service(settings: RuntimeSettings | None = None):
-    settings = settings or get_runtime_settings()
+    settings = settings or get_provider_settings("pass2u")
     provider = settings.providers
     if provider.pass2u == ProviderMode.FAKE:
         return FakePass2UService()

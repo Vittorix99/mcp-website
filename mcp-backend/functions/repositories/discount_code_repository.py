@@ -51,9 +51,41 @@ class DiscountCodeRepository(BaseRepository[DiscountCode]):
 
         ref = self.collection.document()
         model = self._data_to_model(event_id, {**data, "code": code}, admin_uid)
-        ref.set(model.to_firestore(include_none=True))
+        self._write_restriction(ref, model.to_firestore(include_none=True), create=True)
         model.id = ref.id
         return model
+
+    def _write_restriction(self, ref, payload, *, create=False):
+        def write():
+            previous = ref.get()
+            if not create and not previous.exists:
+                raise NotFoundError('Codice sconto non trovato')
+            before = previous.to_dict() or {}
+            effective = {**before, **payload}
+            member = None
+            if effective.get('restrictedMembershipId'):
+                member = db.collection('memberships').document(effective['restrictedMembershipId']).get()
+                if not member.exists:
+                    raise ConflictError('Socio non più presente: ricaricare i dati')
+            if not create and 'maxUses' in payload:
+                occupied = int(before.get('usedCount') or 0) + len(self._live_reservations(before))
+                if int(payload['maxUses']) < occupied:
+                    raise ValidationError('max_uses non può essere minore degli utilizzi consumati e prenotati')
+            if member is not None:
+                batch = db.batch()
+                batch.update(member.reference, {'integrityRevision': firestore.Increment(1)},
+                             option=db.write_option(last_update_time=member.update_time))
+                if create:
+                    batch.create(ref, payload)
+                else:
+                    batch.update(ref, payload, option=db.write_option(last_update_time=previous.update_time))
+                batch.commit()
+            elif create:
+                ref.create(payload)
+            else:
+                ref.update(payload, option=db.write_option(last_update_time=previous.update_time))
+
+        self._retry_write(write)
 
     def get_by_id(self, discount_code_id: str) -> Optional[DiscountCode]:
         return super().get_by_id(discount_code_id)
@@ -101,22 +133,7 @@ class DiscountCodeRepository(BaseRepository[DiscountCode]):
         payload["updatedAt"] = firestore.SERVER_TIMESTAMP
         payload["updatedBy"] = admin_uid
         doc_ref = self.collection.document(discount_code_id)
-        if "maxUses" in payload:
-            def _update_capacity():
-                snapshot = doc_ref.get()
-                if not snapshot.exists:
-                    raise NotFoundError("Codice sconto non trovato")
-                data = snapshot.to_dict() or {}
-                occupied = int(data.get("usedCount") or 0) + len(self._live_reservations(data))
-                if int(payload["maxUses"]) < occupied:
-                    raise ValidationError("max_uses non può essere minore degli utilizzi consumati e prenotati")
-                doc_ref.update(payload, option=db.write_option(last_update_time=snapshot.update_time))
-
-            self._retry_write(_update_capacity)
-        else:
-            if not doc_ref.get().exists:
-                raise NotFoundError("Codice sconto non trovato")
-            doc_ref.update(payload)
+        self._write_restriction(doc_ref, payload)
         updated = self.get_by_id(discount_code_id)
         if not updated:
             raise NotFoundError("Codice sconto non trovato")

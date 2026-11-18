@@ -41,6 +41,12 @@ const TOOLTIP_STYLE = {
 const AXIS_TICK = { fill: C_OFF, fontSize: 11 }
 const AXIS_LINE = { stroke: "#3a3a3a" }
 const GRID_PROPS = { strokeDasharray: "3 3", stroke: "#1e1e1e" }
+const FLOW_ANOMALY_LABELS = {
+  missing_scan: "presenze senza scansione",
+  flag_mismatch: "presenze da riallineare",
+  orphan_scan: "scansioni senza registrazione",
+  stale_timestamp: "orari da verificare",
+}
 
 function fmtEur(value) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(value || 0))
@@ -69,7 +75,8 @@ export default function EventCharts({
   genderDistribution,
   ageDistribution,
 }) {
-  const flowBuckets = entranceFlow.data?.buckets || []
+  const flowBuckets = (entranceFlow.data?.buckets || []).map((b) => ({ ...b, bucketKey: b.bucketStart || b.hourLabel }))
+  const flowLabelByKey = Object.fromEntries(flowBuckets.map((b) => [b.bucketKey, b.hourLabel]))
   const salesDays = salesOverTime.data?.dailySales || []
   const funnelData = eventFunnel.data
   const revenueData = revenueBreakdown.data
@@ -80,7 +87,7 @@ export default function EventCharts({
   // Funnel bar data
   const funnelBars = funnelData ? [
     { stage: "Ticket venduti", value: funnelData.ticketsSold },
-    { stage: "Entrati (flag)", value: funnelData.enteredFlag },
+    { stage: "Entrati", value: funnelData.entered },
     { stage: "Scansionati", value: funnelData.scanned },
   ] : []
 
@@ -108,17 +115,17 @@ export default function EventCharts({
       >
         {funnelData && (
           <div className="flex h-full flex-col justify-between py-1">
-            <KpiRow label="Max partecipanti" value={funnelData.maxParticipants || "—"} />
-            <KpiRow label="Ticket venduti" value={funnelData.ticketsSold} />
-            <KpiRow label="Fill rate" value={`${funnelData.fillRatePct}%`} />
-            <KpiRow label="Entrati (flag)" value={funnelData.enteredFlag} />
-            <KpiRow label="Show rate" value={`${funnelData.showRatePct}%`} />
-            <KpiRow label="Scansionati" value={funnelData.scanned} />
-            <KpiRow label="Scan coverage" value={`${funnelData.scanCoveragePct}%`} />
+            <KpiRow label="Capienza massima" value={funnelData.maxParticipants || "—"} />
+            <KpiRow label="Registrati" value={funnelData.registered ?? funnelData.ticketsSold ?? "—"} />
+            <KpiRow label="Biglietti / capienza" value={`${funnelData.fillRatePct}%`} />
+            <KpiRow label="Entrati" value={funnelData.entered ?? "—"} />
+            <KpiRow label="Tasso di presenza" value={`${funnelData.showRatePct}%`} />
+            <KpiRow label="Ingressi con tessera" value={funnelData.scanned} />
+            <KpiRow label="Ingressi con tessera / totale" value={`${funnelData.scanCoveragePct}%`} />
             {/* Progress bars CSS — non usano Recharts, non possono sforare */}
             <div className="mt-2 space-y-2">
               {funnelBars.map(({ stage, value }) => {
-                const max = funnelData.ticketsSold || 1
+                const max = funnelData.registered || funnelData.ticketsSold || 1
                 const pct = Math.min(100, Math.round((value / max) * 100))
                 return (
                   <div key={stage}>
@@ -142,29 +149,49 @@ export default function EventCharts({
         title="Entrance Flow"
         loading={entranceFlow.loading}
         error={entranceFlow.error}
-        empty={flowBuckets.length === 0}
+        empty={!entranceFlow.data}
       >
+        <div className="flex h-full min-h-0 flex-col">
+        {entranceFlow.data && (
+          <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[#b0b0b0]">
+            <span>Totale: {entranceFlow.data.totalEntered ?? "—"}</span>
+            <span>Nel periodo: {entranceFlow.data.inWindow ?? "—"}</span>
+            <span>Fuori periodo: {entranceFlow.data.outsideWindow ?? "—"}</span>
+            <span>Senza orario: {entranceFlow.data.missingTimestamp ?? "—"}</span>
+          </div>
+        )}
+        {entranceFlow.data?.invalidWindow && (
+          <p className="text-xs text-[#b0b0b0]">Data o orari dell’evento da verificare: il grafico non è disponibile.</p>
+        )}
+        <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={flowBuckets} margin={{ top: 8, right: 0, left: 0, bottom: 8 }}>
             <CartesianGrid {...GRID_PROPS} />
             <XAxis
-              dataKey="hourLabel"
+              dataKey="bucketKey"
               tick={AXIS_TICK}
               axisLine={AXIS_LINE}
               tickLine={false}
               interval="preserveStartEnd"
               minTickGap={20}
               tickMargin={8}
-              tickFormatter={(v) => String(v || "").slice(0, 5)}
+              tickFormatter={(v) => String(flowLabelByKey[v] || v || "").slice(0, 5)}
             />
             <YAxis yAxisId="l" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} allowDecimals={false} width={28} />
             <YAxis yAxisId="r" orientation="right" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} allowDecimals={false} width={32} />
-            <Tooltip {...TOOLTIP_STYLE} />
+            <Tooltip {...TOOLTIP_STYLE} labelFormatter={(v) => flowLabelByKey[v] || v} />
             <Legend wrapperStyle={{ fontSize: 11, color: C_OFF }} />
             <Bar yAxisId="l" dataKey="count" name="Ingressi" fill={C_ORANGE} radius={[2, 2, 0, 0]} />
             <Line yAxisId="r" type="monotone" dataKey="cumulative" name="Cumulativo" stroke={C_WHITE} strokeWidth={1.5} dot={false} />
           </ComposedChart>
         </ResponsiveContainer>
+        </div>
+        {entranceFlow.data?.anomalies && Object.entries(entranceFlow.data.anomalies).some(([, count]) => Number(count) > 0) && (
+          <p className="mt-1 text-[10px] text-[#b0b0b0]">
+            Verifiche richieste: {Object.entries(entranceFlow.data.anomalies).filter(([, count]) => Number(count) > 0).map(([key, count]) => `${FLOW_ANOMALY_LABELS[key] || key.replaceAll("_", " ")}: ${count}`).join(" · ")}
+          </p>
+        )}
+        </div>
       </SnapshotChartCard>
 
       {/* Sales Over Time */}
@@ -204,15 +231,21 @@ export default function EventCharts({
       >
         {revenueData && (
           <div className="flex h-full flex-col">
-            <div className="mb-3 flex gap-4 text-xs" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
+            <div className="mb-3 flex flex-wrap gap-4 text-xs" style={{ fontFamily: '"Helvetica Neue", sans-serif' }}>
               <span style={{ color: C_OFF }}>
-                Lordo: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalGross)}</span>
+                Online lordo: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalGross)}</span>
               </span>
               <span style={{ color: C_OFF }}>
-                Netto: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalNet)}</span>
+                Online netto: <span style={{ color: "#fff", fontWeight: 700 }}>{fmtEur(revenueData.totalNet)}</span>
               </span>
               <span style={{ color: C_OFF }}>
-                Fee: <span style={{ color: C_RED, fontWeight: 700 }}>{fmtEur(revenueData.paypalFees)}</span>
+                Fee PayPal sito: <span style={{ color: C_RED, fontWeight: 700 }}>{fmtEur(revenueData.paypalFees)}</span>
+              </span>
+              <span style={{ color: C_OFF }}>
+                Manuali ricevuti: <span style={{ color: "#fff", fontWeight: 700 }}>{revenueData.manualReceived == null ? "Da ricalcolare" : fmtEur(revenueData.manualReceived)}</span>
+              </span>
+              <span style={{ color: C_OFF }}>
+                Totale ricevuto (lordo): <span style={{ color: "#fff", fontWeight: 700 }}>{revenueData.totalReceived == null ? "Da ricalcolare" : fmtEur(revenueData.totalReceived)}</span>
               </span>
             </div>
             <div className="flex-1">

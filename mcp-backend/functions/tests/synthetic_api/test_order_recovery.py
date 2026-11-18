@@ -229,16 +229,15 @@ def test_recovery_rejects_purchase_id_reassigned_without_capacity_reconciliation
     assert gateway.capture_calls == 1
 
 
-def test_checkout_still_allows_duplicate_people_when_event_permits_it(http, sample, gateway):
+def test_checkout_rejects_duplicate_people_despite_old_event_flag(http, sample, gateway):
     db.document('events/' + sample.event.id).update({'allowDuplicates': True})
     payload = order_payload(sample)
     payload['cart'][0]['participants'] = [payload['cart'][0]['participants'][0]] * 2
     created = http.post('/orders', json=payload)
-    assert created.status_code == 201, created.get_json()
-    response = http.post('/capture', json={'order_id': created.get_json()['id']})
-    assert response.status_code == 200, response.get_json()
-    assert len(documents(f'participants/{sample.event.id}/participants_event')) == 2
-    assert_revenue(http, sample.event.id, 44, 42.5, 1.5, 2)
+    assert created.status_code == 400, created.get_json()
+    assert gateway.create_calls == gateway.capture_calls == 0
+    assert not documents('orders')
+    assert not documents(f'participants/{sample.event.id}/participants_event')
 
 
 @pytest.mark.parametrize('problem', ['unrelated_member', 'malformed_participant', 'malformed_lookup',

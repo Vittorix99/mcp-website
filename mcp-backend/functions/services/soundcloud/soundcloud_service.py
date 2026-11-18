@@ -14,7 +14,7 @@ from errors.service_errors import (
     SoundCloudTrackNotFoundError,
     SoundCloudTrackNotPlayableError,
 )
-from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_runtime_settings
+from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_provider_settings
 
 _TOKEN_DOC = "soundcloud_token"
 _SETTINGS_COLLECTION = "settings"
@@ -142,7 +142,7 @@ class DisabledSoundCloudService:
 
 
 def build_soundcloud_service(settings=None):
-    settings = settings or get_runtime_settings()
+    settings = settings or get_provider_settings("soundcloud")
     provider = settings.providers
     if provider.soundcloud == ProviderMode.FAKE:
         return FixtureSoundCloudService()

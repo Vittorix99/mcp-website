@@ -1,7 +1,9 @@
 from typing import Optional
 
-from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
+from google.cloud.firestore_v1 import FieldFilter
+
+from errors.service_errors import NotFoundError
 
 from config.firebase_config import db
 from models import EntranceScan
@@ -31,30 +33,51 @@ class EntranceScanRepository:
     def list(self, event_id: str):
         return [self._model_from_snapshot(doc) for doc in self._collection(event_id).stream()]
 
-    def create_scan(self, event_id: str, membership_id: str, scan_token: str) -> Optional[EntranceScan]:
-        """Ritorna None se crea il record; ritorna lo scan esistente se intercetta una race condition."""
-        model = EntranceScan(
-            scanned_at=firestore.SERVER_TIMESTAMP,
-            scan_token=scan_token,
-            manual=False,
-        )
+    def _create(self, event_id: str, membership_id: str, model: EntranceScan) -> Optional[EntranceScan]:
         ref = self._collection(event_id).document(membership_id)
-        try:
-            ref.create(model.to_firestore())
-            return None
-        except AlreadyExists:
-            return self._model_from_snapshot(ref.get())
 
-    def create_manual(self, event_id: str, membership_id: str, admin_uid: str) -> None:
-        model = EntranceScan(
-            scanned_at=firestore.SERVER_TIMESTAMP,
-            manual=True,
-            operator=admin_uid,
-        )
-        self._collection(event_id).document(membership_id).set(model.to_firestore())
+        @firestore.transactional
+        def create(transaction):
+            # Revalidate registration at write time so deletion cannot leave an orphan scan.
+            event = db.collection("events").document(event_id).get(transaction=transaction)
+            participants = db.collection("participants").document(event_id).collection("participants_event")
+            registered = list(participants.where(filter=FieldFilter("membershipId", "==", membership_id))
+                              .limit(1).stream(transaction=transaction))
+            if not event.exists or not registered:
+                raise NotFoundError("Partecipante o evento non più presente")
+            member = db.collection('memberships').document(membership_id).get(transaction=transaction)
+            if not member.exists:
+                raise NotFoundError('Socio non più presente')
+            existing = ref.get(transaction=transaction)
+            if existing.exists:
+                return self._model_from_snapshot(existing)
+            transaction.update(member.reference, {'integrityRevision': firestore.Increment(1)})
+            transaction.create(ref, model.to_firestore())
+            return None
+
+        return create(db.transaction())
+
+    def create_scan(self, event_id: str, membership_id: str, scan_token: str) -> Optional[EntranceScan]:
+        """Create once for both scanners; return the existing scan on a retry/race."""
+        return self._create(event_id, membership_id, EntranceScan(
+            scanned_at=firestore.SERVER_TIMESTAMP, scan_token=scan_token, manual=False,
+        ))
+
+    def create_manual(self, event_id: str, membership_id: str, admin_uid: str) -> Optional[EntranceScan]:
+        return self._create(event_id, membership_id, EntranceScan(
+            scanned_at=firestore.SERVER_TIMESTAMP, manual=True, operator=admin_uid,
+        ))
 
     def delete(self, event_id: str, membership_id: str) -> None:
-        self._collection(event_id).document(membership_id).delete()
+        @firestore.transactional
+        def delete(transaction):
+            member = db.collection('memberships').document(membership_id).get(transaction=transaction)
+            if not member.exists:
+                raise NotFoundError('Socio non più presente')
+            transaction.update(member.reference, {'integrityRevision': firestore.Increment(1)})
+            transaction.delete(self._collection(event_id).document(membership_id))
+
+        delete(db.transaction())
 
     def count(self, event_id: str) -> int:
         return sum(1 for _ in self._collection(event_id).stream())

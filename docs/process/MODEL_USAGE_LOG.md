@@ -388,3 +388,114 @@ e ricerca/filtri/ordinamento/paginazione già disponibili nell'app, solo locale.
 Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
 
 Chiusura OPS-10,2026-11-13: nessun ulteriore dispatch. Coordinatore: profilo1985–2008 corretto inline;50 test strumenti e scenario completo aggiornato1PASS/369deselected in40.69s. UI agent:3854ordinari/39pagine e146omaggi/6pagine; limiti proiezioni visibili documentati. Verificati53749documenti+2impostazioni invariati dopo le prove agent. Acquisti chiusi con risposta owner «tutto passa» sul blocco ricerca/evento/status/date/ordinamento; evidenza owner-reported, non verifica indipendente. Scope OPS-10 completato; nessun nuovo difetto frontend dimostrato, nessuna ulteriore review delegata per documentazione, nessun push/cloud/provider/CI remota. Dispatch complessivi invariati:1 Luna,1 Sol high; token/costi non disponibili.
+
+
+## Segreti e preparazione deploy automatici — 2026-11-13
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `deployment_env_inventory`: inventario dei soli nomi/consumatori env tracciati; proprietà limitata a ENVIRONMENT_RESOURCE_CATALOG.md | low | Conclusa e accettata da Sol dopo lettura del diff, controllo link Markdown e diff check. Correzione Sol: ADC WIF effimero ammesso per discovery cloud; nessun env ignorato o valore segreto letto. |
+| Codex / gpt-6.1-sol | `deployment_final_review`: unica review indipendente runtime, binding e pipeline WIF/rollback | high | Conclusa con4 rilievi accettati e corretti da Sol: .env.example tracciati, binding PayPal recovery, binding mail capture/rinnovo, snapshot stamp/secret version dalle revisioni attive. Regressioni finali passate;1297 unitari,87 strumenti,48 frontend,lint/build e smoke completo2Python+clientHTTP PASS. API370/Auth57 emulati precedenti riutilizzati per profili fake invariati; actionlint/Firebase/contratti/scanner0/diff pulito. Nessun secondo dispatch, cloud o CI attestato. |
+
+Dispatch effettivi del blocco:1 Luna,1 review Sol high. Token/costi non disponibili.
+
+
+## Q-04 — incassi online confermati — 2026-11-13
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `stats_q04_final_review`: review indipendente del filtro condiviso e dei conteggi nei tre servizi, regressioni e manifest sintetico | high | Conclusa senza rilievi P1/P2, accettata dal coordinatore. Caso null-status emerso dopo nella suite API: mapper corretto da Sol con regressione RED→GREEN; suite finali1337 unitari/87strumenti/384API PASS,JUnit0failure/error/skip,runnerexit0/shutdownpulito.26RED iniziali del filtro e1RED dell’oracolo generatore; scanner0/Firebase/contratti/diff puliti. Nessun secondo dispatch o intervento cloud. |
+
+Dispatch effettivi:0 Luna,1 Sol high. Implementazione piccola ma relativa a
+metriche economiche: gestita dal coordinatore Sol. Token/costi non disponibili.
+
+
+## Q-04 — ricevuti manuali e UI — 2026-11-13
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `manual_receipts_ui`: display di manuali/totale e filtro confermati secondo contratto fornito, solo6filefrontend | medium | Conclusa e accettata da Sol dopo lettura diff:2 test NodeGREEN dopoRED modulo assente; lint0errori/53warning esistenti, diff check pulito. Nessun calcolo monetario o backend delegato. |
+| Codex / gpt-6.1-sol | `manual_receipts_final_review`: regole ricevuti, doppioni, API/snapshot/UI e compatibilità | high | Conclusa con1P2 accettato/corretto da Sol: normalizzazione metodi persistiti prima del decoderEnum.4RED poi6casi modelloGREEN e4API extra;1372unitari/87strumenti/50frontend e392API in99.74s PASS,JUnit0failure/error/skip,runnerexit0/shutdownpulito. Lint0errori/53warning esistenti,buildfixture/Firebase/contratti/scanner0/diff puliti. Nessuna seconda review o mutazione cloud; browser non verificato. |
+
+Dispatch effettivi:1 Luna,1 review Sol high. Token/costi non disponibili.
+
+
+Follow-up Q-04 su richiesta owner: rimosso il supporto appena aggiunto ai
+metodi non canonici. Nessun nuovo dispatch; coordinatore Sol inline per
+rimozione circoscritta.8RED prima,1381unitari/392API PASS in99.67s,JUnit
+0failure/error/skip,exit0/shutdownpulito,scanner0/diff pulito. Il criterio
+owner supera il precedente requisito della review sulle varianti legacy.
+Nessuna nuova review indipendente, cloud o migrazione.
+
+
+## Q-06/Q-07/Q-08 — inventario e regole, 15 novembre 2026
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `q06_age_inventory`: inventario meccanico dei calcoli età e chiamanti, sola lettura | low | Fallito prima della consegna per limite di utilizzo segnalato dall'host. Nessun risultato accettato o file modificato. Escalation al coordinatore Sol, che ha eseguito l'inventario inline; nessun retry o cambio modello. |
+
+Dispatch effettivi finora:1 Luna fallita,0 review Sol delegate. I conteggi
+indicano incarichi, non token/costi; telemetria non disponibile.
+
+Checkpoint coordinatore Sol:Q-06 implementato inline dopo inventario;4RED
+iniziali,1399 unitari e399 API in100.29s PASS,JUnit0failure/error/skip,
+runnerexit0/shutdownpulito,scanner0/diff pulito. Review finale dell'intero
+blocco ancora pendente alle scelte Q-07/Q-08; nessuna review attestata.
+
+
+## Q-07/Q-08 — ripresa e review del blocco, 15 novembre 2026
+
+Coordinatore inline: Q-08 iscrizioni multiple/unico scan e sincronizzazione
+transazionale dei flag; Q-07 blocco storico e cascata dei soli dati gratuiti
+approvati dall'owner in questa sessione. Nessun nuovo dispatch Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `q06_q08_final_review`: unica review Q-06 e cancellazioni Q-07/ingressi Q-08, sola lettura | high | Conclusa: 2 P2 accettati e corretti da Sol inline (attended_events concorrente e snapshot/indice post-delete). 4 regressioni RED poi GREEN; finali 1399 unitari e449 API in108.89s PASS, JUnit0 failure/error/skip, runnerexit0/shutdown pulito. Nessuna seconda review o mutazione cloud. |
+
+Dispatch effettivi di questa ripresa:0 Luna,1 Sol high. Token/costi non disponibili.
+
+
+## Q-08 nominativa — 15 novembre 2026
+
+Owner cambia la regola Q-08: una sola iscrizione socio/evento; gli eventi
+non associativi senza tessera e le integrazioni Eventbrite/Xceed verranno
+dopo la ristrutturazione backend e frontend. Coordinatore Sol inline per
+confini pagamento/concorrenza; nessuna implementazione provider futura.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `q08_unique_final_review`: review unica vincolo nominativo, hold identità, admin e recovery | high | Conclusa con1P1 accettato e corretto inline: riservare anche identità dei soci scaduti e ricontrollarle prima di capture.2RED review poi19API GREEN; finali1399unitari/466API in109.36s PASS, JUnit0failure/error/skip, runnerexit0/shutdown pulito.87strumenti/50frontend PASS,lint0errori/53warning esistenti,scanner0/Firebase/130export/diff puliti. Nessuna seconda review o mutazione cloud. |
+
+Dispatch effettivi follow-up:0Luna,1Sol high. Token/costi non disponibili.
+
+
+## Q-07 integrità soci/partecipanti — 15 novembre 2026
+
+| Modello richiesto | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | q07_participant_ui: blocco identità/associazione form admin e filtro payload; un follow-up per email facoltativa e testo | medium | Accettato da Sol dopo revisione del diff. Lint finale 0 errori/53 warning esistenti, 50 frontend e build fixture Node20 PASS. |
+| gpt-6.1-sol | q07_final_review: unica review indipendente del blocco Q-07 | high | Conclusa: 7 rilievi accettati (checkout concorrente, delete socio, versione location, contatti null, scan legacy, rinnovo manuale, coupon concorrenti). Correzioni raggruppate con regressioni RED/GREEN; 503 API emulati e 1399 unitari PASS. Nessuna seconda review. |
+
+Dispatch: 1 task Luna con 1 follow-up, 1 review Sol high. Coordinamento e
+integrità/pagamenti/concorrenza Sol inline. Token/costi non disponibili.
+
+Verifica finale: 37 scenari Q-07 nel totale 503 API, 1399 unitari,
+87 strumenti e 50 frontend PASS; build fixture con Node20 PASS;
+contratti126riferimenti/130export/0errori; lint0errori/53warning esistenti.
+Le regressioni della review coprono tutti i sette rilievi; ulteriori prove
+proteggono contatti canonici prima del provider e schede socio immutate
+prima dell'incasso. Nessuna seconda review. Provider reali e CI non verificati.
+
+Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.
+## Q-05 ingressi e finestre — 15 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | `q05_attendance_ui`: default orari evento e contatori canonici UI | medium | Concluso; ESLint senza errori, 50 test config passati; riletto da Sol |
+| gpt-6.1-sol | `q05_final_review`: review indipendente | high | Fallita: limite di utilizzo Codex raggiunto, nessun rilievo prodotto |
+| Claude Sonnet | review indipendente sostitutiva, sola lettura | high | Conclusa per decisione del proprietario (AGENTS.md aggiornato): 0 Critical, 3 Important, Minor. Corretti cambio d'ora in UTC, avviso anomalie nel check-in, test unit senza emulatore; scan scelto come unica prova di ingresso |
+
+Verifica finale: 1412 test unit e 519 API con emulatore passati, 50 test config
+frontend, ESLint senza errori. Nessuna seconda review. 1 incarico Luna, 1 review
+Sonnet; token e costi non disponibili. CI remota non verificata.

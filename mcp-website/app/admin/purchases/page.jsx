@@ -18,6 +18,7 @@ import { useAdminPurchases } from "@/hooks/useAdminPurchases"
 import { useAdminEvents } from "@/hooks/useAdminEvents"
 import { PurchaseModal } from "@/components/admin/purchases/PurchaseModal"
 import { AdminPageHeader } from "@/components/admin/AdminPageChrome"
+import { isCompletedPurchase } from "@/lib/purchase-statistics.cjs"
 
 const PURCHASE_STATUSES = ["COMPLETED", "REFUNDED", "CANCELLED", "VOIDED", "FAILED", "DECLINED", "ERROR"]
 const INVALID_STATUSES = new Set(["FAILED", "CANCELLED", "VOIDED", "REFUNDED", "DECLINED", "ERROR"])
@@ -111,7 +112,7 @@ export default function PurchasesPage() {
         if (eventFilter !== "all" && p.ref_id !== eventFilter) return false
 
         if (statusFilter === "invalid" && !isInvalidStatus(p)) return false
-        if (statusFilter === "valid" && isInvalidStatus(p)) return false
+        if (statusFilter === "valid" && !isCompletedPurchase(p)) return false
 
         const ts = new Date(p.timestamp)
         if (dateFrom) {
@@ -133,7 +134,7 @@ export default function PurchasesPage() {
   }, [purchases, search, dateFrom, dateTo, eventFilter, statusFilter, dateSort])
 
   const stats = useMemo(() => {
-    const valid = filtered.filter(p => !isInvalidStatus(p))
+    const valid = filtered.filter(isCompletedPurchase)
     const totalGross = valid.reduce((sum, p) => sum + parseAmount(p.amount_total), 0)
     const totalFees = valid.reduce((sum, p) => sum + parseAmount(p.paypal_fee), 0)
     const totalNet = valid.reduce((sum, p) => sum + parseAmount(p.net_amount), 0)
@@ -180,21 +181,21 @@ export default function PurchasesPage() {
             <CardHeader><CardTitle>Totale Lordo</CardTitle></CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalGross.toFixed(2)} €</div>
-              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni valide</p>
+              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni confermate</p>
             </CardContent>
           </Card>
           <Card className="bg-zinc-900 border border-zinc-700">
             <CardHeader><CardTitle>Totale Fee</CardTitle></CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalFees.toFixed(2)} €</div>
-              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni valide</p>
+              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni confermate</p>
             </CardContent>
           </Card>
           <Card className="bg-zinc-900 border border-zinc-700">
             <CardHeader><CardTitle>Totale Netto</CardTitle></CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalNet.toFixed(2)} €</div>
-              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni valide</p>
+              <p className="mt-1 text-xs text-muted-foreground">{stats.validCount} transazioni confermate</p>
             </CardContent>
           </Card>
         </div>
@@ -225,8 +226,8 @@ export default function PurchasesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli status</SelectItem>
-                  <SelectItem value="valid">Solo validi</SelectItem>
-                  <SelectItem value="invalid">Solo non validi</SelectItem>
+                  <SelectItem value="valid">Confermati</SelectItem>
+                  <SelectItem value="invalid">Falliti, annullati o rimborsati</SelectItem>
                 </SelectContent>
               </Select>
               <div className="relative flex-1">

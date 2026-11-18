@@ -3,6 +3,8 @@ from typing import Optional
 from google.cloud import firestore
 
 from models.scan_token import ScanToken
+from errors.service_errors import NotFoundError
+from config.firebase_config import db
 from repositories.base import BaseRepository
 
 
@@ -24,7 +26,14 @@ class ScanTokenRepository(BaseRepository[ScanToken]):
             expires_at=expires_at,
             is_active=True,
         )
-        self.collection.document(token).set(model.to_firestore())
+        @firestore.transactional
+        def create(transaction):
+            event = db.collection("events").document(event_id).get(transaction=transaction)
+            if not event.exists:
+                raise NotFoundError("Evento non più presente")
+            transaction.create(self.collection.document(token), model.to_firestore())
+
+        create(db.transaction())
 
     def deactivate(self, token: str, admin_uid: str) -> None:
         self.collection.document(token).update({

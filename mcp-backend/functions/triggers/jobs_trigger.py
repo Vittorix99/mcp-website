@@ -2,6 +2,7 @@ import logging
 
 from firebase_functions import firestore_fn
 
+from config.function_secrets import secrets_for_function, validate_function_providers
 from config.firebase_config import region
 from services.events.location_service import LocationService
 from services.core.analytics_snapshot_service import AnalyticsSnapshotService
@@ -29,8 +30,10 @@ def _event_after_data(event):
     return _snapshot_to_dict(data)
 
 
-@firestore_fn.on_document_written(document="location_jobs/{jobId}", region=region)
+@firestore_fn.on_document_written(document="location_jobs/{jobId}", region=region,
+                                  secrets=secrets_for_function("process_send_location_job"))
 def process_send_location_job(event: firestore_fn.Event):
+    validate_function_providers("process_send_location_job")
     """Trigger Firestore: avvia il worker per job location queued in location_jobs."""
     job_dict = _event_after_data(event)
     job_type = job_dict.get("type")

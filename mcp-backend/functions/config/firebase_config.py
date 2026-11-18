@@ -9,7 +9,7 @@ from google.auth.credentials import AnonymousCredentials
 
 from config.environment import load_environment
 from config.runtime_settings import (
-    CredentialMode, RuntimeConfigurationError, RuntimeSettings, get_runtime_settings,
+    CredentialMode, RuntimeConfigurationError, RuntimeSettings, get_runtime_policy,
 )
 
 
@@ -52,7 +52,7 @@ def initialize_firebase(settings: RuntimeSettings):
 
 
 load_environment()
-db, bucket = initialize_firebase(get_runtime_settings())
+db, bucket = initialize_firebase(get_runtime_policy())
 
 cors = options.CorsOptions(
     cors_origins="*",

@@ -7,7 +7,11 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
+from domain.age_rules import calendar_age
+from domain.attendance_rules import ATTENDANCE_VERSION, summarize_attendance, build_entrance_flow
 from domain.membership_rules import is_membership_active
+from domain.purchase_rules import is_completed_event_purchase
+from domain.revenue_rules import manual_received_total
 from interfaces.repositories import (
     EntranceScanRepositoryProtocol,
     EventRepositoryProtocol,
@@ -17,7 +21,7 @@ from interfaces.repositories import (
     ParticipantRepositoryProtocol,
     PurchaseRepositoryProtocol,
 )
-from models import AnalyticsJob, PurchaseStatus, PurchaseTypes
+from models import AnalyticsJob
 from repositories.analytics_snapshot_repository import AnalyticsSnapshotRepository
 from repositories.entrance_scan_repository import EntranceScanRepository
 from repositories.event_repository import EventRepository
@@ -78,6 +82,8 @@ class AnalyticsSnapshotService:
         payload = self.analytics_snapshot_repository.get_event_snapshot(event_id)
         if payload is None:
             return {"exists": False, "event_id": event_id}
+        if payload.get('exists') is not False and payload.get('attendance_version') != ATTENDANCE_VERSION:
+            return {'exists': False, 'event_id': event_id, 'rebuild_required': True}
         return {"exists": True, **payload}
 
     def get_global_snapshot(self) -> Dict[str, Any]:
@@ -89,6 +95,8 @@ class AnalyticsSnapshotService:
     def get_events_index(self) -> Dict[str, Any]:
         rows = []
         for event_id, data in self.analytics_snapshot_repository.stream_event_snapshots():
+            if data.get("exists") is False:
+                continue
             event_date = self._parse_date_like((data.get("event") or {}).get("date"))
             rows.append(
                 {
@@ -248,17 +256,21 @@ class AnalyticsSnapshotService:
 
         total_gross = sum(self._safe_amount(getattr(purchase, "amount_total", 0)) for purchase in event_purchases)
         total_net = sum(self._safe_amount(getattr(purchase, "net_amount", 0)) for purchase in event_purchases)
+        manual_received = manual_received_total(participants)
         total_ticket_count = sum(self._safe_int(getattr(purchase, "participants_count", 0)) for purchase in event_purchases)
 
         tier_payload = self._build_ticket_tier_payload(event_purchases)
         gender_counts = self._gender_distribution(participants)
-        entrance_flow = self._build_entrance_flow(event)
+        attendance = summarize_attendance(participants, self.entrance_scan_repository.list(event_id))
+        flow = build_entrance_flow(event, attendance)
+        entrance_flow = flow['buckets']
 
         max_participants = self._safe_int(getattr(event, "max_participants", 0))
         participants_count = len(participants)
-        entered_count = self._count_entered(entrance_flow)
+        entered_count = attendance.total_entered
 
         event_snapshot = {
+            "attendance_version": ATTENDANCE_VERSION,
             "event_id": event_id,
             "generated_at": datetime.now(timezone.utc),
             "event": {
@@ -268,12 +280,15 @@ class AnalyticsSnapshotService:
                 "start_time": event.start_time,
                 "max_participants": max_participants,
             },
+            "attendance": {key: value for key, value in flow.items() if key != 'buckets'},
             "kpis": {
                 "participants": participants_count,
                 "entered": entered_count,
                 "fill_rate": self._percentage(participants_count, max_participants),
                 "revenue_gross": round(total_gross, 2),
                 "revenue_net": round(total_net, 2),
+                "manual_received": manual_received,
+                "total_received": round(total_gross + manual_received, 2),
                 "avg_unit_payment": round(total_gross / total_ticket_count, 2) if total_ticket_count > 0 else 0.0,
                 "omaggi": sum(
                     1
@@ -311,11 +326,14 @@ class AnalyticsSnapshotService:
         gross_total = sum(self._safe_amount(getattr(purchase, "amount_total", 0)) for purchase in purchases)
         ticket_total = sum(self._safe_int(getattr(purchase, "participants_count", 0)) for purchase in purchases)
         avg_unit_payment = gross_total / ticket_total if ticket_total > 0 else 0.0
+        manual_received = manual_received_total(participants)
 
         global_snapshot = {
             "generated_at": datetime.now(timezone.utc),
             "kpis": {
                 "avg_unit_payment": round(avg_unit_payment, 2),
+                "manual_received": manual_received,
+                "total_received": round(gross_total + manual_received, 2),
                 "omaggi_total": omaggi_total,
                 "gender_distribution": gender_counts,
                 "age_band_dominant": self._dominant_bucket(age_counts),
@@ -357,6 +375,8 @@ class AnalyticsSnapshotService:
                 unique_participant_keys.add(unique_key)
 
         revenue_net_total = sum(self._safe_amount(getattr(purchase, "net_amount", 0)) for purchase in purchases)
+        manual_received = manual_received_total(participants)
+        gross_total = sum(self._safe_amount(getattr(purchase, "amount_total", 0)) for purchase in purchases)
         revenue_net_month = 0.0
         now_local = datetime.now(ROMA_TZ)
         for purchase in purchases:
@@ -377,6 +397,8 @@ class AnalyticsSnapshotService:
             "generated_at": datetime.now(timezone.utc),
             "kpis": {
                 "total_revenue_net": round(revenue_net_total, 2),
+                "manual_received": manual_received,
+                "total_received": round(gross_total + manual_received, 2),
                 "events": len(events),
                 "active_members": active_members,
                 "unique_participants": len(unique_participant_keys),
@@ -650,48 +672,10 @@ class AnalyticsSnapshotService:
         return rows[-120:]
 
     def _build_entrance_flow(self, event) -> List[Dict[str, Any]]:
-        event_date = self._parse_date_like(getattr(event, "date", None))
-        if not event_date:
-            event_date = datetime.now(ROMA_TZ).date()
-
-        window_start = datetime.combine(event_date, time(22, 0), tzinfo=ROMA_TZ)
-        window_end = window_start + timedelta(hours=8)
-
-        total_buckets = int((window_end - window_start).total_seconds() // (30 * 60))
-        counts = [0 for _ in range(total_buckets)]
-
-        event_id = getattr(event, "id", None)
-        scans = self.entrance_scan_repository.list(event_id) if event_id else []
-        for scan in scans:
-            scanned_at = self._to_datetime(getattr(scan, "scanned_at", None))
-            if not scanned_at:
-                continue
-            local_ts = scanned_at.astimezone(ROMA_TZ)
-            if not (window_start <= local_ts < window_end):
-                continue
-
-            index = int((local_ts - window_start).total_seconds() // (30 * 60))
-            if 0 <= index < total_buckets:
-                counts[index] += 1
-
-        output = []
-        cumulative = 0
-        for index in range(total_buckets):
-            bucket_start = window_start + timedelta(minutes=30 * index)
-            bucket_end = bucket_start + timedelta(minutes=30)
-            count = counts[index]
-            cumulative += count
-            output.append(
-                {
-                    "bucket_start": bucket_start.isoformat(),
-                    "bucket_end": bucket_end.isoformat(),
-                    "label": f"{bucket_start.strftime('%H:%M')} - {bucket_end.strftime('%H:%M')}",
-                    "count": count,
-                    "cumulative": cumulative,
-                }
-            )
-
-        return output
+        event_id = getattr(event, 'id', None)
+        attendance = summarize_attendance(self.participant_repository.list(event_id),
+                                           self.entrance_scan_repository.list(event_id))
+        return build_entrance_flow(event, attendance)['buckets']
 
     def _build_omaggi_trend(self, participants: List[Any]) -> List[Dict[str, Any]]:
         months = defaultdict(int)
@@ -905,31 +889,9 @@ class AnalyticsSnapshotService:
             return "unknown"
         return max(payload.items(), key=lambda item: item[1])[0]
 
-    def _count_entered(self, entrance_flow: List[Dict[str, Any]]) -> int:
-        return sum(self._safe_int(bucket.get("count")) for bucket in entrance_flow)
-
-    _VALID_EVENT_TYPE_VALUES = {PurchaseTypes.EVENT.value, "event_and_membership"}
 
     def _is_valid_event_purchase(self, purchase: Any) -> bool:
-        purchase_type = getattr(purchase, "purchase_type", None)
-        purchase_type_value = str(getattr(purchase_type, "value", purchase_type or "")).lower()
-        if purchase_type_value not in self._VALID_EVENT_TYPE_VALUES:
-            return False
-
-        event_id = getattr(purchase, "ref_id", None)
-        if not event_id:
-            return False
-
-        participants_count = self._safe_int(getattr(purchase, "participants_count", 0))
-        if participants_count <= 0:
-            return False
-
-        status = str(getattr(purchase, "status", "") or "").upper()
-        capture_status = str(getattr(purchase, "capture_status", "") or "").upper()
-        if status in PurchaseStatus.invalid_statuses() or capture_status in PurchaseStatus.invalid_statuses():
-            return False
-
-        return True
+        return is_completed_event_purchase(purchase)
 
     def _normalize_payment_method(self, value: Any) -> str:
         raw = getattr(value, "value", value)
@@ -963,13 +925,8 @@ class AnalyticsSnapshotService:
             return None
 
         today = datetime.now(ROMA_TZ).date()
-        age = today.year - birth_date.year
-        if (today.month, today.day) < (birth_date.month, birth_date.day):
-            age -= 1
-
-        if age < 0 or age > 120:
-            return None
-        return age
+        age = calendar_age(birth_date, today)
+        return age if age is not None and age <= 120 else None
 
     def _parse_date_like(self, value: Any) -> Optional[date]:
         if value is None:

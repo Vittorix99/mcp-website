@@ -1,0 +1,94 @@
+name: Deploy protected environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      operation:
+        type: string
+        required: true
+      snapshot_run_id:
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  release:
+    if: >-
+      github.repository == 'Vittorix99/mcp-website' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+      DEPLOY_SERVICE_ACCOUNT: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+      RUNTIME_SERVICE_ACCOUNT: ${{ vars.RUNTIME_SERVICE_ACCOUNT }}
+      WEB_RUNTIME_SERVICE_ACCOUNT: ${{ vars.WEB_RUNTIME_SERVICE_ACCOUNT }}
+      FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+      FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+      PAYPAL_CLIENT_ID: ${{ vars.PAYPAL_CLIENT_ID }}
+      MAILERSEND_FROM_EMAIL: ${{ vars.MAILERSEND_FROM_EMAIL }}
+      MAILERSEND_FROM_NAME: ${{ vars.MAILERSEND_FROM_NAME }}
+      SOUNDCLOUD_CLIENT_ID: ${{ vars.SOUNDCLOUD_CLIENT_ID }}
+      PAYMENT_ROLLOUT_APPROVED: ${{ vars.PAYMENT_ROLLOUT_APPROVED }}
+      ROLLBACK_BASELINE_VERIFIED: ${{ vars.ROLLBACK_BASELINE_VERIFIED }}
+      RELEASE_ENVIRONMENT: ${{ inputs.environment }}
+      RELEASE_OPERATION: ${{ inputs.operation }}
+      SNAPSHOT_RUN_ID: ${{ inputs.snapshot_run_id }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '20'
+      - name: Native runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 libgl1 libglib2.0-0
+      - name: Install locked dependencies
+        run: scripts/bootstrap-dev.sh
+      - name: Check trusted source and protected environment before cloud authentication
+        run: .venv/bin/python scripts/deployment/release.py prepare --environment "$RELEASE_ENVIRONMENT"
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+        with:
+          version: '573.0.0'
+      - name: Capture verified previous release before mutations
+        if: inputs.operation == 'deploy'
+        run: .venv/bin/python scripts/deployment/release.py snapshot --environment "$RELEASE_ENVIRONMENT"
+      - name: Preserve rollback snapshot before deployment
+        if: inputs.operation == 'deploy'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rollback-${{ inputs.environment }}
+          path: .local/release/snapshot.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+      - name: Deploy or restore immutable revisions and verify release
+        run: |
+          case "$RELEASE_OPERATION" in
+            deploy) .venv/bin/python scripts/deployment/release.py deploy --environment "$RELEASE_ENVIRONMENT" ;;
+            rollback) .venv/bin/python scripts/deployment/release.py rollback --environment "$RELEASE_ENVIRONMENT" --snapshot-run-id "$SNAPSHOT_RUN_ID" ;;
+            *) exit 1 ;;
+          esac

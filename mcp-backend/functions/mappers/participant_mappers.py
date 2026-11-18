@@ -96,9 +96,12 @@ def mark_participant_location_sent(
     sent_at,
     job_id: str | None = None,
 ) -> EventParticipant:
-    return replace(
+    updated = replace(
         participant,
         location_sent=True,
         location_sent_at=sent_at,
         location_job_id=job_id,
     )
+    if hasattr(participant, '_version'):
+        updated._version = participant._version
+    return updated

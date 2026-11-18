@@ -1,0 +1,76 @@
+name: Release main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      rollback_environment:
+        type: choice
+        options: [staging, production]
+        default: staging
+      snapshot_run_id:
+        description: Trusted main release run containing the rollback snapshot
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+# Serialize the complete staging/production promotion, including approval.
+# Never cancel an in-flight deployment; rollback snapshots survive failed runs.
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'Vittorix99/mcp-website' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/pr.yml
+    permissions:
+      contents: read
+
+  staging:
+    needs: verify
+    if: vars.ENABLE_STAGING_DEPLOY == 'true' && (github.event_name == 'push' || inputs.operation == 'deploy')
+    uses: ./.github/workflows/deploy-environment.yml
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    with:
+      environment: staging
+      operation: deploy
+
+  production:
+    needs: staging
+    if: vars.ENABLE_PRODUCTION_DEPLOY == 'true' && needs.staging.result == 'success'
+    uses: ./.github/workflows/deploy-environment.yml
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    with:
+      environment: production
+      operation: deploy
+
+  rollback:
+    needs: verify
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' &&
+      ((inputs.rollback_environment == 'staging' && vars.ENABLE_STAGING_DEPLOY == 'true') ||
+      (inputs.rollback_environment == 'production' && vars.ENABLE_PRODUCTION_DEPLOY == 'true'))
+    uses: ./.github/workflows/deploy-environment.yml
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    with:
+      environment: ${{ inputs.rollback_environment }}
+      operation: rollback
+      snapshot_run_id: ${{ inputs.snapshot_run_id }}

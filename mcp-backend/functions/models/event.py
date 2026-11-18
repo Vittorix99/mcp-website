@@ -31,7 +31,6 @@ class Event(FirestoreModel):
         default=EventPurchaseAccessType.PUBLIC,
         metadata={"firestore_name": "type", "enum": EventPurchaseAccessType},
     )
-    allow_duplicates: bool = field(default=False, metadata={"firestore_name": "allowDuplicates"})
     over21_only: bool = field(default=False, metadata={"firestore_name": "over21Only"})
     only_females: bool = field(default=False, metadata={"firestore_name": "onlyFemales"})
     participants_count: int = field(default=0, metadata={"firestore_name": "participantsCount"})

@@ -127,14 +127,6 @@ export function EventModal({
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={form.allowDuplicates || false}
-            onChange={(e) => onCheckbox("allowDuplicates", e.target.checked)}
-          />
-          <span>Consenti duplicati</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
             checked={form.over21Only || false}
             onChange={(e) => onCheckbox("over21Only", e.target.checked)}
           />

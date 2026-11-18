@@ -191,7 +191,7 @@ def test_send_email_accepts_client_and_builder_positionally():
     assert result.success is True
 
 
-@pytest.mark.parametrize("target", ["get_runtime_settings", "dumps"])
+@pytest.mark.parametrize("target", ["get_runtime_policy", "dumps"])
 def test_other_writer_failures_never_change_result_or_exception(monkeypatch, target):
     def broken(*_a, **_k):
         raise OSError("unavailable")

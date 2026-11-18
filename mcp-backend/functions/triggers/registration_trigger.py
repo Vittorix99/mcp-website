@@ -5,7 +5,8 @@ from firebase_functions.firestore_fn import on_document_created, Event, Document
 from google.api_core.exceptions import Aborted, FailedPrecondition
 
 from config.firebase_config import region, db
-from config.runtime_settings import ProviderMode, get_runtime_settings
+from config.function_secrets import secrets_for_function, validate_function_providers
+from config.runtime_settings import ProviderMode, get_runtime_policy
 from models import EventParticipant, Membership as MembershipModel
 from services.communications.mail_service import EmailMessage, mail_service
 from services.core.error_logs_service import log_external_error
@@ -22,9 +23,11 @@ logger = logging.getLogger("registration_trigger")
 ticket_service = TicketService()
 
 
-@on_document_created(document="participants/{eventId}/participants_event/{participantId}", region=region)
+@on_document_created(document="participants/{eventId}/participants_event/{participantId}", region=region,
+                     secrets=secrets_for_function("on_participant_created"))
 def on_participant_created(event: Event[DocumentSnapshot | None]):
     # Trigger post-create: arricchisce il partecipante senza bloccare la scrittura principale.
+    validate_function_providers("on_participant_created")
     snapshot = event.data
     if snapshot is None:
         logger.warning("on_participant_created: empty snapshot, skipping")
@@ -52,7 +55,7 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         gender = "N/A"
         probability = 0.0
 
-        if name == "andrea" and get_runtime_settings().providers.gender != ProviderMode.DISABLED:
+        if name == "andrea" and get_runtime_policy().providers.gender != ProviderMode.DISABLED:
             gender = "male"
             probability = 1.0
         elif name:
@@ -105,8 +108,10 @@ def on_participant_created(event: Event[DocumentSnapshot | None]):
         )
 
 
-@on_document_created(document="memberships/{membershipId}", region=region)
+@on_document_created(document="memberships/{membershipId}", region=region,
+                     secrets=secrets_for_function("on_membership_created"))
 def on_membership_created(event: Event[DocumentSnapshot | None]):
+    validate_function_providers("on_membership_created")
     # Trigger post-create membership: crea wallet, invia tessera e sincronizza provider esterni.
     snapshot = event.data
     if snapshot is None:

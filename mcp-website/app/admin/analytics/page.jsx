@@ -42,8 +42,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 const YEAR_OPTIONS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2]
 const ENTRANCE_SPAN_OPTIONS = [3, 4, 6, 8, 10, 12]
 const ENTRANCE_BUCKET_OPTIONS = [5, 10, 15, 30, 60]
-const DEFAULT_ENTRANCE_SPAN_HOURS = 6
-const DEFAULT_ENTRANCE_BUCKET_MINUTES = 15
+const DEFAULT_ENTRANCE_BUCKET_MINUTES = 30
 
 function useLiveData(fetcher, deps) {
   const [data, setData] = useState(null)
@@ -99,7 +98,7 @@ export default function AdminAnalyticsPage() {
   const [eventsLoading, setEventsLoading] = useState(true)
   const [selectedEventId, setSelectedEventId] = useState("")
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR)
-  const [entranceSpanHours, setEntranceSpanHours] = useState(DEFAULT_ENTRANCE_SPAN_HOURS)
+  const [entranceSpanHours, setEntranceSpanHours] = useState(null)
   const [entranceBucketMinutes, setEntranceBucketMinutes] = useState(DEFAULT_ENTRANCE_BUCKET_MINUTES)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -128,16 +127,19 @@ export default function AdminAnalyticsPage() {
   const selectedEvent = events.find((e) => (e.id || e.event_id) === selectedEventId) || null
   const selectedEventStartTime = normalizeClock(
     selectedEvent?.start_time || selectedEvent?.startTime || ""
-  ) || "22:00"
+  )
+  const selectedEventEndTime = normalizeClock(selectedEvent?.end_time || selectedEvent?.endTime || "")
+  const entranceWindowLabel = selectedEventEndTime
+    ? `${selectedEventStartTime || "22:00"}–${selectedEventEndTime}`
+    : `${selectedEventStartTime || "22:00"} · fine non indicata, durata predefinita 8 ore`
 
   // Event-level live data
   const entranceFlow = useLiveData(
     (eventId) => getEntranceFlow(eventId, {
-      startTime: selectedEventStartTime,
-      spanHours: entranceSpanHours,
+      ...(entranceSpanHours == null ? {} : { spanHours: entranceSpanHours }),
       bucketMinutes: entranceBucketMinutes,
     }),
-    [selectedEventId, selectedEventStartTime, entranceSpanHours, entranceBucketMinutes, refreshKey]
+    [selectedEventId, entranceSpanHours, entranceBucketMinutes, refreshKey]
   )
   const salesOverTime = useLiveData(getSalesOverTime, [selectedEventId, refreshKey])
   const audienceRetention = useLiveData(getAudienceRetention, [selectedEventId, refreshKey])
@@ -194,6 +196,7 @@ export default function AdminAnalyticsPage() {
             <select
               value={selectedEventId}
               onChange={(e) => {
+                setEntranceSpanHours(null)
                 setSelectedEventId(e.target.value)
                 localStorage.setItem("analytics_selectedEventId", e.target.value)
               }}
@@ -240,7 +243,9 @@ export default function AdminAnalyticsPage() {
                 Entrance Flow
               </p>
               <p className="mt-1 text-xs text-[var(--color-off)]" style={{ fontFamily: BODY_FONT }}>
-                Base: {selectedEventStartTime} · default fino a +6h
+                {entranceSpanHours == null
+                  ? `Evento: ${entranceWindowLabel}`
+                  : `Base: ${selectedEventStartTime || "22:00"} · ${entranceSpanHours} ore`}
               </p>
             </div>
 
@@ -252,11 +257,12 @@ export default function AdminAnalyticsPage() {
                 Span Orario
               </p>
               <select
-                value={entranceSpanHours}
-                onChange={(e) => setEntranceSpanHours(Number(e.target.value))}
+                value={entranceSpanHours == null ? "event" : entranceSpanHours}
+                onChange={(e) => setEntranceSpanHours(e.target.value === "event" ? null : Number(e.target.value))}
                 className="mt-2 w-full rounded-none border-2 border-[var(--color-border)] bg-[var(--color-black)] p-2 text-sm text-[var(--color-white)] focus:border-[var(--color-orange)] focus:outline-none"
                 style={{ fontFamily: BODY_FONT }}
               >
+                <option value="event">Orari evento</option>
                 {ENTRANCE_SPAN_OPTIONS.map((h) => (
                   <option key={h} value={h}>
                     {h} ore

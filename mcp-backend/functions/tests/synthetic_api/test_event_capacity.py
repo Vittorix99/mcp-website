@@ -1,6 +1,8 @@
 """EVT-04: real emulator capacity, fake payment provider, no cloud mutations."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
+from types import SimpleNamespace
 from threading import Barrier, local
 
 import pytest
@@ -8,6 +10,14 @@ import pytest
 from api.public import event_payment_api
 from config.firebase_config import db
 from tests.synthetic_api.test_purchase_entrance_stats import create_order, order_payload
+
+
+def another_group(sample, suffix):
+    people = [replace(member, id=f'{member.id}-{suffix}', email=f'{suffix}-{member.email}',
+                      phone=f'+998{suffix}{index}123456') for index, member in enumerate(sample.people)]
+    for member in people:
+        db.document('memberships/' + member.id).set(member.to_firestore())
+    return SimpleNamespace(event=sample.event, people=people, now=sample.now)
 
 
 def reservation(order_id):
@@ -153,23 +163,25 @@ def test_admin_can_overbook_and_delete_releases_online_capacity(http, sample, ga
 
 
 def test_paid_seats_are_not_double_counted_with_their_reservation(http, sample, gateway):
-    db.document('events/' + sample.event.id).update({'maxParticipants': 4, 'allowDuplicates': True})
+    db.document('events/' + sample.event.id).update({'maxParticipants': 4})
     first = create_order(http, sample)
     assert http.post('/capture', json={'order_id': first}).status_code == 200
     assert reservation(first).get().to_dict()['state'] == 'consumed'
-    second = create_order(http, sample)
-    assert http.post('/orders', json=order_payload(sample)).status_code == 409
+    second_group, third_group = another_group(sample, 'second'), another_group(sample, 'third')
+    second = create_order(http, second_group)
+    assert http.post('/orders', json=order_payload(third_group)).status_code == 409
     assert http.post('/capture', json={'order_id': second}).status_code == 200
-    assert http.post('/orders', json=order_payload(sample)).status_code == 409
+    assert http.post('/orders', json=order_payload(third_group)).status_code == 409
     assert gateway.capture_calls == 2
 
 
 def test_partial_provisioning_keeps_only_unmaterialized_places_reserved(http, sample, gateway, monkeypatch):
     from tests.synthetic_api.test_order_recovery import pending_order
-    db.document('events/' + sample.event.id).update({'maxParticipants': 4, 'allowDuplicates': True})
+    db.document('events/' + sample.event.id).update({'maxParticipants': 4})
     first = pending_order(http, sample, gateway, monkeypatch, 'participant_created')
-    second = create_order(http, sample)
-    assert http.post('/orders', json=order_payload(sample)).status_code == 409
+    second_group, third_group = another_group(sample, 'second'), another_group(sample, 'third')
+    second = create_order(http, second_group)
+    assert http.post('/orders', json=order_payload(third_group)).status_code == 409
     recovered = http.post('/recover-order', json={'order_id': first})
     assert recovered.status_code == 200, recovered.get_json()
     assert reservation(first).get().to_dict()['state'] == 'consumed'
@@ -221,15 +233,16 @@ def test_ambiguous_reservation_never_frees_capacity(http, sample, gateway, field
 
 def test_reused_provider_order_id_cannot_overwrite_a_paid_order(http, sample, gateway):
     from services.payments.paypal_gateway import PayPalGatewayResponse
-    db.document('events/' + sample.event.id).update({'maxParticipants': 4, 'allowDuplicates': True})
+    db.document('events/' + sample.event.id).update({'maxParticipants': 4})
     first = create_order(http, sample)
     assert http.post('/capture', json={'order_id': first}).status_code == 200
     ref = db.document('orders/' + first)
     before = ref.get().to_dict()
     gateway.create_result = PayPalGatewayResponse(201, {'id': first, 'status': 'CREATED'})
-    response = http.post('/orders', json=order_payload(sample))
+    response = http.post('/orders', json=order_payload(another_group(sample, 'second')))
     assert response.status_code == 409, response.get_json()
     assert ref.get().to_dict() == before
+    assert gateway.create_calls == 2
     assert gateway.capture_calls == 1
 
 
@@ -302,7 +315,7 @@ def test_admin_insert_invalidates_stale_online_availability_read(http, sample, g
 
 def test_consumed_hold_cannot_recreate_participants_after_places_are_resold(http, sample, gateway, monkeypatch):
     from repositories.participant_repository import ParticipantRepository
-    db.document('events/' + sample.event.id).update({'maxParticipants': 2, 'allowDuplicates': True})
+    db.document('events/' + sample.event.id).update({'maxParticipants': 2})
     first = create_order(http, sample)
     orders = event_payment_api.event_payment_service.order_repository
     original = orders.update_status
@@ -315,8 +328,12 @@ def test_consumed_hold_cannot_recreate_participants_after_places_are_resold(http
         assert http.post('/capture', json={'order_id': first}).status_code == 500
     assert reservation(first).get().to_dict()['state'] == 'consumed'
     people = db.collection(f'participants/{sample.event.id}/participants_event')
+    # Simulate historical corruption bypassing the now-protected admin delete path.
+    from errors.service_errors import ConflictError
     for doc in people.stream():
-        ParticipantRepository().delete(sample.event.id, doc.id)
+        with pytest.raises(ConflictError):
+            ParticipantRepository().delete(sample.event.id, doc.id)
+        doc.reference.delete()
     second = create_order(http, sample)
     response = http.post('/recover-order', json={'order_id': first})
     assert response.status_code == 409, response.get_json()

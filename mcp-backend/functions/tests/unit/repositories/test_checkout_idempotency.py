@@ -11,7 +11,7 @@ from repositories.participant_repository import ParticipantRepository
 
 
 def snapshot(model, identifier='existing'):
-    return SimpleNamespace(id=identifier, exists=True, to_dict=lambda: model.to_firestore())
+    return SimpleNamespace(id=identifier, exists=True, update_time='snapshot-version', to_dict=lambda: model.to_firestore())
 
 
 @pytest.mark.parametrize('existing', [False, True])

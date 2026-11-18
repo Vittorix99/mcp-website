@@ -13,7 +13,7 @@ from paypalserversdk.paypal_serversdk_client import PaypalServersdkClient
 
 from utils.http_observability import timed_dependency
 from config.runtime_settings import (
-    ProviderMode, RuntimeConfigurationError, RuntimeSettings, get_runtime_settings,
+    ProviderMode, RuntimeConfigurationError, RuntimeSettings, get_provider_settings,
 )
 
 
@@ -102,7 +102,7 @@ class FakePayPalGateway:
 
 
 def build_paypal_gateway(settings: RuntimeSettings | None = None) -> PayPalGateway:
-    settings = settings or get_runtime_settings()
+    settings = settings or get_provider_settings("paypal")
     provider = settings.providers
     if provider.paypal == ProviderMode.FAKE:
         return FakePayPalGateway()

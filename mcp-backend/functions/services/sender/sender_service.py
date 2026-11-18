@@ -7,7 +7,7 @@ Never raises externally — logs errors and returns None/False on failure.
 import logging
 from typing import Any, Dict, List, Optional
 
-from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_runtime_settings
+from config.runtime_settings import ProviderMode, RuntimeConfigurationError, get_provider_settings
 from clients.sender_client import SenderRoutes, SenderApiResult
 from services.core.error_logs_service import log_external_error
 from utils.safe_logging import mask_email, redact_sensitive
@@ -36,7 +36,7 @@ def _format_sender_error(payload: Any, status_code: int) -> str:
 
 class SenderService:
     def __init__(self, api_key: Optional[str] = None, enabled: Optional[bool] = None, *, settings=None, routes=None):
-        settings = settings or get_runtime_settings()
+        settings = settings or get_provider_settings("sender")
         selected_key = settings.providers.sender_api_key
         self._api_key = api_key or (selected_key.get_secret_value() if selected_key else None)
         self._routes = routes if routes is not None else SenderRoutes

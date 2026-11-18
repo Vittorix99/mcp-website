@@ -25,7 +25,11 @@ def test_checkout_scanner_and_active_counts_use_the_same_rule(http, completed, g
         'type': 'ONLY_ALREADY_REGISTERED_MEMBERS', 'allowDuplicates': True,
     })
     case.people = [member]
-    order = http.post('/orders', json=order_payload(case))
+    # Check membership eligibility on another event; the scanner event is already booked.
+    db.document('events/membership-checkout-event').set(db.document('events/' + case.event.id).get().to_dict())
+    payload = order_payload(case)
+    payload['cart'][0]['eventId'] = 'membership-checkout-event'
+    order = http.post('/orders', json=payload)
     assert order.status_code == (201 if valid else 400), order.get_json()
     token = scan_token(http, case.event.id)
     scan = http.post('/scan', json={'scan_token': token, 'membership_id': member.id})
@@ -134,29 +138,18 @@ def test_concurrent_renewal_during_provider_does_not_overwrite_membership(http, 
 
 
 @pytest.mark.parametrize('state', ['new', 'expired'])
-def test_duplicate_people_provision_one_membership_and_both_tickets(http, sample, gateway, state):
+def test_duplicate_people_cannot_buy_or_renew_membership_twice(http, sample, gateway, state):
     member, payload = prepare_checkout(sample, state)
     db.document('events/' + sample.event.id).update({'allowDuplicates': True})
     payload['cart'][0]['participants'].append(dict(payload['cart'][0]['participants'][0]))
+    before = {doc.id: doc.to_dict() for doc in db.collection('memberships').stream()}
     response = http.post('/orders', json=payload)
-    assert response.status_code == 201, response.get_json()
-    order_id = response.get_json()['id']
-    captured = http.post('/capture', json={'order_id': order_id})
-    assert captured.status_code == 200, captured.get_json()
-    from google.cloud.firestore_v1 import FieldFilter
-    matches = list(db.collection('memberships').where(filter=FieldFilter('email', '==', member.email)).stream())
-    assert len(matches) == 1
-    data = matches[0].to_dict()
-    assert data['subscription_valid'] is True
-    assert data['membership_years'].count(sample.now.year) == 1
-    assert len([r for r in data['renewals'] if r['year'] == sample.now.year]) == 1
-    people = list(db.collection(f'participants/{sample.event.id}/participants_event').stream())
-    assert len(people) == 2
-    assert all(person.to_dict()['membershipId'] == matches[0].id for person in people)
-    assert db.document('orders/' + order_id).get().to_dict()['total'] == 44
-    retry = http.post('/capture', json={'order_id': order_id})
-    assert retry.status_code == 200 and retry.get_json() == captured.get_json()
-    assert gateway.capture_calls == 1
+    assert response.status_code == 400, response.get_json()
+    assert gateway.create_calls == gateway.capture_calls == 0
+    assert {doc.id: doc.to_dict() for doc in db.collection('memberships').stream()} == before
+    assert not list(db.collection('orders').stream())
+    assert not list(db.collection('purchases').stream())
+    assert not list(db.collection(f'participants/{sample.event.id}/participants_event').stream())
 
 
 @pytest.mark.parametrize('mode', ['ONLY_MEMBERS', 'ONLY_ALREADY_REGISTERED_MEMBERS'])

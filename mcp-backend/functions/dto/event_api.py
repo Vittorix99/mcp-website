@@ -105,7 +105,6 @@ class CreateEventRequestDTO(EventApiBaseDTO):
         validation_alias=AliasChoices("purchaseMode", "purchase_mode", "type"),
         serialization_alias="purchaseMode",
     )
-    allow_duplicates: bool = Field(default=False, alias="allowDuplicates")
     over21_only: bool = Field(default=False, alias="over21Only")
     only_females: bool = Field(default=False, alias="onlyFemales")
     external_link: Optional[str] = Field(default=None, alias="externalLink")
@@ -147,7 +146,6 @@ class UpdateEventRequestDTO(EventApiBaseDTO):
         validation_alias=AliasChoices("purchaseMode", "purchase_mode", "type"),
         serialization_alias="purchaseMode",
     )
-    allow_duplicates: Optional[bool] = Field(default=None, alias="allowDuplicates")
     over21_only: Optional[bool] = Field(default=None, alias="over21Only")
     only_females: Optional[bool] = Field(default=None, alias="onlyFemales")
     external_link: Optional[str] = Field(default=None, alias="externalLink")
@@ -223,7 +221,6 @@ class AdminEventResponseDTO(EventApiBaseDTO):
         default=EventPurchaseAccessType.PUBLIC,
         serialization_alias="purchaseMode",
     )
-    allow_duplicates: bool = Field(default=False, serialization_alias="allowDuplicates")
     over21_only: bool = Field(default=False, serialization_alias="over21Only")
     only_females: bool = Field(default=False, serialization_alias="onlyFemales")
     participants_count: int = Field(default=0, serialization_alias="participantsCount")
@@ -271,7 +268,6 @@ class PublicEventResponseDTO(EventApiBaseDTO):
         default=EventPurchaseAccessType.PUBLIC,
         serialization_alias="purchaseMode",
     )
-    allow_duplicates: bool = Field(default=False, serialization_alias="allowDuplicates")
     over21_only: bool = Field(default=False, serialization_alias="over21Only")
     only_females: bool = Field(default=False, serialization_alias="onlyFemales")
     external_link: Optional[str] = Field(default=None, serialization_alias="externalLink")

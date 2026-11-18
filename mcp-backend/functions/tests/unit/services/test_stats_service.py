@@ -36,6 +36,9 @@ class _DummyParticipantRepo:
     def list(self, event_id):
         return self._participants
 
+    def stream_all(self):
+        return iter(self._participants)
+
     def get_last_across_events(self):
         return self._last
 
@@ -82,9 +85,9 @@ def test_get_general_stats_happy_path():
         last=Membership(name="Last"),
     )
 
-    purchase1 = Purchase(amount_total="30.0", net_amount="20.0")
+    purchase1 = Purchase(amount_total="30.0", net_amount="20.0", status="COMPLETED", capture_status="COMPLETED")
     purchase1.id = "pur-1"
-    purchase2 = Purchase(amount_total="abc", net_amount=None)
+    purchase2 = Purchase(amount_total="abc", net_amount=None, status="COMPLETED", capture_status="COMPLETED")
     purchase2.id = "pur-2"
     service.purchase_repository = _DummyPurchaseRepo(
         models=[purchase1, purchase2],

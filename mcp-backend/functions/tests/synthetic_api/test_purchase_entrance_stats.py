@@ -7,6 +7,7 @@ from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
+from google.cloud.firestore import DELETE_FIELD
 from paypalserversdk.exceptions.api_exception import ApiException
 
 from config.firebase_config import db
@@ -67,7 +68,9 @@ def test_group_checkout_capture_retry_and_snapshot_have_exact_totals(http, sampl
     assert len(list(db.collection('purchases').stream())) == 1
     assert len(list(db.collection(f'participants/{sample.event.id}/participants_event').stream())) == 2
     assert_revenue(http, sample.event.id, 44, 42.5, 1.5, 2)
-    general = http.get('/general').get_json()
+    response = http.get('/general')
+    assert response.status_code == 200, response.get_json()
+    general = response.get_json()
     assert general['total_purchases'] == 1
     assert general['total_gross_amount'] == '44.00'
     # No deployed triggers in this session: explicitly rebuild, then read via the handler.
@@ -95,14 +98,48 @@ def test_status_changes_exclude_revenue_and_restore_without_deleting_participant
 
 
 @pytest.mark.parametrize('state', INVALID_PURCHASE_STATES)
-def test_capture_only_bad_state_characterizes_legacy_statistics_difference(http, completed, state):
-    """PAY-03, STA-03, Q-04: characterization PASS does NOT resolve the discrepancy."""
+def test_capture_only_bad_state_is_excluded_from_general_and_event_statistics(http, completed, state):
+    """PAY-03, STA-03, Q-04: a rejected capture contributes no online revenue."""
     db.document('purchases/' + completed.purchase.id).update({'capture_status': state})
     assert_revenue(http, completed.event.id, 0, 0, 0, 0)
-    legacy = http.get('/general').get_json()
-    assert legacy['total_purchases'] == 1
-    assert legacy['total_gross_amount'] == '44.00'
+    general = http.get('/general').get_json()
+    assert general['total_purchases'] == 0
+    assert general['total_gross_amount'] == '0.00'
     assert len(list(db.collection(f'participants/{completed.event.id}/participants_event').stream())) == 2
+
+
+@pytest.mark.parametrize('field', ['status', 'capture_status'])
+@pytest.mark.parametrize('state', ['PENDING','CREATED','APPROVED','UNKNOWN','',None,'missing'])
+def test_unconfirmed_purchase_is_excluded_and_rebuilds_preserve_source_documents(http, completed, field, state):
+    purchase = db.document('purchases/' + completed.purchase.id)
+    purchase.update({field:DELETE_FIELD if state == 'missing' else state})
+    before_purchase = purchase.get().to_dict()
+    participants = db.collection(f'participants/{completed.event.id}/participants_event')
+    before_participants = {row.id:row.to_dict() for row in participants.stream()}
+    assert_revenue(http, completed.event.id, 0, 0, 0, 0)
+    response = http.get('/general')
+    assert response.status_code == 200, response.get_json()
+    general = response.get_json()
+    assert (general['total_purchases'],general['total_gross_amount'],general['total_net_amount']) == (0,'0.00','0.00')
+    snapshots = AnalyticsSnapshotService()
+    for _ in range(2):
+        snapshots.rebuild_event_snapshot(completed.event.id)
+        event = get(http, '/snapshot', completed.event.id)
+        assert (event['kpis']['revenue_gross'],event['kpis']['revenue_net'],event['kpis']['participants']) == (0,0,2)
+        assert snapshots.rebuild_global_snapshot()['kpis']['avg_unit_payment'] == 0
+        dashboard = snapshots.rebuild_dashboard_snapshot()
+        assert dashboard['kpis']['total_revenue_net'] == 0
+        assert dashboard['kpis']['unique_participants'] == 2
+    assert purchase.get().to_dict() == before_purchase
+    assert {row.id:row.to_dict() for row in participants.stream()} == before_participants
+    assert not list(db.collection(f'entrance_scans/{completed.event.id}/scans').stream())
+    purchase.update({'status':'COMPLETED','capture_status':'COMPLETED'})
+    assert_revenue(http, completed.event.id, 44, 42.5, 1.5, 2)
+    restored = http.get('/general').get_json()
+    assert (restored['total_purchases'],restored['total_gross_amount']) == (1,'44.00')
+    assert snapshots.rebuild_event_snapshot(completed.event.id)['kpis']['revenue_gross'] == 44
+    assert snapshots.rebuild_global_snapshot()['kpis']['avg_unit_payment'] == 22
+    assert snapshots.rebuild_dashboard_snapshot()['kpis']['total_revenue_net'] == 42.5
 
 
 @pytest.mark.parametrize('field', ['status', 'capture_status'])

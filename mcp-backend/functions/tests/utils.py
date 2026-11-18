@@ -46,13 +46,13 @@ def unwrap_response(result):
 
 class DummyCapacityRepository:
     """No I/O: unit service tests exercise payments separately from real seat holds."""
-    def reserve(self, event_id, count):
+    def reserve(self, event_id, count, identity_keys, *, membership_lookup=None):
         return 'test-capacity'
 
     def bind(self, *args):
         pass
 
-    def begin_capture(self, event_id, token, order_id):
+    def begin_capture(self, event_id, token, order_id, identity_keys):
         pass
 
     def release(self, *args):

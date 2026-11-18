@@ -68,9 +68,8 @@ def _is_valid_member(member: Membership, today: Optional[datetime] = None) -> bo
     return is_membership_active(member, today.year)
 
 
-def _resolve_event_flags(event: object) -> Tuple[bool, bool, bool]:
+def _resolve_event_flags(event: object) -> Tuple[bool, bool]:
     return (
-        bool(getattr(event, "allow_duplicates", False)),
         bool(getattr(event, "over21_only", False)),
         bool(getattr(event, "only_females", False)),
     )
@@ -90,7 +89,7 @@ def run_basic_checks(
     participant_repository = participant_repository or ParticipantRepository()
     membership_repository = membership_repository or MembershipRepository()
 
-    allow_duplicates, over21_only, only_females = _resolve_event_flags(event_data)
+    over21_only, only_females = _resolve_event_flags(event_data)
 
     seen_emails: Set[str] = set()
     seen_phones: Set[str] = set()
@@ -119,7 +118,7 @@ def run_basic_checks(
             except Exception:
                 under21.append(f"{name} {surname} <{email or phone}>")
 
-        if not allow_duplicates and (email in seen_emails or phone in seen_phones):
+        if email in seen_emails or phone in seen_phones:
             msg = "Uno o più partecipanti hanno già acquistato la partecipazione all'evento o presentano dati duplicati nel modulo."
             if msg not in result.errors:
                 result.errors.append(msg)
@@ -140,7 +139,7 @@ def run_basic_checks(
     if only_females and non_females:
         result.errors.append("Non è possibile acquistare la partecipazione all'evento al momento")
 
-    if not allow_duplicates and (seen_emails or seen_phones):
+    if seen_emails or seen_phones:
         already_registered = participant_repository.any_with_contacts(
             event_id,
             list(seen_emails),

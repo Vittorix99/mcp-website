@@ -8,22 +8,32 @@ from firebase_functions import https_fn
 from flask import jsonify
 
 from config.firebase_config import cors, region
+from config.function_secrets import secrets_for_function, validate_function_providers
+from config.runtime_settings import RuntimeConfigurationError
 from services.core.auth_service import require_admin
 from utils.http_observability import observe_http_request
 from .active_event import require_active_event
+
+
+def _call_configured_handler(handler, req, *args, **kwargs):
+    try:
+        validate_function_providers(handler.__name__)
+    except RuntimeConfigurationError:
+        return jsonify({"error": "Service configuration unavailable"}), 503
+    return handler(req, *args, **kwargs)
 
 
 def public_endpoint(*, methods: Iterable[str]):
     allowed_methods = tuple(method.upper() for method in methods)
 
     def decorator(handler: Callable):
-        @https_fn.on_request(cors=cors, region=region)
+        @https_fn.on_request(cors=cors, region=region, secrets=secrets_for_function(handler.__name__))
         @observe_http_request
         @wraps(handler)
         def wrapped(req, *args, **kwargs):
             if req.method.upper() not in allowed_methods:
                 return jsonify({"error": "Invalid method"}), 405
-            return handler(req, *args, **kwargs)
+            return _call_configured_handler(handler, req, *args, **kwargs)
 
         return wrapped
 
@@ -34,14 +44,14 @@ def admin_endpoint(*, methods: Iterable[str]):
     allowed_methods = tuple(method.upper() for method in methods)
 
     def decorator(handler: Callable):
-        @https_fn.on_request(cors=cors, region=region)
+        @https_fn.on_request(cors=cors, region=region, secrets=secrets_for_function(handler.__name__))
         @observe_http_request
         @require_admin
         @wraps(handler)
         def wrapped(req, *args, **kwargs):
             if req.method.upper() not in allowed_methods:
                 return jsonify({"error": "Invalid method"}), 405
-            return handler(req, *args, **kwargs)
+            return _call_configured_handler(handler, req, *args, **kwargs)
 
         return wrapped
 
@@ -58,7 +68,7 @@ def member_endpoint(*, methods: Iterable[str]):
     allowed_methods = tuple(method.upper() for method in methods)
 
     def decorator(handler: Callable):
-        @https_fn.on_request(cors=cors, region=region)
+        @https_fn.on_request(cors=cors, region=region, secrets=secrets_for_function(handler.__name__))
         @observe_http_request
         @wraps(handler)
         def wrapped(req, *args, **kwargs):
@@ -76,7 +86,7 @@ def member_endpoint(*, methods: Iterable[str]):
                 return jsonify({"error": "Invalid or expired token"}), 401
 
             req.member_token = decoded_token
-            return handler(req, *args, **kwargs)
+            return _call_configured_handler(handler, req, *args, **kwargs)
 
         return wrapped
 
