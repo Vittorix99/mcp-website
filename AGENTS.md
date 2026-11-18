@@ -1,6 +1,6 @@
 # Project model routing
 
-## Models and responsibilities
+## Models and responsibilities — Codex
 
 - Use `gpt-6.1-sol` as the primary coordinator for reasoning, architecture,
   planning, root-cause analysis, ambiguous implementation, and code review.
@@ -10,11 +10,27 @@
 - Writing code alone does not make a task simple. Payment state changes,
   authentication, authorization, secrets, concurrency, migrations, and
   unclear contracts belong to Sol even when the diff is small.
-- Do not select other models without an explicit user request.
+- This routing applies when working in Codex. Do not select other models
+  without an explicit user request.
+
+## Models and responsibilities — Claude Code
+
+Owner clarification, 2026-11-15:
+
+- Use Sonnet 5.5 as the default coordinator and implementation model.
+- Delegate bounded, repetitive code writing to Haiku.
+- Use Opus 5.5 for intense reasoning and complex analysis.
+- Independent reviews may use Sonnet with high reasoning effort.
+- Keep payment, authentication, authorization, secrets, concurrency and migration
+  safeguards regardless of the host or selected model. Escalate ambiguity from
+  repetitive implementation to the coordinator.
+- These are host-specific preferences, not an instruction to invoke Claude
+  models from Codex or Codex models from Claude Code. Availability and the
+  active conversation model are controlled by the respective host.
 
 ## Delegation contract
 
-- Before every delegation, announce `[Luna]` or `[Sol]`, the bounded task,
+- Before every delegation, announce the model (for example `[Luna]` or `[Sol]`), the bounded task,
   selected reasoning effort, and why that model fits. When it returns, announce
   the result and whether Sol accepted, corrected, or escalated the work.
 - Keep `docs/process/MODEL_USAGE_LOG.md` updated with actual dispatches,
@@ -32,9 +48,14 @@
   return it to Sol. Do not repeatedly retry an unsuitable task on Luna.
 - Batch related small edits when delegation overhead would exceed the work.
   Keep dependent steps sequential and avoid concurrent edits to the same files.
-- Use `gpt-6.1-sol` with `reasoning_effort: "high"` for independent review.
-  This explicit project choice takes precedence over skill defaults that
-  recommend a different or more expensive reviewer model.
+- In Codex, use `gpt-6.1-sol` with `reasoning_effort: "high"` for independent
+  review. In Claude Code, Sonnet high is authorized. The Q-05 Sonnet review
+  was an owner-authorized substitution after the Codex usage limit; its
+  historical evidence remains valid.
+- The Luna/Sol dispatch details above apply to Codex. In Claude Code, apply
+  the host-specific routing above and the same ownership, verification,
+  review and dispatch-log requirements. These project choices take precedence
+  over conflicting skill defaults.
 
 ## Owner-operated external checks
 
@@ -54,7 +75,7 @@
   result needed. Never ask the owner to paste tokens, private keys, or secrets.
 - Continue independent code work while awaiting results when approval gates
   allow it. Record owner-reported results as such, not independently verified.
-- Retain Sol for security analysis and Luna for bounded implementation. This
+- In Codex, retain Sol for security analysis and Luna for bounded implementation. This
   preference does not authorize credential revocation or other cloud mutations.
 
 ## Scope
@@ -72,7 +93,8 @@ workflow defaults; explicit user permissions and production gates still apply.
 - Small, bounded, reversible tasks: implement directly, run focused checks,
   and commit. No separate design, plan, report, or repeated approval.
 - Large workstreams: one concise plan, one approval, one final review.
-- Delegate to Luna for substantial bounded batches; handle tiny edits inline.
+- Delegate substantial repetitive batches to Luna in Codex or Haiku in Claude Code;
+  handle tiny edits inline.
 - Run relevant tests locally and the full suite in CI. Risky or cross-cutting
   changes require broader local verification before delivery.
 - Read only necessary file ranges and log summaries. Reuse still-valid evidence;
@@ -86,8 +108,9 @@ workflow defaults; explicit user permissions and production gates still apply.
 
 Owner-approved on 2026-11-09. These rules refine the lean workflow above.
 
-- Group related scenarios into one coherent approved block. Use one final Sol
-  high review for that block, rather than separate reviews for small case batches.
+- Group related scenarios into one coherent approved block. Use one final independent
+  high-effort review with the host-specific model above, rather than separate
+  reviews for small case batches.
   Tiny documentation or mechanical edits do not need a delegated review.
 - Default CI monitoring belongs to the owner: provide the run/PR link and ask
   only for the final result or failed step. Do not poll CI repeatedly unless

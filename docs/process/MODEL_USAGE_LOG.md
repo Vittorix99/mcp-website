@@ -196,6 +196,14 @@ predefinito dell'host, non `gpt-6.1-sol`): nessun Critical, 2 Important e
 `Aborted`. Conteggio: 0 incarichi Luna, 1 review delegata. Token e costi non
 disponibili.
 
+## Handoff refresh — 2026-11-11
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / GPT-6 Luna | Aggiornamento conciso di `docs/process/NEXT_SESSION.md` e append di questo log, con facts forniti dal coordinatore | low | Modifiche documentali limitate; `git diff --check` passato; Sol ha letto e accettato i documenti. |
+
+Conteggio dispatch effettivi nel blocco: 1 incarico Luna; accettato da Sol. Token e costi non disponibili.
+
 
 ## DIS-06 — prenotazione sconto prima della capture — 2026-11-11
 
@@ -488,6 +496,7 @@ proteggono contatti canonici prima del provider e schede socio immutate
 prima dell'incasso. Nessuna seconda review. Provider reali e CI non verificati.
 
 Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.
+
 ## Q-05 ingressi e finestre — 15 novembre 2026
 
 | Modello | Incarico | Effort | Stato ed evidenza |
@@ -498,7 +507,12 @@ Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error
 
 Verifica finale: 1412 test unit e 519 API con emulatore passati, 50 test config
 frontend, ESLint senza errori. Nessuna seconda review. 1 incarico Luna, 1 review
-Sonnet; token e costi non disponibili. CI remota non verificata.
+Sonnet; inoltre 1 dispatch review Codex Sol high fallito senza risultato.
+Token e costi non disponibili. Alla chiusura locale la CI remota non era
+verificata. Riscontro del18novembre2026: [run43745926507](https://github.com/Vittorix99/mcp-website/actions/runs/43745926507)
+concluso success sullo SHA remoto Q-05 `9374efb`; non copre i commit locali
+successivi. Nessuna suite applicativa rieseguita per la riconciliazione.
+
 
 ## Prerequisito cloud — dipendenze compatibili, 15 novembre 2026
 
@@ -511,6 +525,7 @@ vincoli transitivi e contratti deployment richiedono valutazione Sol.
 
 Conteggio dispatch effettivi:0task Luna,1review Sol high conclusa e accettata.
 Token/costi non disponibili. Nessuna modifica cloud/provider/credenziali.
+
 
 ## Prerequisito cloud — Firebase Admin13 e tar7, 15 novembre 2026
 
@@ -527,6 +542,7 @@ ownership di package.json/lockfile, migrazione e analisi di sicurezza.
 Dispatch effettivi:2task Luna accettati,1review Sol high conclusa e accettata.
 Token/costi non disponibili; nessuna attività cloud/provider/credenziali.
 
+
 ## Piano bootstrap/IAM staging — 16 novembre 2026
 
 Coordinamento Sol inline: inventario owner,verifica codice CLI/pipeline e fonti
@@ -539,6 +555,7 @@ aggiornato nel documento operativo esistente,non creato un report duplicato.
 
 Dispatch effettivi:0incarichi Luna,1review Sol high. Nessun secondo dispatch;
 token/costi non disponibili.
+
 
 ## Blocco A bootstrap staging — 16 novembre 2026
 
@@ -553,6 +570,7 @@ PASS;build e fullsmokeisolato API/8trigger PASS;lint0errori/53warningpreesistent
 Nessuna autenticazione cloud reale,provisioning,deploy,push o merge main.
 Token/costi indisponibili; conteggi task non rappresentano risparmi misurati.
 
+
 ## Compatibilità service agent Functions —16 novembre 2026
 
 | Modello | Incarico | Effort | Stato ed evidenza |
@@ -561,6 +579,7 @@ Token/costi indisponibili; conteggi task non rappresentano risparmi misurati.
 
 Dispatch effettivi:0Luna,1reviewSolhigh;patch minima eseguita inline.
 Nessuna stima token/costi. Editor default lasciati invariati come richiesto.
+
 
 ## Primo lotto IAM staging —16 novembre 2026
 
@@ -571,12 +590,14 @@ Nessuna stima token/costi. Editor default lasciati invariati come richiesto.
 Dispatch effettivi:0Luna,1reviewSolhigh. Operazioni cloud eseguite dal
 coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 
+
 ## 2026-11-16 — Staging provider profile and scoped secret provisioning
 
 - Dispatch: staging_provider_profile_review; model gpt-6.1-sol; reasoning high; fresh context; read-only review of release/runtime/workflow/tests plus private provisioning plan/script.
 - Result: one P2, unexpected initial direct secret grants could survive delta-only verification. Sol accepted finding, reproduced RED with fake cloud, fixed to require empty initial and exact final direct grants; GREEN5private provisioning tests. No second review needed for the covered fix.
 - Verification:1415backend unit tests;112tooling tests plus5private provisioning tests;70frontend/config tests PASS with Node20. Initial bootstrap selector check failed under host Node; corrected to required Node20 and complete tooling suite passed. Reviewer independently passed101focused checks.
 - Dispatch count:1Sol review task,0Luna tasks. No host token/cost telemetry available. Cloud result:4empty secret containers,8exact resource grants,0versions; second independent readback PASS and project IAM unchanged since registry. Details CREDENTIAL_TRANSITION3h.
+
 
 ## 2026-11-17 — Staging WIF activation and Firebase public variables
 
