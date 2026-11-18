@@ -41,26 +41,18 @@ class MemberService:
         self.participant_repository = participant_repository or ParticipantRepository()
         self.sender_service = sender_service or SenderService()
 
-    def _get_membership_by_email(self, email: str, uid: str = ""):
-        """Fetch membership by email; self-heal uid if missing."""
-        if not email:
-            raise ValidationError("Token has no email claim")
-        membership = self.membership_repository.find_by_email(email)
-        if not membership:
-            raise NotFoundError("Membership not found for this account")
-        if uid and not membership.uid:
-            try:
-                self.membership_repository.set_uid(membership.id, uid)
-                membership.uid = uid
-            except Exception as exc:
-                self.logger.warning(
-                    "_get_membership_by_email: uid self-heal failed: %s",
-                    redact_sensitive(str(exc)),
-                )
-        return membership
+    def _get_membership_by_email(self, email: str, uid: str = "", *,
+                                 email_verified: bool = False, newsletter_consent=None):
+        if (not isinstance(email, str) or not email.strip()
+                or not isinstance(uid, str) or not uid):
+            raise ValidationError("Account identity is missing")
+        return self.membership_repository.get_for_account(
+            email.strip().lower(), uid, allow_link=email_verified is True,
+            newsletter_consent=newsletter_consent,
+        )
 
-    def get_me(self, email: str, uid: str = "") -> MemberMeResponseDTO:
-        membership = self._get_membership_by_email(email, uid)
+    def get_me(self, email: str, uid: str = "", *, email_verified: bool = False) -> MemberMeResponseDTO:
+        membership = self._get_membership_by_email(email, uid, email_verified=email_verified)
         renewals_raw = membership.renewals or []
         renewals_out = [
             {
@@ -87,8 +79,8 @@ class MemberService:
             newsletter_consent=bool(membership.newsletter_consent),
         )
 
-    def get_attended_events(self, email: str, uid: str = "") -> List[MemberEventItemDTO]:
-        membership = self._get_membership_by_email(email, uid)
+    def get_attended_events(self, email: str, uid: str = "", *, email_verified: bool = False) -> List[MemberEventItemDTO]:
+        membership = self._get_membership_by_email(email, uid, email_verified=email_verified)
         event_ids = membership.attended_events or []
         if not event_ids:
             return []
@@ -117,8 +109,8 @@ class MemberService:
         events.sort(key=lambda e: e.date or "", reverse=True)
         return events
 
-    def get_purchases(self, email: str, uid: str = "") -> List[MemberPurchaseItemDTO]:
-        membership = self._get_membership_by_email(email, uid)
+    def get_purchases(self, email: str, uid: str = "", *, email_verified: bool = False) -> List[MemberPurchaseItemDTO]:
+        membership = self._get_membership_by_email(email, uid, email_verified=email_verified)
         purchase_ids = membership.purchases or []
         if not purchase_ids:
             return []
@@ -159,8 +151,8 @@ class MemberService:
         results.sort(key=lambda p: p.timestamp or "", reverse=True)
         return results
 
-    def get_ticket(self, email: str, uid: str, event_id: str) -> MemberTicketResponseDTO:
-        membership = self._get_membership_by_email(email, uid)
+    def get_ticket(self, email: str, uid: str, event_id: str, *, email_verified: bool = False) -> MemberTicketResponseDTO:
+        membership = self._get_membership_by_email(email, uid, email_verified=email_verified)
         participant = self.participant_repository.get_by_membership_id(event_id, membership.id)
         if not participant:
             return MemberTicketResponseDTO(is_participant=False)
@@ -175,10 +167,10 @@ class MemberService:
         email: str,
         uid: str,
         newsletter_consent: bool,
+        *, email_verified: bool = False,
     ) -> dict:
-        membership = self._get_membership_by_email(email, uid)
-        membership.newsletter_consent = newsletter_consent
-        self.membership_repository.update_from_model(membership.id, membership)
+        membership = self._get_membership_by_email(email, uid, email_verified=email_verified,
+                                                   newsletter_consent=newsletter_consent)
 
         if email and SENDER_GROUP_MEMBERS and self.sender_service.enabled:
             try:

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from domain.event_rules import parse_event_date
+from domain.membership_rules import is_membership_active
 from dto.analytics_api import (
     AgeBandDTO,
     AgeDistributionResponseDTO,
@@ -443,8 +444,9 @@ class AnalyticsService:
 
     def get_membership_trend(self, year: int) -> MembershipTrendResponseDTO:
         all_memberships = list(self.membership_repository.stream())
+        current_year = datetime.now(timezone.utc).year
         total_active = sum(
-            1 for m in all_memberships if bool(getattr(m, "subscription_valid", False))
+            1 for m in all_memberships if is_membership_active(m, current_year)
         )
 
         by_month: Dict[str, int] = defaultdict(int)
@@ -487,9 +489,10 @@ class AnalyticsService:
             p for p in self.purchase_repository.stream_models()
             if self._is_valid_event_purchase(p)
         ]
+        current_year = datetime.now(timezone.utc).year
         members_count = sum(
             1 for m in self.membership_repository.stream()
-            if bool(getattr(m, "subscription_valid", False))
+            if is_membership_active(m, current_year)
         )
 
         revenue_net_total = sum(

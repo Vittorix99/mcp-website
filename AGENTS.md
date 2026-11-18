@@ -38,6 +38,16 @@
 
 ## Owner-operated external checks
 
+- Owner update 2026-11-11: the agent runs local verification commands, including
+  emulator tests, directly from now on. This supersedes the initial walkthrough
+  rule below for local commands; cloud and real-provider gates remain in effect.
+
+- During initial learning walkthroughs, let the owner run development, test,
+  and build commands manually, one activity at a time. Explain the purpose and
+  expected result, then wait for their reported outcome before the next step.
+- Before starting any workstream after WS1, stop and notify the owner so they
+  can discuss their considerations. Do not automatically begin the next WS.
+
 - To reduce model usage, hand straightforward dashboard checks and account
   administration to the owner instead of navigating external UIs by default.
 - Give concise instructions, the exact resource to inspect, and the non-secret
@@ -71,3 +81,23 @@ workflow defaults; explicit user permissions and production gates still apply.
 - Keep replies and progress updates concise; avoid repeated recaps.
 - Security, authentication, payments, credentials, and migrations retain
   rigorous validation, error handling, review, and applicable approval gates.
+
+## Usage-conscious execution
+
+Owner-approved on 2026-11-09. These rules refine the lean workflow above.
+
+- Group related scenarios into one coherent approved block. Use one final Sol
+  high review for that block, rather than separate reviews for small case batches.
+  Tiny documentation or mechanical edits do not need a delegated review.
+- Default CI monitoring belongs to the owner: provide the run/PR link and ask
+  only for the final result or failed step. Do not poll CI repeatedly unless
+  the owner explicitly asks for live monitoring. Never report pending CI as passed.
+- At a completed checkpoint, prefer a fresh chat with a handoff of at most
+  300 words: worktree/branch, commits/PR dependencies, evidence and next scope.
+  Do not copy the conversation or reread the complete repository/history.
+- Read relevant file ranges and concise tool results. Reuse valid evidence and
+  previously read skill instructions; avoid repeated broad scans and recaps.
+- Prefer Standard speed; Fast requires an explicit owner choice. A project
+  policy cannot switch the host's active model, speed or reasoning setting.
+- Keep all existing payment, security, review, test and approval safeguards.
+  Report savings only from measured telemetry, never from task counts.

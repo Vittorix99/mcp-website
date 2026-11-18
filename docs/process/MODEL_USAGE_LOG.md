@@ -175,3 +175,216 @@ applicativo modificato. Il caso a totale zero è una caratterizzazione fake.
 | Codex / Sol 6.1 | `discount_boundary_review_sol`: review finale dell'estensione DIS-02 | high | Conclusa senza rilievi, accettata dal coordinatore. Revisore: contratti sconti/capture/persistenza/statistiche, default fee e preservazione del retry dopo claim verificati; sintassi e diff check puliti. Nessuna esecuzione emulatori/cloud dal revisore. Coordinatore: 27 test unitari collegati passati, scanner zero segnalazioni e diff check pulito; successivamente ispezionato il JUnit locale del 2026-11-09T20:47:56+01:00: 64 test, zero failure/error/skipped, con 8 invalidi e il caso totale zero presenti, oltre ai 4 parametri validi aggiunti. Emulatori non riavviati dal coordinatore. Il report non certifica separatamente exit code del runner e arresto degli emulatori. |
 
 Conteggio limiti: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## Concorrenza — PAY-12 / DIS-06 — 2026-11-09
+
+Implementazione nativa, nessuna delega Luna. Proprietario: review Sol medium
+fino a nuova indicazione (override di high). Nessuna modifica applicativa.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / Sol 6.1 | `concurrent_checkout_review_sol`: unica review finale di test PAY-12/DIS-06, chiave SDK e regole aggiornate | medium | Conclusa con due rilievi P2 sui test, entrambi corretti e accettati dal coordinatore: ID partecipante generato distinto da membershipId; timeout executor non sufficiente, sostituito da deadline del processo dedicato. Self-check offline con worker bloccati: processo figlio termina con exit 124, senza emulatori/network. Dopo le correzioni: 66 casi API raccolti, 34 unitari collegati passati. Runtime eseguito dal proprietario (exit 1 riportato); JUnit locale 2026-11-09T21:43:48+01:00 ispezionato dal coordinatore: 66 casi, 65 passati, 1 failure PAY-12 su due purchase anziché una; zero error/skipped. DIS-06 passa, incluso perdente catturato senza purchase e retry senza ricattura. Nessun fix applicativo; arresto emulatori non attestato dal JUnit. |
+
+Conteggio dispatch effettivi: 0 incarichi Luna, 1 review Sol. Token e costi non disponibili.
+
+## PAY-12 — claim atomico della capture — 2026-11-09
+
+Implementazione del coordinatore, nessuna delega Luna (stato di pagamento e
+concorrenza). Una review delegata a un sotto-agente (effort medium, modello
+predefinito dell'host, non `gpt-6.1-sol`): nessun Critical, 2 Important e
+2 Minor; corretti test del service sul perdente, codice del retry esaurito e
+`Aborted`. Conteggio: 0 incarichi Luna, 1 review delegata. Token e costi non
+disponibili.
+
+
+## DIS-06 — prenotazione sconto prima della capture — 2026-11-11
+
+Implementazione del coordinatore; nessuna delega Luna perché il blocco tratta
+stati di pagamento e concorrenza.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `dis06_reservation_review_sol`: unica review finale su prenotazione, rilascio, scadenza e failure window | medium | Conclusa: un Important sulla riduzione admin del limite sotto le prenotazioni vive, riprodotto RED e corretto con CAS; nessun Minor. Coordinatore: 768 unitari, 39 test script, 72 API, 6 integrazione sconti passati; 20 corse concorrenti da 3 scenari (60/60). Lock timeout runtime risolto dopo la review sostituendo le transazioni con batch condizionati alla versione; verificati retry CAS e aggiornamenti atomici delle ricevute. Runner emulatori exit 0 e arresto pulito. Scanner zero segnalazioni; nessun cloud/provider reale o CI remota. Esito della review accettato e corretto dal coordinatore; nessuna seconda delega. |
+
+Conteggio dispatch effettivi nel blocco: 0 incarichi Luna, 1 review Sol.
+Token e costi non disponibili.
+
+
+## Recupero controllato ordini — 2026-11-11
+
+Implementazione nativa del coordinatore, nessuna delega Luna: stato pagamento,
+concorrenza e permessi richiedono Sol. Approvato in chat dal proprietario.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `order_recovery_review_sol`: unica review finale recupero admin, deduplica condivisa, ricevute sconto, auth e failure window | medium | Conclusa: 4 Important (lookup soci estranei, dati salvati malformati, prezzi locali non finiti, metadati legacy alterati), tutti riprodotti RED e corretti dal coordinatore; nessun Critical/Minor. Esito accettato e corretto, nessuna seconda delega. Verifica finale: 826 unitari, 39 test script, 107 API, 6 integrazione sconti e 20×6 scenari concorrenti (120/120), tutti passati; runner emulatori exit 0 e arresto pulito. Scanner zero segnalazioni, diff check pulito. Nessuna CI remota/cloud/provider reale. |
+
+Conteggio dispatch effettivi: 0 incarichi Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## PAY-10 — cattura non verificabile — 2026-11-11
+
+Implementazione nativa del coordinatore (pagamenti), nessuna delega Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `pay10_review_sol`: unica review finale su importi, totale assente, final_capture e conservazione dell'incasso | medium | Conclusa: 1 Important (amount non-oggetto prima della persistenza) e 1 Minor sui limiti Decimal, riclassificato Important dal coordinatore per la violazione della tolleranza monetaria. Entrambi riprodotti RED e corretti; nessun rilievo differito. Review ripresa sullo stesso incarico dopo interruzione, nessuna seconda delega. Esito accettato e corretto dal coordinatore: 849 unitari, 39 test script, 151 API e 6 integrazione sconti passati; emulatori exit 0 e arresto pulito. Scanner zero segnalazioni e diff check pulito. Nessuna CI remota/cloud/provider reale. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## DIS-08 — tessera inclusa e sconti — 2026-11-12
+
+Regola confermata dal proprietario; implementazione nativa del coordinatore,
+52 nuove prove API, nessuna modifica applicativa o agli importi. Nessuna delega
+Luna per la verifica congiunta di pagamenti, rinnovi e contabilità.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `dis08_review_sol`: unica review finale su formule incluse, dati socio, quote/storico e retry | medium | Conclusa senza Critical/Important/Minor, accettata dal coordinatore. 52 nuovi casi, 203/203 API, 849 unitari e 39 script passati. Verificati lordo richiesto reale, dati/storico socio, soci attivi e retry invariato; anche capture senza impostazione quota per i soci correnti. Primo errore fixture (email .test) corretto prima della review. Runner emulatori exit 0 e arresto pulito; scanner zero segnalazioni e diff check pulito. Nessuna modifica applicativa, cloud/provider reale o prova CI remota. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## OPS-07 — pulizia ordini e corsa con capture — 2026-11-12
+
+Implementazione nativa del coordinatore; nessuna delega Luna per logica di
+pagamento, cancellazione e concorrenza.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `ops07_review_sol`: unica review finale su timestamp, eligibility cleanup, marker pre-provider e CAS delete | medium | Conclusa senza Critical/Important/Minor, accettata dal coordinatore. Successivo controllo autore: quattro forme list/map di metadati riprodotte RED e corrette con confronti conservativi; nessuna seconda delega. Verifica finale 885 unitari, 39 script, 224 API e 6 integrazione sconti verdi, exit 0 e arresto pulito. Scanner zero segnalazioni e diff check pulito. Nessun cleanup cloud, deploy o provider reale. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## EVT-03 — disponibilità evento nel checkout — 2026-11-12
+
+Implementazione nativa del coordinatore: controlli su pagamenti e recupero,
+nessuna delega Luna. Regola sold_out/coming_soon/ended confermata dall'owner.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `event_availability_review_sol`: unica review finale del gate condiviso, create/capture, recovery e retry completato | high | Conclusa senza rilievi; accettata dal coordinatore. Verifiche eseguite dal coordinatore: 888 unitari, 233 API passati, exit 0 e arresto pulito emulatori, scanner 0 e diff check pulito. Review ha letto l'evidenza senza rieseguire le suite. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## EVT-04 — prenotazione posti e capienza — 2026-11-12
+
+Implementazione nativa coordinatore: pagamenti, concorrenza e recovery; 0 deleghe Luna.
+Regole owner: admin libero, hold intero gruppo alla creazione per 10 minuti,
+capienza zero/assente blocca online; piano approvato in chat.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `event_capacity_review_sol`: unica review finale CAS posti, create/capture, provisioning/recovery e cleanup | high | Conclusa con 1 P1 (ricreazione posti da hold consumed dopo delete/rivendita) e 1 P2 (sconto impegnato da capture scaduta). Accettati e corretti dal coordinatore con regressioni RED→GREEN; nessuna seconda delega. Verifica finale coordinatore: 888 unitari, 268 API, 6 integrazioni sconti passati, JUnit zero failure/error/skip, emulatori exit 0 e arresto pulito; scanner 0 e diff check pulito. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## MEM-03/04 — validità membership uniforme — 2026-11-12
+
+Regola anno corrente E flag valido approvata in chat. Implementazione nativa
+coordinatore: ammissione, pagamenti e contabilità; nessuna delega Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `membership_validity_review_sol`: unica review finale della regola condivisa, conteggi e controllo create/capture/rinnovo | high | Conclusa con 1 P1 (target duplicati per stessa email fallivano dopo primo rinnovo) e 1 P2 (preflight validava ID diverso dopo riassegnazione email). Accettati e corretti dal coordinatore con 4 regressioni RED→GREEN; nessuna seconda delega. Finale: 888 unitari, 287 API (19 nuovi), 6 integrazioni sconti passati; JUnit zero failure/error/skip, emulatori exit 0/arresto pulito, scanner 0 e diff check pulito. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi: 0 Luna, 1 review Sol. Token/costi non disponibili.
+
+
+## OPS-01 — identità e permessi area personale — 2026-11-12
+
+Piano approvato in chat dopo probe Auth reale emulato. Implementazione nativa
+coordinatore: autorizzazione e claim concorrenti; nessuna delega Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6.1-sol | `ops01_identity_review_sol`: unica review finale identità JWT/UID, primo link verificato, preferenze CAS e guardie emulatori | high | Conclusa senza rilievi; accettata dal coordinatore. Evidenze eseguite dal coordinatore:888 unitari,44 script,57 Auth Emulator senza bypass verifier,287 API,36 integrazioni membri,6 integrazioni sconti,2 smoke Python e client smoke HTTP completo passati. JUnit zero failure/error/skip, runner exit0/shutdown pulito, scanner0/diff pulito. Review ha letto le evidenze senza duplicare suite. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:0 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-02 — metodi HTTP e contratti richiesta — 2026-11-12
+
+Blocco autorizzato dal proprietario in chat. Diagnosi checkout e correzioni
+a cura del coordinatore; matrice ripetitiva dei contratti delegata a Luna.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops02_contract_matrix`: test su metodi errati e body non validi nelle API core elencate nel test | medium | Conclusa:352 test mirati passati; Sol ha corretto l’assunzione del mock su create_membership (validazione nel service prima della repository), letto il diff e accettato il risultato. Nessuna modifica applicativa delegata. |
+
+| Codex / gpt-6.1-sol | `ops02_final_review`: unica review finale dei contratti HTTP/DTO e del preflight checkout | high | Conclusa senza rilievi; accettata dal coordinatore. Verificati1240 unitari (352 nuovi),44 script,329 API (42 nuovi),2 smoke Python e client HTTP emulato PASS; JUnit API zero failure/error/skip, exit0/shutdown pulito. Scanner sorgenti modificati0/diff pulito. Review ha letto le evidenze senza rieseguire suite. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-03/05 — invii tessere, ticket e omaggi — 2026-11-12
+
+Proseguimento richiesto dal proprietario in chat; solo prove locali/provider fake.
+Diagnosi trigger e policy degli esiti incerti a cura del coordinatore.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops05_omaggio_tests`: lotto di test emulatori su contatori, skip/reinvio, fallimenti e allegati stub | medium | Conclusa:5 caratterizzazioni verdi e1 regressione RED di sovrascrittura durante invio. Sol ha letto/accettato il test e corretto la persistenza con scritture mirate; nessuna modifica applicativa delegata. |
+
+| Codex / gpt-6.1-sol | `ops03_05_final_review`: unica review finale di trigger, claim invio, retry manuale e scritture mirate | high | Conclusa con1 P2: claim membership interrotto da scrittura concorrente non-trigger. Accettato dal coordinatore, riprodotto con2 RED e corretto con4 riletture/precondizioni prima dei provider; nessuna seconda delega. Finale1243 unitari,348 API (19 nuovi),2 smoke Python e client HTTP emulato PASS; API JUnit zero failure/error/skip, exit0/shutdown pulito. Script44 di OPS-02 riutilizzati invariati. Scanner sorgenti0/diff pulito. Nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-06 — isolamento provider disabilitati e simulati — 2026-11-12
+
+User story autorizzata dal proprietario in chat. Verifiche locali soltanto;
+nessun cambio configurazione cloud o provider reale.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops06_sender_offline_matrix`: test di14 operazioni sync/service con policy Sender disabilitata reale | medium | Conclusa:14 passati, spy trasporto mai raggiunto; diff letto/accettato da Sol. Nessuna modifica applicativa delegata. |
+| Codex / gpt-6.1-sol | `ops06_final_review`: unica review finale isolamento provider e override gender disabilitato | high | Conclusa senza rilievi; accettata dal coordinatore. Evidenze1257 unitari,358 API,14 Sender focalizzati e2 smoke Python+client HTTP emulato PASS; API JUnit zero failure/error/skip, exit0/shutdown pulito, scanner sorgenti0/diff pulito. Nessun rerun del reviewer. Script44 invariati riutilizzati; nessun deploy/cloud/provider reale/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-08 — pulizia conservativa token scanner — 2026-11-12
+
+Proseguimento sviluppo richiesto dal proprietario. Verifiche e cancellazioni
+solo nell'emulatore dedicato; nessuna pulizia cloud o modifica schedule.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops08_token_cleanup_tests`: matrice soglia7 giorni e timestamp con client in memoria | medium | Conclusa:10 verdi e6 RED su timestamp malformati. Sol ha corretto il nome campo fixture in is_active e aggiunto il caso campo assente (17 casi finali); diff accettato. Nessuna modifica applicativa delegata. |
+| Codex / gpt-6.1-sol | `ops08_final_review`: unica review finale soglia token, cancellazione condizionale e storico scansioni | high | Conclusa senza rilievi, accettata dal coordinatore. Verificati1274 unitari,364 API (6 nuovi),2 smoke Python e client HTTP emulato PASS; API JUnit zero failure/error/skip, runner exit0/shutdown pulito, source scanner0/diff pulito. Nessun rerun reviewer;44 script invariati riutilizzati. Nessuna pulizia cloud/deploy/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-09 — export/import sintetico ripetibile e ripresa — 2026-11-12
+
+Proseguimento sviluppo autorizzato dal proprietario; solo file privati
+sintetici ed emulatore dedicato, nessuna scrittura cloud.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops09_offline_resume_tests`: test byte ripetibili, export interrotto/temp residui e messaggi CLI | medium | Conclusa:3 verdi e3 RED (due temp residui, avviso import parziale). Diff letto e accettato da Sol; correzioni production al coordinatore. Nessuna modifica applicativa delegata. |
+| Codex / gpt-6.1-sol | `ops09_final_review`: unica review finale export privato, ripresa import e messaggi redatti | high | Conclusa senza rilievi; accettata dal coordinatore.50 test script e369 scenari emulatore passati, API JUnit zero failure/error/skip, runner exit0/shutdown pulito, scanner sorgenti0/diff pulito. Backend1274 e smoke OPS-08 riutilizzati invariati, nessun rerun reviewer. Nessuna scrittura cloud/provider/account/deploy/CI remota. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+
+## OPS-10 — liste applicative sul dataset completo — 2026-11-12
+
+Proseguimento sviluppo autorizzato; scope annunciato: completezza liste API
+e ricerca/filtri/ordinamento/paginazione già disponibili nell'app, solo locale.
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / gpt-6-luna | `ops10_bulk_read_contracts`: confronto liste API con export completo4000 soci/50 eventi | medium | Conclusa:1 scenario completo passato (4000 soci,50 eventi,7076 acquisti,21701 partecipanti), identità/conteggi e snapshot invariato; diff/evidenze letti e accettati da Sol. Nessuna modifica applicativa delegata. |
+
+| Codex / gpt-6.1-sol | `ops10_final_review`: review del contratto liste sul corpus completo e limiti evidenze UI | high | Conclusa con1 rilievo sul test: confronto aggregato acquisti/evento non rileva scambi fra ID. Accettato dal coordinatore; sostituito con mappa per singolo acquisto. Suite370 API passata in88.19s; dopo il rilievo, scenario aggiornato passato in41.02s (369 deselected). Entrambi JUnit zero failure/error/skip e runner exit0/shutdown pulito. UI parziale:40 pagine soci/4000 unici A-Z, conteggi2025/2026; restanti filtri e altre liste UI aperti dopo indisponibilità controllo browser. Server locali riavviati su richiesta owner; nessuna modifica applicativa/cloud/provider reale. |
+
+Dispatch effettivi:1 Luna,1 review Sol. Token/costi non disponibili.
+
+Chiusura OPS-10,2026-11-13: nessun ulteriore dispatch. Coordinatore: profilo1985–2008 corretto inline;50 test strumenti e scenario completo aggiornato1PASS/369deselected in40.69s. UI agent:3854ordinari/39pagine e146omaggi/6pagine; limiti proiezioni visibili documentati. Verificati53749documenti+2impostazioni invariati dopo le prove agent. Acquisti chiusi con risposta owner «tutto passa» sul blocco ricerca/evento/status/date/ordinamento; evidenza owner-reported, non verifica indipendente. Scope OPS-10 completato; nessun nuovo difetto frontend dimostrato, nessuna ulteriore review delegata per documentazione, nessun push/cloud/provider/CI remota. Dispatch complessivi invariati:1 Luna,1 Sol high; token/costi non disponibili.

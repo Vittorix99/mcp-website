@@ -42,3 +42,27 @@ def unwrap_response(result):
         payload = _extract_response_payload(result)
         return payload, result.status_code
     return result, None
+
+
+class DummyCapacityRepository:
+    """No I/O: unit service tests exercise payments separately from real seat holds."""
+    def reserve(self, event_id, count):
+        return 'test-capacity'
+
+    def bind(self, *args):
+        pass
+
+    def begin_capture(self, event_id, token, order_id):
+        pass
+
+    def release(self, *args):
+        pass
+
+    def attach_purchase(self, *args):
+        pass
+
+    def complete(self, *args):
+        pass
+
+    def assert_recoverable(self, *args):
+        pass

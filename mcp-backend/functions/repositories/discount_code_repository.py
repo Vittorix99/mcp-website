@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from typing import Any, Dict, List, Optional
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import FieldFilter
-from google.cloud.firestore_v1 import transactional as _fs_transactional
+from google.api_core.exceptions import Aborted, FailedPrecondition
 
 from config.firebase_config import db
-from errors.service_errors import ConflictError, NotFoundError
+from errors.service_errors import ConflictError, NotFoundError, ValidationError
 from models import DiscountCode, DiscountType
 from repositories.base import BaseRepository
 
@@ -99,35 +101,124 @@ class DiscountCodeRepository(BaseRepository[DiscountCode]):
         payload["updatedAt"] = firestore.SERVER_TIMESTAMP
         payload["updatedBy"] = admin_uid
         doc_ref = self.collection.document(discount_code_id)
-        if not doc_ref.get().exists:
-            raise NotFoundError("Codice sconto non trovato")
-        doc_ref.update(payload)
+        if "maxUses" in payload:
+            def _update_capacity():
+                snapshot = doc_ref.get()
+                if not snapshot.exists:
+                    raise NotFoundError("Codice sconto non trovato")
+                data = snapshot.to_dict() or {}
+                occupied = int(data.get("usedCount") or 0) + len(self._live_reservations(data))
+                if int(payload["maxUses"]) < occupied:
+                    raise ValidationError("max_uses non può essere minore degli utilizzi consumati e prenotati")
+                doc_ref.update(payload, option=db.write_option(last_update_time=snapshot.update_time))
+
+            self._retry_write(_update_capacity)
+        else:
+            if not doc_ref.get().exists:
+                raise NotFoundError("Codice sconto non trovato")
+            doc_ref.update(payload)
         updated = self.get_by_id(discount_code_id)
         if not updated:
             raise NotFoundError("Codice sconto non trovato")
         return updated
 
-    def increment_used_count(self, discount_code_id: str, transaction=None) -> None:
-        doc_ref = self.collection.document(discount_code_id)
-        payload = {"usedCount": firestore.Increment(1), "updatedAt": firestore.SERVER_TIMESTAMP}
-        if transaction is not None:
-            transaction.update(doc_ref, payload)
-            return
-        doc_ref.update(payload)
+    @staticmethod
+    def _retry_write(operation):
+        for _ in range(5):
+            try:
+                return operation()
+            except (FailedPrecondition, Aborted):
+                continue
+        raise ConflictError("Codice sconto modificato contemporaneamente, riprova")
 
-    def claim_usage(self, discount_code_id: str) -> None:
-        doc_ref = self.collection.document(discount_code_id)
+    @staticmethod
+    def _live_reservations(data, now=None):
+        now = now or datetime.now(timezone.utc)
+        # Only a worker that has not started capture may lose its lease.
+        return {
+            key: value for key, value in (data.get("reservations") or {}).items()
+            if value["state"] == "capturing" or value["expiresAt"] > now
+        }
 
-        @_fs_transactional
-        def _claim(transaction):
-            snapshot = doc_ref.get(transaction=transaction)
+    def reserve_usage(self, discount_code_id: str, order_id: str) -> str:
+        return self._reservation_operation(discount_code_id, order_id, "reserve")
+
+    def begin_capture(self, discount_code_id: str, order_id: str, token: str) -> None:
+        self._reservation_operation(discount_code_id, order_id, "capture", token)
+
+    def release_reservation(self, discount_code_id: str, order_id: str, token: str) -> None:
+        self._reservation_operation(discount_code_id, order_id, "release", token)
+
+    def reconcile_usage(self, discount_code_id: str, order_id: str) -> None:
+        self._reservation_operation(discount_code_id, order_id, "recover")
+
+    def consume_reservation(self, discount_code_id: str, order_id: str, token: str) -> None:
+        self._reservation_operation(discount_code_id, order_id, "consume", token)
+
+    def _reservation_operation(self, discount_code_id, order_id, operation, token=None):
+        doc_ref = self.collection.document(discount_code_id)
+        receipt_ref = doc_ref.collection("reservation_receipts").document(order_id)
+
+        def _change():
+            snapshot = doc_ref.get()
+            receipt_snapshot = receipt_ref.get()
+
+            def _save(changes, receipt=None):
+                # Every receipt change shares this versioned atomic batch, so a
+                # stale read can never overwrite a completed/released attempt.
+                batch = db.batch()
+                batch.update(doc_ref, changes, option=db.write_option(last_update_time=snapshot.update_time))
+                if receipt is not None:
+                    batch.set(receipt_ref, receipt)
+                batch.commit()
+
             if not snapshot.exists:
                 raise NotFoundError("Codice sconto non trovato")
             data = snapshot.to_dict() or {}
-            used_count = int(data.get("usedCount") or 0)
-            max_uses = int(data.get("maxUses") or 0)
-            if used_count >= max_uses:
-                raise ConflictError("Codice sconto esaurito, riprova senza codice sconto")
-            self.increment_used_count(discount_code_id, transaction=transaction)
+            receipt = receipt_snapshot.to_dict() or {}
+            now = datetime.now(timezone.utc)
+            reservations = self._live_reservations(data, now)
+            current = reservations.get(order_id)
+            used = int(data.get("usedCount") or 0)
+            if operation == "reserve":
+                if receipt.get("state") == "consumed":
+                    raise ConflictError("Utilizzo sconto già consumato per questo ordine")
+                if current:
+                    return current["token"]
+                if not data.get("isActive", True) or used + len(reservations) >= int(data.get("maxUses") or 0):
+                    raise ConflictError("Codice sconto esaurito, riprova senza codice sconto")
+                new_token = uuid4().hex
+                reservations[order_id] = {
+                    "token": new_token, "state": "reserved",
+                    "expiresAt": now + timedelta(minutes=15),
+                }
+                _save({"reservations": reservations})
+                return new_token
 
-        _claim(db.transaction())
+            effective_token = token
+            if operation == "recover":
+                if not current and receipt.get("state") == "consumed":
+                    return
+                if not current or current["state"] != "capturing":
+                    raise ConflictError("Discount usage cannot be attributed to this order: manual verification required")
+                effective_token = current["token"]
+            terminal = "consumed" if operation in {"consume", "recover"} else "released"
+            if not current and operation != "capture" and receipt == {"token": effective_token, "state": terminal}:
+                return
+            if not current or current["token"] != effective_token:
+                raise ConflictError("Prenotazione sconto scaduta o sostituita")
+            if operation == "capture":
+                if current["state"] != "reserved":
+                    raise ConflictError("Cattura sconto già in corso: verifica pagamento richiesta")
+                current["state"] = "capturing"
+                _save({"reservations": reservations})
+                return
+            if current["state"] != "capturing":
+                raise ConflictError("Cattura sconto non iniziata")
+            del reservations[order_id]
+            changes = {"reservations": reservations}
+            if operation in {"consume", "recover"}:
+                changes.update(usedCount=used + 1, updatedAt=firestore.SERVER_TIMESTAMP)
+            _save(changes, {"token": effective_token, "state": terminal})
+
+        return self._retry_write(_change)

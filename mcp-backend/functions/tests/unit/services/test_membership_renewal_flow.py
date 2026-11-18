@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+from tests.utils import DummyCapacityRepository
 
 from domain.participant_rules import _is_valid_member, run_basic_checks
 from domain.membership_rules import build_renewal_record, membership_years_from_renewals
@@ -74,6 +75,9 @@ class _DummyOrderRepo:
     def update_status(self, order_id, status):
         self.status_updates.append((order_id, status))
 
+    def mark_capture_started(self, order_id):
+        pass
+
     def mark_captured(self, order_id, payment_method):
         pass
 
@@ -102,6 +106,9 @@ class _DummyPurchaseRepo:
     def create(self, purchase):
         self.created.append(purchase)
         return "pur-renewal-1"
+
+    def create_for_order(self, purchase):
+        return self.create(purchase)
 
     def create_from_model(self, purchase):
         return self.create(purchase)
@@ -152,6 +159,9 @@ class _DummyParticipantRepo:
     def create(self, event_id, payload):
         self.created.append((event_id, payload))
         return "part-1"
+
+    def create_for_purchase(self, event_id, participant, checkout_index=0, capacity_reservation_id=None):
+        return self.create_from_model(event_id, participant)
 
     def create_from_model(self, event_id, participant):
         self.created.append((event_id, participant))
@@ -205,6 +215,7 @@ def _make_service(existing_membership: Membership = None):
     service.membership_repository = _DummyMembershipRepo(existing=existing_membership)
     service.membership_settings_repository = _DummyMembershipSettingsRepo()
     service.order_repository = _DummyOrderRepo()
+    service.capacity_repository = DummyCapacityRepository()
     service.purchase_repository = _DummyPurchaseRepo()
     service.participant_repository = _DummyParticipantRepo()
     service.memberships_service = _DummyMembershipsService(service.membership_repository)

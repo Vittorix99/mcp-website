@@ -75,7 +75,7 @@ def test_get_general_stats_happy_path():
     event2.id = "evt-2"
     service.event_repository = _DummyEventRepo(models=[event2, event1])
 
-    member1 = Membership(name="A", subscription_valid=True)
+    member1 = Membership(name="A", subscription_valid=True, membership_years=[datetime.now().year])
     member2 = Membership(name="B", subscription_valid=False)
     service.membership_repository = _DummyMembershipRepo(
         stream_items=[member1, member2],

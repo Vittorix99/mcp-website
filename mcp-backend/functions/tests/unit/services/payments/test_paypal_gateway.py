@@ -62,3 +62,26 @@ def test_sdk_environment_is_selected_only_from_validated_mode(environment, want,
     build_paypal_gateway(settings)
     expected = module.Environment.SANDBOX if environment == "staging" else module.Environment.PRODUCTION
     assert configured[0]["environment"] == expected
+
+
+def test_fake_read_never_creates_a_capture():
+    gateway = FakePayPalGateway()
+    order_id = gateway.create_order(_request()).payload['id']
+    assert gateway.get_order(order_id).payload['status'] == 'CREATED'
+    assert gateway.get_order('missing').status_code == 404
+    captured = gateway.capture_order(order_id).payload
+    assert gateway.get_order(order_id).payload == captured
+    assert gateway.get_order(order_id).payload['purchase_units'][0]['reference_id'] == 'event-1'
+
+
+def test_sdk_read_uses_get_and_requests_payment_source():
+    from types import SimpleNamespace
+    from services.payments.paypal_gateway import SdkPayPalGateway
+
+    calls = []
+    def get(options):
+        calls.append(options)
+        return SimpleNamespace(status_code=200, body={'id': 'order-1', 'status': 'COMPLETED'})
+    gateway = SdkPayPalGateway(orders_controller=SimpleNamespace(orders_get=get))
+    assert gateway.get_order('order-1').payload['id'] == 'order-1'
+    assert calls == [{'id': 'order-1', 'fields': 'payment_source'}]

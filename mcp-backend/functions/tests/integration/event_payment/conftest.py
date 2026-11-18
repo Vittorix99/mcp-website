@@ -57,6 +57,7 @@ def _event_payload(**overrides):
         "price": 12.0,
         "fee": 1.0,
         "status": "active",
+        "maxParticipants": 100,
     }
     payload.update(overrides)
     return payload
@@ -78,6 +79,9 @@ def create_event(events_service):
 
     for event_id in created:
         if event_id:
+            from config.firebase_config import db
+            for hold in db.collection('event_capacity').document(event_id).collection('reservations').stream():
+                hold.reference.delete()
             events_service.delete_event(event_id, admin_uid="admin-test")
 
 

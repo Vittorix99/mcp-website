@@ -142,7 +142,9 @@ def main():
         verified = load(records, project=args.project, host=args.host, hub=args.hub) if args.apply else 0
     except Exception as error:
         # Exceptions can include document values; expose only their type.
-        parser.exit(2, f'Import failed ({type(error).__name__}); no success claimed, rerun after resolving cause.\n')
+        partial = ' Emulator writes may be partial.' if args.apply else ''
+        parser.exit(2, f'Import failed ({type(error).__name__}); no success claimed.{partial} '
+                       'Rerun the same export after resolving cause.\n')
     print(json.dumps({'mode': 'emulator-write' if args.apply else 'offline-check',
                       'documents': len(records), 'members': manifest['members'], 'events': manifest['events'],
                       'verified_documents': verified, 'cloud_writes': 0,

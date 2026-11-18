@@ -96,7 +96,10 @@ def created_discounts():
     yield ids
     for discount_id in ids:
         try:
-            db.collection("discount_codes").document(discount_id).delete()
+            ref = db.collection("discount_codes").document(discount_id)
+            for receipt in ref.collection("reservation_receipts").stream():
+                receipt.reference.delete()
+            ref.delete()
         except Exception:
             pass
 
@@ -513,7 +516,14 @@ def test_capture_order_event_persists_discount_fields_on_purchase_and_participan
 
         purchase_id = result.purchase_id
         assert purchase_id
-        assert order_repo.get_model(order_id) is None
+        terminal_order = order_repo.get_model(order_id)
+        assert terminal_order.captured is True
+        assert terminal_order.order_status == "COMPLETED"
+        assert terminal_order.purchase_id == purchase_id
+        with patch.object(service, "capture_paypal_order") as capture:
+            retry = service.capture_order_event(OrderCaptureDTO(orderId=order_id))
+        assert retry.purchase_id == purchase_id
+        capture.assert_not_called()
 
         discount_after = discount_repo.get_by_id(discount.id)
         assert discount_after is not None
@@ -587,10 +597,12 @@ def test_capture_order_event_rejects_exhausted_discount_race_without_purchase_or
 
         db.collection("discount_codes").document(discount.id).update({"usedCount": 1})
         capture_data = _capture_payload(order_id, event_id, amount=11.0, payer_email=buyer_email)
-        with patch.object(service, "capture_paypal_order", return_value=capture_data):
+        with patch.object(service, "capture_paypal_order", return_value=capture_data) as capture:
             with pytest.raises(ConflictError, match="Codice sconto esaurito"):
                 service.capture_order_event(OrderCaptureDTO(orderId=order_id))
 
+        capture.assert_not_called()
+        assert not order_repo.get_model(order_id).captured
         assert discount_repo.get_by_id(discount.id).used_count == 1
         assert list(purchase_repo.list_models_by_ref_id(event_id)) == []
         assert participant_repo.list(event_id) == []

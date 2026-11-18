@@ -4,6 +4,7 @@ from typing import List
 
 from firebase_functions import scheduler_fn
 from google.cloud import firestore
+from google.api_core.exceptions import Aborted, FailedPrecondition, NotFound
 
 from config.firebase_config import db
 from repositories.job_repository import ANALYTICS_JOBS_COLLECTION, JOBS_COLLECTION, LOCATION_JOBS_COLLECTION
@@ -56,17 +57,28 @@ def _to_utc(ts) -> datetime:
 
 
 def _cleanup_orders(now: datetime) -> int:
-    """Delete orders that were never captured and are older than 24 hours."""
+    """Delete provably abandoned orders older than 24 hours, without racing capture."""
     threshold = now - timedelta(hours=24)
-    refs = []
+    deleted = 0
     for doc in db.collection("orders").stream():
         data = doc.to_dict() or {}
-        if data.get("captured"):
+        # Legacy records without the before-provider marker cannot prove no capture was attempted.
+        if (data.get("captured") is not False or data.get("captureStarted") is not False
+                or data.get("purchase_id") not in (None, "")
+                or data.get("orderStatus") not in ("CREATED", "APPROVED")):
             continue
-        created_at = _to_utc(data.get("created_at"))
-        if created_at is None or created_at < threshold:
-            refs.append(doc.reference)
-    deleted = _batch_delete(refs)
+        timestamps = [data[key] for key in ("createdAt", "created_at") if key in data]
+        if not timestamps or any(not isinstance(value, datetime) for value in timestamps):
+            continue
+        timestamps = [_to_utc(value).astimezone(timezone.utc) for value in timestamps]
+        if any(value != timestamps[0] for value in timestamps) or timestamps[0] >= threshold:
+            continue
+        try:
+            doc.reference.delete(option=db.write_option(last_update_time=doc.update_time))
+        except (FailedPrecondition, Aborted, NotFound):
+            # A capture or another writer won the race; do not retry using stale eligibility.
+            continue
+        deleted += 1
     logger.info("cleanup_orders: %d ordini abbandonati eliminati", deleted)
     return deleted
 
@@ -74,13 +86,18 @@ def _cleanup_orders(now: datetime) -> int:
 def _cleanup_scan_tokens(now: datetime) -> int:
     """Elimina token scanner scaduti da piu' di 7 giorni."""
     threshold = now - timedelta(days=7)
-    refs = []
+    deleted = 0
     for doc in db.collection("scan_tokens").stream():
         data = doc.to_dict() or {}
-        expires_at = _to_utc(data.get("expires_at"))
-        if expires_at is not None and expires_at < threshold:
-            refs.append(doc.reference)
-    deleted = _batch_delete(refs)
+        expires_at = data.get("expires_at")
+        if not isinstance(expires_at, datetime) or _to_utc(expires_at) >= threshold:
+            continue
+        try:
+            doc.reference.delete(option=db.write_option(last_update_time=doc.update_time))
+        except (FailedPrecondition, Aborted, NotFound):
+            # Never delete using eligibility read before a renewal or another writer.
+            continue
+        deleted += 1
     logger.info("cleanup_scan_tokens: %d token scaduti eliminati", deleted)
     return deleted
 

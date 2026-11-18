@@ -132,7 +132,7 @@ def validate_email_format(email: str) -> bool:
 
 def ensure_event_is_active(event_data: Union[Event, Dict[str, Any]]):
     """
-    Blocca gli acquisti se l'evento è terminato manualmente o temporalmente.
+    Blocca gli acquisti per eventi sold_out, coming_soon o terminati.
     La chiusura temporale avviene all'end_time; se non è parsabile, 12h dopo lo start_time.
     """
     if isinstance(event_data, Event):
@@ -146,6 +146,8 @@ def ensure_event_is_active(event_data: Union[Event, Dict[str, Any]]):
 
     if status == "ended":
         raise ValueError("Evento terminato: acquisti non consentiti")
+    if status in ("sold_out", "coming_soon"):
+        raise ValueError("Evento non disponibile: acquisti non consentiti")
     if is_event_finished(event_model):
         raise ValueError("Evento terminato: acquisti non consentiti")
 

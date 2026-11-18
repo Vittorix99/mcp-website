@@ -1,6 +1,9 @@
 from typing import Iterable, List, Optional
 
 from google.cloud import firestore
+from google.api_core.exceptions import Aborted, FailedPrecondition
+
+from errors.service_errors import ConflictError, NotFoundError, ValidationError
 from google.cloud.firestore_v1 import FieldFilter
 
 from models import Membership
@@ -130,8 +133,46 @@ class MembershipRepository(BaseRepository[Membership]):
             "wallet_url": wallet_url,
         })
 
-    def set_uid(self, membership_id: str, uid: str) -> None:
-        self.collection.document(membership_id).update({"uid": uid})
+    def get_for_account(self, email: str, uid: str, *, allow_link: bool = False,
+                        newsletter_consent: Optional[bool] = None) -> Membership:
+        """Authorize a unique email/UID binding; commit only the requested fields."""
+        denied = "Account not authorized for this membership"
+        if not isinstance(email, str) or not email or not isinstance(uid, str) or not uid:
+            raise ValidationError(denied)
+        if newsletter_consent is not None and type(newsletter_consent) is not bool:
+            raise ValidationError("Invalid newsletter consent")
+        membership_id = None
+        for _ in range(4):
+            matches = self.collection.where(filter=FieldFilter("email", "==", email)).limit(2).get()
+            if membership_id and (len(matches) != 1 or matches[0].id != membership_id):
+                raise ValidationError(denied)
+            if not matches and allow_link:
+                raise NotFoundError("Membership not found for this account")
+            if len(matches) != 1:
+                raise ValidationError(denied)
+            snapshot = matches[0]
+            membership_id = snapshot.id
+            data = snapshot.to_dict() or {}
+            bound_uid = data.get("uid")
+            changes = {}
+            if bound_uid in (None, ""):
+                if allow_link is not True:
+                    raise ValidationError(denied)
+                changes["uid"] = uid
+            elif bound_uid != uid:
+                raise ValidationError(denied)
+            if newsletter_consent is not None:
+                changes["newsletter_consent"] = newsletter_consent
+            if not changes:
+                return self._model_from_snapshot(snapshot)
+            try:
+                snapshot.reference.update(changes,
+                    option=firestore.Client.write_option(last_update_time=snapshot.update_time))
+            except (Aborted, FailedPrecondition):
+                continue
+            data.update(changes)
+            return Membership.from_firestore(data, snapshot.id)
+        raise ConflictError("Membership changed concurrently; retry the request")
 
     def set_merging(self, membership_id: str, value: Optional[bool]) -> None:
         self.collection.document(membership_id).update({"merging": value})

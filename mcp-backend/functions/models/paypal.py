@@ -61,12 +61,14 @@ class PayPalOrderInfo:
         seller_breakdown = capture.get("seller_receivable_breakdown") or {}
         paypal_fee = (seller_breakdown.get("paypal_fee") or {}).get("value", "")
         net_amount = (seller_breakdown.get("net_amount") or {}).get("value", "")
-        amount = capture.get("amount") or {}
+        amount = capture.get("amount")
+        if not isinstance(amount, dict):
+            amount = {}
 
         capture_info = PayPalCaptureInfo(
             capture_id=capture.get("id", ""),
             status=(capture.get("status") or "").upper(),
-            final_capture=bool(capture.get("final_capture", False)),
+            final_capture=capture.get("final_capture") is True,
             amount_value=amount.get("value", ""),
             currency_code=amount.get("currency_code", ""),
             create_time=capture.get("create_time", ""),

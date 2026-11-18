@@ -90,6 +90,11 @@ class _DummyParticipantRepo:
         self.updated.append((event_id, participant_id, participant))
         return True
 
+    def mark_omaggio_email_sent(self, event_id, participant_id):
+        participant = next(p for p in self.list_items if p.id == participant_id)
+        participant.omaggio_email_sent = True
+        self.updated.append((event_id, participant_id, participant))
+
     def delete(self, event_id, participant_id):
         self.deleted.append((event_id, participant_id))
 
