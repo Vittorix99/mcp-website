@@ -17,8 +17,8 @@ test('operator bootstrap accepts only explicit personal OAuth, never WIF or priv
 })
 
 test('OAuth identity must be verified and match the named operator', async () => {
-  const auth = info => ({fromJSON:() => ({getAccessToken:async () => ({token:'TOKEN-SENTINEL'}),
-    getTokenInfo:async token => {assert.equal(token,'TOKEN-SENTINEL'); return info}})})
+  const auth = info => ({fromJSON:() => ({getAccessToken:async () => ({token:'example-token'}),
+    getTokenInfo:async token => {assert.equal(token,'example-token'); return info}})})
   await verifyOperator(credential,manifest,auth({email:operator,email_verified:true}))
   for (const info of [{email:'other@example.com',email_verified:true},{email:operator,email_verified:false},{}]) {
     await assert.rejects(verifyOperator(credential,manifest,auth(info)), error => !/SENTINEL/.test(error.message))
@@ -40,7 +40,7 @@ test('real OAuth client preserves verified email string; false strings are rejec
   const cli = createRequire(require.resolve('firebase-tools/package.json'))
   const {OAuth2Client} = cli('google-auth-library')
   const client = new OAuth2Client()
-  client.getAccessToken = async () => ({token:'TOKEN-SENTINEL'})
+  client.getAccessToken = async () => ({token:'example-token'})
   for (const verified of ['true',true,'false',false,'1',1,undefined]) {
     client.transporter.request = async () => ({data:{email:operator,email_verified:verified,
       scope:'https://www.googleapis.com/auth/cloud-platform',expires_in:3600}})

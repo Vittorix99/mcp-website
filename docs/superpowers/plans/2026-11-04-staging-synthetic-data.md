@@ -2178,11 +2178,13 @@ nessuna scansione o timestamp inventato per anomalie legacy.
 `registered` conta identità uniche. Discrepanza minore nota, non bonificata.
 Alla chiusura Q-05: PR #12 draft, base PR #11; CI remota allora non verificata,
 nessun deploy/provider reale o gate cloud concluso in quel blocco.
-Aggiornamento18novembre2026: PR #12 ancora draft sulla medesima base,
+Riscontro CI del18novembre2026, prima dell'integrazione della PR #12:
 [CI43745926507 verde](https://github.com/Vittorix99/mcp-website/actions/runs/43745926507)
 sullo SHA remoto `9374efb`. I commit locali successivi non sono coperti da
 quella CI e richiedono un nuovo run dopo la pubblicazione. Preparazione cloud
 del17novembre in CREDENTIAL_TRANSITION.md4b/4c: email-link, budget e bucket
 upload/sorgenti predisposti, non un deploy o una prova di riuso Functions.
 Evidenze applicative riusate, non rieseguite per questa riconciliazione.
+L'owner ha poi mergiato #11 e #12 su main, ma #12 conteneva ancora lo SHA
+`9374efb`: il lavoro locale successivo richiede una nuova PR di completamento.
 Stato corrente e gate di integrazione in NEXT_SESSION.md.
