@@ -14,6 +14,8 @@ function forwardDiscoveryEnvironment(parent,child) {
     'PAYPAL_MODE','MAIL_MODE','SENDER_MODE','PASS2U_MODE','GENDER_MODE','SOUNDCLOUD_MODE',
   ]) if (parent[key] !== undefined) profile[key] = parent[key]
   const forwarded = {...profile,...child}
+  // CLI child variables must not restore native proxy lookup after Python forks.
+  forwarded.NO_PROXY = forwarded.no_proxy = '127.0.0.1,localhost'
   // CLI-generated cloud credentials are unnecessary for the complete emulator
   // profile and must not defeat the application's no-cloud-credential policy.
   for (const key of ['GOOGLE_APPLICATION_CREDENTIALS','FIREBASE_SERVICE_ACCOUNT_JSON','FIREBASE_SERVICE_ACCOUNT']) delete forwarded[key]

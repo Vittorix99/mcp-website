@@ -122,6 +122,18 @@ def test_staging_mail_requires_recipient_allowlist():
         load_runtime_settings({"MCP_ENV": "staging", "MAIL_MODE": "staging"})
 
 
+def test_staging_wallet_cannot_consume_real_provider_credits():
+    from tests.config_fixtures import cloud_environment
+    with pytest.raises(RuntimeConfigurationError, match="PASS2U_MODE"):
+        load_runtime_settings({**cloud_environment("staging"), "PASS2U_MODE":"staging"})
+
+
+def test_real_gender_requires_explicit_credentials():
+    from tests.config_fixtures import cloud_environment
+    with pytest.raises(RuntimeConfigurationError, match="GENDER_API_KEY"):
+        load_runtime_settings({**cloud_environment("staging"), "GENDER_MODE":"staging"})
+
+
 def test_safe_summary_contains_modes_but_no_secret_values():
     settings = load_runtime_settings({"MCP_ENV": "test", "SENDER_API_KEY": "SECRET_SENTINEL", "MAILERSEND_API_KEY": "SECRET_SENTINEL"})
     summary = safe_runtime_summary(settings)

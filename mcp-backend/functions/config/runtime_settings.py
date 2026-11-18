@@ -203,6 +203,8 @@ def load_runtime_settings(
             _reject(key)
         if provider == "sender" and mode != ProviderMode.DISABLED:
             _reject("SENDER_MODE (integration suspended by project owner)")
+        if provider == "pass2u" and environment == RuntimeEnvironment.STAGING and mode not in {ProviderMode.FAKE, ProviderMode.DISABLED}:
+            _reject("PASS2U_MODE")
         allowed = {ProviderMode.FAKE, ProviderMode.DISABLED}
         if environment == RuntimeEnvironment.STAGING:
             allowed |= {ProviderMode.SANDBOX} if provider == "paypal" else {ProviderMode.STAGING}
@@ -249,6 +251,7 @@ def load_runtime_settings(
     required = {
         "paypal": ("paypal_client_id", "paypal_client_secret"),
         "mail": ("mail_api_key",),
+        "gender": ("gender_api_key",),
         "pass2u": ("pass2u_api_key",),
         "soundcloud": ("soundcloud_client_id", "soundcloud_client_secret"),
     }

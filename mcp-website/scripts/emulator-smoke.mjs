@@ -10,6 +10,7 @@ import {getAuth as getAdminAuth} from 'firebase-admin/auth'
 import {getFirestore as getAdminFirestore} from 'firebase-admin/firestore'
 import {seedLocalAdmin} from './emulator-admin-seed.mjs'
 import {verifyEventReadContracts} from './event-contract-smoke.mjs'
+import {verifyFirestoreTriggerContracts} from './trigger-contract-smoke.mjs'
 
 const require = createRequire(import.meta.url)
 const {validatePublicRuntime} = require('../config/runtime-policy.cjs')
@@ -66,6 +67,15 @@ try {
     const regular = await client('member',false)
     await assert.rejects(uploadBytes(ref(regular.store,'events/ws1-forbidden.bin'),new Uint8Array([4])),error=>error.code==='storage/unauthorized')
     const token = await privileged.auth.currentUser.getIdToken()
+    const decoded = await adminAuth.verifyIdToken(token)
+    assert.equal(decoded.uid, privileged.auth.currentUser.uid)
+    assert.equal(decoded.admin, true)
+    const sessionCookie = await adminAuth.createSessionCookie(token, {expiresIn:3600000})
+    const session = await adminAuth.verifySessionCookie(sessionCookie, true)
+    assert.equal(session.uid, decoded.uid)
+    assert.equal(session.admin, true)
+    await assert.rejects(adminAuth.verifyIdToken('invalid-emulator-token'))
+    await assert.rejects(adminAuth.verifySessionCookie('invalid-emulator-session'))
     const base = `http://127.0.0.1:5001/${projectId}/us-central1`
     const publicResponse = await fetch(`${base}/get_membership_price_public?year=2026`)
     assert.equal(publicResponse.status,200)
@@ -75,6 +85,9 @@ try {
     assert.equal((await memberResponse.json()).error,'Membership not found for this account')
     await verifyEventReadContracts({base,eventId:seed.event_id,adminToken:token,
       memberToken:await regular.auth.currentUser.getIdToken()})
+    if (projectId === 'demo-mcp-test') {
+      await verifyFirestoreTriggerContracts({db:adminDb,auth:adminAuth,eventId:seed.event_id})
+    }
     await deleteDoc(doc(privileged.db,'events','smoke-admin-write'))
     console.log('Emulator client smoke: PASS (Firestore/Auth/Storage/Functions/event HTTP contracts)')
   }

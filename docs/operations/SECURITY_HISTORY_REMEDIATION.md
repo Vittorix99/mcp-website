@@ -145,3 +145,185 @@ cloud, senza dichiarare eliminata la cronologia o esclusi utilizzi passati.
 Controlli CI, scanner, documentazione operativa e template inattivi implementati. Verifica locale finale: 684 test backend e 21 frontend passati, lint senza errori, build ed emulatori passati. Tre rilievi della review indipendente corretti in `9ece2609`; evidenze nel [rapporto Core WS1](../reviews/WS1_CORE_VERIFICATION.md). Staging, produzione e CI remota non sono dichiarati completati.
 
 Audit dipendenze separato: npm segnala 49 vulnerabilità (4 critical, 29 high, 14 moderate, 2 low); valutazione e aggiornamenti non ancora eseguiti. Nessun force-fix o upgrade maggiore automatico.
+
+
+## Prerequisito rilascio: audit dipendenze aggiornato — 15 novembre 2026
+
+Il precedente conteggio WS1 di 49 rilievi è storico. Sul lockfile corrente
+(commit applicativo `9374efb`, nessuna modifica alle dipendenze), eseguiti:
+
+| Comando, da `mcp-website/` | Esito | Pacchetti segnalati |
+|---|---|---|
+| `npm audit --json` | exit 1, report valido | 62: 4 critical, 25 high, 31 moderate, 2 low |
+| `npm audit --omit=dev --json` | exit 1, report valido | 33: 3 critical, 18 high, 10 moderate, 2 low |
+
+Report locali ignorati: `.local/staging/precloud-npm-audit.json` e
+`precloud-npm-audit-prod.json`. Comandi eseguiti con Node25.2.1/npm11.6.2;
+questo è un controllo del lockfile, non una build sul runtime supportato.
+Installazione/build/test delle correzioni devono usare Node20 (`.nvmrc`;
+versione locale disponibile20.19.6). Nessuna dipendenza modificata.
+I conteggi sono pacchetti segnalati da npm, non vulnerabilità sfruttabili
+indipendenti; `--omit=dev` non dimostra che un pacchetto sia raggiungibile
+nel bundle SSR o nel browser.
+
+Valutazione iniziale:
+- Next15.5.19 nel lockfile è incluso nelle advisory correnti. Le advisory
+  ufficiali [Image Optimization RCE](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw)
+  e [Server Actions DoS](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r)
+  indicano15.5.28 come versione corretta nello stesso ramo. La configurazione
+  repository usa `images.unoptimized=true` e la ricerca in app/components/lib
+  non rileva direttive `use server`: limita l'applicabilità di quei due vettori,
+  non chiude tutte le advisory Next né prova il comportamento del deploy live.
+- Altri critical segnalati nel grafo: protobufjs, websocket-driver e tar
+  (quest'ultimo non nel report `--omit=dev`). Valutare percorsi e versioni
+  annidate prima di dedurre impatto o forzare risoluzioni.
+- npm propone anche major upgrade o downgrade di firebase-admin,
+  firebase-tools, firebase-frameworks ed exceljs. Non accettarli in automatico:
+  CLI14.26.0 e adattatori discovery/rollback hanno contratti da preservare.
+
+Piano del blocco dipendenze, approvato dall'owner il15novembre2026:
+1. Separare runtime SSR/browser, tool build/deploy e dipendenze inutilizzate;
+   verificare i percorsi dei rilievi critical/high e gli aggiornamenti compatibili.
+2. Correggere prima nello stesso major, senza `audit fix --force`, downgrade
+   automatici o override non verificati. Eventuali major necessari richiedono
+   un perimetro esplicito con preservazione dei contratti Firebase/release.
+3. Installazione pulita Node20, test frontend/contratti/lint/build fixture e
+   regressioni deployment/discovery pertinenti; rieseguire audit completo e
+   produzione. Unica review indipendente Sol high su Codex; CI finale owner.
+4. Chiudere solo con evidenza delle correzioni e valutazione esplicita di ogni
+   residuo pertinente al rilascio. Nessuna accettazione implicita del rischio.
+
+Stato: **aperto; aggiornamenti compatibili applicati, residui da risolvere**.
+La verifica delle vecchie build distribuite resta il punto successivo.
+
+
+### Primo passaggio compatibile — 15 novembre 2026
+
+Owner approva il blocco. Modificato solo `mcp-website/package-lock.json`:
+`npm audit fix --package-lock-only --ignore-scripts`, seguito da
+`npm install --package-lock-only --ignore-scripts --no-audit` per riconciliare
+le dipendenze optional mancanti segnalate dal primo `npm ci`. Il secondo
+`npm ci --no-audit` passa con Node20.19.6/npm10.8.2. Nessuna modifica al
+manifest, ai pin CLI14.26.0, agli override esistenti o al codice applicativo;
+nessun force-fix, major diretto, downgrade imposto o nuovo override.
+Ripristino locale: ripristinare il lockfile del commit precedente e rieseguire
+`npm ci` con Node20; nessuna modifica a dati o servizi distribuiti.
+
+Tra gli aggiornamenti: Next15.5.19→15.5.29, axios1.17.0→1.21.1,
+body-parser1.20.5→1.20.9, markdown-it14.2.0→14.3.3,
+PostCSS root8.5.15→8.5.33, protobufjs root7.6.2→7.6.6,
+websocket-driver0.7.4→0.7.5. Le copie annidate restano oggetto dell'audit.
+
+Audit finali Node20, entrambi exit1 per residui:
+
+| Ambito | Prima | Dopo |
+|---|---|---|
+| Completo | 62 (4critical/25high/31moderate/2low) | 50 (2critical/18high/29moderate/1low) |
+| `--omit=dev` | 33 (3critical/18high/10moderate/2low) | 22 (1critical/12high/8moderate/1low) |
+
+I nuovi report includono anche segnalazioni ereditate dai genitori e variazioni
+del grafo dopo la riconciliazione: il conteggio non è una prova di sicurezza.
+Report ignorati `precloud-npm-audit-after.json` e
+`precloud-npm-audit-prod-after.json` in `.local/staging/`.
+
+Valutazione dei residui e confine del prossimo passaggio:
+
+| Gruppo | Percorso/uso osservato | Stato |
+|---|---|---|
+| protobufjs7.2.4, protobufjs-cli, google-gax3, Firestore server, busboy1, Storage/teeny-request, uuid | Firebase Admin11.11.1; import diretti solo nello smoke JS, ma codice Firebase framework usa API Admin nell'SSR generato | Non considerato automaticamente solo dev. Il pin protobufjs di google-gax3 e gli altri vincoli richiedono aggiornamento Admin oppure override mirati con verifica esplicita. |
+| grpc-js, Firestore web/compat, firebase | SDK web12.11.0; copia grpc root1.9.16 e ulteriore copia nel vecchio google-gax | Rimangono advisory high; il solo aggiornamento patch1.9.15→1.9.16 non chiude il gruppo. |
+| tar6.2.1 | CLI14.26.0, `lib/archiveDirectory.js` usa `tar.create` durante packaging | Critical ancora segnalato. Non è un endpoint browser; il tool di rilascio rimane sensibile. Correzione tar7 o cambio CLI richiedono perimetro esplicito. |
+| PostCSS8.4.31 annidato, next | Next15.5.29; elaborazione CSS durante build | Rilievi residui high/moderate; PostCSS root corretto non sostituisce il pin annidato di Next. Verificare override8.5 o migrazione Next, senza imporre Next16 automaticamente. |
+| sharp0.33.5, cookie0.5, firebase-frameworks0.11.8 | Framework SSR; sharp importato dal suo adattatore Angular, cookie usato da firebase-aware; Next ha una copia sharp0.35.5 | Non dedurre un'esposizione Next dalla copia Angular né ignorare il pacchetto SSR. Valutare aggiornamento/rimozione dipendenza e generazione SSR. |
+| exceljs, uuid8 | Esportazione browser in `lib/excel.js`, solo creazione workbook | Nessun import di file forniti dall'utente individuato; advisory residua da valutare, niente downgrade ExcelJS3 automatico. |
+| CLI e tool transitivi | proxy-agent/get-uri/pac-proxy-agent/basic-ftp; PubSub/google-gax5/opentelemetry; glob/minimatch/rimraf; archiver/archiver-utils/zip-stream; csv-parse/exegesis; gaxios/googleapis-common/gcp-metadata; stream-json, universal-analytics/uuid, zod; express/qs, fast-xml-parser, hono server | Residui build/emulator/deploy; alcuni vincoli della CLI o pin override esistenti impediscono fix automatici. Non equivalgono a codice HTTP dell'app ma non sono accettati implicitamente per CI privilegiata. |
+| ESLint/type tooling | typescript-eslint parser/plugin/type-utils/typescript-estree/utils | Uso locale/CI; valutare aggiornamenti compatibili del toolchain, senza includere una migrazione ESLint nel passaggio corrente. |
+
+L'advisory [protobufjs code generation](https://github.com/protobufjs/protobuf.js/security/advisories/GHSA-xq3m-2v4x-88gg)
+richiede schemi/descriptor controllati dall'attaccante; l'uso di soli schemi
+SDK fidati limita quel vettore, non chiude le altre advisory del gruppo.
+Per tar, [l'advisory di ricorsione](https://github.com/isaacs/node-tar/security/advisories/GHSA-r292-9mhp-454m)
+riguarda listing/extraction con selezione membri: il percorso packaging osservato
+è create. Non viene generalizzata questa osservazione alle altre advisory tar.
+
+Verifiche completate: installazione pulita,50 test frontend,126 riferimenti API/
+130 export/0 errori, lint0errori/53warning preesistenti, build fixture Node20,
+55 test Python deployment/secret. Smoke standard inizialmente non avviabile
+per porta8080 occupata da un processo preesistente, preservato. Riutilizzato
+il driver privato su5280/8280/9299/9399 e porte servizio dedicate, con copie
+temporanee degli smoke aventi sole sostituzioni porte/import:2test Python e
+client Firestore/Auth/Storage/Functions/event HTTP PASS,exit0/shutdown pulito;
+file temporanei rimossi. Log `.local/staging/precloud-*`.
+Review indipendente unica Sol high conclusa senza rilievi correggibili,
+accettata dal coordinatore. Verificati riferimenti native Linux nel lockfile,
+non eseguita installazione Linux. RE2 opzionale richiede Node più recente,
+ma anche la versione baseline lo richiedeva: su Node20 il fallback RegExp di
+Superstatic resta quello preesistente. Nessun pin di rollback aggiunto.
+CI remota e ambienti distribuiti non verificati.
+Il prerequisito dipendenze rimane **aperto**: nessuna accettazione del rischio
+residuo né attivazione cloud autorizzata da questi risultati.
+
+
+### Secondo passaggio: Firebase Admin13 e tar7 — 15 novembre 2026
+
+Estensione approvata dall'owner dopo `c403cbf`: Firebase Admin13.10.0
+(`^13.10.0`) e override `firebase-tools.tar=7.5.21`, CLI14.26.0 e Node20
+invariati. Il framework SSR0.11.8 dichiara compatibilità peer con Admin13.
+Verificati import modulari app/auth/firestore e uso auth del framework;
+le API messaging rimosse in Admin13 non sono usate dai chiamanti osservati.
+Riferimenti: [release Admin](https://firebase.google.com/support/release-notes/admin/node)
+e [changelog tar7](https://github.com/isaacs/node-tar/blob/main/CHANGELOG.md).
+Admin14 richiede Node22: non viene introdotto in questo passaggio.
+
+`npm install --package-lock-only --ignore-scripts --no-audit`, poi installazione
+pulita Node20 PASS. La vecchia catena Admin11→google-gax3→protobufjs7.2.4 è
+rimossa: Firestore7.11.6/google-gax4.6.1 e protobufjs7.6.6 nel grafo aggiornato.
+La CLI risolve tar7.5.21; un'altra copia tar7.5.23 appartiene al tool opzionale
+node-gyp. Test nuovo sul packaging reale `archiveDirectory`: baseline tar6
+PASS, tar7 PASS con archivio gzip, Unicode, sottocartelle, esclusione di un
+.env sintetico, estrazione e confronto byte. Nessun file credenziale usato.
+
+| Audit Node20 | Dopo passaggio compatibile | Dopo Admin/tar |
+|---|---|---|
+| Completo | 50 (2critical/18high/29moderate/1low) | 47 (0critical/13high/33moderate/1low) |
+| Senza dev | 22 (1critical/12high/8moderate/1low) | 21 (0critical/7high/13moderate/1low) |
+
+Entrambi gli audit terminano ancora con exit1: **critical eliminati dal grafo
+segnalato, prerequisito dipendenze ancora aperto per i residui**. Nessuna
+accettazione implicita delle advisory rimanenti. Report precloud-major-audit*.json.
+
+L'owner richiede inoltre continuità API e trigger. Aggiunti allo smoke reale:
+- verifica token Admin e session cookie (incluse credenziali sintetiche invalide);
+- consegna automatica degli eventi Firestore per creazione socio/account/wallet
+  fake, creazione/arricchimento partecipante, quattro trigger analytics,
+  worker analytics, cancellazione scan e worker location senza destinatari;
+- scenari Firestore dei tre corpi pianificati: invalidazione annuale senza
+  alterare altri campi, enqueue notturno con replay senza duplicati e cleanup
+  con conservazione di token recenti/storico ingressi.
+
+La prima nuova prova trigger ha trovato un crash nativo macOS Python dopo
+fork: SIGSEGV in CoreFoundation/SystemConfiguration/get_proxy_settings durante
+la richiesta Auth. Correzione limitata ai comandi local/test: runtime guard
+e bridge emulatori fissano `NO_PROXY`/`no_proxy` a `127.0.0.1,localhost`, evitando
+il lookup proxy nativo per le richieste loopback anche nei processi Python
+figli della CLI. Due regressioni RED→GREEN; nessuna modifica all'adattatore
+deploy cloud, alle credenziali, alla validazione token o ai permessi.
+Dopo il fix lo smoke automatico completo passa con shutdown pulito.
+
+Evidenze finali già disponibili:1413unitari backend,87strumenti,52frontend,
+contratti126riferimenti/130export/0errori,lint0errori/53warning preesistenti,
+buildfixture Node20,57Auth,smoke2Python+clientHTTP+trigger PASS. I tre nuovi
+scenari scheduler passano anche in esecuzione focalizzata. Suite API completa
+522PASS in111.73s, JUnit API/Auth/scheduler0failure/error/skip; runner exit0 e
+shutdown pulito. Review indipendente unica Sol high conclusa senza rilievi,
+accettata dal coordinatore. Verificati risoluzione/engine, chiamanti framework,
+packaging, nuovi test, isolamento e log; non attestati Linux o ambienti cloud.
+Log ignorati `.local/staging/precloud-major-*`; scanner segreti0.
+
+Limiti: i corpi scheduler sono invocati esplicitamente nella suite API, non è
+provato l'avvio agli orari reali di Cloud Scheduler. Gli smoke HTTP eseguono
+percorsi rappresentativi;519scenari precedenti, tre nuovi e unitari non attestano
+ogni combinazione di tutti gli endpoint. SSR distribuito, provider reali,
+Linux e CI remota restano da verificare. Nessun deploy o mutazione cloud.
+Rollback locale delle dipendenze: package.json/lock del checkpoint `c403cbf`
+e `npm ci` Node20; nessuna migrazione o rollback dati richiesti.

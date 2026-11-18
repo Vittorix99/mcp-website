@@ -16,3 +16,10 @@ test('discovery forwards explicit demo identity and modes but excludes secrets',
 test('discovery bridge refuses cloud identity',()=>{
   assert.throws(()=>forwardDiscoveryEnvironment({MCP_ENV:'production',GCLOUD_PROJECT:'mcp-website-2a1ad'},{}))
 })
+
+test('emulator Python workers keep loopback proxy bypass despite CLI child environment',()=>{
+  const result = forwardDiscoveryEnvironment({MCP_ENV:'test',GCLOUD_PROJECT:'demo-mcp-test'},
+    {ADMIN_PORT:'8081',NO_PROXY:'other.example',no_proxy:'other.example'})
+  assert.equal(result.NO_PROXY,'127.0.0.1,localhost')
+  assert.equal(result.no_proxy,'127.0.0.1,localhost')
+})

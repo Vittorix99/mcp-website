@@ -1,48 +1,42 @@
-# Passaggio di consegne — 9 novembre 2026
+# Passaggio di consegne — 18 novembre 2026
 
-- Worktree: `/Users/vittoriodigiorgio/Desktop/Projects/MCP-WEB-PROJECT/.worktrees/core-ws2`.
-- Branch `core-concurrency-api-scenarios`, base locale `a8e8702`
-  (`chore/reduce-agent-overhead`). Modifiche non committate.
-- PAY-12 / DIS-06 approvati: due nuovi test controllati, nessun codice
-  applicativo modificato. Review Sol **medium** fino a nuova indicazione
-  del proprietario; regola aggiornata in AGENTS.md.
-- Unica review medium conclusa: corretti ID partecipanti vs membershipId
-  e timeout executor; coordinatore accetta le correzioni. Deadline processo
-  45s verificata offline con worker bloccati, exit 124.
-- Offline: 66 API raccolti, 34 unitari collegati passati, scanner zero
-  segnalazioni e whitespace pulito.
-- Proprietario ha eseguito il runner emulatori e riportato exit 1. JUnit
-  locale del 2026-11-09T21:43:48+01:00 ispezionato: **65 passati, 1 failure,
-  zero error/skipped**. PAY-12 persiste due purchase per un ordine, con due
-  richieste fake che restituiscono lo stesso capture ID. Duplicazione locale
-  riprodotta; non prova di doppio addebito PayPal reale. Dettagli pytest
-  abbreviati: duplicazione partecipanti/ricavi non quantificata.
-- DIS-06 passa: un vincitore, contatore al limite; perdente già catturato
-  senza purchase e retry senza nuova capture. Rischio post-incasso aperto.
-- Bug riportato al proprietario prima di qualsiasi fix. Prossimo perimetro
-  da approvare: claim atomico ordine/provisioning per PAY-12; recupero del
-  perdente DIS-06 da discutere separatamente. Non mascherare la failure.
-- Ultimo stato remoto noto: PR #9 e #10 aperte, #10 dipende da #9. Nessun
-  nuovo controllo remoto, merge, push, deploy o operazione cloud/credenziali.
-- Matrice/evidenze: `docs/superpowers/plans/2026-11-04-staging-synthetic-data.md`;
-  dispatch: `docs/process/MODEL_USAGE_LOG.md`. Suite completa futura in CI,
-  monitoraggio proprietario; nessuna CI del nuovo blocco dichiarata verde.
+- Worktree: `/Users/vittoriodigiorgio/Desktop/Projects/MCP-WEB-PROJECT/.worktrees/core-ws2`
+- Branch `core-age-data-integrity`; preparazione cloud fino ad `a10f1db`, riconciliazione documentale `824a5a5`. La nuova PR di completamento pubblica i commit successivi al vecchio head remoto Q-05; nessun deploy eseguito.
+- [PR #12](https://github.com/Vittorix99/mcp-website/pull/12) mergiata dall'owner su `main` il18novembre: merge `f6ddcba7`, head `9374efb` (Q-05). [CI verificata verde](https://github.com/Vittorix99/mcp-website/actions/runs/43745926507) su quel vecchio head; non copre i commit successivi proposti nella nuova PR.
+- [PR #11](https://github.com/Vittorix99/mcp-website/pull/11) già mergiata dall'owner, merge `62332ec9`, head `0b85eb7`; [CI verificata verde](https://github.com/Vittorix99/mcp-website/actions/runs/43413838637) su quello SHA. #11 e #12 sono chiuse; non provare a riaprire #12 per pubblicare il lavoro residuo.
+- Checkpoint cloud del17novembre: quattro identità dedicate/IAM, Registry, tre secret provider abilitati, Environment staging con14variabili e WIF ristretto predisposti. Hosting esistente senza release; email-link abilitato; bucket upload e sorgenti con viewer build dedicato. Readback sorgenti12controlli PASS. [Dettagli e limiti](../operations/CREDENTIAL_TRANSITION.md#4c-bucket-sorgenti-precreato-e-grant-build-17-novembre-2026); nessuna nuova lettura cloud in questa riconciliazione.
+- Budget verificato15EUR/mese, avvisi50/90/100%, nessun cap attivo. Billing REST403 SERVICE_DISABLED: fatturazione operativa/quote da confermare. Gender/Pass2U fake, Sender sospeso; residui high differiti, non risolti.
+- GitHub riletto il18novembre: flag repository deploy staging/production assenti; PAYMENT_ROLLOUT_APPROVED e ROLLBACK_BASELINE_VERIFIED staging false. `Release main` è già presente su main dopo #12 e ripete la CI; deploy condizionati ai flag. Il flusso ordinario richiede una baseline già verificata.
+- Prossimo gate: nuova PR di completamento dal branch aggiornato verso `main`, CI sul nuovo candidato e approvazione owner prima del merge. Non usare la CI del vecchio SHA come prova del nuovo HEAD. Primo rilascio tramite bootstrap HTTP+SSR separato; OIDC/STS reale, riuso sorgenti, dati sintetici ridotti/topologia completa/E2E/rollback restano gate distinti. Nessun flag da abilitare per aggirare tali prove.
 
-## Aggiornamento — PAY-12 corretto (2026-11-09, approvato dal proprietario)
+## Archivio dei checkpoint applicativi e operativi
 
-- `OrderRepository.mark_captured` ora è un compare-and-set sull'`update_time`
-  (nessun lock, nessun nuovo flag): chi trova `captured` già vero riceve
-  `ConflictError` `ORDER_CAPTURE_CONFLICT`; interferenze non legate (es. stato)
-  ritentate al massimo 3 volte, poi `ORDER_CAPTURE_RETRY`.
-- Prima versione con transazione scartata: deadlock `Transaction lock timeout`
-  (due 500 dopo 10 s) in ~1 corsa su 20 sull'emulatore.
-- Prove: 749 unitari, 39 strumenti, PAY-12 60/60 in ciclo sull'emulatore e
-  batteria sintetica 66/66 per 8 corse complete. Solo emulatore, non Firestore reale.
-- Review Sol medium (sotto-agente, modello predefinito dell'host): nessun
-  Critical; 2 Important e 2 Minor, tre corretti. Resta: la barriera di PAY-12
-  sincronizza solo la lettura, quindi il ramo `FailedPrecondition` reale dipende
-  dal timing (coperto dai test unitari e dalle corse ripetute).
-- DIS-06 (perdente già catturato senza acquisto) resta aperto, fuori perimetro.
+Le sezioni seguenti conservano le evidenze storiche. Date, totali dei test,
+attività successive e frasi «CI non verificata» valgono al relativo checkpoint;
+lo stato corrente e l'ordine di integrazione sono quelli del riepilogo sopra.
+
+- EVT-03: owner confirmed no checkout on sold_out/coming_soon/ended. Shared gate blocks public create/capture and recovery before provider. Completed public retry returns existing receipt. Active reopening resumes an uncaptured order. No admin participant/capacity changes.
+- EVT-03 evidence: 888 unit and 233 API passed; 9 new API and 3 recovery unit cases, RED before fix. Sol high review clean/accepted, scanner 0, diff check clean; emulator exit 0 and clean shutdown. JUnit `.local/staging/api-results.xml`. Existing WeasyPrint/HarfBuzz warning. No current cloud/provider/CI proof.
+- EVT-04 approved/implemented: online reserves whole group for 10min at create, cap must be positive, admin may overbook. CAS event fence shared with participant writes. Expired hold cannot capture; capturing/unknown retains seats, definite failure releases. Paid holds count only outstanding participants; consumed holds cannot recreate deleted people.
+- Final EVT-04 evidence: 888 unit, 268 API (35 new capacity cases), 6 discount integration passed; JUnit zero failure/error/skip, emulator exit 0/clean shutdown, scanner 0, diff clean. One Sol high review found P1 consumed-hold resurrection and P2 expired-capture discount reservation, both reproduced RED and corrected; no second review. Existing warnings only.
+- Old orders without capacity hold cannot start capture; new checkout/manual handling. Completed receipts remain idempotent. Order save create-only prevents provider ID collision overwrite. Arbitrary purchase-ID reassignment with stale capacity linkage is manual.
+- Rollout/rollback must avoid mixed workers that ignore reservations; no deploy authorized/performed. UI/countdown and automatic sold_out excluded. Status gate still cannot prevent a subsequent admin change after its checked claim.
+- PAY-12 CAS, DIS-06 reservation, admin recovery without new memberships, PAY-10 validation and DIS-08 membership-inclusive pricing remain in place.
+- OPS-07 fixes createdAt/created_at cleanup and the capture race. New `captureStarted` is fenced atomically with capacity claim before discount reserve/begin/provider (since EVT-04). Sticky even on unknown/failed outcomes. Cleanup requires explicit captured=false/captureStarted=false, no purchase link, CREATED/APPROVED, valid agreeing datetime aliases and age strictly over 24 hours; deletes with update_time precondition.
+- Legacy missing marker, invalid/missing timestamps, conflicting aliases or malformed/payment-related metadata are retained. No migration or manual deletion of such data performed. Other token/job cleanup logic unchanged.
+- Previous OPS-07 checks: 885 unit, 39 scripts, 224 API, 6 discount integration passed. Emulator exit 0 and clean shutdown; final JUnit zero errors/failures/skips, scanner 0 and diff clean. Sol medium review clean and accepted; author added four metadata-corruption regressions RED→GREEN afterward, final full suites green.
+- No cloud cleanup, deploy, real-provider mutations or remote CI proof. Future rollout: conservative cleanup first, producer marker second. Local emulator verification is authorized directly.
+- Pricing Q-03 is resolved: membership included and discount on whole event price, fee afterward. No extra quota charge. Recovery involving membership creation/renewal or uncertain legacy discount attribution remains manual/outside completed scope.
+- Preserve owner edits in AGENTS.md and process docs. Spec/evidence: `docs/superpowers/plans/2026-11-04-staging-synthetic-data.md`; dispatches: `docs/process/MODEL_USAGE_LOG.md`; local JUnit: `.local/staging/`.
+- Next owner scope: membership validity/permissions, statistics/data consistency, remaining time/token cleanup or membership-related recovery. Do not start a new workstream implicitly.
+
+- MEM-03/04 Q-01 completed: owner confirmed current year in membership_years AND subscription_valid=True; absence of year or false flag invalidates. Shared helper for checkout, scanner and all active counters. Current-year invalid cannot auto-renew; old-year renewal stays supported. Pre-capture checks live validity and same membership ID; post-provider target check preserves captured fact/manual handling if membership changed.
+- MEM evidence: 888 unit, 287 API (19 new), 6 discount integration passed; JUnit zero failure/error/skip, emulator exit0/shutdown clean, scanner0/diff clean. One Sol high review found duplicate provisioning targets (P1) and reassigned-email ID mismatch (P2), both RED→GREEN corrected. Dedup membership creation/renewal by email preserves both tickets. No second review.
+- MEM limits: no data migration/raw flag or historical year-list changes, no general concurrent membership writer lock, existing UTC year convention unchanged (calendar Q06 open). No provider/cloud/deploy/remote CI proof; cached cloud snapshots await approved rebuild. Next bounded scope requires owner discussion.
+
+- OPS-01 personal identity approved/completed: all5 personal routes require same bound UID; first link requires verified email. Unique email lookup/CAS claim and targeted newsletter update via get_for_account; no full-model/UID overwrite, pinned membership ID through retries, fail closed on write error. Bound owner may consult expired/invalid membership even with unverified email. Verified no-member404; unauthorized/unverified unknown401. Admin uses admin routes for others.
+- Final OPS-01: 888 unit,44 scripts,57 real-Auth emulator cases,287 API,36 member integration,6 discount integration passed; 2 Python smokes and full client HTTP/Functions/Auth/Firestore/Storage smoke PASS. JUnit zero failure/error/skip, exit0/shutdown clean, scanner0/diff clean. One Sol high review without findings, accepted; no reruns by reviewer.
+- New local command: `.venv/bin/python scripts/staging/test_emulator.py --auth` (demo Auth9190+Firestore8180, no Functions); --api remains Firestore-only. Only generated Auth accounts removed individually. No deployment, cloud/provider, UID migration/revocation, or remoteCI proof. OPS-01 coverage is five personal routes and representative admin/public paths, not all API exports. Next scope must be discussed with owner.
 
 
 - OPS-02 completed2026-11-12:58 core handlers,352 new unit cases and42 API cases; malformed checkout body/cart values now fail400 before event lookup. Uses PreOrderDTO-normalized ID (alias/trim); DTO extra-ignore remains supported, valid totals stay44EUR. Scope is the explicit table, not all exported APIs/field combinations.
@@ -88,19 +82,19 @@
 
 ## Attività da fare — piano approvato il 13 novembre 2026
 
-Segreti e deploy automatici: **approvato, da implementare**. Il proprietario
-ha chiesto di inserirlo in lista, non di avviare ora l'implementazione.
+Segreti e deploy automatici: **preparazione repository implementata e verificata; attivazione cloud aperta**.
+La richiesta iniziale di solo backlog è stata superata dalla successiva esecuzione approvata.
 Piano: [CREDENTIAL_TRANSITION.md](../operations/CREDENTIAL_TRANSITION.md#piano-operativo-segreti-e-deploy-automatici--2026-11-13).
 Branch di preparazione `ci/staging-deployment`, base `0b85eb7`, piano `67962f7`;
 dipendenza d'integrazione #9 → #11. Non richiedere di nuovo l'approvazione del
 medesimo piano; accessi cloud e rilasci mantengono i gate concreti previsti.
 
-- [ ] Inventario variabili/segreti e separazione staging/produzione; transizione dagli env verificata.
-- [ ] Binding Secret Manager e inizializzazione runtime dei provider compatibile con discovery Firebase.
-- [ ] Identità temporanee WIF, Environment GitHub e deploy staging automatico dopo i controlli su main.
+- [x] Catalogo repository di variabili/segreti e separazione staging/produzione; inventario reale e transizione operativa dagli env restano nel gate cloud.
+- [x] Binding Secret Manager e inizializzazione runtime compatibile con discovery Firebase, verificati localmente.
+- [ ] WIF ed Environment GitHub staging configurati al checkpoint17novembre; prova OIDC/STS reale e deploy automatico dopo controlli main/baseline ancora da completare.
 - [ ] Test post-deploy e E2E staging con dati sintetici e provider controllati.
 - [ ] Produzione con approvazione manuale, rollout compatibile e rollback verificato.
-- [ ] Review finale Sol high e verifiche del blocco prima dell'attivazione.
+- [x] Review finale Sol high e verifiche della preparazione repository; non certificano l'attivazione cloud.
 
 
 ## Checkpoint corrente — segreti/deploy, 13 novembre 2026
@@ -343,3 +337,376 @@ Preservare i tre diff proprietario in AGENTS.md,MODEL_USAGE_LOG.md e
 NEXT_SESSION.md;staging dei documenti condivisi limitato alle append agente.
 
 Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.
+
+
+## Q-05 concluso e prerequisiti cloud — 15 novembre 2026
+
+Commit applicativo `9374efb`, branch `core-age-data-integrity`, PR #12 dipendente
+da #11. Q-04/Q-06/Q-07/Q-08 e Q-05 completati nel perimetro locale concordato.
+Ingressi dei soci collegati provati solo dagli scan; manuali senza socio dal
+flag di ingresso. Totale indipendente dalla finestra del grafico; orari evento
+Europe/Rome, confini DST e bucket parziali coperti. `registered` conta identità
+uniche; `participants_count` può ancora contare righe storiche duplicate.
+
+Evidenza riusata dal checkpoint Q-05, non rieseguita in questa ripresa:
+1412 unitari backend, 519 API con emulatore, 50 test config frontend ed ESLint
+senza errori. Review sostitutiva Sonnet high autorizzata dall'owner: 0 Critical,
+3 Important corretti. Dettagli e dispatch in MODEL_USAGE_LOG.md.
+
+Chiusura sequenziale prima del rilascio, autorizzata dall'owner:
+- [ ] Chiudere dipendenze: audit rivalidato il15novembre,62 pacchetti segnalati
+  (4critical),33 senza dev (3critical); primo passaggio compatibile applicato:50 residui (2critical),22 senza dev
+  (1critical). Punto aperto; review Sol high conclusa senza rilievi. Piano e
+  valutazione in SECURITY_HISTORY_REMEDIATION.md;49 rilievi WS1 storici.
+- [ ] Chiarire eventuali vecchie build ancora distribuite, con verifica owner.
+  Restrizioni Firebase rinviate: nessuna modifica implicita.
+- [ ] Ricevere esito finale CI PR #12 dal proprietario, con SHA e run.
+- [ ] Inventario cloud e piano IAM concreto, poi autorizzazione separata.
+- [ ] Bootstrap staging e piano traffico pagamenti senza worker incompatibili;
+  E2E sandbox e prova reale rollback, senza promozione produzione implicita.
+
+Snapshot salvati da ricostruire solo nel futuro rollout autorizzato. Browser,
+provider reali e invio reale OPS-04 restano verifiche separate; Sender spento.
+Modelli distinti per host come chiarito in AGENTS.md. Nessuna mutazione cloud,
+provider o credenziale in questa ripresa; nessun polling CI.
+
+
+## Primo passaggio dipendenze — 15 novembre 2026
+
+Blocco approvato dall'owner. Lockfile aggiornato entro i vincoli del manifest;
+Next15.5.29, CLI14.26.0/override invariati, nessun major diretto o nuovo override.
+Node20.19.6/npm10.8.2: npmci pulito,50frontend,contratti126/130/0errori,
+lint0errori/53warning esistenti,buildfixture,55test deployment/secret PASS.
+Smoke standard bloccato da8080 occupata; processo preservato. Driver privato
+su porte dedicate:2Python+client HTTP/Firestore/Auth/Storage/Functions PASS,
+exit0/shutdown pulito. Review indipendente unica Sol high senza rilievi,
+accettata. Nessun task Luna,1review Sol; token/costi non disponibili.
+Audit finale completo50pacchetti(2critical/18high/29moderate/1low),senza dev22
+(1critical/12high/8moderate/1low). Report/log `.local/staging/precloud-*`.
+Dipendenze **ancora aperte**, non passare al punto successivo come se chiuse.
+Critical residui:google-gax3→protobufjs7.2.4 da Admin11.11.1 e CLI14.26→tar6.2.1.
+Valutazione e confini in SECURITY_HISTORY_REMEDIATION.md; niente accettazione
+implicita di residui o upgrade/downgrade major automatico. Linux/CI remota,
+browser e ambienti cloud non verificati; nessun deploy o provider reale.
+
+
+## Firebase Admin13/tar7 e continuità API/trigger — 15 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `core-age-data-integrity`, base `c403cbf`.
+Owner approva Admin13.10.0 e override tar7.5.21 della CLI14.26.0; Node20 resta.
+Packaging reale gzip/Unicode/sottocartelle/esclusione .env sintetico passa con
+baseline tar6 e nuova tar7. SDK auth token/session cookie e casi invalidi provati.
+
+Trovato nello smoke nuovo un crash nativo macOS Python/get_proxy_settings dopo
+fork. Fix solo local/test: NO_PROXY/no_proxy per127.0.0.1/localhost nel guard e
+bridge CLI. Due regressioni RED→GREEN; nessun indebolimento auth/permessi.
+Smoke automatico Firestore PASS per2trigger creazione,4analytics e2worker
+(analytics/location), con scan/delete e snapshot;3handler scheduler provati
+su Firestore dedicato, senza attestare l'avvio agli orari Cloud Scheduler.
+
+Finali:1413unitari,87strumenti,52frontend,522API in111.73s,57Auth PASS; JUnit
+API/Auth/scheduler0failure/error/skip,runner exit0/shutdown pulito. Contratti
+126riferimenti/130export/0errori,lint0errori/53warning esistenti,buildfixture
+Node20,2Python smoke+clientHTTP PASS. Log `.local/staging/precloud-major-*`.
+2task Luna accettati (uno corretto da Sol sui timestamp del replay queued);
+unica review Sol high senza rilievi, accettata. Token/costi non disponibili.
+
+Audit completo47(0critical/13high/33moderate/1low),senza dev21
+(0critical/7high/13moderate/1low): prerequisito dipendenze **ancora aperto**,
+nessuna accettazione dei residui. Linux,CI remota,SSR distribuito e provider
+reali non verificati. Nessuna mutazione cloud/credenziali/deploy o promozione
+produzione/Sender. Prossimo perimetro da discutere prima di avviarlo.
+
+
+## Gate cloud — inventario e proposta bootstrap,16novembre2026
+
+Inventario owner registrato in CREDENTIAL_TRANSITION.md: staging dev39539,
+numero1005755179074,Firestoredefault/nam5,bucket Firebase firebasestorage.app
+(diverso dal catalogo appspot.com),nessun frontend/backend distribuito.
+CloudBuildAPI da abilitare e altri servizi deploy assenti nell'elenco44API.
+Due SA legacy Enabled,chiave admin-test Active;nessuna revoca. Nessun poolWIF
+o GitHubEnvironment. Billing collegato,Active/billingEnabled da confermare.
+Authpassword attivo,email-link spento,domini assenti secondo owner. PayPal
+sandbox DefaultApplication+Business/Personal presenti,nessuna transazione.
+Lineage accessi produzione→dev,secondo bucket e natura dei dati ancora aperti.
+
+Proposta unica aggiornata nel documento operativo:4SA dedicati (deploy,build,
+backend,SSR),WIFmain-only,SecretManager sandbox,permessi espliciti senzaOwner/
+Editor. Prima baseline richiede percorso staging-only separato. Bootstrap
+operator OAuth distinto dal release WIF; blocco IAM automatico CLI e lettura
+metadati bucket compresi nel piano dopo reviewSolhigh(2P1+1P2 corretti).
+0Luna,1review;token/costi indisponibili. Nessun codice o risorsa cloud cambiato.
+
+Prossimo consenso richiesto:solo bloccoA repository (bucket,buildaccount,
+bootstrap,regressioni),non provisioning/deploy. CloudB/C richiedono distinto
+manifest e consenso. Mantenere stopintegrazione main,nessun trust branchdev,
+flagdeployoff. Primo deployHTTP+SSR;data gate separato prima di trigger/cron,
+poi topologiacompleta,E2Esandbox,baselineA→releaseB→rollbackA verificato.
+Produzione/Senderoff;residuihigh rinviati non risolti. Non attivare API/IAM
+come conseguenza della sola approvazione del piano locale.
+
+
+## Blocco A repository completato — 16 novembre 2026
+
+Worktree `.worktrees/core-ws2`,branch `core-age-data-integrity`; base18f54b9.
+Owner ha approvato il blocco A. Implementati bucket staging osservato,quarto
+account build nel manifest/digest/workflow,converter CLI14.26 Python+SSR,
+bootstrap locale OAuth distinto da WIF e controlli IAM senza grant impliciti.
+Discovery SDK offline141endpoint:solo130HTTP nella prima tranche;8Firestore e
+3scheduler esclusi,più SSR via Hosting. Il comando richiede SHA approvato,
+checkout pulito e integrazione main; verifica account operatore e credenziale
+OAuth privata senza chiavi serviceaccount,e rifiuta inventari globali incompleti
+o non vuoti. Nessun rollbackbaselineflag falsificato.
+
+Review Solhigh unica:3P1+1P2 accettati/corretti RED→GREEN:OAuthstringtrue,
+Fabricator delete/retry,warningunreachableexit0,retention AR prima deldeploy.
+Preflight richiede repository gcf-artifacts us-central1 con opt-out Firebase
+cleanup e nessuna policy DELETE,da concordare/provisionare soltanto in B.
+
+Evidenza locale:1413unitari,522API,57Auth,103strumenti,68frontend/config PASS;
+build e smokeisolato automatico con8trigger PASS;lint0errori/53warningesistenti.
+Cloud OAuth/IAM/deploy e CI remota non verificati. Residuihigh rinviati.
+1task Luna corretto/accettato,1review Solhigh;token/costi indisponibili.
+
+**Prossimo perimetro:discutere B prima di iniziare.** Manifest concreto delle
+risorse/API/4SA/WIF/Environment,scope IAM e retention;consenso cloud separato.
+Prima di C classificare/proteggere i dati esistenti e verificare legami legacy.
+Nessun deploy,aggiornamento dati cloud,push,merge main o flagautomatici ora.
+Dopo B/C:HTTP+SSR,dati sintetici cloud con gate separato,trigger/cron,
+E2Esandbox,baseline completa A→B→rollback A. Produzione/Sender restano off.
+
+## Blocco B — stima costi pronta,16 novembre 2026
+
+Owner conferma billing a posto (non verifica indipendente) e prevede4deploy
+completi/mese. Richiede staging completo con costi contenuti. Stima e formule
+in CREDENTIAL_TRANSITION.md,sezione Stima economica:scenario di riferimento
+13,015USD/mese lordo prima quote gratuite (11,575cloud+1,44GitHub),intervallo
+condizionato5–15USD. Scenario senza riuso build48,3382USD; non un tetto.
+CLI14.26 prevede riuso immagini per default; nessuna telemetria reale prova
+quante build verranno eseguite. Dataset locale53684doc/33,14MiBexport,non
+misura Firestore cloud. Backup legacy,abbonamentoGitHub,carico e primo mese
+bootstrap da quantificare separatamente. Proposta minInstances0,retention
+protetta,4rilasci e budgetmonitoraggio15USD con avvisi50/80/100,pending owner.
+Pipeline attualeflagoff farà deploy a ogni pushmain una volta attivata:
+va concordato/adattato il comportamento prima di accendere i flag. Nessun
+limite runtime,cleanup,policy o risorsa cloud modificata ora. Prossimo:
+concordarebudget e completaremanifest B conAPI/IAM/risorse esatti prima di
+qualsiasi mutazione. Stopintegrazionemain e approvazioni cloud/dati invariati.
+
+
+## Blocco B — quattro account creati via CLI,16 novembre 2026
+
+Owner chiede esplicitamente CLI al posto della console guidata. Creati
+ github-deploy,functions-build,app-runtime,web-runtime (tutti @mcp-website-dev-39539.iam.gserviceaccount.com).
+Progetto stagingACTIVE/1005755179074 verificato viaAPI;CLIaccountowner,
+--projectstaging esplicito su ogni comando,defaultlocaleproduction invariato.
+Readback per tutti4:Enabled,0userkeys,0ruoliprogettodiretti,0bindingpolicyaccount.
+Nessun grantIAM o downloadchiavi;due SAlegacy invariati. Nessun deploy o
+modifica dati. Prossimo passaggio:verificareAPI/policy epermissioncustom/risorse
+prima dei grantnominativi;non assegnare ruoli per superare errori deldeploy.
+La creazioneidentità non attiva WIF,flagautomatici o pipeline e non autorizza
+revoche/deploy/dati. Il prospetto B resta in CREDENTIAL_TRANSITION.md3/3a.
+
+
+## Blocco B — API e IAM verificati in sola lettura,16 novembre 2026
+
+Owner richiede verificaAPI/policy,non abilitazioni o grant.44API prima/dopo
+identiche,billingEnabled=true verificatoAPI. Mancano8API:cloudfunctions,run,
+cloudbuild,artifactregistry,eventarc,cloudscheduler,secretmanager,sts (suffisso
+.googleapis.com). Nessun ruolo diretto ai4nuoviSA;policyprogetto10bindinglegacy/
+owner/serviceagentFirebase.0ruolicustom e0poolWIF.9permessi custom GA/SUPPORTED
+verificatiIAM REST(14pagine),23definizioni ruoli predefiniti lette. EventarcAdmin
+includeIAMwritesrisorseEventarc:rinviare/limitare prima del grant,non serveHTTP.
+BucketappUS,ACLlegacy/UBLAfalse,softdelete7giorni;IAMbucketlegacyowner/reader,
+nessunallUsersIAM,maACLsingolioggetti nonletti. Solo2bucket,niente sorgentigcf
+osservate. DBnam5Native,PITR e deleteprotectiondisabled;backup nonriinterrogati.
+Metadati privati in.local/staging/cloud-b-verification/,nessunpayloadsegreto.
+Esito aggiornato inCREDENTIAL_TRANSITION3b. Nessunamutazionecloud nécodiceapp.
+Prossimo lotto da discutere:abilitare sole8API e verificareserviceagent;grant,
+WIF eprotezionedati rimangono separati. Nessunaattivazionepipeline/deploy.
+
+
+## Blocco B — otto API abilitate,16 novembre 2026
+
+Owner autorizza le8API mancanti. Singologcloudservicesenable solo8ID,
+progettostagingesplicito,exit0;readback tuttepresenti.44→54API:Google aggiunge
+containerregistry e source(LegacyCloudSourceRepositories)comedipendenze.
+SnapshotIAMdelta8assegnazioniruolo/principale:CloudBuildlegacybuilder,CloudBuildServiceAgent,
+FunctionsstandardServiceAgent,SchedulerServiceAgent,ContainerRegistryServiceAgent,
+RunServiceAgent e **Editor suComputeDefault/AppEngineDefault**. Nessun grant
+manuale nérevoca;4SAdedicati ancora0ruoliprogettodiretti. Funzioni/Run[]
+verificati globalmenteexit0stderrvuoto;altriutilizziaccountdefault nonverificati.
+Duepuntiprimadeploy:analisi/rimozionemirataEditor soloconconsensoesnapshot;
+guardiaCLIattendecloudfunctions.serviceAgentdeprecato,Googleusa ora
+cloudfunctions.standardServiceAgent(GA265permessi,13ARinmeno). Non aggiungere
+ruolodeprecato;serviràfixmiratoconregressione/review,nonfattopassaggioAPI.
+CREDENTIAL_TRANSITION3c aggiornata,evidenzeprivatein.local/staging/cloud-b-verification.
+Prossimo:chiuderequestieffetti,poi customrole/grant/WIF/repository/secret.
+Nessundeploy,dati,produzione,revoca oattivazionepipelineeseguiti/autorizzati.
+
+
+## Blocco B — controllo Functions corretto,16 novembre 2026
+
+Owner lascia invariati i2Editor default e chiede solofixcontrolloFunctions;
+non riproporre riesame/revoca senza nuova richiesta. Patchlocaleminima accetta
+standardServiceAgent olegacyserviceAgent sulprecisoGCFrobot,unconditional;
+noEditor/Admin/wrongprincipal sostitutivi,restantiguardieIAMpreservate.
+RED→GREEN sufixtureAPIcorrente;8IAM/70config/103strumenti PASS,lintmiratoPASS.
+ReplayofflinepolicystagingperHTTPPASS0scritture.1reviewSolhigh
+functions_agent_role_review senzaP1/P2,8testPASSindipendenti,accettata.
+Nessunamutazionecloud/deploy/credenziali inquestopassaggio. Bprossimo:
+customrole/grantnominativi,WIF,repository/secret/configprimaC e datigate.
+
+
+## Blocco B — primo lotto IAM applicato,16 novembre 2026
+
+Owner prosegue dopofixFunctions. Creati5customroleGA con9permessi distinti
+approvati eapplicati17grant:10progetto,5policySA,2bucketapp. Firestoredatastore.user
+condizionato alDB(default);webselfsignBlob;githubactAssolo4SAdedicati. ARrepo e
+secretassenti,rimandatigrant;Eventarc/Schedulerrinviati,noEventarcAdminora.
+1reviewSolhigh staging_iam_lot_review senzaP1/P2,accettata prima applicazione;
+dryrun22comandi e snapshot6policycoerenti.22operazioniOK,readback6policy+5role
+defsall_pass:17aggiunteesatte,0rimozioni,0inattese. Editor/legacy/produzioneinvariati.
+Nessundeploy,dati,WIF,pipelineosecretvalore. Evidenzein.local/staging/cloud-b-verification,
+planSHA c3eef5a6fe4540f80e0de53f4b916d3ec712c95759bdd020864c25272d2a9cdc.
+Prossimo:ARgcf-artifactsus-central1+optout+2grant,secretcontainer/valoreowner
++2grant,sorgentibucket+viewer,WIF/GitHub,Hosting/Auth,budget. Riassunto3e
+CREDENTIAL_TRANSITION. Non dichiarare B/deploycompleti;mainhold e datigate restano.
+
+
+## Blocco B — repository immagini pronto,16 novembre 2026
+
+Owner prosegue sulrepo. Creato gcf-artifacts DockerSTANDARD us-central1 nel
+progetto staging,inizialmenteassente. LabelFirebasecleanupoptouttrue,0cleanup
+policy,scanningvulnerabilitàDISABLED(secondopiano costi).2grant solosulrepo:
+functions-buildWriter egithub-deployReader. Readbackmetadati/IAM/immagini
+all_pass,0immagini. Google aggiungeautomaticamente ArtifactRegistryServiceAgent
+sulprogetto aservice-1005755179074@gcp-sa-artifactregistry.iam.gserviceaccount.com;
+0rimozioni,altriruoliinvariati. Nessunabuild/deploy/secret/dati,nessuncodiceapp.
+Evidenzeprivate registry_* in.local/staging/cloud-b-verification;resoconto3f
+CREDENTIAL_TRANSITION. Prossimo:secretPayPalcontainer+valoreowner+2grant,
+sorgentibucket+viewerbuild,WIF/GitHub,Hosting/Auth,budget. NoEditorcleanup,
+mainhold e datigate invariati;retentiondefinitivasolodopoprovarollback.
+
+
+## MailerSend reale nello staging richiesto —16 novembre 2026
+
+Owner contesta maildisabled perstagingcompleto:serveprovareconsegnareale.
+RuntimegiàsupportaMAIL_MODE=staging+allowlist,SecretParam mailgiàpresenti.
+Releaseinvececatalogdisabled,mittentesoloprod,nienteallowlist,preflightstage
+soloPayPal:prepararecorrezionecoerenteconregressioni,non basta inserirechiave.
+ServeMAILERSEND_API_KEYinSMstage+Accessorapp/viewerdeploy,configurazionerelease
+mittenteverificato/destinatariautorizzatifuoriGit. Chiestiowner viaquestion
+asincronai soliindirizzi mittente/destinatario,maiAPIkey. Nessuninvio,grant,
+secret o toggleruntime fattiora. Datasetmassivononinvia;testrealmailseparato.
+DettaglioCREDENTIAL_TRANSITION3g;altriprovidermodiinvariati.
+
+
+## Staging provider e secret predisposti —16 novembre 2026
+
+Worktree `.worktrees/core-ws2`, branch `core-age-data-integrity`, baseab050b4.
+Release ora mail/gender/SoundCloud staging,PayPal sandbox,Pass2U fake;allowlist
+email esatta obbligatoria/digested/workflow e preflight di tutti i secretattivi.
+Runtime vietaPass2U reale in staging e richiedechiavegender. Default catalogo
+prudenti e produzione invariati. Sender sospeso:chiestoowner se riattivarlo,
+necessario suo lotto binding/webhook/isolamento prima diabilitare.
+Mittenteowner e5destinatariapprovati salvatiin.local/staging/mail-public-config.json
+0600;recipients.json giàesistente. GmailDev get_profileconfermato casellatest;
+nessunmessaggioletto/inviato. API MailerSend,non credenzialiSMTP.
+Creati4secretvuoti PAYPAL_CLIENT_SECRET/MAILERSEND_API_KEY/SOUNDCLOUD_CLIENT_SECRET/
+GENDER_API_KEY,8grant resourceonly(app-runtime accessor,github-deploy metadataviewer).
+0versioni:ownerinseriscevalori direttamenteinSM,maichat. PrimoCLI nullpolicy
+fermato dopo1creazione;readback e ripresaesplicita daemptyPayPal,nessunretrycieco.
+ReviewSolhigh1P2correttoRED/GREEN;1415unit,112tooling,70config,5privatechecksPASS.
+Evidenzeprivateprovider_secret_*;dettaglioCREDENTIAL_TRANSITION3h.
+Prossimo:inserimentovalori e preflightmetadata,Senderchiarimento,WIF/GitHub,
+Hosting/Auth,budget,sorgentibucket. No deploy/import/production/mainmerge;gates
+baseline/rolloutimmutati. Residuihigh differitiowner,nonrisolti.
+
+
+## Gender rinviato dall'owner —16 novembre 2026
+
+API Gender segnalata non funzionante; owner rinvia la correzione. Release staging
+GENDER_MODE=fake, niente richieste reali né binding/controllo versione Gender.
+Il contenitore GENDER_API_KEY vuoto e i grant già creati restano invariati.
+Inserire ora soltanto i valori PayPal sandbox, MailerSend e SoundCloud.
+Simulazione non valida l'API Gender reale: difetto ancora aperto e differito.
+Regressioni confermano profilo, preflight senza Gender e avvio runtime senza
+chiave Gender, con binding funzioni corretti. Nessuna mutazione cloud o deploy.
+
+
+## Tre valori provider inseriti via CLI —16 novembre 2026
+
+Su richiesta owner, recuperati in memoria i soli campi provider da .env e
+.env.integration backend del checkout principale, coincidenti. PayPal legacy
+production nel file, ma coppia base distinta da PAYPAL_LIVE e autenticazione
+sandbox verificata HTTP200; nessun pagamento. Token MailerSend API distinto
+dalla password SMTP, SoundCloud coppia esistente; nessuna rotazione.
+Staging SM: PAYPAL_CLIENT_SECRET,MAILERSEND_API_KEY,SOUNDCLOUD_CLIENT_SECRET
+versione1 ENABLED, readback metadati. Payload via stdin, mai argomenti/log/Git.
+Gender0versioni e fake,Pass2U escluso. Client ID pubblici in file privato
+.local/staging/provider-public-config.json0600; evidenze provider_local_source_check
+e provider_secret_upload_result nella cartella cloud-b-verification.
+Non chiedere nuovamente all'owner l'inserimento manuale dei tre valori.
+Prossimi: chiarimento Sender; WIF/GitHub,Hosting/Auth,budget,bucket sorgenti;
+preflight completo e prove reali MailerSend/SoundCloud non ancora eseguiti.
+Nessun deploy,invio email,import dati,produzione/mainmerge; gate invariati.
+
+
+## Limiti dei test cloud confermati dall'owner —17 novembre 2026
+
+Dataset massivi e carico soltanto negli emulatori. Il precedente piano di
+4000soci/50eventi non va importato sul cloud per il gate; costo/dati del vecchio
+modello economico non costituiscono autorizzazione a prove massive.
+Cloud: pochi record sintetici, casi rappresentativi, conteggio di chiamate,
+letture/scritture, trigger/fan-out, scheduler e vere email. Prima di eseguire
+preparare e verificare limiti espliciti del runner per sessione e invii; fermare
+nuove operazioni al limite e niente replay automatici con effetti esterni.
+Non rieseguire la suite massiva locale sul cloud né inviare a tutti gli alias
+in ogni scenario. Limiti operativi non equivalgono a un tetto di fatturazione.
+Documentata policy in CREDENTIAL_TRANSITION, runner futuro ancora da adeguare;
+nessun test cloud, invio, import o mutazione cloud eseguito in questo passaggio.
+
+
+## Environment GitHub staging creato —17 novembre 2026
+
+Owner autorizza creazione. gh accountVittorix99/admin; repoID899139661 verificato.
+Environment staging ID27524025438, custom branch policy unico main di tipo
+branch.12variabili pubbliche inserite e verificate,0secretGitHub. FlagEnvironment
+PAYMENT_ROLLOUT_APPROVED eROLLBACK_BASELINE_VERIFIED false; flagrepository deploy
+staging/production assenti e invariati. Nessun workflow/build/deploy avviato.
+WIF_PROVIDER soltanto riferimento concordato, WIF non ancora provisionato.
+Mancano FIREBASE_API_KEY/FIREBASE_APP_ID staging. Altre variabili:4SA,PayPalID,
+SoundCloudID,mittente/nome/allowlistemail. Valori privati non riportati nei docs.
+Readback REST completo per_page100+total_count e validatore release PASS;
+prima lettura10di12variabili, nessuna mutazione ripetuta. Evidenza privata
+github_staging_environment_result.json nella cartella cloud-b-verification.
+Prossimo:WIF con vincoli repo/main/workflow/environment e config app Firebase;
+poi Hosting/Auth,budget,sorgentibucket e gate. Sender sospeso/Genderfake/Pass2Ufake;
+test cloud ridotti, nessun import massivo. No produzione/mainmerge o flagon.
+
+
+## WIF staging e variabili Firebase configurati —17 novembre 2026
+
+Worktree .worktrees/core-ws2, branch core-age-data-integrity, base019fc23.
+Creati poolgithub-actions/providermain-release nel progetto mcp-website-dev-39539,
+ACTIVE,6vincoli esatti repoID899139661/repo/main/release.yml/reusabledeploy/
+Environmentstaging. Un solo grant roles/iam.workloadIdentityUser sul SA
+github-deploy al principalSetrepositoryID del pool; IAMprogetto invariato.
+OIDCGitHubsubjectdefault verificato,nessuna personalizzazione/SAkey. Audience
+default compatibile con actionfissata7c6bc.
+SDKconfig appesistenteMCP WEB TEST ACTIVE verificata(progetto/bucket/authDomain);
+aggiunte2variabili browser Firebase:Environment ora14variabili,0secretprivati.
+I valoriSDK sono in.local/staging/firebase-web-public-config.json0600.
+ReviewSolhigh1P2corretto conguardia antiPython-O RED/GREEN;1positivo14negativi
+solooffline,5mutazioni testate dalreviewer. Primo readbackpostcreate incompleto
+(causa nonattestata); verificati indipendentemente stato/vincoli/IAM, ripresi
+solo3passi mancanti. ReadbackfinaleindipendentePASS. Evidenzeprivatewif_* e
+firebase_web_app_config_check;CREDENTIAL_TRANSITIONsezione4.
+TokenGitHubautentico/STSexchange NONprovati: richiedono canale main/SHA
+autorizzato. Nessun workflow/build/deploy/dati/mail/produzione/mainmerge.
+Flagdeployrepoassenti,baseline/rolloutfalse; mainholdpreservato.
+Prossimo blocco:Hosting/Auth,budget/scheduler/costi,bucket sorgenti e IAM residuo,
+poi integrazionemainapprovata/bootstrap/E2Eridotti/rollback. Cloudsolo pochi
+record/chiamate/email conlimiti,maimassiccio datasetlocale. Gender/Pass2Ufake;
+Senderancorasospesoinattesachiarimentoowner.

@@ -2149,3 +2149,42 @@ regressioni e correzioni raggruppate. Nessuna migrazione/bonifica, cloud,
 push, merge, deploy o provider reale. Log privati .local/staging/q07-*.
 
 Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.
+
+### Q-05 ingressi e finestre — blocco approvato 15 novembre 2026
+
+Owner approva procedere dopo Q-07: totale ingressi indipendente dal grafico;
+include manuali senza tessera solo se segnati entrati. Scan unico fonte per
+socio/evento; flag collegati sono copie, anomalie legacy segnalate senza
+inventare scan o timestamp. Grafico su data/orari evento Europe/Rome;
+fine assente/non parsabile = inizio +8 ore locali. Start legacy assente22:00.
+Estremi start incluso/end escluso, bucket finale parziale conservato, date
+reali e cambi ora legale/solare rispettati. Override espliciti API/UI restano.
+
+Piano unico autorizzato: regressioni API RED; regole comuni di presenza e
+finestra; integrazione scanner/analytics diretto/snapshot; UI coi nuovi
+contatori e default evento; focused GREEN e suite; unica review Sol high,
+correzioni con prove; checkpoint e commit locale. Nessuna bonifica/cloud.
+Compatibilità: enteredFlag conserva flag raw e scanned conserva scan raw;
+nuovo entered è il totale canonico, registered conta identità iscritte uniche.
+I rapporti presenza/copertura usano il totale coerente, non le righe duplicate.
+Stato finale: implementato e verificato localmente, commit `9374efb`.
+1412 unitari backend e 519 API con emulatore PASS; 50 test config frontend
+PASS ed ESLint senza errori. Review Codex Sol high non conclusa per limite
+utilizzo; review sostitutiva Sonnet high autorizzata dall'owner: 0 Critical,
+3 Important corretti (DST in UTC, avvisi anomalie check-in, isolamento unitari).
+Nessuna seconda review. Scan unica prova di ingresso per soci collegati;
+nessuna scansione o timestamp inventato per anomalie legacy.
+`participants_count` conserva il conteggio righe, inclusi duplicati storici;
+`registered` conta identità uniche. Discrepanza minore nota, non bonificata.
+Alla chiusura Q-05: PR #12 draft, base PR #11; CI remota allora non verificata,
+nessun deploy/provider reale o gate cloud concluso in quel blocco.
+Riscontro CI del18novembre2026, prima dell'integrazione della PR #12:
+[CI43745926507 verde](https://github.com/Vittorix99/mcp-website/actions/runs/43745926507)
+sullo SHA remoto `9374efb`. I commit locali successivi non sono coperti da
+quella CI e richiedono un nuovo run dopo la pubblicazione. Preparazione cloud
+del17novembre in CREDENTIAL_TRANSITION.md4b/4c: email-link, budget e bucket
+upload/sorgenti predisposti, non un deploy o una prova di riuso Functions.
+Evidenze applicative riusate, non rieseguite per questa riconciliazione.
+L'owner ha poi mergiato #11 e #12 su main, ma #12 conteneva ancora lo SHA
+`9374efb`: il lavoro locale successivo richiede una nuova PR di completamento.
+Stato corrente e gate di integrazione in NEXT_SESSION.md.

@@ -196,6 +196,14 @@ predefinito dell'host, non `gpt-6.1-sol`): nessun Critical, 2 Important e
 `Aborted`. Conteggio: 0 incarichi Luna, 1 review delegata. Token e costi non
 disponibili.
 
+## Handoff refresh — 2026-11-11
+
+| Piattaforma / modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| Codex / GPT-6 Luna | Aggiornamento conciso di `docs/process/NEXT_SESSION.md` e append di questo log, con facts forniti dal coordinatore | low | Modifiche documentali limitate; `git diff --check` passato; Sol ha letto e accettato i documenti. |
+
+Conteggio dispatch effettivi nel blocco: 1 incarico Luna; accettato da Sol. Token e costi non disponibili.
+
 
 ## DIS-06 — prenotazione sconto prima della capture — 2026-11-11
 
@@ -488,6 +496,7 @@ proteggono contatti canonici prima del provider e schede socio immutate
 prima dell'incasso. Nessuna seconda review. Provider reali e CI non verificati.
 
 Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error/skip.
+
 ## Q-05 ingressi e finestre — 15 novembre 2026
 
 | Modello | Incarico | Effort | Stato ed evidenza |
@@ -498,4 +507,115 @@ Auth finale:57 scenari con token reali degli emulatori PASS, JUnit0failure/error
 
 Verifica finale: 1412 test unit e 519 API con emulatore passati, 50 test config
 frontend, ESLint senza errori. Nessuna seconda review. 1 incarico Luna, 1 review
-Sonnet; token e costi non disponibili. CI remota non verificata.
+Sonnet; inoltre 1 dispatch review Codex Sol high fallito senza risultato.
+Token e costi non disponibili. Alla chiusura locale la CI remota non era
+verificata. Riscontro del18novembre2026: [run43745926507](https://github.com/Vittorix99/mcp-website/actions/runs/43745926507)
+concluso success sullo SHA remoto Q-05 `9374efb`; non copre i commit locali
+successivi. Nessuna suite applicativa rieseguita per la riconciliazione.
+
+
+## Prerequisito cloud — dipendenze compatibili, 15 novembre 2026
+
+Coordinatore Sol inline per analisi di sicurezza e lockfile. Nessun task Luna:
+vincoli transitivi e contratti deployment richiedono valutazione Sol.
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | precloud_dependencies_review: unica review indipendente del lockfile, compatibilità e documentazione residui | high | Conclusa senza rilievi correggibili; accettata da Sol. Risoluzione/riferimenti nativi Linux coerenti, audit e log verificati; installazione/esecuzione Linux e CI remota non provate. |
+
+Conteggio dispatch effettivi:0task Luna,1review Sol high conclusa e accettata.
+Token/costi non disponibili. Nessuna modifica cloud/provider/credenziali.
+
+
+## Prerequisito cloud — Firebase Admin13 e tar7, 15 novembre 2026
+
+Owner approva migrazione Admin11.11.1→13.10.0 e override tar7.5.21 limitato
+alla CLI14.26.0, con verifica di continuità. Coordinatore Sol mantiene
+ownership di package.json/lockfile, migrazione e analisi di sicurezza.
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | firebase_packaging_contract: un test reale archiveDirectory della CLI, list/extract Unicode/nested ed esclusione .env sintetico | medium | Consegnato un solo file; baseline1test PASS, riletto e accettato da Sol. Dopo migrazione il test passa nella suite frontend51/51. Nessuna modifica dipendenze/documenti delegata. |
+| gpt-6-luna | scheduled_trigger_contracts: tre scenari dei corpi scheduler su Firestore dedicato | medium | Consegnato un file, py_compile PASS. Sol corregge l'aspettativa del replay queued (timestamp kick possono cambiare); 3 scenari focalizzati PASS su Firestore dedicato, accettati da Sol. |
+| gpt-6.1-sol | admin_tar_final_review: unica review indipendente del blocco Admin/tar, smoke trigger e correzione proxy locale | high | Conclusa senza rilievi; accettata da Sol.1413unitari/87strumenti/52frontend/522API/57Auth e smoke automatici PASS; limiti Linux/CI/cloud/scheduler reale conservati. |
+
+Dispatch effettivi:2task Luna accettati,1review Sol high conclusa e accettata.
+Token/costi non disponibili; nessuna attività cloud/provider/credenziali.
+
+
+## Piano bootstrap/IAM staging — 16 novembre 2026
+
+Coordinamento Sol inline: inventario owner,verifica codice CLI/pipeline e fonti
+primarie Google; nessun codice applicativo o risorsa cloud modificato. Piano
+aggiornato nel documento operativo esistente,non creato un report duplicato.
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | cloud_bootstrap_plan_review: review indipendente della proposta4identità/IAM/WIF e sequenza prima baseline/dati | high | Review conclusa:2P1 (bootstrap auth owner/WIF,IAM implicito CLI) e1P2 (storage.buckets.get deploy) accettati da Sol e corretti nel piano. Nessuna implementazione o prova cloud. |
+
+Dispatch effettivi:0incarichi Luna,1review Sol high. Nessun secondo dispatch;
+token/costi non disponibili.
+
+
+## Blocco A bootstrap staging — 16 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6-luna | bootstrap_build_tests: test converter CLI reale per account build Python/SSR,un solo file assegnato | medium | Consegnato; Sol corregge percorso import e aspettativa mail runtime,esegue RED→GREEN suNode20 e accetta. Test finale integrato nei68 frontend/config. |
+| gpt-6.1-sol | bootstrap_a_final_review: unica review indipendente bootstrap OAuth/WIF,IAM,source,selector e confini CLI | high | Conclusa:3P1+1P2 accettati e corretti da Sol in un passaggio con regressioni RED→GREEN. SDK OAuth/Fabricator reali con transport inerti; inventario warning/exit0 e retention verificati offline. Nessuna seconda review. |
+
+Dispatch effettivi:1incarico Luna corretto/accettato,1review Sol high conclusa.
+Verifica coordinatore:1413unitari/522API/57Auth/103strumenti/68frontendconfig
+PASS;build e fullsmokeisolato API/8trigger PASS;lint0errori/53warningpreesistenti.
+Nessuna autenticazione cloud reale,provisioning,deploy,push o merge main.
+Token/costi indisponibili; conteggi task non rappresentano risparmi misurati.
+
+
+## Compatibilità service agent Functions —16 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | functions_agent_role_review: review indipendente di cli-guards.cjs e regressioni,compatibilità ruoli Functions attuale/legacy | high | Nessun P1/P2;8test Node20 mirati verificati indipendentemente. Accettata dal coordinatore;70config/103strumenti e replayofflinepolicyHTTP0scritture PASS. Nessuna chiamata cloud o modifica file del reviewer. |
+
+Dispatch effettivi:0Luna,1reviewSolhigh;patch minima eseguita inline.
+Nessuna stima token/costi. Editor default lasciati invariati come richiesto.
+
+
+## Primo lotto IAM staging —16 novembre 2026
+
+| Modello | Incarico | Effort | Stato ed evidenza |
+|---|---|---|---|
+| gpt-6.1-sol | staging_iam_lot_review: verifica preventiva piano5customrole/17grant e22comandi CLI,snapshot e condizioneFirestore | high | NessunP1/P2;scope ehash piano verificati,dryrun esatto e semanticaSDKcondition=None confermati. Accettata prima di applicare. Coordinatore applica22operazioni e verifica indipendentemente6policy+5role:17aggiunteesatte,0rimozioni/inattese. Reviewer nessuna chiamata cloud o modifica. |
+
+Dispatch effettivi:0Luna,1reviewSolhigh. Operazioni cloud eseguite dal
+coordinatore su richiesta owner;nessuna stima token/costi disponibile.
+
+
+## 2026-11-16 — Staging provider profile and scoped secret provisioning
+
+- Dispatch: staging_provider_profile_review; model gpt-6.1-sol; reasoning high; fresh context; read-only review of release/runtime/workflow/tests plus private provisioning plan/script.
+- Result: one P2, unexpected initial direct secret grants could survive delta-only verification. Sol accepted finding, reproduced RED with fake cloud, fixed to require empty initial and exact final direct grants; GREEN5private provisioning tests. No second review needed for the covered fix.
+- Verification:1415backend unit tests;112tooling tests plus5private provisioning tests;70frontend/config tests PASS with Node20. Initial bootstrap selector check failed under host Node; corrected to required Node20 and complete tooling suite passed. Reviewer independently passed101focused checks.
+- Dispatch count:1Sol review task,0Luna tasks. No host token/cost telemetry available. Cloud result:4empty secret containers,8exact resource grants,0versions; second independent readback PASS and project IAM unchanged since registry. Details CREDENTIAL_TRANSITION3h.
+
+
+## 2026-11-17 — Staging WIF activation and Firebase public variables
+
+- Dispatch: staging_wif_activation_review; gpt-6.1-sol, reasoning high, fresh context, read-only review before provisioning. Scope: exact restricted OIDC provider, one resource-level SA grant, two public Firebase Environment variables; no deploy/production/token payloads.
+- Result: Sol accepted one P2: optimized Python could remove assert safeguards. Explicit non-assert entry guard added; RED/GREEN with python -O and external-call sentinels confirms rejection before any cloud/GitHub call. No other P1/P2.
+- Verification: actual-condition equality checks1positive/14negative PASS; reviewer stubbed normal path exactly5mutations and broadened provider stops before grant. Full public configuration/runtime policy offline PASS with synthetic SHA. Live metadata readback PASS: ACTIVE restricted pool/provider, exact one SA grant, project IAM unchanged and14public GitHubvariables. Initial post-create readback incomplete; independently verified exact resources before resuming only3remaining mutations. Signed-token/STS proof pending; details CREDENTIAL_TRANSITION section4.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
+
+## 2026-11-17 — Auth email-link and upload bucket prerequisites
+
+- Dispatch: auth_upload_prerequisite_review; gpt-6.1-sol, reasoning high, fresh context, read-only review before Auth/IAM mutations. Scope: one masked Auth field and one bucket-only build viewer grant; no deploy, data, mail or production.
+- Result: Sol accepted1P2 evidence gap and captured both original bucket IAM policies before grant. Same review followed up after live Auth false was omitted by ProtoJSON: verifier now normalizes only that absent field; reviewer accepted with no additional P1/P2. No PATCH retry or rollback.
+- Verification:7offline Auth checks PASS under normal Python and python -O, including RED/GREEN omitted-false regression. Independent final readback9checks PASS: exact Auth delta, one upload-bucket grant, unchanged project/both original bucket IAM, zero Functions/Hosting releases/regional+global builds, exact3bucket inventory. Single generateUploadUrl created upload bucket; signed URL discarded and no source uploaded. Source bucket remains absent and bootstrap readiness is false; billing API disabled, no API mutation.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
+
+## 2026-11-17 — Precreated staging source bucket
+
+- Dispatch: source_bucket_prerequisite_review; gpt-6.1-sol, reasoning high, fresh context, read-only review before two source-bucket mutations. Scope: one regional private bucket at documented Functions source name and one bucket-only build viewer grant.
+- Result: review accepted without P1/P2. Creation stopped before grant on actual additional project-only legacyObjectOwner/Reader defaults; Sol corrected the narrow default whitelist with RED/GREEN regression, preserved all defaults, and obtained targeted acceptance from the same reviewer for the helper and grant-only resume protocol. No creation retry or rollback.
+- Verification:10offline provisioning checks PASS normally and with python -O; reviewer independently confirms actual4binding/6edge defaults and tests. One bucket creation plus one etag-protected source-bucket viewer grant. Independent live readback12checks PASS: exact source identity/protections/empty state/IAM delta, unchanged project and3existing bucket policies, exact4bucket inventory, zero Functions/Hosting releases/regional+global builds. Actual Functions reuse remains unproven until separately authorized bootstrap.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.

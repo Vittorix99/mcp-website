@@ -46,6 +46,21 @@ def test_legacy_production_flags_are_rejected():
     assert result.returncode != 0
 
 
+def test_emulator_http_skips_native_proxy_discovery_after_fork(monkeypatch):
+    import os
+    import requests.utils
+
+    _, env = _guard().command_environment('test-emulators', {})
+    monkeypatch.setattr(os, 'environ', env)
+
+    def native_proxy_lookup(_host):
+        raise AssertionError('Emulator requests must not consult macOS proxy settings after fork')
+
+    monkeypatch.setattr(requests.utils, 'proxy_bypass', native_proxy_lookup)
+    for host in ['127.0.0.1', 'localhost']:
+        assert requests.utils.get_environ_proxies(f'http://{host}:9299/emulator') == {}
+
+
 def test_emulator_cli_enables_framework_support_without_saved_user_settings(monkeypatch):
     from types import SimpleNamespace
 

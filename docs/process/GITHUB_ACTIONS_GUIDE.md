@@ -45,8 +45,58 @@ gh run rerun RUN_ID --failed
 
 La ripetizione usa lo stesso commit. Se serve una modifica al codice o alla configurazione, crea un nuovo commit: questo produrrà una nuova esecuzione. Consulta la [guida ufficiale alle ripetizioni](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs) per i dettagli.
 
-## Deploy futuri e blocchi attuali
+## Environment: configurazione e regole per una destinazione di deploy
 
-In futuro, **Workload Identity Federation (WIF)** potrà dare a GitHub un’identità temporanea, limitata all’ambiente staging o production. Evita così chiavi JSON di lunga durata salvate come segreti. I modelli inattivi in `docs/operations/workflow-templates/` sono scheletri illustrativi non testati, non un’implementazione di deploy. Restano deliberatamente disabilitati e bloccati; non scaricano né estraggono l’archivio e non eseguono codice dell’artefatto. L’attivazione richiede un gate separato del proprietario e la verifica di provenienza dell’artefatto, commit sorgente, IAM e revisori dell’ambiente. I deploy, la verifica della provenienza e il rollback non sono implementati; non sono configurati i revisori e le protezioni degli ambienti GitHub.
+Un GitHub Environment è una configurazione nominata del repository, per esempio
+`staging` o `production`, che un job Actions seleziona con `environment:`.
+Può contenere variabili non segrete, secret e regole di protezione: branch/tag
+ammessi, approvazioni richieste e altre condizioni. L'Environment non crea
+progetti Google Cloud, database, server o siti e non carica automaticamente
+un file .env nell'applicazione. I valori devono essere usati dal workflow e
+dalla configurazione di build/runtime previsti.
 
-L’inventario di proprietà e risorse Doppler è ancora necessario e blocca la preparazione dello staging. Fino al completamento di tale inventario e delle approvazioni richieste, questi modelli non autorizzano deploy. Nessun deploy è attivo.
+Il branch identifica il codice; il workflow definisce le operazioni; un job
+viene eseguito su un runner; l'Environment ne applica configurazione e regole
+per il deploy; Google Cloud ospita le risorse su cui quel job interviene.
+Le regole PR proteggono l'integrazione del codice, quelle dell'Environment
+proteggono il job di rilascio: sono passaggi distinti.
+
+Le variabili vengono lette tramite `vars.NOME`, i secret tramite
+`secrets.NOME`. Per esempio `DEPLOY_SERVICE_ACCOUNT` ha un valore diverso nei
+due Environment: il job selezionato riceve il riferimento dell'ambiente
+corrispondente. Le variabili non sono un deposito per credenziali. I secret
+sono supportati da GitHub, ma nel piano del progetto i payload dei provider
+risiedono in Secret Manager, con accesso delle identità runtime appropriate.
+GitHub Actions si autenticherà al cloud tramite OIDC/WIF e credenziali temporanee,
+senza chiavi service-account persistenti caricate in GitHub.
+
+La disponibilità delle protezioni dipende dal piano GitHub e dalla visibilità
+del repository; non basta poter creare un Environment per dedurre il supporto
+ai required reviewers. Fonti ufficiali:
+[gestione Environment](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments),
+[protezioni, variabili e secret](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
+[OIDC](https://docs.github.com/en/actions/reference/security/oidc).
+
+## Preparazione deploy e stato corrente — 16 novembre 2026
+
+Nel ramo di sviluppo sono preparati `.github/workflows/release.yml` e
+`deploy-environment.yml`: verifica dello SHA main, job staging e successiva
+produzione protetta, build per ambiente, snapshot e rollback. Gli esempi in
+`docs/operations/workflow-templates/` restano template inattivi, distinti dalla
+pipeline preparata. La presenza del codice non certifica l'attivazione cloud.
+
+I flag repository `ENABLE_STAGING_DEPLOY` e `ENABLE_PRODUCTION_DEPLOY` governano
+la creazione dei job; le variabili Environment includono riferimenti WIF,
+account e configurazioni pubbliche usate nel job. I due tipi di variabili hanno
+scope diversi: i flag repository non vanno spostati dentro gli Environment.
+Il piano produzione richiede approvazione tramite Environment; supporto e
+configurazione reali sono ancora da verificare.
+
+L'inventario owner conferma zero Environment GitHub e nessun pool WIF staging;
+Cloud Build API staging è da abilitare e frontend/backend staging non sono
+distribuiti. La creazione degli Environment non sostituisce il bootstrap
+cloud né la verifica IAM. Nessun deploy attivo dichiarato da questa guida.
+Resta valida la decisione owner di rinviare l'integrazione finale in main:
+attivazione, trigger pipeline e condizioni WIF devono essere riconciliati con
+quella decisione prima di qualunque modifica. Inventario e gate aggiornati in
+[CREDENTIAL_TRANSITION.md](../operations/CREDENTIAL_TRANSITION.md).
