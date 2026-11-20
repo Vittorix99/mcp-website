@@ -1,6 +1,17 @@
 # Transizione credenziali — Core WS1
 
-**Stato corrente —17 novembre 2026:** inventario staging raccolto, quattro
+**Stato corrente —20 novembre 2026:** PR11/12/13 integrate su main; sorgente
+bootstrap preparata su `e5c7ac5349e3dcc2539e8c1bfb90740ffdf529a7`, CI main
+completata con successo. Billing staging confermato `billingEnabled=true`
+il18novembre; preflight API/identità/bucket/segreti PASS. Nessun bootstrap
+eseguito e flag di promozione non abilitati. Owner classifica Firestore staging
+come copia storica di produzione e ne autorizza la cancellazione; preservare
+Storage e utenti Auth. Controllo20novembre su141funzioni produzione completato:
+nessuna dipendenza runtime da staging rilevata nel perimetro verificato.
+Piano di recupero/bonifica proposto in4d; risorse aggiuntive e sospensione client
+ancora da approvare. Nessun documento cloud cancellato.
+
+**Checkpoint infrastruttura —17 novembre 2026 (storico):** inventario staging raccolto, quattro
 identità dedicate create, API abilitate e lotto IAM applicato; repository
 `us-central1/gcf-artifacts` predisposto. Profilo E2E e quattro contenitori secret
 predisposti (dettagli3h); versioni1 PayPal sandbox, MailerSend e SoundCloud
@@ -1702,6 +1713,103 @@ Il marker risultato vieta il replay; conservare le evidenze della creazione
 parziale e della ripresa esplicita. Helper/test locali ignorati da Git.
 Riferimenti: [nome e processo sorgenti](https://docs.cloud.google.com/functions/docs/building),
 [creazione bucket](https://docs.cloud.google.com/storage/docs/creating-buckets).
+
+### 4d. Recupero e bonifica Firestore staging —20 novembre 2026
+
+**Stato:** piano preparato, non applicato. L'autorizzazione owner riguarda i
+soli documenti di `mcp-website-dev-39539`, database `(default)`, incluse le
+sottocollezioni. Conservare database, indici, policy originali, utenti Auth,
+entrambi i bucket applicativi e relativi oggetti, bucket upload/source. Nessuna
+modifica a produzione o ai flag deploy. Nessun seed/import sintetico implicito.
+
+**Prova dipendenze:** inventario completo141funzioni produzione, snapshot runtime
+riletto20novembre,141metadati oggetti sorgenti con generazione fissata. I139backend
+Python hanno impronta MD5/dimensione identica e inizializzazione Firestore uguale
+al campione distribuito verificato: `GCLOUD_PROJECT=mcp-website-2a1ad`, fallback
+ADC, nessun file credenziali configurato nel pacchetto, nessun dotenv caricato
+in cloud. Altri2pacchetti: `app` e `ssrmcpwebsite2a1ad`; analizzati codice web,
+bundle, dotenv e configurazioni JSON. I soli riferimenti staging sono uno script
+seed non tra gli import di main e `.env.development` SSR. Il gestore Next usa
+`dev:false`; tutte le versioni compatibili firebase-frameworks0.11.0–0.11.8
+pubblicate al momento del controllo confermano la scelta; bundle compilati senza
+identificatori staging. Inventario/sorgenti invariati al readback finale.
+Questa prova riguarda le funzioni censite, non client esterni o altri workload.
+Evidenze locali filtrate in `.local/staging/cloud-b-verification/`, inclusi
+`production_dependency_check_summary_2026-11-20.json` e i file richiamati.
+Nessun archivio sorgente o valore di credenziale salvato su disco.
+
+**Preflight bonifica:**20novembre zero Functions in tutte le regioni e zero
+servizi Cloud Run managed globali staging e zero operazioni Firestore in corso.
+Firestore Native nam5, PITR disabilitato. Il service agent Firestore ha già
+`roles/firestore.serviceAgent`; il bucket di recupero proposto risponde404
+al preflight, quindi non è una risorsa esistente da riusare.
+Prima di applicare, riconfermare inventario vuoto, progetto/account espliciti,
+assenza di operazioni Firestore concorrenti e risorsa destinazione. L'owner deve
+sospendere eventuali script/operatori con accesso IAM durante export e pulizia:
+il blocco Rules descritto sotto non blocca gli SDK amministrativi.
+
+**Delta proposto da approvare (non applicato):**
+
+1. Creare solo `gs://mcp-website-dev-39539-firestore-recovery-20261120` nel progetto
+   staging, STANDARD, multi-regione US, Uniform Bucket-Level Access e Public
+   Access Prevention enforced. Nessuna Firebase Storage rule sul nuovo bucket,
+   nessun grant runtime/deploy/build, nessun grant di progetto, nessun pubblico.
+   Conservare i normali accessi amministrativi ereditati; nessuna revoca dei ruoli
+   esistenti. Nessun lifecycle di cancellazione o retention lock; soft-delete
+  7giorni esplicito. Il bucket e l'export restano finché l'owner decide la retention.
+   Se esiste già o presenta impostazioni inattese, fermarsi: non riusarlo o
+   modificarlo alla cieca. Usare i permessi del service agent Firestore già
+   presenti nel medesimo progetto; su403 fermarsi, nessun grant aggiuntivo implicito.
+2. Salvare il riferimento esatto del ruleset Firestore corrente e i metadati di
+   indici/database. Pubblicare temporaneamente solo su Firestore staging un
+   ruleset deny-all per accessi client, con ripristino dell'esatto riferimento
+   precedente. Non modificare Storage Rules. Il blocco impedisce anche le letture
+   client durante la finestra; account IAM privilegiati continuano ad avere accesso.
+   Prima del blocco individuare un percorso inesistente sotto una collection con
+   lettura pubblica nelle Rules correnti (per esempio events), verificando un404
+   con API key web staging e senza OAuth/ADC: è il controllo positivo del canale
+   client, senza leggere dati reali. Dopo la pubblicazione rileggere il riferimento
+   release, attendere almeno10minuti dalla modifica e ripetere la lettura non
+   mutante sul medesimo percorso: deve essere negata dalle Rules. Errori di API key,
+   trasporto o App Check non valgono come prova. Se il controllo non è possibile
+   o non conferma il blocco, fermarsi prima dell'export. La sospensione degli
+   scrittori IAM deve durare fino alla fine di verifica/ripristino Rules.
+   [Propagazione Firestore Rules](https://firebase.google.com/docs/firestore/security/get-started).
+3. Export gestito completo di tutti i gruppi/sottocollezioni nel prefisso nuovo
+   `gs://mcp-website-dev-39539-firestore-recovery-20261120/pre-cleanup-20261120`.
+   Una sola richiesta con ID operazione registrato, nessun retry automatico.
+   Prima di cancellare: operazione done/success senza errori, prefisso corrispondente,
+   presenza dei file metadata di export e inventario oggetti con generazioni.
+   Non mostrare né scaricare i documenti reali nei log. Nessun restore dichiarato
+   collaudato: il percorso di recupero è definito, non provato mediante import.
+4. Solo dopo export verificato, eseguire una sola richiesta
+   `projects/mcp-website-dev-39539/databases/(default):bulkDeleteDocuments`,
+   corpo vuoto: tutti i collection group, comprese sottocollezioni. Non eliminare
+   il database, non usare loader demo e non indirizzare mai produzione.
+   Registrare ID/progresso/esito; su esito parziale non ripetere automaticamente.
+5. Verificare fine operazione senza errori e assenza di documenti, comprese
+   sottocollezioni residue; riconfermare database/indici e metadati/IAM degli
+   altri bucket invariati. Ripristinare il ruleset Firestore originale per ID
+   e verificarlo. Nessun bootstrap/deploy segue implicitamente questa bonifica.
+
+**Guasti e recupero:** export fallito significa nessuna cancellazione; dopo
+verifica che il dataset sia intatto, ripristinare le Rules originali e fermarsi.
+Se la creazione bucket o il blocco Rules è parziale, inventariare prima di
+qualsiasi ripresa. Se la cancellazione è parziale, mantenere il blocco client e
+l'export, fermarsi e riportare lo stato: nessun retry/import automatico.
+Prima di un eventuale import, la cancellazione deve essere in stato terminale
+verificato: mai sovrapporre bulk delete ancora attivo e ripristino.
+L'eventuale ripristino è un import completo dallo stesso prefisso nel solo
+Firestore staging, dopo decisione owner; non legge né scrive la produzione.
+
+**Costi:** export con una lettura per documento e storage del backup; bulk delete
+con cancellazioni e letture fatturate. Volume totale e importo non ancora misurati;
+il budget15EUR è un avviso, non un limite rigido. Nessuna garanzia di costo totale
+viene dedotta dal numero20di raccolte root. Le operazioni gestite restano attive
+anche se si chiude il terminale: riprendere dal loro ID, non reinviarle.
+Fonti: [export/import](https://firebase.google.com/docs/firestore/manage-data/export-import),
+[bulk delete API](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases/bulkDeleteDocuments),
+[caricamento env Next](https://nextjs.org/docs/pages/guides/environment-variables).
 
 ### 5. Sequenza con risultati verificabili
 

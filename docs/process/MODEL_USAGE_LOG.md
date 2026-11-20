@@ -619,3 +619,11 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Result: review accepted without P1/P2. Creation stopped before grant on actual additional project-only legacyObjectOwner/Reader defaults; Sol corrected the narrow default whitelist with RED/GREEN regression, preserved all defaults, and obtained targeted acceptance from the same reviewer for the helper and grant-only resume protocol. No creation retry or rollback.
 - Verification:10offline provisioning checks PASS normally and with python -O; reviewer independently confirms actual4binding/6edge defaults and tests. One bucket creation plus one etag-protected source-bucket viewer grant. Independent live readback12checks PASS: exact source identity/protections/empty state/IAM delta, unchanged project and3existing bucket policies, exact4bucket inventory, zero Functions/Hosting releases/regional+global builds. Actual Functions reuse remains unproven until separately authorized bootstrap.
 - Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
+
+
+## 2026-11-20 — Firestore staging cleanup plan
+
+- Dispatch: firestore_cleanup_plan_review; gpt-6.1-sol, reasoning high, fresh context; read-only review of section4d and sanitized dependency evidence. No cloud calls or edits authorized to reviewer.
+- Result: one P1 accepted and corrected in the plan: require positive client-channel control, exact deny-all release readback, at least10min propagation wait and non-mutating client denial probe before export. Also require terminal bulk-delete before any approved recovery import. Sol accepted the scoped plan after these fixes; this is plan review, not execution validation.
+- Verification: clean git diff check; live read-only preflight confirms zero staging Functions/Run/Firestore operations, existing Firestore service-agent role and proposed recovery bucket404. No cleanup/cloud mutation executed.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
