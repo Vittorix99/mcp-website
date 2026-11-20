@@ -171,7 +171,9 @@ def hosting(manifest, path, *, version=None, cloud=None):
     if version is not None:
         url += '?' + urlencode({'versionName':version})
     req = Request(url, data=b'{}' if version else None,
-        headers={'Authorization':'Bearer ' + token, 'Content-Type':'application/json'})
+        # Personal OAuth needs an explicit quota project for Hosting requests.
+        headers={'Authorization':'Bearer ' + token, 'Content-Type':'application/json',
+            'x-goog-user-project':manifest['project']})
     with urlopen(req, timeout=30) as response:
         return json.load(response)
 

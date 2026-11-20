@@ -1,6 +1,22 @@
 # Transizione credenziali — Core WS1
 
-**Stato corrente —17 novembre 2026:** inventario staging raccolto, quattro
+**Stato corrente —20 novembre 2026:** PR11/12/13 integrate su main; sorgente
+bootstrap preparata su `e5c7ac5349e3dcc2539e8c1bfb90740ffdf529a7`, CI main
+completata con successo. Billing staging confermato `billingEnabled=true`
+il18novembre; preflight API/identità/bucket/segreti PASS. Nessun bootstrap
+eseguito e flag di promozione non abilitati. Owner classifica Firestore staging
+come copia storica di produzione e ne autorizza la cancellazione; preservare
+Storage e utenti Auth. Controllo20novembre su141funzioni produzione completato:
+nessuna dipendenza runtime da staging rilevata nel perimetro verificato.
+Bonifica Firestore4d completata: backup4672documenti conservato nel nuovo
+bucket privato,4672documenti eliminati e zero residui verificati. Rules originali
+ripristinate; database,indici e4bucket preesistenti invariati, utenti Auth non
+toccati. Nessun bootstrap/deploy o abilitazione dei flag deriva dalla bonifica.
+Preflight bootstrap4e: ADC operatore verificato e copia privata con quota staging
+predisposta; corretto localmente il progetto quota mancante nelle chiamate Hosting.
+La correzione richiede integrazione su main e nuovo SHA prima del rilascio.
+
+**Checkpoint infrastruttura —17 novembre 2026 (storico):** inventario staging raccolto, quattro
 identità dedicate create, API abilitate e lotto IAM applicato; repository
 `us-central1/gcf-artifacts` predisposto. Profilo E2E e quattro contenitori secret
 predisposti (dettagli3h); versioni1 PayPal sandbox, MailerSend e SoundCloud
@@ -1702,6 +1718,167 @@ Il marker risultato vieta il replay; conservare le evidenze della creazione
 parziale e della ripresa esplicita. Helper/test locali ignorati da Git.
 Riferimenti: [nome e processo sorgenti](https://docs.cloud.google.com/functions/docs/building),
 [creazione bucket](https://docs.cloud.google.com/storage/docs/creating-buckets).
+
+### 4d. Recupero e bonifica Firestore staging —20 novembre 2026
+
+**Stato:** completato20novembre dopo approvazione owner e conferma assenza di
+script manuali attivi. Backup completo4672documenti (33oggetti,3636057byte)
+conservato nel bucket privato; cancellazione4672/4672 SUCCESSFUL, verifica
+ricorsiva zero documenti. Confronti database/indici e4bucket invariati prima del
+ripristino dell'esatto ruleset originale, confermato da readback.
+Il tentativo iniziale con filtro vuoto è stato rifiutato400 senza creare un job;
+la richiesta distinta `delete_filtered` con21gruppi espliciti è riuscita.
+L'autorizzazione owner riguarda i
+soli documenti di `mcp-website-dev-39539`, database `(default)`, incluse le
+sottocollezioni. Conservare database, indici, policy originali, utenti Auth,
+entrambi i bucket applicativi e relativi oggetti, bucket upload/source. Nessuna
+modifica a produzione o ai flag deploy. Nessun seed/import sintetico implicito.
+
+**Prova dipendenze:** inventario completo141funzioni produzione, snapshot runtime
+riletto20novembre,141metadati oggetti sorgenti con generazione fissata. I139backend
+Python hanno impronta MD5/dimensione identica e inizializzazione Firestore uguale
+al campione distribuito verificato: `GCLOUD_PROJECT=mcp-website-2a1ad`, fallback
+ADC, nessun file credenziali configurato nel pacchetto, nessun dotenv caricato
+in cloud. Altri2pacchetti: `app` e `ssrmcpwebsite2a1ad`; analizzati codice web,
+bundle, dotenv e configurazioni JSON. I soli riferimenti staging sono uno script
+seed non tra gli import di main e `.env.development` SSR. Il gestore Next usa
+`dev:false`; tutte le versioni compatibili firebase-frameworks0.11.0–0.11.8
+pubblicate al momento del controllo confermano la scelta; bundle compilati senza
+identificatori staging. Inventario/sorgenti invariati al readback finale.
+Questa prova riguarda le funzioni censite, non client esterni o altri workload.
+Evidenze locali filtrate in `.local/staging/cloud-b-verification/`, inclusi
+`production_dependency_check_summary_2026-11-20.json` e i file richiamati.
+Nessun archivio sorgente o valore di credenziale salvato su disco.
+
+**Preflight bonifica:**20novembre zero Functions in tutte le regioni e zero
+servizi Cloud Run managed globali staging e zero operazioni Firestore in corso.
+Firestore Native nam5, PITR disabilitato. Il service agent Firestore ha già
+`roles/firestore.serviceAgent`; il bucket di recupero proposto risponde404
+al preflight, quindi non è una risorsa esistente da riusare.
+Prima di applicare, riconfermare inventario vuoto, progetto/account espliciti,
+assenza di operazioni Firestore concorrenti e risorsa destinazione. L'owner deve
+sospendere eventuali script/operatori con accesso IAM durante export e pulizia:
+il blocco Rules descritto sotto non blocca gli SDK amministrativi.
+
+**Sequenza approvata:**
+
+1. Creare solo `gs://mcp-website-dev-39539-firestore-recovery-20261120` nel progetto
+   staging, STANDARD, multi-regione US, Uniform Bucket-Level Access e Public
+   Access Prevention enforced. Nessuna Firebase Storage rule sul nuovo bucket,
+   nessun grant runtime/deploy/build, nessun grant di progetto, nessun pubblico.
+   Conservare i normali accessi amministrativi ereditati; nessuna revoca dei ruoli
+   esistenti. Nessun lifecycle di cancellazione o retention lock; soft-delete
+   7giorni esplicito. Il bucket e l'export restano finché l'owner decide la retention.
+   Se esiste già o presenta impostazioni inattese, fermarsi: non riusarlo o
+   modificarlo alla cieca. Usare i permessi del service agent Firestore già
+   presenti nel medesimo progetto; su403 fermarsi, nessun grant aggiuntivo implicito.
+2. Salvare il riferimento esatto del ruleset Firestore corrente e i metadati di
+   indici/database. Pubblicare temporaneamente solo su Firestore staging un
+   ruleset deny-all per accessi client, con ripristino dell'esatto riferimento
+   precedente. Non modificare Storage Rules. Il blocco impedisce anche le letture
+   client durante la finestra; account IAM privilegiati continuano ad avere accesso.
+   Prima del blocco individuare un percorso inesistente sotto una collection con
+   lettura pubblica nelle Rules correnti (per esempio events), verificando un404
+   con API key web staging e senza OAuth/ADC: è il controllo positivo del canale
+   client, senza leggere dati reali. Dopo la pubblicazione rileggere il riferimento
+   release, attendere almeno10minuti dalla modifica e ripetere la lettura non
+   mutante sul medesimo percorso: deve essere negata dalle Rules. Errori di API key,
+   trasporto o App Check non valgono come prova. Se il controllo non è possibile
+   o non conferma il blocco, fermarsi prima dell'export. La sospensione degli
+   scrittori IAM deve durare fino alla fine di verifica/ripristino Rules.
+   [Propagazione Firestore Rules](https://firebase.google.com/docs/firestore/security/get-started).
+3. Export gestito completo di tutti i gruppi/sottocollezioni nel prefisso nuovo
+   `gs://mcp-website-dev-39539-firestore-recovery-20261120/pre-cleanup-20261120`.
+   Una sola richiesta con ID operazione registrato, nessun retry automatico.
+   Prima di cancellare: operazione done/success senza errori, prefisso corrispondente,
+   presenza dei file metadata di export e inventario oggetti con generazioni.
+   Non mostrare né scaricare i documenti reali nei log. Nessun restore dichiarato
+   collaudato: il percorso di recupero è definito, non provato mediante import.
+4. Solo dopo export verificato, eseguire una sola richiesta
+   `projects/mcp-website-dev-39539/databases/(default):bulkDeleteDocuments`,
+   con elenco esplicito di tutti i collection group, comprese sottocollezioni,
+   univoco/ordinato/non vuoto, massimo100ID. Il tentativo iniziale con corpo vuoto
+   è stato rifiutato400: audit status3 «Empty entity filter», nessun job avviato;
+   conservare quel tentativo nel journal e usare la voce distinta `delete_filtered`.
+   Enumerare tutti i percorsi con paginazione e `showMissing=true`, senza salvare
+   campi documento; richiedere4672documenti contati, pari all'export. Verificare
+   nuovamente blocco client, inventario backup immutato e nessun job concorrente.
+   Non eliminare il database, non usare loader demo e non indirizzare mai produzione.
+   Registrare ID/progresso/esito; su esito parziale non ripetere automaticamente.
+   Stato/verifica finale devono riferirsi esplicitamente al nuovo ID corretto,
+   mai al tentativo rifiutato. Correzione accettata dalla continuazione della
+   stessa review Sol high: nessun ampliamento di scope o nuova risorsa.
+5. Verificare fine operazione senza errori e assenza di documenti, comprese
+   sottocollezioni residue; riconfermare database/indici e metadati/IAM degli
+   altri bucket invariati. Ripristinare il ruleset Firestore originale per ID
+   e verificarlo. Nessun bootstrap/deploy segue implicitamente questa bonifica.
+
+**Evidenza finale:** export `ASAwNTM2NTViZjE5OGMtMDBkYi0xOTE0LTI5ODMtZDJlZTg5NzckGnNlbmlsZXBpcAkKMxI`
+e bulk delete `CyA3NDAwZWZlN2M5OWEtNDA1Yi02MWM0LTNjNGEtNzRiMDg0NzUkGnNlbmlsZXBpcAkKMxI`
+entrambi terminali SUCCESSFUL4672/4672 nel solo database staging. Enumerazione
+pre-delete:21gruppi,4690parent verificati inclusi17antenati mancanti; conteggio
+4672 pari all'export. Verifica post-delete:0documenti e0antenati mancanti.
+Originale ripristinato: `projects/mcp-website-dev-39539/rulesets/b52d268d-5b4f-4ed2-bda7-9bcf5e7f8455`.
+I4bucket preesistenti conservano metadati/IAM e identiche impronte nome/generazione/
+dimensione degli oggetti (28,88,0,0). Nessuna chiamata Auth o modifica produzione.
+Backup: `gs://mcp-website-dev-39539-firestore-recovery-20261120/pre-cleanup-20261120`.
+Readback indipendente:0raccolte root,0documenti, export/delete entrambi SUCCESSFUL;
+backup33oggetti invariato e sonda client404 dopo ripristino Rules. Evidenza
+`firestore_cleanup_independent_readback.json`. Nessun ripristino/import eseguito;
+recuperabilità definita, non collaudata con restore.
+Helper e journal locali0600: `cleanup_firestore.py`, `firestore_cleanup_execution.json`,
+`firestore_cleanup_collection_groups.json`, `test_cleanup_firestore.py` nella cartella
+già indicata. Conservato anche il tentativo rifiutato, senza replay o reset del journal.
+Review dello stesso lotto Sol high:1P1 di piano e2P2 di esecuzione corretti, correzione
+filtro accettata senza ampliamento autorizzazioni;13regressioni mirate normali/-O.
+
+**Guasti e recupero:** export fallito significa nessuna cancellazione; dopo
+verifica che il dataset sia intatto, ripristinare le Rules originali e fermarsi.
+Se la creazione bucket o il blocco Rules è parziale, inventariare prima di
+qualsiasi ripresa. Se la cancellazione è parziale, mantenere il blocco client e
+l'export, fermarsi e riportare lo stato: nessun retry/import automatico.
+Prima di un eventuale import, la cancellazione deve essere in stato terminale
+verificato: mai sovrapporre bulk delete ancora attivo e ripristino.
+L'eventuale ripristino è un import completo dallo stesso prefisso nel solo
+Firestore staging, dopo decisione owner; non legge né scrive la produzione.
+
+**Costi:** export con una lettura per documento e storage del backup; bulk delete
+con cancellazioni e letture fatturate. Volume totale e importo non ancora misurati;
+il budget15EUR è un avviso, non un limite rigido. Nessuna garanzia di costo totale
+viene dedotta dal numero20di raccolte root. Le operazioni gestite restano attive
+anche se si chiude il terminale: riprendere dal loro ID, non reinviarle.
+Fonti: [export/import](https://firebase.google.com/docs/firestore/manage-data/export-import),
+[bulk delete API](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases/bulkDeleteDocuments),
+[caricamento env Next](https://nextjs.org/docs/pages/guides/environment-variables).
+
+### 4e. Preflight bootstrap e quota Hosting —20 novembre 2026
+
+Preflight corrente:0Functions/Run/releaseHosting staging. Identità OAuth personale
+operatore verificata mediante token info, senza valori nei log; copia ADC locale
+0600 con `quota_project_id=mcp-website-dev-39539`, originale globale invariato.
+Nessuna nuova chiave SA, nessun nuovo grant IAM e nessun deploy eseguito.
+Il profilo min0/max1 proposto non è stato applicato: il rilascio conserva le
+impostazioni serverless presenti su main. Il minimo zero è il comportamento
+default delle Functions; un massimo basso è un controllo facoltativo della
+scalabilità, non un prerequisito tecnico del bootstrap né un tetto alla spesa.
+
+Difetto riprodotto: `release.hosting` usa il token OAuth senza progetto quota,
+riceve403/SERVICE_DISABLED con messaggio che richiede quota project; la stessa
+lettura con `x-goog-user-project` staging restituisce200 e inventario vuoto.
+Correzione minima: header derivato dal progetto nel manifest validato, sia per
+lettura sia per pubblicazione Hosting. Nessuna modifica a URL, token, metodo,
+versione o configurazione delle istanze. Quattro regressioni prima RED e poi
+GREEN (staging/production × GET/POST),116test tooling PASS con Node20; review
+indipendente Sol high senza P1/P2 e53test mirati verificati dal reviewer.
+Rilettura live con helper corretto PASS. Per urllib locale usare bundle CA
+certifi esplicito nell'ambiente dell'operatore, mantenendo verifica TLS abilitata;
+nessuna modifica al trust store globale o ai runtime cloud.
+
+Prima di applicare: integrare la correzione su main, attendere CI dello SHA,
+rigenerare il piano sullo SHA esatto pulito e applicare il gate cloud bootstrap.
+Target invariato:130HTTP e1SSR;8trigger e3scheduler esclusi, nessun rules/index
+update o import dati. WIF autentico e baseline completa/rollback restano separati.
+Fonte: [scalabilità Functions](https://firebase.google.com/docs/functions/manage-functions).
 
 ### 5. Sequenza con risultati verificabili
 
