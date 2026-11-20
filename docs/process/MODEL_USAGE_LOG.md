@@ -635,3 +635,11 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Dispatch: bootstrap_hosting_quota_review; gpt-6.1-sol, reasoning high, fresh context; read-only focused review of shared Hosting quota header and four stage/prod GET/POST regressions.
 - Result: no P1/P2; accepted by coordinator. Reviewer independently passed53deployment tests; coordinator RED4/GREEN116tooling with Node20 and live read-only staging inventory PASS. No bootstrap or production request executed; unchanged serverless instance settings.
 - Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
+
+
+## 2026-11-20 — Partial bootstrap quota recovery plan
+
+- Dispatch: bootstrap_quota_recovery_review; gpt-6.1-sol, reasoning high, fresh context; read-only review of section4f and sanitized partial-deployment evidence.
+- Result:1P1 and2P2 accepted and corrected in plan: admit one target end-to-end (serial executor alone does not fail-first), explicit original Functions/Run operation quiescence plus exclusive journal, separately pinned recovery helper and clean4834 application source. Helper implementation/tests/code review still required before any recovery mutation.
+- Evidence: main CI44808047460 SUCCESS on4834cb15. Initial buildSUCCESS; first bootstrap exited1 naturally from Run write quota60/min.53ACTIVE+77FAILED,0missing; all53active stamps/accounts/invokers verified,2appbuckets unchanged,Firestoreempty,Hosting0releases. No fullretry,rollback or manual cloud deletion; no signal sent.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.

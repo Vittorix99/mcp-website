@@ -1,20 +1,18 @@
 # Transizione credenziali — Core WS1
 
-**Stato corrente —20 novembre 2026:** PR11/12/13 integrate su main; sorgente
-bootstrap preparata su `e5c7ac5349e3dcc2539e8c1bfb90740ffdf529a7`, CI main
-completata con successo. Billing staging confermato `billingEnabled=true`
-il18novembre; preflight API/identità/bucket/segreti PASS. Nessun bootstrap
-eseguito e flag di promozione non abilitati. Owner classifica Firestore staging
-come copia storica di produzione e ne autorizza la cancellazione; preservare
-Storage e utenti Auth. Controllo20novembre su141funzioni produzione completato:
-nessuna dipendenza runtime da staging rilevata nel perimetro verificato.
-Bonifica Firestore4d completata: backup4672documenti conservato nel nuovo
-bucket privato,4672documenti eliminati e zero residui verificati. Rules originali
-ripristinate; database,indici e4bucket preesistenti invariati, utenti Auth non
-toccati. Nessun bootstrap/deploy o abilitazione dei flag deriva dalla bonifica.
-Preflight bootstrap4e: ADC operatore verificato e copia privata con quota staging
-predisposta; corretto localmente il progetto quota mancante nelle chiamate Hosting.
-La correzione richiede integrazione su main e nuovo SHA prima del rilascio.
+**Stato corrente —20 novembre 2026:** PR11/12/13/14 integrate su main;
+CI del merge `4834cb1585ec6b4f636e889593a032e59e875d14` SUCCESS
+(run44808047460). Bonifica Firestore completata come4d:4672documenti esportati
+ed eliminati,0residui, backup privato conservato, Rules originali ripristinate;
+Storage applicativo e Auth preservati. Quota Hosting4e corretta, ADC operatore
+privato verificato con quota staging e originale globale invariato.
+Primo bootstrap HTTP avviato su4834cb15 e terminato parzialmente per quota
+Cloud Run di scritture di configurazione:53funzioni ACTIVE,77FAILED,0mancanti.
+Le53attive hanno SHA/digest/account corretti e invoker previsto. SSR/Hosting non
+eseguito,nessun trigger/scheduler distribuito. Processo terminato con errore;
+nessun segnale inviato,nessun rollback/delete/rilancio completo eseguito.
+Ripresa limitata proposta in4f,non applicata. Flag di promozione invariati;
+produzione mai modificata.
 
 **Checkpoint infrastruttura —17 novembre 2026 (storico):** inventario staging raccolto, quattro
 identità dedicate create, API abilitate e lotto IAM applicato; repository
@@ -1879,6 +1877,74 @@ rigenerare il piano sullo SHA esatto pulito e applicare il gate cloud bootstrap.
 Target invariato:130HTTP e1SSR;8trigger e3scheduler esclusi, nessun rules/index
 update o import dati. WIF autentico e baseline completa/rollback restano separati.
 Fonte: [scalabilità Functions](https://firebase.google.com/docs/functions/manage-functions).
+
+### 4f. Bootstrap parziale: quota Cloud Run e ripresa proposta —20 novembre 2026
+
+**Esito verificato:** main4834cb15 con CI SUCCESS,source checkout pulito e piano
+HTTP130+SSR1 rigenerato. Prerequisiti API/identità/segreti/registry/inventario vuoto
+PASS. Bootstrap owner OAuth avviato una volta, build Python SUCCESS. La CLI
+Firebase14.26.0 usa queue concurrency40/retries30 e ha superato la quota regionale
+`run.googleapis.com/write_regional`: lettura corrente60scritture/minuto in
+us-central1. Il codice8 delle77operazioni fallite e gli audit Run SetIamPolicy
+confermano la stessa causa. È quota delle modifiche di configurazione, distinta
+dalle istanze runtime e dal minimo serverless; nessuna modifica a min/max istanze.
+
+Risultato finale:53HTTP ACTIVE,77HTTP FAILED,tutti130presenti,0risorse estranee.
+SHA/digest e account runtime delle53attive corrispondono al piano; tutti130hanno
+il build account dedicato. Le77fallite non hanno un servizio Run disponibile;
+configurazione runtime assente nel loro readback,da ricostruire esclusivamente
+col sorgente approvato,non da assumere valida. Verificati53servizi Run attivi,
+ciascuno con invoker pubblico previsto; nessun intervento IAM necessario su essi.
+Hosting ha0release,Firestore0raccolte,entrambi i bucket applicativi invariati.
+Upload/source e Registry contengono ora gli artifact previsti dal tentativo.
+Il sito staging non è dichiarato pubblicato o verificato.
+
+Il processo locale è terminato da solo con exit1 prima che fosse necessario
+inviare segnali. Conservare `bootstrap-result.json` con stato
+`incomplete-owner-investigation-required`; nessun reset o rilancio di apply:
+il bootstrap originario rifiuta inventario non vuoto e aggiornamenti funzione.
+Evidenze0600 nella cartella esistente: `bootstrap_operator_invocation_2026-11-20.json`,
+`bootstrap_partial_inventory_2026-11-20.json`, `bootstrap_failed_operations_2026-11-20.json`,
+`bootstrap_active_services_iam_2026-11-20.json`, `bootstrap_recovery_proposal_2026-11-20.json`.
+L'ultimo file enumera esattamente77IDda riparare e53da preservare.
+
+**Ripresa proposta,non applicata:** stesso progetto,SHA4834cb15,digest e identità;
+nessuna quota aumentata,nessun nuovo grant di progetto,nessuna cancellazione.
+Modalità operatore distinta e journal nuovo,con piano congelato e confronto live
+prima di ogni modifica. Aggiornare solo le77funzioni FAILED,lasciando invariate
+le53ACTIVE. Prima `deployment_health`,verificare health/stamp,poi le altre76.
+Ammettere esattamente un target per volta lungo l'intero percorso: stato FAILED
+con servizio Run assente riconfermato,invio aggiornamento,LRO terminale,readback
+configurazione/Run/IAM e verifica prima di ammettere il target successivo.
+La sola queue seriale non basta: Fabricator.applyChangeset della CLI avvia tutti
+gli upsert e cattura gli errori,con executor funzione/IAM separati. Nessun target
+successivo preaccodato; stop latch condiviso a ogni confine di mutazione.
+Queue seriale,retries0 (anche sul trasporto delle scritture) e almeno10secondi
+fra mutazioni funzione; al primo esito inatteso fermare gli invii successivi.
+Test obbligatori: errore update,IAM o verifica produce zero mutazioni sul target
+successivo; nessuna invocazione dei singoli handler applicativi con effetti dati.
+Gli unici binding invoker consentiti riguardano i nuovi servizi Run creati per
+le77riparazioni,e solo la policy pubblica già prevista; preservare altri binding
+con etag e fermarsi su policy inattesa. Nessuna modifica IAM sulle53attive.
+Completati e verificati tutti130HTTP: prima pubblicazione SSR/Hosting prevista
+dal piano originale,poi smoke e registrazione del checkpoint HTTP+SSR.
+Trigger8,scheduler3,dati/seed,baseline completa,WIF e produzione restano separati.
+
+Prima delle operazioni di ripresa: nessuna operazione originale Functions/Run
+ancora in corso e nessun LRO target pendente. Rilettura20novembre:130operazioni Functions e53Run,
+tutte terminali,0pendenti (`bootstrap_operation_quiescence_2026-11-20.json`).
+Il solo termine del processo locale
+non è prova di quiescenza cloud. Lock/journal esclusivi; su invio o polling ambiguo
+salvare l'ID operazione noto e fermarsi,senza reinvio o reset del tentativo.
+Helper di recupero con revisione/hash indipendente,revisionato e congelato;
+checkout applicativo separatamente verificato pulito su4834cb15 e manifest
+immutabile. Non indebolire source_check né etichettare nuovo codice come4834.
+Prima delle operazioni di ripresa: autorizzazione owner per l'eccezione limitata
+agli aggiornamenti77,helper con guardie/test mirati e review Sol high. L'indagine
+in sola lettura e il piano non autorizzano a rimuovere le guardie originarie o
+aggiornare alla cieca le funzioni già attive. Prima di abilitare il flag della
+pipeline staging ordinaria,applicare anche a quel percorso un pacing adeguato:
+la queue40 originale non è considerata sicura per questa quota.
 
 ### 5. Sequenza con risultati verificabili
 
