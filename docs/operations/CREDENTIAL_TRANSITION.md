@@ -8,8 +8,10 @@ eseguito e flag di promozione non abilitati. Owner classifica Firestore staging
 come copia storica di produzione e ne autorizza la cancellazione; preservare
 Storage e utenti Auth. Controllo20novembre su141funzioni produzione completato:
 nessuna dipendenza runtime da staging rilevata nel perimetro verificato.
-Piano di recupero/bonifica proposto in4d; risorse aggiuntive e sospensione client
-ancora da approvare. Nessun documento cloud cancellato.
+Bonifica Firestore4d completata: backup4672documenti conservato nel nuovo
+bucket privato,4672documenti eliminati e zero residui verificati. Rules originali
+ripristinate; database,indici e4bucket preesistenti invariati, utenti Auth non
+toccati. Nessun bootstrap/deploy o abilitazione dei flag deriva dalla bonifica.
 
 **Checkpoint infrastruttura —17 novembre 2026 (storico):** inventario staging raccolto, quattro
 identità dedicate create, API abilitate e lotto IAM applicato; repository
@@ -1716,7 +1718,14 @@ Riferimenti: [nome e processo sorgenti](https://docs.cloud.google.com/functions/
 
 ### 4d. Recupero e bonifica Firestore staging —20 novembre 2026
 
-**Stato:** piano preparato, non applicato. L'autorizzazione owner riguarda i
+**Stato:** completato20novembre dopo approvazione owner e conferma assenza di
+script manuali attivi. Backup completo4672documenti (33oggetti,3636057byte)
+conservato nel bucket privato; cancellazione4672/4672 SUCCESSFUL, verifica
+ricorsiva zero documenti. Confronti database/indici e4bucket invariati prima del
+ripristino dell'esatto ruleset originale, confermato da readback.
+Il tentativo iniziale con filtro vuoto è stato rifiutato400 senza creare un job;
+la richiesta distinta `delete_filtered` con21gruppi espliciti è riuscita.
+L'autorizzazione owner riguarda i
 soli documenti di `mcp-website-dev-39539`, database `(default)`, incluse le
 sottocollezioni. Conservare database, indici, policy originali, utenti Auth,
 entrambi i bucket applicativi e relativi oggetti, bucket upload/source. Nessuna
@@ -1748,7 +1757,7 @@ assenza di operazioni Firestore concorrenti e risorsa destinazione. L'owner deve
 sospendere eventuali script/operatori con accesso IAM durante export e pulizia:
 il blocco Rules descritto sotto non blocca gli SDK amministrativi.
 
-**Delta proposto da approvare (non applicato):**
+**Sequenza approvata:**
 
 1. Creare solo `gs://mcp-website-dev-39539-firestore-recovery-20261120` nel progetto
    staging, STANDARD, multi-regione US, Uniform Bucket-Level Access e Public
@@ -1756,7 +1765,7 @@ il blocco Rules descritto sotto non blocca gli SDK amministrativi.
    nessun grant runtime/deploy/build, nessun grant di progetto, nessun pubblico.
    Conservare i normali accessi amministrativi ereditati; nessuna revoca dei ruoli
    esistenti. Nessun lifecycle di cancellazione o retention lock; soft-delete
-  7giorni esplicito. Il bucket e l'export restano finché l'owner decide la retention.
+   7giorni esplicito. Il bucket e l'export restano finché l'owner decide la retention.
    Se esiste già o presenta impostazioni inattese, fermarsi: non riusarlo o
    modificarlo alla cieca. Usare i permessi del service agent Firestore già
    presenti nel medesimo progetto; su403 fermarsi, nessun grant aggiuntivo implicito.
@@ -1784,13 +1793,41 @@ il blocco Rules descritto sotto non blocca gli SDK amministrativi.
    collaudato: il percorso di recupero è definito, non provato mediante import.
 4. Solo dopo export verificato, eseguire una sola richiesta
    `projects/mcp-website-dev-39539/databases/(default):bulkDeleteDocuments`,
-   corpo vuoto: tutti i collection group, comprese sottocollezioni. Non eliminare
-   il database, non usare loader demo e non indirizzare mai produzione.
+   con elenco esplicito di tutti i collection group, comprese sottocollezioni,
+   univoco/ordinato/non vuoto, massimo100ID. Il tentativo iniziale con corpo vuoto
+   è stato rifiutato400: audit status3 «Empty entity filter», nessun job avviato;
+   conservare quel tentativo nel journal e usare la voce distinta `delete_filtered`.
+   Enumerare tutti i percorsi con paginazione e `showMissing=true`, senza salvare
+   campi documento; richiedere4672documenti contati, pari all'export. Verificare
+   nuovamente blocco client, inventario backup immutato e nessun job concorrente.
+   Non eliminare il database, non usare loader demo e non indirizzare mai produzione.
    Registrare ID/progresso/esito; su esito parziale non ripetere automaticamente.
+   Stato/verifica finale devono riferirsi esplicitamente al nuovo ID corretto,
+   mai al tentativo rifiutato. Correzione accettata dalla continuazione della
+   stessa review Sol high: nessun ampliamento di scope o nuova risorsa.
 5. Verificare fine operazione senza errori e assenza di documenti, comprese
    sottocollezioni residue; riconfermare database/indici e metadati/IAM degli
    altri bucket invariati. Ripristinare il ruleset Firestore originale per ID
    e verificarlo. Nessun bootstrap/deploy segue implicitamente questa bonifica.
+
+**Evidenza finale:** export `ASAwNTM2NTViZjE5OGMtMDBkYi0xOTE0LTI5ODMtZDJlZTg5NzckGnNlbmlsZXBpcAkKMxI`
+e bulk delete `CyA3NDAwZWZlN2M5OWEtNDA1Yi02MWM0LTNjNGEtNzRiMDg0NzUkGnNlbmlsZXBpcAkKMxI`
+entrambi terminali SUCCESSFUL4672/4672 nel solo database staging. Enumerazione
+pre-delete:21gruppi,4690parent verificati inclusi17antenati mancanti; conteggio
+4672 pari all'export. Verifica post-delete:0documenti e0antenati mancanti.
+Originale ripristinato: `projects/mcp-website-dev-39539/rulesets/b52d268d-5b4f-4ed2-bda7-9bcf5e7f8455`.
+I4bucket preesistenti conservano metadati/IAM e identiche impronte nome/generazione/
+dimensione degli oggetti (28,88,0,0). Nessuna chiamata Auth o modifica produzione.
+Backup: `gs://mcp-website-dev-39539-firestore-recovery-20261120/pre-cleanup-20261120`.
+Readback indipendente:0raccolte root,0documenti, export/delete entrambi SUCCESSFUL;
+backup33oggetti invariato e sonda client404 dopo ripristino Rules. Evidenza
+`firestore_cleanup_independent_readback.json`. Nessun ripristino/import eseguito;
+recuperabilità definita, non collaudata con restore.
+Helper e journal locali0600: `cleanup_firestore.py`, `firestore_cleanup_execution.json`,
+`firestore_cleanup_collection_groups.json`, `test_cleanup_firestore.py` nella cartella
+già indicata. Conservato anche il tentativo rifiutato, senza replay o reset del journal.
+Review dello stesso lotto Sol high:1P1 di piano e2P2 di esecuzione corretti, correzione
+filtro accettata senza ampliamento autorizzazioni;13regressioni mirate normali/-O.
 
 **Guasti e recupero:** export fallito significa nessuna cancellazione; dopo
 verifica che il dataset sia intatto, ripristinare le Rules originali e fermarsi.
