@@ -431,3 +431,42 @@ for name in ['capture_order_event','create_wallet_pass','on_membership_created',
         'capture_order_event':['PAYPAL_CLIENT_SECRET', 'MAILERSEND_API_KEY'],
         'create_wallet_pass':[], 'on_membership_created':['MAILERSEND_API_KEY'],
         'admin_create_radio_episode':['SOUNDCLOUD_CLIENT_SECRET'], 'deployment_health':[]}
+
+
+@pytest.mark.parametrize('environment', ['staging', 'production'])
+@pytest.mark.parametrize('publish', [False, True])
+def test_hosting_request_uses_target_project_for_quota(monkeypatch, environment, publish):
+    from contextlib import contextmanager
+    from io import BytesIO
+    from urllib.parse import parse_qs, urlparse
+
+    manifest = release.prepare(environment, inputs(environment))
+    calls = []
+
+    def cloud(actual, *args):
+        assert actual is manifest
+        assert args == ('auth', 'print-access-token')
+        return 'example-token'
+
+    @contextmanager
+    def open_request(request, timeout):
+        calls.append(request)
+        assert timeout == 30
+        yield BytesIO(b'{"releases": []}')
+
+    monkeypatch.setattr(release, 'urlopen', open_request)
+    version = f"sites/{manifest['project']}/versions/example" if publish else None
+    path = '/releases' if publish else '/releases?pageSize=1'
+    assert release.hosting(manifest, path, version=version, cloud=cloud) == {'releases': []}
+    assert len(calls) == 1
+    request = calls[0]
+    headers = {key.lower():value for key,value in request.header_items()}
+    assert headers['x-goog-user-project'] == manifest['project']
+    assert headers['authorization'] == 'Bearer example-token'
+    parsed = urlparse(request.full_url)
+    assert parsed.netloc == 'firebasehosting.googleapis.com'
+    assert parsed.path == f"/v1beta1/sites/{manifest['project']}/releases"
+    assert request.get_method() == ('POST' if publish else 'GET')
+    if publish:
+        assert parse_qs(parsed.query) == {'versionName':[version]}
+        assert request.data == b'{}'

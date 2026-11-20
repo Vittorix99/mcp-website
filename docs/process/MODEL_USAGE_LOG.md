@@ -628,3 +628,10 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Verification: clean git diff check; live read-only preflight confirms zero staging Functions/Run/Firestore operations, existing Firestore service-agent role and proposed recovery bucket404. No cleanup/cloud mutation executed at plan checkpoint.
 - Owner subsequently approved full plan and confirmed no manual writers. Same review task continued on actual local execution helper: two P2s accepted (explicit pre-delete export-failure Rules rollback, and preservation checks before reopening clients). RED2/GREEN regressions plus nested orphan-document coverage:10tests PASS normal/-O. Bucket/freeze verified, export SUCCESSFUL4672docs. Same review continued on rejected empty-filter bulk request (HTTP400; audit confirms no delete job): accepted explicit21group correction in same owner-approved scope, immutable original attempt, fresh freeze/backup/operations gates and downstream corrected-operation references. RED3/GREEN13 normal/-O. Corrected delete SUCCESSFUL4672/4672, recursive zero-document check,4bucket/DB/index preservation verified before exact Rules restoration. Independent final readback confirms0rootcollections, exact original Rules plus client404, unchanged33-object backup and both operations SUCCESSFUL4672/4672. No Auth/production writes.
 - Dispatch count:1Sol review task with continuation,0Luna tasks. Host token/cost telemetry unavailable.
+
+
+## 2026-11-20 — Bootstrap Hosting quota project
+
+- Dispatch: bootstrap_hosting_quota_review; gpt-6.1-sol, reasoning high, fresh context; read-only focused review of shared Hosting quota header and four stage/prod GET/POST regressions.
+- Result: no P1/P2; accepted by coordinator. Reviewer independently passed53deployment tests; coordinator RED4/GREEN116tooling with Node20 and live read-only staging inventory PASS. No bootstrap or production request executed; unchanged serverless instance settings.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.

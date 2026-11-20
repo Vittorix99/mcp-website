@@ -12,6 +12,9 @@ Bonifica Firestore4d completata: backup4672documenti conservato nel nuovo
 bucket privato,4672documenti eliminati e zero residui verificati. Rules originali
 ripristinate; database,indici e4bucket preesistenti invariati, utenti Auth non
 toccati. Nessun bootstrap/deploy o abilitazione dei flag deriva dalla bonifica.
+Preflight bootstrap4e: ADC operatore verificato e copia privata con quota staging
+predisposta; corretto localmente il progetto quota mancante nelle chiamate Hosting.
+La correzione richiede integrazione su main e nuovo SHA prima del rilascio.
 
 **Checkpoint infrastruttura —17 novembre 2026 (storico):** inventario staging raccolto, quattro
 identità dedicate create, API abilitate e lotto IAM applicato; repository
@@ -1847,6 +1850,35 @@ anche se si chiude il terminale: riprendere dal loro ID, non reinviarle.
 Fonti: [export/import](https://firebase.google.com/docs/firestore/manage-data/export-import),
 [bulk delete API](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases/bulkDeleteDocuments),
 [caricamento env Next](https://nextjs.org/docs/pages/guides/environment-variables).
+
+### 4e. Preflight bootstrap e quota Hosting —20 novembre 2026
+
+Preflight corrente:0Functions/Run/releaseHosting staging. Identità OAuth personale
+operatore verificata mediante token info, senza valori nei log; copia ADC locale
+0600 con `quota_project_id=mcp-website-dev-39539`, originale globale invariato.
+Nessuna nuova chiave SA, nessun nuovo grant IAM e nessun deploy eseguito.
+Il profilo min0/max1 proposto non è stato applicato: il rilascio conserva le
+impostazioni serverless presenti su main. Il minimo zero è il comportamento
+default delle Functions; un massimo basso è un controllo facoltativo della
+scalabilità, non un prerequisito tecnico del bootstrap né un tetto alla spesa.
+
+Difetto riprodotto: `release.hosting` usa il token OAuth senza progetto quota,
+riceve403/SERVICE_DISABLED con messaggio che richiede quota project; la stessa
+lettura con `x-goog-user-project` staging restituisce200 e inventario vuoto.
+Correzione minima: header derivato dal progetto nel manifest validato, sia per
+lettura sia per pubblicazione Hosting. Nessuna modifica a URL, token, metodo,
+versione o configurazione delle istanze. Quattro regressioni prima RED e poi
+GREEN (staging/production × GET/POST),116test tooling PASS con Node20; review
+indipendente Sol high senza P1/P2 e53test mirati verificati dal reviewer.
+Rilettura live con helper corretto PASS. Per urllib locale usare bundle CA
+certifi esplicito nell'ambiente dell'operatore, mantenendo verifica TLS abilitata;
+nessuna modifica al trust store globale o ai runtime cloud.
+
+Prima di applicare: integrare la correzione su main, attendere CI dello SHA,
+rigenerare il piano sullo SHA esatto pulito e applicare il gate cloud bootstrap.
+Target invariato:130HTTP e1SSR;8trigger e3scheduler esclusi, nessun rules/index
+update o import dati. WIF autentico e baseline completa/rollback restano separati.
+Fonte: [scalabilità Functions](https://firebase.google.com/docs/functions/manage-functions).
 
 ### 5. Sequenza con risultati verificabili
 
