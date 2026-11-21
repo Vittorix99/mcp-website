@@ -470,3 +470,21 @@ def test_hosting_request_uses_target_project_for_quota(monkeypatch, environment,
     if publish:
         assert parse_qs(parsed.query) == {'versionName':[version]}
         assert request.data == b'{}'
+
+
+def test_revision_stamps_are_read_with_full_json_not_a_projection(monkeypatch):
+    # gcloud 573 returns no env for `--format=json(spec.containers.env.name,...)`,
+    # which made every correct release look mismatched.
+    manifest = release.prepare('staging', inputs())
+    revision = 'public-api-00001-abc'
+    monkeypatch.setattr(release, 'cloud_functions', lambda _, **kwargs:[dict(
+        name='deployment_health', labels={'firebase-functions-codebase':'python_codebase'},
+        serviceConfig={'service':'public-api'})])
+    monkeypatch.setattr(release, 'service_state', lambda *args, **kwargs:{'traffic':{revision:100}})
+    response = dict(metadata={'name':revision}, spec={'containers':[{'env':[
+        {'name':'MCP_RELEASE_SHA','value':manifest['sha']},
+        {'name':'MCP_CONFIG_DIGEST','value':manifest['digest']}]}]})
+    seen = []
+    monkeypatch.setattr(release, 'gcloud', lambda *args: seen.append(args) or json.dumps(response))
+    release.verify_function_releases(manifest)
+    assert seen and all('--format=json' in call and not any('spec.containers' in str(part) for part in call) for call in seen)

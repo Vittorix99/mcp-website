@@ -32,7 +32,7 @@ function validateInvocation(manifest, env, source) {
     manifest.bootstrap.operator === env.BOOTSTRAP_OPERATOR_EMAIL, 'named operator')
 }
 async function main() {
-  ensure(process.versions.node.split('.')[0] === '20', 'Node.js 20')
+  ensure(process.versions.node.split('.')[0] === '22', 'Node.js 22')
   const root = path.resolve(__dirname,'../..')
   const cliRoot = path.join(root,'mcp-website/node_modules/firebase-tools')
   const cli = createRequire(path.join(cliRoot,'package.json'))

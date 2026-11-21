@@ -382,7 +382,7 @@ def release_environment(manifest):
     env = {key:os.environ[key] for key in allowed if key in os.environ}
     env.update(GCLOUD_PROJECT=manifest['project'], GOOGLE_CLOUD_PROJECT=manifest['project'],
         CLOUDSDK_CORE_PROJECT=manifest['project'], CLOUDSDK_CORE_DISABLE_PROMPTS='1',
-        FIREBASE_CLI_PREVIEWS='webframeworks', MCP_RELEASE_CONFIG=str(ROOT / '.local/release/config.json'),
+        FIREBASE_CLI_EXPERIMENTS='webframeworks', MCP_RELEASE_CONFIG=str(ROOT / '.local/release/config.json'),
         NEXT_TELEMETRY_DISABLED='1')
     return env
 
@@ -420,7 +420,7 @@ def verify_function_releases(manifest, *, cloud=None):
         require(state['traffic'], 'active backend revision')
         for revision in state['traffic']:
             data = json.loads(cloud(manifest, 'run', 'revisions', 'describe', revision, '--region', REGION,
-                '--format=json(metadata.name,spec.containers.env.name,spec.containers.env.value)'))
+                '--format=json'))
             require(data.get('metadata', {}).get('name') == revision, 'active immutable revision')
             # These are literal runtime configuration values, not Secret Manager
             # payloads (bound secrets use valueFrom). Keep only public stamps;

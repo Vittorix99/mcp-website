@@ -1,6 +1,6 @@
 # MCP-WEB-PROJECT
 
-The approved Core WS1 work runs on Node.js 20 and Python 3.11. It is in
+The approved Core WS1 work runs on Node.js 22 and Python 3.11. It is in
 progress; staging and production operations require separate authorization.
 
 ```sh
