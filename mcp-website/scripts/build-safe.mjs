@@ -13,7 +13,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')
 const release = process.argv.includes('--release')
 
 async function main() {
-  if (process.versions.node.split('.')[0] !== '20') throw new Error('Build requires Node.js 20')
+  if (process.versions.node.split('.')[0] !== '22') throw new Error('Build requires Node.js 22')
   if (release && existsSync(path.join(root,'.env.local'))) throw new Error('Release build rejects .env.local; inject approved environment explicitly')
   let server
   const scratch = mkdtempSync(path.join(tmpdir(),'mcp-build-'))

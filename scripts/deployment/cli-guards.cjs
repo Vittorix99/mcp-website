@@ -24,7 +24,7 @@ function withBuildIdentity(endpoint, manifest, convert) {
   const web = endpoint.codebase === 'firebase-frameworks-' + manifest.project
   requireCondition(endpoint.project === manifest.project && endpoint.platform === 'gcfv2' &&
     endpoint.region === 'us-central1' && (python || web) &&
-    endpoint.runtime === (python ? 'python311' : 'nodejs20') &&
+    endpoint.runtime === (python ? 'python311' : 'nodejs22') &&
     endpoint.serviceAccount === manifest.identities[python ? 'RUNTIME_SERVICE_ACCOUNT' : 'WEB_RUNTIME_SERVICE_ACCOUNT'],
   'Unexpected function build target')
   const result = convert(endpoint)

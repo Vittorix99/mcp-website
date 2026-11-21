@@ -159,7 +159,7 @@ def apply(manifest, env):
         'BOOTSTRAP_CLOUD_APPROVED','BOOTSTRAP_DATA_REVIEWED']})
     base.update(BOOTSTRAP_OPERATOR_ADC=credential,GOOGLE_APPLICATION_CREDENTIALS=credential,
         MCP_RELEASE_CONFIG=str(scratch / 'config.json'),GCLOUD_PROJECT=manifest['project'],
-        GOOGLE_CLOUD_PROJECT=manifest['project'],FIREBASE_CLI_PREVIEWS='webframeworks',
+        GOOGLE_CLOUD_PROJECT=manifest['project'],FIREBASE_CLI_EXPERIMENTS='webframeworks',
         NEXT_TELEMETRY_DISABLED='1',FIREBASE_CLI_DISABLE_UPDATE_CHECK='1')
     def firebase(target):
         # A different empty configstore per process prevents cached Firebase login overriding ADC.

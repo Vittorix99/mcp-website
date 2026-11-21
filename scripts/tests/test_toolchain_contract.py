@@ -20,7 +20,7 @@ class ToolchainContractTests(unittest.TestCase):
             if (PROJECT / "scripts/bootstrap-dev.sh").exists() else ""
         )
         (self.root / ".python-version").write_text("3.11\n")
-        (self.root / ".nvmrc").write_text("20\n")
+        (self.root / ".nvmrc").write_text("22\n")
         (self.root / "mcp-backend/functions/requirements-dev.txt").write_text("# fixture\n")
         (self.root / "mcp-website/package-lock.json").write_text("{}\n")
         self.log = self.root / "calls.log"
@@ -41,7 +41,7 @@ if sys.argv[1:3] == ["-m", "venv"]:
 ''')
         self.node = self._stub("node", '''#!/usr/bin/env python3
 import os,sys
-print(os.environ.get("FAKE_NODE_VERSION", "v20.18.0"))
+print(os.environ.get("FAKE_NODE_VERSION", "v22.12.0"))
 ''')
         self.npm = self._stub("npm", '''#!/usr/bin/env python3
 import os,sys
@@ -73,10 +73,10 @@ open(os.environ['CALL_LOG'],'a').write('npm '+repr(sys.argv[1:])+' cwd='+os.getc
         self.assertIn("3.11", result.stderr + result.stdout)
         self.assertEqual(self.calls(), "")
 
-    def test_node_version_is_20(self):
-        result = self.run_bootstrap(FAKE_NODE_VERSION="v22.1.0")
+    def test_node_version_is_22(self):
+        result = self.run_bootstrap(FAKE_NODE_VERSION="v20.19.6")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("20", result.stderr + result.stdout)
+        self.assertIn("22", result.stderr + result.stdout)
         self.assertEqual(self.calls(), "")
 
     def test_bootstrap_creates_venv_installs_hashed_requirements_and_runs_npm_ci(self):
@@ -121,7 +121,7 @@ else: open(os.environ['CALL_LOG'],'a').write('existing-venv '+repr(sys.argv[1:])
 
     def test_root_toolchain_versions_match_contract(self):
         self.assertEqual((PROJECT / ".python-version").read_text().strip(), "3.11")
-        self.assertEqual((PROJECT / ".nvmrc").read_text().strip(), "20")
+        self.assertEqual((PROJECT / ".nvmrc").read_text().strip(), "22")
 
     def test_requirements_are_generated_from_inputs(self):
         for name in ("requirements.in", "requirements-dev.in"):

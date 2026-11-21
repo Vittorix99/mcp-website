@@ -160,7 +160,7 @@ Il precedente conteggio WS1 di 49 rilievi è storico. Sul lockfile corrente
 Report locali ignorati: `.local/staging/precloud-npm-audit.json` e
 `precloud-npm-audit-prod.json`. Comandi eseguiti con Node25.2.1/npm11.6.2;
 questo è un controllo del lockfile, non una build sul runtime supportato.
-Installazione/build/test delle correzioni devono usare Node20 (`.nvmrc`;
+Installazione/build/test delle correzioni devono usare il Node dichiarato in `.nvmrc` (oggi 22; storico: Node20,
 versione locale disponibile20.19.6). Nessuna dipendenza modificata.
 I conteggi sono pacchetti segnalati da npm, non vulnerabilità sfruttabili
 indipendenti; `--omit=dev` non dimostra che un pacchetto sia raggiungibile

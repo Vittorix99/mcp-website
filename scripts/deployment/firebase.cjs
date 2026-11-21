@@ -53,7 +53,7 @@ function installAdapters(root, cliRequire, manifest, credentialPath, options = {
 }
 
 function main() {
-  if (process.versions.node.split('.')[0] !== '20') throw new Error('Release requires Node.js 20')
+  if (process.versions.node.split('.')[0] !== '22') throw new Error('Release requires Node.js 22')
   const root = path.resolve(__dirname,'../..')
   const cliRoot = path.join(root,'mcp-website/node_modules/firebase-tools')
   if (require(path.join(cliRoot,'package.json')).version !== '14.26.0') throw new Error('Review release adapter before changing Firebase CLI')

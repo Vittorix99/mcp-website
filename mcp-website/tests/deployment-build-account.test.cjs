@@ -68,7 +68,7 @@ test('Python endpoint uses build identity for Cloud Build and keeps app runtime 
 test('SSR endpoint uses build identity while retaining web runtime and converter metadata', () => {
   const webRuntime = identities.WEB_RUNTIME_SERVICE_ACCOUNT
   const originalEndpoint = endpoint({
-    runtime: 'nodejs20',
+    runtime: 'nodejs22',
     codebase: `firebase-frameworks-${project}`,
     serviceAccount: webRuntime,
   })
@@ -90,8 +90,13 @@ test('rejects endpoint project, codebase, platform, and runtime identity mismatc
   assert.throws(() => withBuildIdentity(endpoint({ project: 'mcp-website-2a1ad' }), manifest(), convert))
   assert.throws(() => withBuildIdentity(endpoint({ codebase: 'unexpected' }), manifest(), convert))
   assert.throws(() => withBuildIdentity(endpoint({ platform: 'gcfv1' }), manifest(), convert))
-  assert.throws(() => withBuildIdentity(endpoint({ runtime: 'nodejs20' }), manifest(), convert))
+  assert.throws(() => withBuildIdentity(endpoint({ runtime: 'nodejs22' }), manifest(), convert))
   assert.throws(() => withBuildIdentity(endpoint({ serviceAccount: undefined }), manifest(), convert))
+  assert.throws(() => withBuildIdentity(endpoint({
+    runtime: 'nodejs20',
+    codebase: `firebase-frameworks-${project}`,
+    serviceAccount: identities.WEB_RUNTIME_SERVICE_ACCOUNT,
+  }), manifest(), convert))
 })
 
 test('rejects invalid or colliding build identities', () => {

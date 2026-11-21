@@ -309,8 +309,11 @@ def verify_revision_secrets(manifest, revision):
     # Revisions are immutable, but a reference to "latest" is not. Preserve only
     # revisions whose secret environment references use explicit numeric versions.
     data = json.loads(gcloud(manifest, 'run', 'revisions', 'describe', revision, '--region', REGION,
-        '--format=json(metadata.name,metadata.annotations,spec.containers.env.valueFrom,spec.volumes.secret)'))
+        '--format=json'))
     require(data.get('metadata', {}).get('name') == revision, 'existing immutable revision')
+    # Field projections into repeated env/volumes can silently return nothing
+    # (gcloud 573); an empty result must never read as "no secrets".
+    require(bool(data.get('spec', {}).get('containers')), 'revision container configuration')
     aliases = {}
     for entry in data.get('metadata', {}).get('annotations', {}).get('run.googleapis.com/secrets', '').split(','):
         if entry:
@@ -343,6 +346,7 @@ def verify_revision_secrets(manifest, revision):
             require(secret.get('items'), 'explicit mounted secret versions')
             for item in secret['items']:
                 add(secret.get('secretName', ''), item.get('key', ''))
+    require(bool(references) or not aliases, 'secret references missing from revision description')
     return references
 
 
@@ -382,7 +386,7 @@ def release_environment(manifest):
     env = {key:os.environ[key] for key in allowed if key in os.environ}
     env.update(GCLOUD_PROJECT=manifest['project'], GOOGLE_CLOUD_PROJECT=manifest['project'],
         CLOUDSDK_CORE_PROJECT=manifest['project'], CLOUDSDK_CORE_DISABLE_PROMPTS='1',
-        FIREBASE_CLI_PREVIEWS='webframeworks', MCP_RELEASE_CONFIG=str(ROOT / '.local/release/config.json'),
+        FIREBASE_CLI_EXPERIMENTS='webframeworks', MCP_RELEASE_CONFIG=str(ROOT / '.local/release/config.json'),
         NEXT_TELEMETRY_DISABLED='1')
     return env
 
@@ -420,7 +424,7 @@ def verify_function_releases(manifest, *, cloud=None):
         require(state['traffic'], 'active backend revision')
         for revision in state['traffic']:
             data = json.loads(cloud(manifest, 'run', 'revisions', 'describe', revision, '--region', REGION,
-                '--format=json(metadata.name,spec.containers.env.name,spec.containers.env.value)'))
+                '--format=json'))
             require(data.get('metadata', {}).get('name') == revision, 'active immutable revision')
             # These are literal runtime configuration values, not Secret Manager
             # payloads (bound secrets use valueFrom). Keep only public stamps;
