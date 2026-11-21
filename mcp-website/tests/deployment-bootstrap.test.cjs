@@ -1,6 +1,6 @@
 const {test} = require('node:test')
 const assert = require('node:assert/strict')
-const {validateOperatorCredential, verifyOperator, validateInvocation} = require('../../scripts/deployment/firebase-bootstrap.cjs')
+const {validateOperatorCredential, verifyOperator, validateInvocation, limitDeployConcurrency, DEPLOY_CONCURRENCY} = require('../../scripts/deployment/firebase-bootstrap.cjs')
 const project = 'mcp-website-dev-39539'
 const operator = 'owner@example.com'
 const manifest = {environment:'staging',project,sha:'a'.repeat(40),bootstrap:{operator}}
@@ -48,4 +48,17 @@ test('real OAuth client preserves verified email string; false strings are rejec
     if (verified === 'true' || verified === true) await promise
     else await assert.rejects(promise)
   }
+})
+
+test('bootstrap caps firebase-tools function deploy concurrency below the Cloud Run write quota', () => {
+  const seen = []
+  class QueueExecutor { constructor(options) { seen.push(options) } }
+  const executor = {QueueExecutor}
+  limitDeployConcurrency(path => { assert.equal(path, './lib/deploy/functions/release/executor'); return executor })
+  new executor.QueueExecutor({retries:30,backoff:20000,concurrency:40,maxBackoff:100000})
+  new executor.QueueExecutor({concurrency:1})
+  assert.deepEqual(seen.map(options => options.concurrency), [DEPLOY_CONCURRENCY, 1])
+  assert.equal(seen[0].retries, 30)
+  assert.throws(() => limitDeployConcurrency(() => ({QueueExecutor}), 40))
+  assert.throws(() => limitDeployConcurrency(() => ({})))
 })
