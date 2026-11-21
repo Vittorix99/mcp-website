@@ -21,6 +21,18 @@ async function verifyOperator(credential, manifest, auth) {
   const info = await client.getTokenInfo(token)
   ensure(info.email === manifest.bootstrap.operator && (info.email_verified === true || info.email_verified === 'true'), 'verified operator identity')
 }
+// firebase-tools runs 40 parallel function creations; on the first release that
+// exceeded Cloud Run's regional write quota and failed 77 of 130 functions
+// inside the cloud operations (not retryable by the client). Keep it low.
+const DEPLOY_CONCURRENCY = 3
+function limitDeployConcurrency(cli, limit = DEPLOY_CONCURRENCY) {
+  const executor = cli('./lib/deploy/functions/release/executor')
+  const Original = executor.QueueExecutor
+  ensure(typeof Original === 'function' && Number.isInteger(limit) && limit >= 1 && limit <= 5, 'deploy concurrency')
+  executor.QueueExecutor = class extends Original {
+    constructor(options) { super({...options, concurrency: Math.min(options?.concurrency ?? limit, limit)}) }
+  }
+}
 function validateInvocation(manifest, env, source) {
   ensure(manifest.environment === 'staging' && manifest.project === 'mcp-website-dev-39539', 'staging project')
   ensure(!env.CI && !env.GITHUB_ACTIONS && !env.FIREBASE_TOKEN, 'local operator execution')
@@ -69,6 +81,7 @@ async function main() {
   if (operation === 'validate') return
   installAdapters(root,cli,manifest,credentialPath,{bootstrap:true,
     approvedFunctions:manifest.bootstrap.endpoints.filter(row => row.kind === 'http').map(row => row.id)})
+  limitDeployConcurrency(cli)
   Object.assign(process.env,manifest.frontend)
   process.env.__NEXT_PROCESSED_ENV = 'true'
   const entry = path.join(cliRoot,'lib/bin/firebase.js')
@@ -76,5 +89,5 @@ async function main() {
     '--config',path.join(root,'firebase.release.generated.json'),'--only',operation === 'backend' ? only : 'hosting']
   require(entry)
 }
-module.exports = {validateOperatorCredential,verifyOperator,validateInvocation}
+module.exports = {validateOperatorCredential,verifyOperator,validateInvocation,limitDeployConcurrency,DEPLOY_CONCURRENCY}
 if (require.main === module) main().catch(() => {console.error('Guarded staging bootstrap failed; diagnostics withheld');process.exitCode = 1})
