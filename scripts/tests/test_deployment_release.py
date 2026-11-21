@@ -261,6 +261,10 @@ def test_preparation_writes_only_explicit_public_configuration(tmp_path, monkeyp
     assert 'MCP_RELEASE_SHA=' in data
     assert 'PAYPAL_CLIENT_SECRET=' not in data
     assert 'GOOGLE_APPLICATION_CREDENTIALS=' not in data
+    web = (tmp_path / 'mcp-website' / ('.env.' + manifest['project'])).read_text()
+    assert 'NEXT_PUBLIC_ENV="staging"' in web and 'NEXT_PUBLIC_RELEASE_SHA="' + manifest['sha'] + '"' in web
+    assert all(line.startswith('NEXT_PUBLIC_') for line in web.splitlines())
+    assert 'PAYPAL_CLIENT_SECRET' not in web and 'GOOGLE_APPLICATION_CREDENTIALS' not in web
     assert json.loads((tmp_path / '.local/release/config.json').read_text()) == manifest
 
 

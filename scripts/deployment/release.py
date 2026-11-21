@@ -401,6 +401,13 @@ def write_configuration(manifest):
     (scratch / 'config.json').write_text(json.dumps(manifest, sort_keys=True) + '\n')
     env_file = ROOT / 'mcp-backend/functions' / ('.env.' + manifest['project'])
     env_file.write_text(''.join(f'{key}="{value}"\n' for key, value in sorted(manifest['backend'].items())))
+    # The SSR function validates its public runtime settings when next.config.js loads
+    # at server start. firebase-tools copies mcp-website/.env.* into the SSR function and
+    # applies it as environment; without this file the function crashes on boot (HTTP 500).
+    # Public NEXT_PUBLIC_* values only; secrets stay in Secret Manager.
+    web_env = ROOT / 'mcp-website' / ('.env.' + manifest['project'])
+    require(all(re.fullmatch(r'NEXT_PUBLIC_[A-Z0-9_]+', key) for key in manifest['frontend']), 'public frontend keys')
+    web_env.write_text(''.join(f'{key}="{value}"\n' for key, value in sorted(manifest['frontend'].items())))
     config = json.loads((ROOT / 'firebase.json').read_text())
     config['hosting']['site'] = manifest['project']
     config['hosting']['frameworksBackend']['serviceAccount'] = manifest['identities']['WEB_RUNTIME_SERVICE_ACCOUNT']
