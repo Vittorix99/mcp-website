@@ -9,6 +9,7 @@ import {startBuildFixtureServer} from './build-fixture-server.mjs'
 const require = createRequire(import.meta.url)
 const catalog = require('../../mcp-backend/functions/config/environment_catalog.json')
 const {validatePublicRuntime, publicRuntimeEnvironment} = require('../config/runtime-policy.cjs')
+const {REQUIRED_BACKEND_READS, backendReadAcceptable} = require('../config/build-reads.cjs')
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')
 const release = process.argv.includes('--release')
 
@@ -48,9 +49,9 @@ async function main() {
     }
     Object.assign(env,publicRuntimeEnvironment(config))
     env.BACKEND_BASE_URL = config.backendUrl
-    for (const endpoint of ['get_all_events','get_next_event','get_membership_price_public','get_published_radio_episodes','get_latest_radio_episode','get_radio_seasons']) {
+    for (const endpoint of REQUIRED_BACKEND_READS) {
       const response = await fetch(`${config.backendUrl}/${endpoint}`)
-      if (!response.ok) throw new Error(`Required build backend read failed: ${endpoint}`)
+      if (!backendReadAcceptable(endpoint,response)) throw new Error(`Required build backend read failed: ${endpoint}`)
       await response.json()
     }
     const exitCode = await new Promise((resolve,reject) => {
