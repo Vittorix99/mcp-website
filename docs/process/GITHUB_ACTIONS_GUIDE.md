@@ -12,7 +12,7 @@ Un **workflow** è un’automazione definita da un file YAML in `.github/workflo
 
 ## Controlli della pull request
 
-Il workflow PR previsto parte quando si apre o aggiorna una pull request e può anche essere avviato manualmente. Esegue verifiche in sola lettura: installazione riproducibile con dipendenze Python hashate, Node.js 20 e Python 3.11; controlli di policy e suite unit con rete disabilitata; configurazione frontend, lint e fixture build; smoke test con emulatori; scansione redatta del repository. Non sono previsti job di deploy.
+Il workflow PR previsto parte quando si apre o aggiorna una pull request e può anche essere avviato manualmente. Esegue verifiche in sola lettura: installazione riproducibile con dipendenze Python hashate, Node.js 22 e Python 3.11; controlli di policy e suite unit con rete disabilitata; configurazione frontend, lint e fixture build; smoke test con emulatori; scansione redatta del repository. Non sono previsti job di deploy.
 
 La scansione è progettata per non stampare valori segreti. Evita comunque di copiare log in spazi pubblici o includerli in screenshot senza averli controllati. Il workflow non prevede al momento il caricamento di artefatti: i log sono la fonte principale per diagnosticare un errore. Eventuali artefatti aggiunti in futuro dovranno essere ripuliti da dati sensibili prima della pubblicazione.
 

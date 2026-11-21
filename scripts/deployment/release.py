@@ -309,8 +309,11 @@ def verify_revision_secrets(manifest, revision):
     # Revisions are immutable, but a reference to "latest" is not. Preserve only
     # revisions whose secret environment references use explicit numeric versions.
     data = json.loads(gcloud(manifest, 'run', 'revisions', 'describe', revision, '--region', REGION,
-        '--format=json(metadata.name,metadata.annotations,spec.containers.env.valueFrom,spec.volumes.secret)'))
+        '--format=json'))
     require(data.get('metadata', {}).get('name') == revision, 'existing immutable revision')
+    # Field projections into repeated env/volumes can silently return nothing
+    # (gcloud 573); an empty result must never read as "no secrets".
+    require(bool(data.get('spec', {}).get('containers')), 'revision container configuration')
     aliases = {}
     for entry in data.get('metadata', {}).get('annotations', {}).get('run.googleapis.com/secrets', '').split(','):
         if entry:
@@ -343,6 +346,7 @@ def verify_revision_secrets(manifest, revision):
             require(secret.get('items'), 'explicit mounted secret versions')
             for item in secret['items']:
                 add(secret.get('secretName', ''), item.get('key', ''))
+    require(bool(references) or not aliases, 'secret references missing from revision description')
     return references
 
 

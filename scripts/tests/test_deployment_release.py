@@ -488,3 +488,39 @@ def test_revision_stamps_are_read_with_full_json_not_a_projection(monkeypatch):
     monkeypatch.setattr(release, 'gcloud', lambda *args: seen.append(args) or json.dumps(response))
     release.verify_function_releases(manifest)
     assert seen and all('--format=json' in call and not any('spec.containers' in str(part) for part in call) for call in seen)
+
+
+def test_revision_secrets_fail_closed_when_description_has_no_containers_or_references(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    revision = 'public-api-00001-abc'
+    seen = []
+    data = dict(metadata={'name':revision})
+    monkeypatch.setattr(release, 'gcloud', lambda _, *args: seen.append(args) or json.dumps(data))
+    with pytest.raises(ValueError, match='container configuration'):
+        release.verify_revision_secrets(manifest, revision)
+    assert '--format=json' in seen[0]
+    data = dict(metadata={'name':revision, 'annotations':{'run.googleapis.com/secrets':
+        'provider-key:projects/p/secrets/PAYPAL_CLIENT_SECRET'}}, spec={'containers':[{'env':[]}]})
+    with pytest.raises(ValueError, match='secret references missing'):
+        release.verify_revision_secrets(manifest, revision)
+
+
+def test_stamp_mismatch_error_never_contains_environment_values(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    revision = 'public-api-00001-abc'
+    monkeypatch.setattr(release, 'cloud_functions', lambda _, **kwargs:[dict(
+        name='x', labels={'firebase-functions-codebase':'python_codebase'}, serviceConfig={'service':'public-api'})])
+    monkeypatch.setattr(release, 'service_state', lambda *args, **kwargs:{'traffic':{revision:100}})
+    response = dict(metadata={'name':revision}, spec={'containers':[{'env':[
+        {'name':'MCP_RELEASE_SHA','value':'b' * 40}, {'name':'API_TOKEN','value':'literal-secret-value'}]}]})
+    monkeypatch.setattr(release, 'gcloud', lambda *args:json.dumps(response))
+    with pytest.raises(ValueError) as error:
+        release.verify_function_releases(manifest)
+    assert 'literal-secret-value' not in str(error.value)
+
+
+def test_release_environment_uses_experiments_not_previews():
+    source = (release.ROOT / 'scripts/deployment/release.py').read_text() + \
+        (release.ROOT / 'scripts/deployment/bootstrap_staging.py').read_text()
+    assert "FIREBASE_CLI_EXPERIMENTS='webframeworks'" in source
+    assert 'FIREBASE_CLI_PREVIEWS' not in source

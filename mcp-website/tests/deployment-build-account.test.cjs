@@ -92,6 +92,11 @@ test('rejects endpoint project, codebase, platform, and runtime identity mismatc
   assert.throws(() => withBuildIdentity(endpoint({ platform: 'gcfv1' }), manifest(), convert))
   assert.throws(() => withBuildIdentity(endpoint({ runtime: 'nodejs22' }), manifest(), convert))
   assert.throws(() => withBuildIdentity(endpoint({ serviceAccount: undefined }), manifest(), convert))
+  assert.throws(() => withBuildIdentity(endpoint({
+    runtime: 'nodejs20',
+    codebase: `firebase-frameworks-${project}`,
+    serviceAccount: identities.WEB_RUNTIME_SERVICE_ACCOUNT,
+  }), manifest(), convert))
 })
 
 test('rejects invalid or colliding build identities', () => {
