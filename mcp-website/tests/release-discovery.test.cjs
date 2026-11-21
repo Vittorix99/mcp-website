@@ -1,6 +1,6 @@
 const {test} = require('node:test')
 const assert = require('node:assert/strict')
-const {discoveryEnvironment, validateFederation, releaseBuildInvocation} = require('../../scripts/deployment/firebase.cjs')
+const {discoveryEnvironment, validateFederation, releaseBuildInvocation, spawnReleaseBuild} = require('../../scripts/deployment/firebase.cjs')
 
 const manifest = {
   project:'mcp-website-dev-39539', environment:'staging',
@@ -50,4 +50,20 @@ test('release adapter matches the pinned CLI framework spawn and dependency reso
   assert.equal(typeof cliRequire('cross-spawn').spawn,'function')
   const executable = cliRequire('./lib/frameworks/utils.js').getNodeModuleBin('next',path.join(root,'mcp-website'))
   assert.ok(releaseBuildInvocation(executable,['build'],{cwd:path.join(root,'mcp-website')},root))
+})
+
+test('release build removes the stale .next first and aborts the deploy when the build fails',()=>{
+  const {EventEmitter} = require('node:events')
+  const calls = []
+  const replacement = {executable:'node',args:['build-safe.mjs','--release']}
+  for (const [code,signal,aborts] of [[0,null,false],[1,null,true],[null,'SIGKILL',true]]) {
+    const child = new EventEmitter()
+    let aborted = false
+    const result = spawnReleaseBuild((exe,args) => {calls.push(['spawn',exe]); return child},replacement,{},'/synthetic/project',
+      {remove:target => calls.push(['remove',target]),fail:() => {aborted = true}})
+    assert.equal(result,child)
+    child.emit('exit',code,signal)
+    assert.equal(aborted,aborts)
+  }
+  assert.deepEqual(calls.slice(0,2),[['remove','/synthetic/project/mcp-website/.next'],['spawn','node']])
 })

@@ -24,6 +24,20 @@ function discoveryEnvironment(manifest, child, credentialPath) {
     GOOGLE_CLOUD_PROJECT:manifest.project, GOOGLE_APPLICATION_CREDENTIALS:credentialPath}
 }
 
+// firebase-tools 14.26 ignores the exit code of `next build` and would otherwise package a
+// stale .next (e.g. an old fixture build). Remove it first and abort the deploy if the build fails.
+function spawnReleaseBuild(originalSpawn, replacement, options, root, {remove = fs.rmSync, fail = () => process.exit(1)} = {}) {
+  remove(path.join(root,'mcp-website/.next'),{recursive:true,force:true})
+  const child = originalSpawn(replacement.executable,replacement.args,options)
+  child.once('exit',(code,signal) => {
+    if (code !== 0 || signal) {
+      console.error('Release build failed; deployment aborted')
+      fail()
+    }
+  })
+  return child
+}
+
 function releaseBuildInvocation(executable, args, options, root) {
   if (path.resolve(options.cwd || '') !== path.join(root,'mcp-website') ||
       !/[/\\]next(?:\.cmd)?$/.test(executable) || args.length !== 1 || args[0] !== 'build') return null
@@ -42,7 +56,7 @@ function installAdapters(root, cliRequire, manifest, credentialPath, options = {
   const originalSpawn = crossSpawn.spawn
   crossSpawn.spawn = function(executable,args,options) {
     const replacement = releaseBuildInvocation(executable,args,options,root)
-    return replacement ? originalSpawn(replacement.executable,replacement.args,options)
+    return replacement ? spawnReleaseBuild(originalSpawn,replacement,options,root)
       : originalSpawn(executable,args,options)
   }
   return () => {
@@ -77,7 +91,7 @@ function main() {
   require(cli)
 }
 
-module.exports = {installAdapters, validateFederation, discoveryEnvironment, releaseBuildInvocation}
+module.exports = {installAdapters, validateFederation, discoveryEnvironment, releaseBuildInvocation, spawnReleaseBuild}
 if (require.main === module) {
   try { main() } catch { console.error('Guarded Firebase release failed'); process.exitCode = 1 }
 }

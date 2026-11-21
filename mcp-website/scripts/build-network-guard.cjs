@@ -5,6 +5,8 @@ const net = require('node:net')
 const http = require('node:http')
 const https = require('node:https')
 const tls = require('node:tls')
+const path = require('node:path')
+const {REQUIRED_BACKEND_READS, backendReadAcceptable} = require(path.join(__dirname,'../config/build-reads.cjs'))
 
 function checkHost(host = 'localhost') {
   if (process.env.MCP_BUILD_MODE === 'release') return
@@ -29,14 +31,12 @@ globalThis.fetch = async function(input, ...args) {
   const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
   checkHost(url.hostname)
   const base = process.env.BACKEND_BASE_URL ? new URL(process.env.BACKEND_BASE_URL) : null
-  const required = base && url.origin === base.origin && [
-    'get_all_events','get_next_event','get_membership_price_public',
-    'get_published_radio_episodes','get_latest_radio_episode','get_radio_seasons',
-  ].includes(url.pathname.split('/').pop())
+  const endpoint = url.pathname.split('/').pop()
+  const required = base && url.origin === base.origin && REQUIRED_BACKEND_READS.includes(endpoint)
   try {
     const response = await originalFetch.call(this,input,...args)
     if (required) {
-      if (!response.ok) throw new Error('Required backend read failed')
+      if (!backendReadAcceptable(endpoint,response)) throw new Error('Required backend read failed')
       await response.clone().json()
     }
     return response
