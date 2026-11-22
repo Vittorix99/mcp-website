@@ -9,6 +9,7 @@ from flask import after_this_request, request
 from werkzeug.exceptions import HTTPException
 
 from config import get_runtime_policy
+from utils.firestore_observability import begin_counts, end_counts
 
 
 _METHODS = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
@@ -63,6 +64,7 @@ def observe_http_request(handler):
         request_id = str(uuid4())
         method = request.method if request.method in _METHODS else "OTHER"
         recorded = False
+        counts, counts_token = begin_counts()
 
         def emit(status):
             nonlocal recorded
@@ -79,6 +81,10 @@ def observe_http_request(handler):
                     "method": method,
                     "status_code": status,
                     "duration_ms": max(0, round((perf_counter() - started) * 1000, 3)),
+                    "firestore_reads": counts["reads"],
+                    "firestore_writes": counts["writes"],
+                    "firestore_deletes": counts["deletes"],
+                    "firestore_aggregations": counts["aggregations"],
                 }, separators=(",", ":")), flush=True)
             except Exception:
                 # Observability failure must not replace a response or the original exception.
@@ -101,5 +107,6 @@ def observe_http_request(handler):
             raise
         finally:
             _current_request_id.reset(token)
+            end_counts(counts_token)
 
     return observed

@@ -8,6 +8,7 @@ from firebase_functions import options
 from google.auth.credentials import AnonymousCredentials
 
 from config.environment import load_environment
+from utils.firestore_observability import install_firestore_counters
 from config.runtime_settings import (
     CredentialMode, RuntimeConfigurationError, RuntimeSettings, get_runtime_policy,
 )
@@ -48,7 +49,11 @@ def initialize_firebase(settings: RuntimeSettings):
             "projectId": firebase.project_id,
             "storageBucket": firebase.storage_bucket,
         })
-    return firestore.client(app=app), storage.bucket(firebase.storage_bucket, app=app)
+    client = firestore.client(app=app)
+    if not install_firestore_counters(client):
+        # Without this, "counters missing" would read as "zero operations" in the logs.
+        print('{"event":"firestore_counters_unavailable","severity":"WARNING"}', flush=True)
+    return client, storage.bucket(firebase.storage_bucket, app=app)
 
 
 load_environment()
