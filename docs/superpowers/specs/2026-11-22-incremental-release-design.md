@@ -1,6 +1,13 @@
 # Release incrementale: disegno per approvazione
 
-Stato: **proposta, in attesa di approvazione dell'owner**. Nessuna implementazione avviata.
+Stato: **approvato dall'owner il 22/11/2026 per le decisioni 1-3** (Fase 1, identità per componente, Fase 2 rimandata all'ADR).
+La decisione 4 (percorso della migrazione una tantum) è ancora aperta. Nessuna implementazione avviata.
+
+Collocazione nel programma: questo lavoro è un **abilitatore**, non una nuova workstream. Serve a rendere staging un
+ambiente affidabile e rilasciabile in modo ripetibile, da cui raccogliere le evidenze (WS3 osservabilità/costi, WS7 scenari,
+benchmark) che alimentano l'ADR (Firebase ristrutturato / ibrido / Supabase) e il gate umano che precede lo Stage 3.
+Il disegno è volutamente **neutro rispetto all'architettura**: identità per componente e passo `plan` valgono anche se l'ADR
+cambia il backend; la Fase 2 dipende dall'ADR e resta fuori finché non c'è.
 Contesto: primo staging HTTP+SSR verificato il 22/11/2026 (backend `b35a7d2`, sito `a4b5f75`).
 
 ## Problema
