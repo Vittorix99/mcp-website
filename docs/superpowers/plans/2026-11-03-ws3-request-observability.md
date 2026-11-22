@@ -162,3 +162,28 @@ isolata dal risultato, firma posizionale di `send_email` ripristinata, test su
 risultato con classificazione fallita. Verifica: 739 test unitari passati.
 Smoke emulatori non eseguito dall'agente.
 
+
+
+## Blocco 4 — conteggi Firestore per richiesta (2026-11-22)
+
+Stato: approvato dal proprietario in chat il 2026-11-22 ("completiamo WS3"). Il record `http_request_completed` ha ora
+quattro campi interi: `firestore_reads`, `firestore_writes`, `firestore_deletes`, `firestore_aggregations`. Nessun id,
+percorso o dato: solo numeri.
+
+- Punto di conteggio unico: i metodi gapic del client (`run_query`, `batch_get_documents`, `get_document`,
+  `list_documents`, `run_aggregation_query`, `commit`, `batch_write`), installati in `initialize_firebase`
+  (`utils/firestore_observability.py`). Nessuna modifica a repository o servizi.
+- Letture = documenti restituiti (anche "missing" in `get_all`); scritture e cancellazioni contate dopo il successo del
+  commit; aggregazioni contate per chiamata. Se l'installazione fallisce viene scritto un solo
+  `firestore_counters_unavailable`, così "contatori assenti" non si legge come "zero operazioni".
+- Limiti noti (anche nel docstring): una query senza documenti è fatturata 1 lettura e qui vale 0; thread senza
+  contesto copiato, BulkWriter, client asincrono, `execute_pipeline`, `partition_query` e `list_collection_ids` non
+  sono contati; trigger e job fuori da richieste HTTP non sono contati; i numeri approssimano le categorie di costo,
+  non sono la fattura. Dipende dall'attributo privato `Client._firestore_api`: un test con il client reale
+  segnala un rinominato dell'SDK.
+- Evidenze: RED 9 test, poi GREEN; 14 test dedicati più i campi attesi del record HTTP. Prova con l'SDK reale
+  sull'emulatore Firestore: 12 scenari corretti (set, get anche mancante, stream, filtri, query vuota, `get_all`, count,
+  update, batch con delete, transazione, delete). Suite backend 1429 passati, tooling 120, test API sull'emulatore
+  522 passati. Revisione indipendente (Opus 5.5 medium): nessun P1; due P2 (guardia sull'SDK reale e segnalazione
+  di installazione fallita) e test P3 corretti.
+- Non coperto: `summarize_requests.py` non legge ancora i nuovi campi (blocco 2).

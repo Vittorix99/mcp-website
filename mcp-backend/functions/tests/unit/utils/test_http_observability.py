@@ -6,7 +6,8 @@ from flask import Flask, Response, abort, jsonify, request
 import pytest
 
 
-FIELDS = {"event", "severity", "environment", "function", "request_id", "method", "status_code", "duration_ms"}
+FIELDS = {"event", "severity", "environment", "function", "request_id", "method", "status_code", "duration_ms",
+          "firestore_reads", "firestore_writes", "firestore_deletes", "firestore_aggregations"}
 
 
 def _module():
