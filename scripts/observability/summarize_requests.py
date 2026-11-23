@@ -6,6 +6,24 @@ from pathlib import Path
 import sys
 from uuid import UUID
 
+FIRESTORE_KINDS = ("reads", "writes", "deletes", "aggregations")
+
+
+def _percentile(values, percentile):
+    return values[math.ceil(len(values) * percentile / 100) - 1]
+
+
+def _firestore_counts(record):
+    """Return the four per-request counters, None when absent; raise on partial or invalid."""
+    fields = [f"firestore_{kind}" for kind in FIRESTORE_KINDS]
+    present = [field in record for field in fields]
+    if not any(present):
+        return None
+    counts = tuple(record.get(field) for field in fields)
+    if not all(present) or any(type(count) is not int or count < 0 for count in counts):
+        raise ValueError
+    return counts
+
 
 def summarize_requests(lines):
     groups, seen = {}, {}
@@ -26,6 +44,7 @@ def summarize_requests(lines):
             duration, status = record["duration_ms"], record["status_code"]
             request_id = UUID(record["request_id"])
             method = record["method"]
+            counts = _firestore_counts(record)
             valid = (
                 environment in {"local", "test", "staging", "production"}
                 and isinstance(function, str) and function.isascii() and function.isidentifier()
@@ -39,27 +58,38 @@ def summarize_requests(lines):
         if not valid:
             raise ValueError(f"Invalid request record at line {number}")
         identity = (environment, str(request_id))
-        sample = (function, method, status, duration)
+        sample = (function, method, status, duration, counts)
         if identity in seen:
             if seen[identity] != sample:
                 raise ValueError(f"Conflicting request ID at line {number}")
             continue
         seen[identity] = sample
-        groups.setdefault((environment, function), []).append((duration, status))
+        groups.setdefault((environment, function), []).append((duration, status, counts))
 
     summaries = []
     for (environment, function), samples in sorted(groups.items()):
-        durations = sorted(duration for duration, _status in samples)
+        durations = sorted(duration for duration, _status, _counts in samples)
         count = len(samples)
         summary = {
             "environment": environment, "function": function, "requests": count,
-            "client_errors": sum(400 <= status < 500 for _duration, status in samples),
-            "server_errors": sum(status >= 500 for _duration, status in samples),
+            "client_errors": sum(400 <= status < 500 for _duration, status, _counts in samples),
+            "server_errors": sum(status >= 500 for _duration, status, _counts in samples),
         }
         # Nearest-rank percentiles also work for a single request; keep the sample count visible.
         for percentile in (50, 95, 99):
-            summary[f"p{percentile}_ms"] = durations[math.ceil(count * percentile / 100) - 1]
+            summary[f"p{percentile}_ms"] = _percentile(durations, percentile)
         summary["max_ms"] = durations[-1]
+        # Records from before Firestore counting carry no counters; they are left out, not read as zero.
+        counted = [counts for _duration, _status, counts in samples if counts is not None]
+        if counted:
+            summary["firestore_samples"] = len(counted)
+            summary["firestore"] = {}
+            for index, kind in enumerate(FIRESTORE_KINDS):
+                values = sorted(counts[index] for counts in counted)
+                summary["firestore"][kind] = {
+                    "total": sum(values), "p50": _percentile(values, 50),
+                    "p95": _percentile(values, 95), "max": values[-1],
+                }
         summaries.append(summary)
     return summaries
 
