@@ -186,4 +186,4 @@ percorso o dato: solo numeri.
   update, batch con delete, transazione, delete). Suite backend 1429 passati, tooling 120, test API sull'emulatore
   522 passati. Revisione indipendente (Opus 5.5 medium): nessun P1; due P2 (guardia sull'SDK reale e segnalazione
   di installazione fallita) e test P3 corretti.
-- Non coperto: `summarize_requests.py` non legge ancora i nuovi campi (blocco 2).
+- `summarize_requests.py` legge i nuovi campi (blocco 2, punto 1): per funzione aggiunge `firestore_samples` e, per reads/writes/deletes/aggregations, total, p50, p95 e max per richiesta. I record senza contatori non contano come zero; contatori parziali o non validi fanno fallire il comando. Benchmark harness e `dependency_completed` restano rinviati.
