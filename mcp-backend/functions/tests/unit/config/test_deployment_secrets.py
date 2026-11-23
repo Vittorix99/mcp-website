@@ -48,6 +48,20 @@ def test_release_requires_project_specific_runtime_identity(monkeypatch):
     setter = Mock()
     monkeypatch.setattr(options, 'set_global_options', setter)
     configure_runtime_identity(settings)
+    setter.assert_called_once_with(service_account=account, min_instances=0, max_instances=5)
+
+
+def test_production_keeps_platform_instance_defaults(monkeypatch):
+    from config.function_secrets import configure_runtime_identity
+    from firebase_functions import options
+    account = 'app-runtime@mcp-website-2a1ad.iam.gserviceaccount.com'
+    settings = Mock()
+    settings.environment.value = 'production'
+    settings.firebase.project_id = 'mcp-website-2a1ad'
+    monkeypatch.setenv('MCP_RUNTIME_SERVICE_ACCOUNT', account)
+    setter = Mock()
+    monkeypatch.setattr(options, 'set_global_options', setter)
+    configure_runtime_identity(settings)
     setter.assert_called_once_with(service_account=account)
 
 
