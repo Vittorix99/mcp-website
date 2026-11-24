@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const {createRequire} = require('node:module')
 const {execFileSync} = require('node:child_process')
-const {installAdapters} = require('./firebase.cjs')
+const {installAdapters, limitDeployConcurrency, DEPLOY_CONCURRENCY} = require('./firebase.cjs')
 const {bootstrapSelectors,validateIdentities} = require('./cli-guards.cjs')
 
 function ensure(ok, field) { if (!ok) throw new Error('Bootstrap validation failed: ' + field) }
@@ -20,18 +20,6 @@ async function verifyOperator(credential, manifest, auth) {
   ensure(token, 'operator access token')
   const info = await client.getTokenInfo(token)
   ensure(info.email === manifest.bootstrap.operator && (info.email_verified === true || info.email_verified === 'true'), 'verified operator identity')
-}
-// firebase-tools runs 40 parallel function creations; on the first release that
-// exceeded Cloud Run's regional write quota and failed 77 of 130 functions
-// inside the cloud operations (not retryable by the client). Keep it low.
-const DEPLOY_CONCURRENCY = 3
-function limitDeployConcurrency(cli, limit = DEPLOY_CONCURRENCY) {
-  const executor = cli('./lib/deploy/functions/release/executor')
-  const Original = executor.QueueExecutor
-  ensure(typeof Original === 'function' && Number.isInteger(limit) && limit >= 1 && limit <= 5, 'deploy concurrency')
-  executor.QueueExecutor = class extends Original {
-    constructor(options) { super({...options, concurrency: Math.min(options?.concurrency ?? limit, limit)}) }
-  }
 }
 function validateInvocation(manifest, env, source) {
   ensure(manifest.environment === 'staging' && manifest.project === 'mcp-website-dev-39539', 'staging project')
