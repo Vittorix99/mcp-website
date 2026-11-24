@@ -3,6 +3,9 @@ import importlib.util
 import json
 from pathlib import Path
 
+import io
+from urllib.error import HTTPError
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -111,6 +114,33 @@ def test_smoke_rejects_wrong_release_even_with_http_success():
     for key in ['environment', 'project_id', 'release_sha', 'configuration_digest', 'status']:
         with pytest.raises(ValueError):
             release.validate_health({**health, key:'wrong'}, manifest)
+
+
+def _smoke_with(monkeypatch, failing, code):
+    manifest = release.prepare('staging', inputs())
+    seen = []
+
+    def fetch(url):
+        seen.append(url.rsplit('/', 1)[-1])
+        if url.endswith('/' + failing):
+            raise HTTPError(url, code, 'x', {}, io.BytesIO())
+        return {}
+    monkeypatch.setattr(release, 'fetch_json', fetch)
+    monkeypatch.setattr(release, 'validate_health', lambda *_: None)
+    release.smoke(manifest)
+    return seen
+
+
+def test_smoke_accepts_an_empty_radio_but_still_checks_every_endpoint(monkeypatch):
+    seen = _smoke_with(monkeypatch, 'get_latest_radio_episode', 404)
+    assert seen[-1] == 'get_radio_seasons' and 'get_latest_radio_episode' in seen
+
+
+@pytest.mark.parametrize('endpoint,code', [('get_latest_radio_episode', 500), ('get_latest_radio_episode', 403),
+                                           ('get_all_events', 404), ('get_radio_seasons', 404)])
+def test_smoke_rejects_other_failures(monkeypatch, endpoint, code):
+    with pytest.raises(HTTPError):
+        _smoke_with(monkeypatch, endpoint, code)
 
 
 def test_production_environment_requires_real_reviewer_and_main_only_policy():

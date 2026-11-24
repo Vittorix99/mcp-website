@@ -66,6 +66,19 @@ function installAdapters(root, cliRequire, manifest, credentialPath, options = {
   }
 }
 
+// firebase-tools runs 40 parallel function creations; on the first release that
+// exceeded Cloud Run's regional write quota and failed 77 of 130 functions
+// inside the cloud operations (not retryable by the client). Keep it low; shared by the
+// bootstrap and the ordinary release so neither can exceed the quota.
+const DEPLOY_CONCURRENCY = 3
+function limitDeployConcurrency(cli, limit = DEPLOY_CONCURRENCY) {
+  const executor = cli('./lib/deploy/functions/release/executor')
+  const Original = executor.QueueExecutor
+  if (typeof Original !== 'function' || !Number.isInteger(limit) || limit < 1 || limit > 5) throw new Error('Invalid deploy concurrency')
+  executor.QueueExecutor = class extends Original {
+    constructor(options) { super({...options, concurrency: Math.min(options?.concurrency ?? limit, limit)}) }
+  }
+}
 function main() {
   if (process.versions.node.split('.')[0] !== '22') throw new Error('Release requires Node.js 22')
   const root = path.resolve(__dirname,'../..')
@@ -82,6 +95,7 @@ function main() {
   if (!['backend','hosting'].includes(args[0]) || args.length !== 1) throw new Error('Select a scoped release target')
   const cliRequire = createRequire(path.join(cliRoot,'package.json'))
   installAdapters(root,cliRequire,manifest,credentialPath)
+  limitDeployConcurrency(cliRequire)
   Object.assign(process.env, manifest.frontend)
   process.env.__NEXT_PROCESSED_ENV = 'true'
   const cli = path.join(cliRoot,'lib/bin/firebase.js')
@@ -91,7 +105,7 @@ function main() {
   require(cli)
 }
 
-module.exports = {installAdapters, validateFederation, discoveryEnvironment, releaseBuildInvocation, spawnReleaseBuild}
+module.exports = {installAdapters, limitDeployConcurrency, DEPLOY_CONCURRENCY, validateFederation, discoveryEnvironment, releaseBuildInvocation, spawnReleaseBuild}
 if (require.main === module) {
   try { main() } catch { console.error('Guarded Firebase release failed'); process.exitCode = 1 }
 }

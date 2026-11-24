@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import time
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -197,6 +198,10 @@ def service_state(manifest, service, *, cloud=None):
     return {'traffic':traffic}
 
 
+# Mirrors mcp-website/config/build-reads.cjs: these endpoints answer 404 on an empty environment.
+EMPTY_STATE_ENDPOINTS = frozenset({'get_latest_radio_episode'})
+
+
 def fetch_json(url):
     with urlopen(Request(url, headers={'Cache-Control':'no-cache'}), timeout=30) as response:
         require(response.status == 200, 'HTTP smoke status')
@@ -218,7 +223,12 @@ def smoke(manifest):
                 time.sleep(5)
     for endpoint in ['get_all_events', 'get_next_event', 'get_membership_price_public',
                      'get_published_radio_episodes', 'get_latest_radio_episode', 'get_radio_seasons']:
-        fetch_json(f'https://us-central1-{project}.cloudfunctions.net/{endpoint}')
+        try:
+            fetch_json(f'https://us-central1-{project}.cloudfunctions.net/{endpoint}')
+        except HTTPError as error:
+            # An environment without radio episodes is valid; any other failure is not.
+            if not (endpoint in EMPTY_STATE_ENDPOINTS and error.code == 404):
+                raise
 
 
 def expected_functions(manifest, env):
