@@ -62,3 +62,11 @@ test('bootstrap caps firebase-tools function deploy concurrency below the Cloud 
   assert.throws(() => limitDeployConcurrency(() => ({QueueExecutor}), 40))
   assert.throws(() => limitDeployConcurrency(() => ({})))
 })
+
+test('the ordinary release shares the same deploy concurrency cap as the bootstrap', () => {
+  const ordinary = require('../../scripts/deployment/firebase.cjs')
+  assert.equal(ordinary.limitDeployConcurrency, limitDeployConcurrency)
+  assert.equal(ordinary.DEPLOY_CONCURRENCY, DEPLOY_CONCURRENCY)
+  const source = require('node:fs').readFileSync(require.resolve('../../scripts/deployment/firebase.cjs'), 'utf8')
+  assert.match(source, /installAdapters\(root,cliRequire,manifest,credentialPath\)\n\s+limitDeployConcurrency\(cliRequire\)/)
+})
