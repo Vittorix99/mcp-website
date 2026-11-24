@@ -442,25 +442,32 @@ def verify_function_releases(manifest, *, cloud=None):
                 stamps.get('MCP_CONFIG_DIGEST') == manifest['digest'], 'all active backend revisions must match release')
 
 
-def preflight(manifest):
+def preflight(manifest, *, read_only=False):
     metadata = github('environments/' + manifest['environment'])
     policies = github('environments/' + manifest['environment'] + '/deployment-branch-policies?per_page=100')
     require(policies.get('total_count') == 1, 'one main-only deployment branch rule')
     branches = sorted([{'name':item['name'], 'type':item['type']} for item in policies.get('branch_policies', [])], key=lambda x:x['name'])
     validate_environment(manifest['environment'], metadata, branches)
     require(command(['git', 'rev-parse', 'HEAD']).strip() == manifest['sha'], 'checkout SHA')
+    if read_only:
+        # Approvals gate mutations only; a read-only access proof must work before they are granted.
+        return
     require(os.environ.get('PAYMENT_ROLLOUT_APPROVED') == 'true', 'payment worker compatibility approval')
     require(os.environ.get('ROLLBACK_BASELINE_VERIFIED') == 'true', 'staging rollback proof and baseline approval')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['prepare', 'snapshot', 'deploy', 'rollback'])
+    parser.add_argument('operation', choices=['prepare', 'verify', 'snapshot', 'deploy', 'rollback'])
     parser.add_argument('--environment', required=True, choices=['staging', 'production'])
     parser.add_argument('--snapshot-run-id')
+    parser.add_argument('--read-only', action='store_true')
     args = parser.parse_args()
+    # verify only reads; --read-only exists solely so the shared prepare step can skip mutation approvals.
+    require(args.operation == 'verify' or not args.read_only or args.operation == 'prepare', 'read-only scope')
+    read_only = args.operation == 'verify' or args.read_only
     manifest = prepare(args.environment, os.environ)
-    preflight(manifest)
+    preflight(manifest, read_only=read_only)
     if args.operation == 'prepare':
         write_configuration(manifest)
         print('Public release configuration prepared; no cloud authentication or mutation.')
@@ -470,6 +477,11 @@ def main():
     require(bool(env.get('GOOGLE_APPLICATION_CREDENTIALS')), 'ephemeral WIF credentials')
     command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'validate'], env=env)
     cloud_preflight(manifest)
+    if args.operation == 'verify':
+        # Identity and read access only: no snapshot, deployment, traffic or data change.
+        print('Federated access verified: project, bucket, APIs, service identities and provider secret versions readable; '
+              f'{len(cloud_functions(manifest))} functions listed; nothing deployed or changed.')
+        return
     if args.operation == 'rollback':
         require(bool(re.fullmatch(r'[1-9][0-9]*', args.snapshot_run_id or '')), 'snapshot run ID')
         run = github('actions/runs/' + args.snapshot_run_id)

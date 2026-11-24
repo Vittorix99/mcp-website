@@ -7,7 +7,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [deploy, rollback]
+        options: [deploy, rollback, verify]
         default: deploy
       rollback_environment:
         type: choice
@@ -58,6 +58,20 @@ jobs:
     with:
       environment: production
       operation: deploy
+
+  # Read-only proof of federated cloud access (staging only). Manual, needs no deploy flag,
+  # and never snapshots, deploys or changes traffic or data.
+  verify-access:
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'
+    uses: ./.github/workflows/deploy-environment.yml
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    with:
+      environment: staging
+      operation: verify
 
   rollback:
     needs: verify
