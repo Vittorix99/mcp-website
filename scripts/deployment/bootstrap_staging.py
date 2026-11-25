@@ -119,20 +119,21 @@ def initial_inventory(manifest, cloud):
     validate_empty_inventory(functions,services,hosting)
 
 
-def verify_deployed(manifest, cloud, *, hosting=False):
+def verify_deployed(manifest, cloud, *, hosting=False, web=None, stamps=True):
     rows = json.loads(cloud(manifest,'functions','list','--regions=-',
         '--format=json(name,labels,buildConfig.serviceAccount,serviceConfig.serviceAccountEmail)'))
     python = [row for row in rows if row.get('labels',{}).get('firebase-functions-codebase') == 'python_codebase']
     expected = {row['id'] for row in manifest['bootstrap']['endpoints'] if row['kind'] == 'http'}
     require({row['name'].rsplit('/',1)[-1] for row in python} == expected, 'exact initial HTTP inventory')
-    web = [row for row in rows if row.get('labels',{}).get('firebase-functions-codebase') == 'firebase-frameworks-' + manifest['project']]
-    require(len(web) == int(hosting) and len(rows) == len(python)+len(web), 'initial SSR inventory')
+    site = [row for row in rows if row.get('labels',{}).get('firebase-functions-codebase') == 'firebase-frameworks-' + manifest['project']]
+    require(len(site) == (int(hosting) if web is None else web) and len(rows) == len(python)+len(site), 'initial SSR inventory')
     for row in rows:
         require(row['name'].startswith('projects/'+manifest['project']+'/locations/us-central1/functions/'), 'deployed project and region')
         require(row.get('buildConfig',{}).get('serviceAccount') == 'projects/'+manifest['project']+'/serviceAccounts/'+manifest['identities']['BUILD_SERVICE_ACCOUNT'], 'deployed build identity')
         runtime = 'RUNTIME_SERVICE_ACCOUNT' if row in python else 'WEB_RUNTIME_SERVICE_ACCOUNT'
         require(row.get('serviceConfig',{}).get('serviceAccountEmail') == manifest['identities'][runtime], 'deployed runtime identity')
-    release.verify_function_releases(manifest,cloud=cloud)
+    if stamps:
+        release.verify_function_releases(manifest,cloud=cloud)
     if hosting:
         release.smoke(manifest, site_sha=manifest['sha'])
 

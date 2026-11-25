@@ -57,9 +57,20 @@ function requiredProjectBindings(manifest, number, endpoints) {
   return rows.map(([role,email]) => ({role,members:['serviceAccount:' + email]}))
 }
 
-function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions = []} = {}) {
+// Migration may run while the registry has a cleanup policy only if nothing can delete images yet
+// (opt-out label, a keep-only policy, or a DELETE policy in dry-run mode).
+function migrationRetentionAllowed(repo) {
+  const policies = Object.values(repo.cleanupPolicies || {})
+  return repo.labels?.['firebase-functions-cleanup-opted-out'] === 'true' ||
+    (policies.length > 0 && (repo.cleanupPolicyDryRun === true || policies.every(policy => policy.action !== 'DELETE')))
+}
+
+function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, approvedFunctions = []} = {}) {
   validateIdentities(manifest)
   requireCondition(!bootstrap || manifest.environment === 'staging', 'Bootstrap requires staging')
+  // One-time owner migration: update the existing approved HTTP functions in place, never create or delete.
+  requireCondition(!migrate || (!bootstrap && manifest.environment === 'staging'), 'Migration requires staging and excludes bootstrap')
+  const restricted = bootstrap || migrate
   requireCondition(cli('./package.json').version === '14.26.0', 'Review the pinned CLI adapter')
   const functions = cli('./lib/gcp/cloudfunctionsv2.js')
   const resource = cli('./lib/gcp/resourceManager.js')
@@ -68,8 +79,11 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
   const run = cli('./lib/gcp/run.js')
   const proto = cli('./lib/gcp/proto.js')
   const artifacts = cli('./lib/functions/artifacts.js')
+  const secrets = cli('./lib/gcp/secretManager.js')
   const originals = {deleteFunction:functions.deleteFunction,updateFunction:functions.updateFunction,
+    createFunction:functions.createFunction,
     cleanupCheck:artifacts.checkCleanupPolicy,cleanupSet:artifacts.setCleanupPolicies,convert:functions.functionFromEndpoint, projectSet:resource.setIamPolicy,
+    secretSet:secrets.setIamPolicy,
     agentCheck:checks.ensureServiceAgentRoles, runSet:run.setIamPolicy,
     invokerCreate:run.setInvokerCreate, invokerUpdate:run.setInvokerUpdate}
   if (bootstrap) {
@@ -88,8 +102,32 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
     }
   }
   artifacts.setCleanupPolicies = async () => { throw new Error('Artifact cleanup policy changes require owner provisioning') }
+  // Both owner-operated modes may only use secret access that already exists.
+  if (restricted) secrets.setIamPolicy = async () => { throw new Error('Secret IAM writes require explicit owner provisioning') }
   const newPublicServices = new Set()
   const webFunctions = new Set()
+  if (migrate) {
+    const approved = new Set(approvedFunctions)
+    functions.deleteFunction = async () => { throw new Error('Migration forbids function deletion') }
+    functions.createFunction = async () => { throw new Error('Migration updates existing functions only; creation needs owner investigation') }
+    // firebase-tools checks the artifact repository only after the updates; verify it here so a
+    // bad state is rejected by the same guard, never left half-migrated and unprompted.
+    artifacts.checkCleanupPolicy = async (project, locations) => {
+      requireCondition(project === manifest.project && locations.every(location => location === 'us-central1'), 'Unexpected artifact repository')
+      for (const location of locations) {
+        const repo = await artifacts.getRepo(project,location,true)
+        requireCondition(repo.name === `projects/${project}/locations/${location}/repositories/gcf-artifacts` &&
+          migrationRetentionAllowed(repo), 'Approved artifact retention required before migration')
+      }
+      return {locationsToSetup:[],locationsWithErrors:[]}
+    }
+    functions.updateFunction = async function(cloudFunction, ...rest) {
+      const id = String(cloudFunction?.name || '').split('/').at(-1)
+      requireCondition(cloudFunction.name === `projects/${manifest.project}/locations/us-central1/functions/${id}` &&
+        (approved.has(id) || webFunctions.has(id)), 'Unapproved migration function')
+      return originals.updateFunction.call(this,cloudFunction,...rest)
+    }
+  }
   function serviceTarget(project, name) {
     requireCondition(project === manifest.project && typeof name === 'string' &&
       name === `projects/${manifest.project}/locations/us-central1/services/${name.split('/').at(-1)}` &&
@@ -97,15 +135,17 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
   }
   functions.functionFromEndpoint = endpoint => {
     const result = withBuildIdentity(endpoint,manifest,originals.convert)
-    if (bootstrap) {
+    if (restricted) {
       requireCondition(endpoint.httpsTrigger && !endpoint.eventTrigger && !endpoint.scheduleTrigger &&
-        !endpoint.taskQueueTrigger && !endpoint.blockingTrigger, 'Bootstrap only permits HTTP functions')
+        !endpoint.taskQueueTrigger && !endpoint.blockingTrigger, 'Bootstrap and migration only permit HTTP functions')
       if (endpoint.codebase === 'python_codebase') {
         requireCondition(approvedFunctions.includes(endpoint.id), 'Unapproved bootstrap function')
       } else {
         webFunctions.add(endpoint.id)
         requireCondition(webFunctions.size === 1, 'Unexpected extra SSR function')
       }
+    }
+    if (bootstrap) {
       newPublicServices.add(`projects/${manifest.project}/locations/us-central1/services/${endpoint.id.toLowerCase().replaceAll('_','-')}`)
     }
     return result
@@ -139,10 +179,13 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
   return () => {
     functions.deleteFunction = originals.deleteFunction
     functions.updateFunction = originals.updateFunction
+    functions.createFunction = originals.createFunction
     artifacts.checkCleanupPolicy = originals.cleanupCheck
     artifacts.setCleanupPolicies = originals.cleanupSet
     functions.functionFromEndpoint = originals.convert
     resource.setIamPolicy = originals.projectSet
+    secrets.setIamPolicy = originals.secretSet
+    secrets.setIamPolicy = originals.secretSet
     checks.ensureServiceAgentRoles = originals.agentCheck
     run.setIamPolicy = originals.runSet
     run.setInvokerCreate = originals.invokerCreate
@@ -166,4 +209,4 @@ function bootstrapSelectors(cli, endpoints) {
   return only
 }
 
-module.exports = {bootstrapSelectors, validateIdentities, withBuildIdentity, assertProjectBindings, installCliGuards}
+module.exports = {bootstrapSelectors, validateIdentities, withBuildIdentity, assertProjectBindings, installCliGuards, migrationRetentionAllowed}
