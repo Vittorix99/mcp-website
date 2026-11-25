@@ -65,7 +65,12 @@ jobs:
       - name: Install locked dependencies
         run: scripts/bootstrap-dev.sh
       - name: Check trusted source and protected environment before cloud authentication
-        run: .venv/bin/python scripts/deployment/release.py prepare --environment "$RELEASE_ENVIRONMENT"
+        run: |
+          if [ "$RELEASE_OPERATION" = verify ]; then
+            .venv/bin/python scripts/deployment/release.py prepare --environment "$RELEASE_ENVIRONMENT" --read-only
+          else
+            .venv/bin/python scripts/deployment/release.py prepare --environment "$RELEASE_ENVIRONMENT"
+          fi
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
@@ -92,5 +97,6 @@ jobs:
           case "$RELEASE_OPERATION" in
             deploy) .venv/bin/python scripts/deployment/release.py deploy --environment "$RELEASE_ENVIRONMENT" ;;
             rollback) .venv/bin/python scripts/deployment/release.py rollback --environment "$RELEASE_ENVIRONMENT" --snapshot-run-id "$SNAPSHOT_RUN_ID" ;;
+            verify) .venv/bin/python scripts/deployment/release.py verify --environment "$RELEASE_ENVIRONMENT" ;;
             *) exit 1 ;;
           esac
