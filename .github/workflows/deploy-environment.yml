@@ -80,6 +80,9 @@ jobs:
       - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
         with:
           version: '573.0.0'
+      - name: Show release plan (public health endpoints only; fails closed if live state is unreadable)
+        if: inputs.operation == 'deploy'
+        run: .venv/bin/python scripts/deployment/release.py plan --environment "$RELEASE_ENVIRONMENT"
       - name: Capture verified previous release before mutations
         if: inputs.operation == 'deploy'
         run: .venv/bin/python scripts/deployment/release.py snapshot --environment "$RELEASE_ENVIRONMENT"
@@ -100,3 +103,12 @@ jobs:
             verify) .venv/bin/python scripts/deployment/release.py verify --environment "$RELEASE_ENVIRONMENT" ;;
             *) exit 1 ;;
           esac
+      - name: Publish release manifest (what went live, what was skipped)
+        if: success() && inputs.operation == 'deploy'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-manifest-${{ inputs.environment }}
+          path: .local/release/release-${{ inputs.environment }}.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90

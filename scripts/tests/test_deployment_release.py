@@ -34,8 +34,13 @@ def inputs(environment='staging'):
 def test_public_configuration_is_explicit_and_stamped(environment):
     manifest = release.prepare(environment, inputs(environment))
     assert manifest['sha'] == 'a' * 40
-    assert manifest['backend']['MCP_CONFIG_DIGEST'] == manifest['digest']
-    assert manifest['frontend']['NEXT_PUBLIC_CONFIGURATION_DIGEST'] == manifest['digest']
+    backend, site = manifest['components']['backend'], manifest['components']['site']
+    assert manifest['backend']['MCP_CONFIG_DIGEST'] == backend['digest']
+    assert manifest['backend']['MCP_BACKEND_TREE'] == backend['tree']
+    assert 'MCP_RELEASE_SHA' not in manifest['backend'], 'the commit must not be stamped into backend functions'
+    assert manifest['frontend']['NEXT_PUBLIC_CONFIGURATION_DIGEST'] == site['digest']
+    assert manifest['frontend']['NEXT_PUBLIC_SITE_TREE'] == site['tree']
+    assert manifest['frontend']['NEXT_PUBLIC_RELEASE_SHA'] == manifest['sha']
     assert manifest['backend']['MCP_RUNTIME_SERVICE_ACCOUNT'].startswith('app-runtime@')
     assert all('SECRET' not in key and not key.endswith('API_KEY') for key in manifest['backend'])
     assert manifest['backend']['MAIL_MODE'] == ('staging' if environment == 'staging' else 'live')
@@ -71,7 +76,8 @@ def test_build_identity_is_explicit_separate_and_bound_into_the_digest():
     assert manifest['identities']['BUILD_SERVICE_ACCOUNT'] == inputs()['BUILD_SERVICE_ACCOUNT']
     changed = release.prepare('staging', {**inputs(),
         'BUILD_SERVICE_ACCOUNT':'another-build@mcp-website-dev-39539.iam.gserviceaccount.com'})
-    assert changed['digest'] != manifest['digest']
+    assert changed['components']['backend']['digest'] != manifest['components']['backend']['digest']
+    assert changed['components']['site']['digest'] != manifest['components']['site']['digest']
     for value in ['', inputs()['RUNTIME_SERVICE_ACCOUNT'],
                   'build@mcp-website-2a1ad.iam.gserviceaccount.com',
                   '1005755179074-compute@developer.gserviceaccount.com']:
@@ -106,14 +112,30 @@ def test_rollback_artifact_requires_this_repository_main_release_workflow():
             release.validate_snapshot_run({**run, **update})
 
 
+def healths(manifest):
+    backend, site = manifest['components']['backend'], manifest['components']['site']
+    return dict(
+        backend=dict(status='ok', environment=manifest['environment'], project_id=manifest['project'],
+            backend_tree=backend['tree'], configuration_digest=backend['digest']),
+        site=dict(status='ok', environment=manifest['environment'], project_id=manifest['project'],
+            release_sha=manifest['sha'], site_tree=site['tree'], configuration_digest=site['digest']))
+
+
 def test_smoke_rejects_wrong_release_even_with_http_success():
     manifest = release.prepare('staging', inputs())
-    health = dict(status='ok', environment='staging', project_id=manifest['project'],
-        release_sha=manifest['sha'], configuration_digest=manifest['digest'])
-    release.validate_health(health, manifest)
-    for key in ['environment', 'project_id', 'release_sha', 'configuration_digest', 'status']:
-        with pytest.raises(ValueError):
-            release.validate_health({**health, key:'wrong'}, manifest)
+    live = healths(manifest)
+    for component, health in live.items():
+        release.validate_health(health, manifest, component)
+        for key in health:
+            with pytest.raises(ValueError):
+                release.validate_health({**health, key:'wrong'}, manifest, component)
+    # The site commit is provenance: any valid commit passes unless the caller pins it.
+    older = {**live['site'], 'release_sha':'c' * 40}
+    release.validate_health(older, manifest, 'site')
+    with pytest.raises(ValueError):
+        release.validate_health(older, manifest, 'site', sha=manifest['sha'])
+    with pytest.raises(ValueError):
+        release.validate_health({**live['backend'], 'release_sha':manifest['sha']}, manifest, 'backend')
 
 
 def _smoke_with(monkeypatch, failing, code):
@@ -126,7 +148,7 @@ def _smoke_with(monkeypatch, failing, code):
             raise HTTPError(url, code, 'x', {}, io.BytesIO())
         return {}
     monkeypatch.setattr(release, 'fetch_json', fetch)
-    monkeypatch.setattr(release, 'validate_health', lambda *_: None)
+    monkeypatch.setattr(release, 'validate_health', lambda *_, **__: None)
     release.smoke(manifest)
     return seen
 
@@ -157,8 +179,8 @@ def test_production_environment_requires_real_reviewer_and_main_only_policy():
 
 
 def snapshot(manifest):
-    return dict(schema=1, environment=manifest['environment'], project=manifest['project'],
-        sha=manifest['sha'], digest=manifest['digest'],
+    return dict(schema=2, environment=manifest['environment'], project=manifest['project'],
+        sha=manifest['sha'], components=manifest['components'],
         hosting_version=f"sites/{manifest['project']}/versions/previous-version",
         services={'public-api':{'traffic':{'public-api-00001-abc':100}}},
         functions=['deployment_health'], secrets=[])
@@ -227,7 +249,7 @@ def test_rollback_restores_backend_ssr_hosting_then_checks_identity(monkeypatch)
     monkeypatch.setattr(release, 'gcloud', lambda _, *args: calls.append(args))
     monkeypatch.setattr(release, 'hosting', lambda _, *args, **kwargs: calls.append(('hosting', kwargs['version'])))
     monkeypatch.setattr(release, 'service_state', lambda _, service: previous['services'][service])
-    monkeypatch.setattr(release, 'smoke', lambda old: calls.append(('health', old['sha'])))
+    monkeypatch.setattr(release, 'smoke', lambda old, **kwargs: calls.append(('health', old['sha'])))
     release.rollback(previous, manifest)
     assert calls[0][:3] == ('run', 'services', 'update-traffic')
     assert calls[1][:3] == ('run', 'services', 'update-traffic')
@@ -288,7 +310,7 @@ def test_preparation_writes_only_explicit_public_configuration(tmp_path, monkeyp
     config = json.loads((tmp_path / 'firebase.release.generated.json').read_text())
     assert config['hosting']['frameworksBackend']['serviceAccount'] == manifest['identities']['WEB_RUNTIME_SERVICE_ACCOUNT']
     data = (tmp_path / 'mcp-backend/functions' / ('.env.' + manifest['project'])).read_text()
-    assert 'MCP_RELEASE_SHA=' in data
+    assert 'MCP_BACKEND_TREE=' in data and 'MCP_RELEASE_SHA' not in data
     assert 'PAYPAL_CLIENT_SECRET=' not in data
     assert 'GOOGLE_APPLICATION_CREDENTIALS=' not in data
     web = (tmp_path / 'mcp-website' / ('.env.' + manifest['project'])).read_text()
@@ -339,8 +361,8 @@ def test_release_verifies_active_revisions_after_a_rollback_not_latest_function_
         serviceConfig={'service':'public-api', 'environmentVariables':{'MCP_RELEASE_SHA':'b' * 40}})])
     monkeypatch.setattr(release, 'service_state', lambda *args, **kwargs:{'traffic':{revision:100}})
     response = dict(metadata={'name':revision}, spec={'containers':[{'env':[
-        {'name':'MCP_RELEASE_SHA','value':manifest['sha']},
-        {'name':'MCP_CONFIG_DIGEST','value':manifest['digest']},
+        {'name':'MCP_BACKEND_TREE','value':manifest['components']['backend']['tree']},
+        {'name':'MCP_CONFIG_DIGEST','value':manifest['components']['backend']['digest']},
         {'name':'PAYPAL_CLIENT_SECRET','valueFrom':{'secretKeyRef':{'key':'7'}}}]}]})
     monkeypatch.setattr(release, 'gcloud', lambda *args:json.dumps(response))
     release.verify_function_releases(manifest)
@@ -351,10 +373,9 @@ def test_release_verifies_active_revisions_after_a_rollback_not_latest_function_
 
 def test_snapshot_collects_secret_versions_of_saved_revisions_after_rollback(monkeypatch):
     manifest = release.prepare('staging', inputs())
-    healthy = dict(status='ok',environment=manifest['environment'],project_id=manifest['project'],
-        release_sha=manifest['sha'],configuration_digest=manifest['digest'])
-    monkeypatch.setattr(release, 'fetch_json', lambda _: healthy)
-    monkeypatch.setattr(release, 'smoke', lambda _: None)
+    live = healths(manifest)
+    monkeypatch.setattr(release, 'fetch_json', lambda url: live['backend'] if 'cloudfunctions' in url else live['site'])
+    monkeypatch.setattr(release, 'smoke', lambda _, **kwargs: None)
     monkeypatch.setattr(release, 'verify_topology', lambda _: None)
     monkeypatch.setattr(release, 'verify_function_releases', lambda _: None)
     records = [dict(name='deployment_health',labels={'firebase-functions-codebase':'python_codebase'},
@@ -397,7 +418,8 @@ def test_staging_release_uses_real_providers_and_fake_wallet_without_changing_pr
     assert backend['MAIL_ALLOWED_RECIPIENTS'] == 'test@example.com,admin@example.com'
     assert backend['SOUNDCLOUD_CLIENT_ID'] == 'public-soundcloud-id'
     changed = release.prepare('staging', {**inputs(), 'MAIL_ALLOWED_RECIPIENTS':'other@example.com'})
-    assert changed['digest'] != manifest['digest']
+    assert changed['components']['backend']['digest'] != manifest['components']['backend']['digest']
+    assert changed['components']['site']['digest'] == manifest['components']['site']['digest']
     production = release.prepare('production', inputs('production'))
     assert production['backend']['PASS2U_MODE'] == 'live'
     assert 'MAIL_ALLOWED_RECIPIENTS' not in production['backend']
@@ -516,8 +538,8 @@ def test_revision_stamps_are_read_with_full_json_not_a_projection(monkeypatch):
         serviceConfig={'service':'public-api'})])
     monkeypatch.setattr(release, 'service_state', lambda *args, **kwargs:{'traffic':{revision:100}})
     response = dict(metadata={'name':revision}, spec={'containers':[{'env':[
-        {'name':'MCP_RELEASE_SHA','value':manifest['sha']},
-        {'name':'MCP_CONFIG_DIGEST','value':manifest['digest']}]}]})
+        {'name':'MCP_BACKEND_TREE','value':manifest['components']['backend']['tree']},
+        {'name':'MCP_CONFIG_DIGEST','value':manifest['components']['backend']['digest']}]}]})
     seen = []
     monkeypatch.setattr(release, 'gcloud', lambda *args: seen.append(args) or json.dumps(response))
     release.verify_function_releases(manifest)
@@ -546,7 +568,7 @@ def test_stamp_mismatch_error_never_contains_environment_values(monkeypatch):
         name='x', labels={'firebase-functions-codebase':'python_codebase'}, serviceConfig={'service':'public-api'})])
     monkeypatch.setattr(release, 'service_state', lambda *args, **kwargs:{'traffic':{revision:100}})
     response = dict(metadata={'name':revision}, spec={'containers':[{'env':[
-        {'name':'MCP_RELEASE_SHA','value':'b' * 40}, {'name':'API_TOKEN','value':'literal-secret-value'}]}]})
+        {'name':'MCP_BACKEND_TREE','value':'b' * 40}, {'name':'API_TOKEN','value':'literal-secret-value'}]}]})
     monkeypatch.setattr(release, 'gcloud', lambda *args:json.dumps(response))
     with pytest.raises(ValueError) as error:
         release.verify_function_releases(manifest)
@@ -605,3 +627,92 @@ def test_verify_access_job_is_manual_read_only_and_needs_no_deploy_flag():
     conditions = {step.get('name'): step.get('if') for step in steps}
     assert conditions['Capture verified previous release before mutations'] == "inputs.operation == 'deploy'"
     assert conditions['Preserve rollback snapshot before deployment'] == "inputs.operation == 'deploy'"
+
+
+def test_component_identity_changes_only_with_its_own_component(synthetic_component_trees):
+    base = release.prepare('staging', inputs())
+    # An unrelated commit (docs, tooling, tests) changes neither tree.
+    other_commit = release.prepare('staging', {**inputs(), 'GITHUB_SHA':'b' * 40})
+    assert other_commit['components'] == base['components']
+    synthetic_component_trees['mcp-backend/functions'] = 'changed'
+    backend_edit = release.prepare('staging', inputs())
+    assert backend_edit['components']['backend']['tree'] != base['components']['backend']['tree']
+    assert backend_edit['components']['site'] == base['components']['site']
+    synthetic_component_trees.clear()
+    synthetic_component_trees['mcp-website'] = 'changed'
+    site_edit = release.prepare('staging', inputs())
+    assert site_edit['components']['site']['tree'] != base['components']['site']['tree']
+    assert site_edit['components']['backend'] == base['components']['backend']
+    synthetic_component_trees.clear()
+    synthetic_component_trees['firebase.json'] = 'changed'
+    hosting_config_edit = release.prepare('staging', inputs())
+    assert hosting_config_edit['components']['site']['tree'] != base['components']['site']['tree']
+
+
+def test_plan_names_only_components_that_differ_from_live():
+    manifest = release.prepare('staging', inputs())
+    live = healths(manifest)
+    assert release.plan_release(manifest, live) == {'backend': False, 'site': False}
+    older_site_commit = {**live, 'site': {**live['site'], 'release_sha': 'c' * 40}}
+    assert release.plan_release(manifest, older_site_commit) == {'backend': False, 'site': False}
+    assert release.plan_release(manifest, {**live, 'site': {**live['site'], 'site_tree': 'd' * 64}}) == \
+        {'backend': False, 'site': True}
+    assert release.plan_release(manifest, {**live, 'backend': {**live['backend'], 'backend_tree': 'd' * 40}}) == \
+        {'backend': True, 'site': False}
+    assert release.plan_release(manifest, {**live, 'backend': {**live['backend'], 'configuration_digest': 'e' * 64}}) == \
+        {'backend': True, 'site': False}
+
+
+@pytest.mark.parametrize('broken', [None, {}, {'status': 'unversioned'}, {'status': 'ok', 'environment': 'production'}])
+@pytest.mark.parametrize('component', ['backend', 'site'])
+def test_plan_fails_closed_when_live_identity_is_unreadable_or_foreign(component, broken):
+    manifest = release.prepare('staging', inputs())
+    live = {**healths(manifest), component: broken}
+    with pytest.raises(ValueError, match='identity readable'):
+        release.plan_release(manifest, live)
+
+
+def test_legacy_live_backend_without_a_tree_is_planned_for_update_not_skipped():
+    manifest = release.prepare('staging', inputs())
+    live = healths(manifest)
+    live['backend'] = {'status': 'ok', 'environment': 'staging', 'project_id': manifest['project'],
+        'release_sha': 'b' * 40, 'configuration_digest': 'f' * 64}
+    assert release.plan_release(manifest, live) == {'backend': True, 'site': False}
+
+
+@pytest.mark.parametrize('changed,deployed', [
+    ({'backend': False, 'site': False}, []), ({'backend': False, 'site': True}, ['hosting']),
+    ({'backend': True, 'site': False}, ['backend']), ({'backend': True, 'site': True}, ['backend', 'hosting'])])
+def test_release_deploys_only_changed_components_and_always_verifies_all(monkeypatch, changed, deployed):
+    manifest = release.prepare('staging', inputs())
+    calls = []
+    monkeypatch.setattr(release, 'command', lambda args, **kwargs: calls.append(args[-1]))
+    monkeypatch.setattr(release, 'verify_function_releases', lambda m: calls.append('verify-functions'))
+    monkeypatch.setattr(release, 'smoke', lambda m, **kwargs: calls.append(('smoke', kwargs.get('site_sha'))))
+    assert release.execute_release(manifest, {}, changed) == deployed
+    assert calls[:len(deployed)] == deployed
+    assert calls[len(deployed):] == ['verify-functions', ('smoke', manifest['sha'] if changed['site'] else None)]
+
+
+def test_release_manifest_records_deployed_and_skipped(tmp_path, monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'ROOT', tmp_path)
+    release.write_release_manifest(manifest, {'backend': False, 'site': True}, ['hosting'])
+    record = json.loads((tmp_path / '.local/release/release-staging.json').read_text())
+    assert record['deployed'] == ['hosting'] and record['skipped'] == ['backend']
+    assert record['commit'] == manifest['sha'] and record['components'] == manifest['components']
+
+
+def test_workflow_plans_before_any_snapshot_and_publishes_the_manifest_only_on_success():
+    import yaml
+    steps = yaml.safe_load((ROOT / '.github/workflows/deploy-environment.yml').read_text())['jobs']['release']['steps']
+    names = [step.get('name', '') for step in steps]
+    plan = next(i for i, name in enumerate(names) if name.startswith('Show release plan'))
+    snapshot_step = names.index('Capture verified previous release before mutations')
+    assert plan < snapshot_step
+    assert steps[plan]['if'] == "inputs.operation == 'deploy'"
+    assert 'release.py plan' in steps[plan]['run']
+    publish = next(step for step in steps if step.get('name', '').startswith('Publish release manifest'))
+    assert publish['if'] == "success() && inputs.operation == 'deploy'"
+    assert publish['with']['path'] == '.local/release/release-${{ inputs.environment }}.json'
+    assert steps.index(publish) > names.index('Deploy or restore immutable revisions and verify release')

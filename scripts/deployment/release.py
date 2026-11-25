@@ -41,6 +41,19 @@ def public_value(env, key):
     return value
 
 
+def git_object(sha, path):
+    value = command(['git', 'rev-parse', f'{sha}:{path}']).strip()
+    require(re.fullmatch(SHA, value), 'component source identity')
+    return value
+
+
+def component_trees(sha):
+    """Source identity per component: stable while that component's files are unchanged."""
+    backend = git_object(sha, 'mcp-backend/functions')
+    site = hashlib.sha256(f"{git_object(sha, 'mcp-website')}:{git_object(sha, 'firebase.json')}".encode()).hexdigest()
+    return backend, site
+
+
 def prepare(environment, env):
     require(environment in {'staging', 'production'}, 'environment')
     require(env.get('GITHUB_REPOSITORY') == REPOSITORY and
@@ -52,7 +65,7 @@ def prepare(environment, env):
     return public_configuration(environment, env, sha)
 
 
-def public_configuration(environment, env, sha):
+def public_configuration(environment, env, sha, trees=None):
     """Public release inputs only; callers must independently authenticate their source."""
     catalog = json.loads((ROOT / 'mcp-backend/functions/config/environment_catalog.json').read_text())
     require(environment in {'staging', 'production'}, 'environment')
@@ -92,12 +105,22 @@ def public_configuration(environment, env, sha):
         NEXT_PUBLIC_FIREBASE_APP_ID=public_value(env, 'FIREBASE_APP_ID'),
         NEXT_PUBLIC_PAYPAL_ENV='sandbox' if environment == 'staging' else 'production',
         **{('NEXT_PUBLIC_PAYPAL_CLIENT_ID' if environment == 'staging' else 'NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID'):backend['PAYPAL_CLIENT_ID']})
-    digest = hashlib.sha256(json.dumps(dict(backend=backend,frontend=frontend,
-        web_runtime=identities['WEB_RUNTIME_SERVICE_ACCOUNT'],
-        build_account=identities['BUILD_SERVICE_ACCOUNT']), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-    backend.update(MCP_RELEASE_SHA=sha, MCP_CONFIG_DIGEST=digest)
-    frontend.update(NEXT_PUBLIC_RELEASE_SHA=sha, NEXT_PUBLIC_CONFIGURATION_DIGEST=digest)
-    return dict(schema=1, environment=environment, project=project, sha=sha, digest=digest,
+    backend_tree, site_tree = trees or component_trees(sha)
+
+    def digest(**values):
+        return hashlib.sha256(json.dumps(values, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    # Each digest covers only that component's public configuration, never the commit:
+    # an unrelated commit must not change a component's identity.
+    backend_digest = digest(backend=backend, build_account=identities['BUILD_SERVICE_ACCOUNT'])
+    site_digest = digest(frontend=frontend, web_runtime=identities['WEB_RUNTIME_SERVICE_ACCOUNT'],
+        build_account=identities['BUILD_SERVICE_ACCOUNT'])
+    backend.update(MCP_BACKEND_TREE=backend_tree, MCP_CONFIG_DIGEST=backend_digest)
+    # The commit stays in the site stamps as provenance only; identity is tree + digest.
+    frontend.update(NEXT_PUBLIC_RELEASE_SHA=sha, NEXT_PUBLIC_SITE_TREE=site_tree,
+        NEXT_PUBLIC_CONFIGURATION_DIGEST=site_digest)
+    return dict(schema=2, environment=environment, project=project, sha=sha,
+        components=dict(backend=dict(tree=backend_tree, digest=backend_digest),
+                        site=dict(tree=site_tree, digest=site_digest)),
         backend=backend, frontend=frontend, identities=identities, wif_provider=provider)
 
 
@@ -123,17 +146,52 @@ def validate_snapshot_run(run):
         'snapshot run provenance')
 
 
-def validate_health(health, manifest):
-    require(health == dict(status='ok', environment=manifest['environment'],
-        project_id=manifest['project'], release_sha=manifest['sha'], configuration_digest=manifest['digest']),
-        'deployed release identity')
+def validate_health(health, manifest, component, *, sha=None):
+    """Exact identity of one component; the site commit is checked only when the caller expects it."""
+    identity = manifest['components'][component]
+    expected = dict(status='ok', environment=manifest['environment'], project_id=manifest['project'],
+        configuration_digest=identity['digest'])
+    health = dict(health) if isinstance(health, dict) else {}
+    if component == 'backend':
+        expected['backend_tree'] = identity['tree']
+    else:
+        expected['site_tree'] = identity['tree']
+        commit = health.pop('release_sha', '')
+        require(bool(re.fullmatch(SHA, commit or '')) and (sha is None or commit == sha), 'site release commit')
+    require(health == expected, 'deployed release identity')
+
+
+HEALTH_URLS = {'backend': 'https://us-central1-{project}.cloudfunctions.net/deployment_health',
+               'site': 'https://{project}.web.app/api/deployment-health'}
+
+
+def read_live(manifest):
+    return {component: fetch_json(url.format(project=manifest['project'])) for component, url in HEALTH_URLS.items()}
+
+
+def plan_release(manifest, live):
+    """Which components differ from what is live. Unreadable live state never means "deploy"."""
+    changed = {}
+    for component, tree_key in (('backend', 'backend_tree'), ('site', 'site_tree')):
+        health = live.get(component)
+        require(isinstance(health, dict) and health.get('status') == 'ok' and
+            health.get('environment') == manifest['environment'] and
+            health.get('project_id') == manifest['project'], f'live {component} identity readable')
+        want = manifest['components'][component]
+        changed[component] = not (health.get(tree_key) == want['tree'] and
+            health.get('configuration_digest') == want['digest'])
+    return changed
 
 
 def validate_snapshot(snapshot, manifest):
-    require(snapshot.get('schema') == 1 and snapshot.get('project') == manifest['project'] and
+    require(snapshot.get('schema') == 2 and snapshot.get('project') == manifest['project'] and
         snapshot.get('environment') == manifest['environment'], 'snapshot environment')
+    components = snapshot.get('components', {})
     require(re.fullmatch(SHA, snapshot.get('sha', '')) and
-        re.fullmatch(DIGEST, snapshot.get('digest', '')), 'snapshot version stamps')
+        re.fullmatch(SHA, components.get('backend', {}).get('tree', '')) and
+        re.fullmatch(DIGEST, components.get('backend', {}).get('digest', '')) and
+        re.fullmatch(DIGEST, components.get('site', {}).get('tree', '')) and
+        re.fullmatch(DIGEST, components.get('site', {}).get('digest', '')), 'snapshot version stamps')
     require(re.fullmatch('sites/' + re.escape(manifest['project']) + r'/versions/[a-zA-Z0-9-]+',
         snapshot.get('hosting_version', '')), 'snapshot hosting version')
     require(isinstance(snapshot.get('functions'), list) and snapshot['functions'] and
@@ -208,14 +266,14 @@ def fetch_json(url):
         return json.load(response)
 
 
-def smoke(manifest):
+def smoke(manifest, *, site_sha=None):
     project = manifest['project']
-    for url in [f'https://us-central1-{project}.cloudfunctions.net/deployment_health',
-                f'https://{project}.web.app/api/deployment-health']:
+    for component, url in HEALTH_URLS.items():
+        url = url.format(project=project)
         # Bounded retry handles propagation; mismatch is never reported as success.
         for attempt in range(6):
             try:
-                validate_health(fetch_json(url), manifest)
+                validate_health(fetch_json(url), manifest, component, sha=site_sha if component == 'site' else None)
                 break
             except Exception:
                 if attempt == 5:
@@ -240,12 +298,19 @@ def expected_functions(manifest, env):
 
 
 def snapshot_release(manifest, env):
-    previous = fetch_json(f'https://{manifest["project"]}.web.app/api/deployment-health')
-    old = {**manifest, 'sha':previous.get('release_sha'), 'digest':previous.get('configuration_digest')}
-    validate_health(previous, old)
+    live = read_live(manifest)
+    backend, site = live['backend'], live['site']
+    # The previous site commit is the topology baseline: every release leaves both components
+    # matching its commit, and topology changes never go through the automatic path.
+    old = {**manifest, 'sha':site.get('release_sha'), 'components':dict(
+        backend=dict(tree=backend.get('backend_tree'), digest=backend.get('configuration_digest')),
+        site=dict(tree=site.get('site_tree'), digest=site.get('configuration_digest')))}
+    require(bool(re.fullmatch(SHA, old['sha'] or '')), 'previous site commit')
+    validate_health(backend, old, 'backend')
+    validate_health(site, old, 'site', sha=old['sha'])
     verify_topology(old['sha'])
     verify_function_releases(old)
-    smoke(old)
+    smoke(old, site_sha=old['sha'])
     records = cloud_functions(manifest)
     functions = sorted(item['name'].rsplit('/', 1)[-1] for item in records
         if item.get('labels', {}).get('firebase-functions-codebase') == 'python_codebase')
@@ -263,8 +328,8 @@ def snapshot_release(manifest, env):
             references.update(verify_revision_secrets(manifest, revision))
     releases = hosting(manifest, '/releases?pageSize=1').get('releases', [])
     require(len(releases) == 1 and releases[0].get('type') == 'DEPLOY', 'previous Hosting release')
-    snapshot = dict(schema=1, environment=manifest['environment'], project=manifest['project'],
-        sha=old['sha'], digest=old['digest'], functions=functions, services=services,
+    snapshot = dict(schema=2, environment=manifest['environment'], project=manifest['project'],
+        sha=old['sha'], components=old['components'], functions=functions, services=services,
         secrets=[dict(secret=name,version=version) for name,version in sorted(references)],
         hosting_version=releases[0]['version']['name'])
     validate_snapshot(snapshot, manifest)
@@ -295,7 +360,7 @@ def rollback(snapshot, manifest):
     hosting(manifest, '/releases', version=snapshot['hosting_version'])
     for service, state in snapshot['services'].items():
         require(service_state(manifest, service) == state, 'restored revision traffic')
-    smoke({**manifest, 'sha':snapshot['sha'], 'digest':snapshot['digest']})
+    smoke({**manifest, 'sha':snapshot['sha'], 'components':snapshot['components']}, site_sha=snapshot['sha'])
 
 
 def verify_topology(previous_sha):
@@ -447,9 +512,32 @@ def verify_function_releases(manifest, *, cloud=None):
             # payloads (bound secrets use valueFrom). Keep only public stamps;
             # never persist or print the environment returned by the API.
             stamps = {row.get('name'):row.get('value') for container in data.get('spec', {}).get('containers', [])
-                for row in container.get('env', []) if row.get('name') in {'MCP_RELEASE_SHA','MCP_CONFIG_DIGEST'}}
-            require(stamps.get('MCP_RELEASE_SHA') == manifest['sha'] and
-                stamps.get('MCP_CONFIG_DIGEST') == manifest['digest'], 'all active backend revisions must match release')
+                for row in container.get('env', []) if row.get('name') in {'MCP_BACKEND_TREE','MCP_CONFIG_DIGEST'}}
+            backend = manifest['components']['backend']
+            require(stamps.get('MCP_BACKEND_TREE') == backend['tree'] and
+                stamps.get('MCP_CONFIG_DIGEST') == backend['digest'], 'all active backend revisions must match release')
+
+
+def execute_release(manifest, env, changed):
+    """Deploy only the components whose live identity differs, then verify every component."""
+    targets = [target for target, component in (('backend', 'backend'), ('hosting', 'site')) if changed[component]]
+    print('Release plan: ' + (', '.join(targets) if targets else 'nothing changed, no deployment') + '.', flush=True)
+    for target in targets:
+        print(f'Deploying scoped {target} release.', flush=True)
+        command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), target], env=env)
+    verify_function_releases(manifest)
+    smoke(manifest, site_sha=manifest['sha'] if changed['site'] else None)
+    return targets
+
+
+def write_release_manifest(manifest, changed, deployed):
+    """What went live and what was skipped; public identities only."""
+    record = dict(schema=1, environment=manifest['environment'], project=manifest['project'], commit=manifest['sha'],
+        components=manifest['components'], deployed=deployed,
+        skipped=[name for name in ('backend', 'hosting') if name not in deployed])
+    (ROOT / '.local/release').mkdir(parents=True, exist_ok=True, mode=0o700)
+    (ROOT / '.local/release' / f"release-{manifest['environment']}.json").write_text(
+        json.dumps(record, sort_keys=True, indent=2) + '\n')
 
 
 def preflight(manifest, *, read_only=False):
@@ -468,19 +556,23 @@ def preflight(manifest, *, read_only=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['prepare', 'verify', 'snapshot', 'deploy', 'rollback'])
+    parser.add_argument('operation', choices=['prepare', 'plan', 'verify', 'snapshot', 'deploy', 'rollback'])
     parser.add_argument('--environment', required=True, choices=['staging', 'production'])
     parser.add_argument('--snapshot-run-id')
     parser.add_argument('--read-only', action='store_true')
     args = parser.parse_args()
     # verify only reads; --read-only exists solely so the shared prepare step can skip mutation approvals.
-    require(args.operation == 'verify' or not args.read_only or args.operation == 'prepare', 'read-only scope')
-    read_only = args.operation == 'verify' or args.read_only
+    require(args.operation in {'verify', 'plan'} or not args.read_only or args.operation == 'prepare', 'read-only scope')
+    read_only = args.operation in {'verify', 'plan'} or args.read_only
     manifest = prepare(args.environment, os.environ)
     preflight(manifest, read_only=read_only)
     if args.operation == 'prepare':
         write_configuration(manifest)
         print('Public release configuration prepared; no cloud authentication or mutation.')
+        return
+    if args.operation == 'plan':
+        # Public health endpoints only: no credentials, no cloud mutation.
+        print(json.dumps(plan_release(manifest, read_live(manifest)), sort_keys=True))
         return
     env = release_environment(manifest)
     # Auth action generated an ephemeral WIF config; the bridge validates it before CLI discovery.
@@ -514,12 +606,10 @@ def main():
     validate_snapshot(previous, manifest)
     saved = json.loads((ROOT / '.local/release/config.json').read_text())
     require(saved == manifest, 'configuration changed since preparation')
+    # Fail closed: without a readable live identity there is no basis to skip or deploy anything.
+    changed = plan_release(manifest, read_live(manifest))
     try:
-        for target in ['backend', 'hosting']:
-            print(f'Deploying scoped {target} release.', flush=True)
-            command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), target], env=env)
-        verify_function_releases(manifest)
-        smoke(manifest)
+        targets = execute_release(manifest, env, changed)
     except Exception:
         print('Release failed; restoring the captured revisions and Hosting version.', flush=True)
         try:
@@ -527,6 +617,7 @@ def main():
         except Exception:
             raise ValueError('Release failed and rollback is incomplete: owner intervention required.') from None
         raise ValueError('Release failed; previous release restored and verified.') from None
+    write_release_manifest(manifest, changed, targets)
     print('Release identity, all backend stamps and read-only smoke verified.')
 
 

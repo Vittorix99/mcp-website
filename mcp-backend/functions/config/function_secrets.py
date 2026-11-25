@@ -88,7 +88,7 @@ STAGING_INSTANCE_LIMITS = {'min_instances': 0, 'max_instances': 5}
 def configure_runtime_identity(settings):
     """Set the managed runtime identity before any function decorator is evaluated."""
     account = os.environ.get('MCP_RUNTIME_SERVICE_ACCOUNT', '')
-    if not account and not os.environ.get('MCP_RELEASE_SHA'):
+    if not account and not os.environ.get('MCP_BACKEND_TREE'):
         return
     if settings.environment.value not in {'staging', 'production'} or not re.fullmatch(
         r'[a-z][a-z0-9-]{4,28}[a-z0-9]@' + re.escape(settings.firebase.project_id) +

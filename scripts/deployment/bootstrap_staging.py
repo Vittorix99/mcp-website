@@ -134,7 +134,7 @@ def verify_deployed(manifest, cloud, *, hosting=False):
         require(row.get('serviceConfig',{}).get('serviceAccountEmail') == manifest['identities'][runtime], 'deployed runtime identity')
     release.verify_function_releases(manifest,cloud=cloud)
     if hosting:
-        release.smoke(manifest)
+        release.smoke(manifest, site_sha=manifest['sha'])
 
 
 def apply(manifest, env):
@@ -167,7 +167,7 @@ def apply(manifest, env):
             release.command(['node',str(ROOT / 'scripts/deployment/firebase-bootstrap.cjs'),target],
                 env={**base,'XDG_CONFIG_HOME':profile})
     firebase('validate')
-    result = dict(schema=1,project=manifest['project'],sha=manifest['sha'],digest=manifest['digest'],status='started')
+    result = dict(schema=1,project=manifest['project'],sha=manifest['sha'],components=manifest['components'],status='started')
     record = scratch / 'bootstrap-result.json'
     record.write_text(json.dumps(result)+'\n')
     try:

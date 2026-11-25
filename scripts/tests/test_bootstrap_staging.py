@@ -147,7 +147,10 @@ def test_partial_apply_records_no_secrets_and_never_retries_or_rolls_back(tmp_pa
     monkeypatch.setattr(bootstrap.release,'cloud_preflight',lambda *a,**k:None)
     monkeypatch.setattr(bootstrap.release,'write_configuration',lambda *a:None)
     calls=[]
+    real_command=bootstrap.release.command
     def command(args,**kwargs):
+        if args[:2] == ['git','rev-parse']:  # component identity lookup, not a cloud or CLI command
+            return real_command(args,**kwargs)
         calls.append(args[-1])
         assert kwargs['env']['GOOGLE_APPLICATION_CREDENTIALS'] == env['BOOTSTRAP_OPERATOR_ADC']
         assert list(Path(kwargs['env']['XDG_CONFIG_HOME']).iterdir()) == []
@@ -160,7 +163,7 @@ def test_partial_apply_records_no_secrets_and_never_retries_or_rolls_back(tmp_pa
     assert list(scratch.glob('operator-*')) == []
     result=json.loads((scratch/'bootstrap-result.json').read_text())
     assert result['status'] == 'incomplete-owner-investigation-required'
-    assert set(result) == {'schema','project','sha','digest','status'}
+    assert set(result) == {'schema','project','sha','components','status'}
 
 
 def test_inventory_command_rejects_exit_zero_unreachable_warnings_without_echo(monkeypatch):
