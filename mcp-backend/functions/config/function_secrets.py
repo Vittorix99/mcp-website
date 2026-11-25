@@ -80,6 +80,11 @@ def startup_settings():
     return get_runtime_settings()
 
 
+# Cost guard for the shared staging project: bounded scale-out, no idle instances.
+# Production keeps the platform defaults; changing it needs its own approval.
+STAGING_INSTANCE_LIMITS = {'min_instances': 0, 'max_instances': 5}
+
+
 def configure_runtime_identity(settings):
     """Set the managed runtime identity before any function decorator is evaluated."""
     account = os.environ.get('MCP_RUNTIME_SERVICE_ACCOUNT', '')
@@ -91,4 +96,5 @@ def configure_runtime_identity(settings):
     ):
         raise RuntimeConfigurationError('Unsafe or invalid runtime setting: MCP_RUNTIME_SERVICE_ACCOUNT')
     from firebase_functions import options
-    options.set_global_options(service_account=account)
+    limits = STAGING_INSTANCE_LIMITS if settings.environment.value == 'staging' else {}
+    options.set_global_options(service_account=account, **limits)
