@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import io
+import re
 from urllib.error import HTTPError
 
 import pytest
@@ -716,3 +717,34 @@ def test_workflow_plans_before_any_snapshot_and_publishes_the_manifest_only_on_s
     assert publish['if'] == "success() && inputs.operation == 'deploy'"
     assert publish['with']['path'] == '.local/release/release-${{ inputs.environment }}.json'
     assert steps.index(publish) > names.index('Deploy or restore immutable revisions and verify release')
+
+
+def test_component_trees_resolve_against_real_git():
+    # "HEAD" is a symbolic revision, so the synthetic fixture lets it through to real git.
+    backend, site = release.component_trees('HEAD')
+    assert re.fullmatch('[0-9a-f]{40}', backend) and re.fullmatch('[0-9a-f]{64}', site)
+    assert backend != site[:40]
+
+
+def _stale_fakes(monkeypatch, manifest, pinned_version):
+    def gcloud(_, *args):
+        assert args[:4] == ('secrets', 'versions', 'describe', 'latest')
+        return f'projects/1/secrets/{args[5]}/versions/8\n'
+    monkeypatch.setattr(release, 'gcloud', gcloud)
+    monkeypatch.setattr(release, 'cloud_functions', lambda _: [dict(name='f',
+        labels={'firebase-functions-codebase':'python_codebase'}, serviceConfig={'service':'public-api'})])
+    monkeypatch.setattr(release, 'service_state', lambda *a, **k: {'traffic':{'public-api-00001-abc':100}})
+    monkeypatch.setattr(release, 'verify_revision_secrets',
+        lambda *_: {('PAYPAL_CLIENT_SECRET', pinned_version), ('UNRELATED_SECRET', '1')})
+
+
+def test_rotated_secret_marks_an_unchanged_backend_for_update(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    _stale_fakes(monkeypatch, manifest, '7')
+    assert release.stale_secret_versions(manifest) == ['PAYPAL_CLIENT_SECRET']
+
+
+def test_current_secret_versions_leave_the_backend_alone(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    _stale_fakes(monkeypatch, manifest, '8')
+    assert release.stale_secret_versions(manifest) == []

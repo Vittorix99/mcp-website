@@ -14,11 +14,11 @@ _RELEASE_MODULES = {'test_deployment_release', 'test_bootstrap_staging'}
 
 @pytest.fixture(autouse=True)
 def synthetic_component_trees(request, monkeypatch):
-    """`git rev-parse <sha>:<path>` for a made-up commit returns a stable fake object id.
+    """`git rev-parse <40-hex-sha>:<path>` returns a stable fake object id in release tests.
 
-    The id depends on the path and on SYNTHETIC_TREE_SALT[path] so a test can simulate a
-    change to one component without touching the other. Real repositories are unaffected:
-    every other command, and any query for an existing object, runs unchanged.
+    The id depends on the path and on the yielded salt dict so a test can simulate a change to
+    one component without touching the other. Every other git query, including symbolic
+    revisions such as HEAD, runs unchanged; use those to exercise real git.
     """
     salt = {}
     if request.module.__name__ not in _RELEASE_MODULES:

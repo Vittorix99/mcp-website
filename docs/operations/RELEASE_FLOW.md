@@ -63,6 +63,20 @@ OPERAZIONI MANUALI (mai automatiche)
   la release si ferma (nessun deploy "alla cieca"). Solo documentazione, test o tooling: non si deploya nulla.
 - **Manifest:** `release-<ambiente>.json` (commit, identità, cosa è stato deployato e cosa saltato), artifact per 90 giorni.
 
+### Limiti noti (dalla revisione indipendente)
+
+- **Segreti ruotati:** le funzioni usano una versione numerica del segreto fissata al deploy e l'identità del backend
+  la ignora. Il deploy controlla le revisioni attive e, se una usa una versione più vecchia dell'ultima, aggiorna il
+  backend. Se firebase-tools salta comunque le funzioni invariate lo dirà l'esperimento E1 dopo la migrazione.
+- **Baseline controllata** (cambio a trigger/decorator/`function_secrets.py`/`firebase.json`): deve ridepoyare **entrambi**
+  i componenti, così il commit del sito (usato come riferimento di topologia) avanza; altrimenti i rilasci successivi si
+  fermano in modo sicuro ma permanente.
+- **Tooling di deploy** (versione di firebase-tools, `.python-version`, workflow, `scripts/deployment`): volutamente fuori
+  dall'identità, perché una modifica solo al tooling non deve deployare niente. Un upgrade di firebase-tools richiede un
+  rilascio forzato dei due componenti.
+- **Hosting vs SSR:** il sito è verificato solo tramite l'endpoint SSR. Dopo un rollback fallito a metà
+  ("intervento dell'owner") una versione Hosting non allineata non verrebbe rilevata dal `plan`.
+
 ## Migrazione una tantum di staging (da fare)
 
 Le 130 funzioni di staging portano ancora lo SHA e non riportano `backend_tree`: il `plan` le segna come cambiate e

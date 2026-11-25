@@ -425,6 +425,36 @@ def verify_revision_secrets(manifest, revision):
     return references
 
 
+def provider_secrets(manifest):
+    return [secret for provider, secret in [
+        ('PAYPAL', 'PAYPAL_CLIENT_SECRET'), ('MAIL', 'MAILERSEND_API_KEY'),
+        ('PASS2U', 'PASS2U_API_KEY'), ('SOUNDCLOUD', 'SOUNDCLOUD_CLIENT_SECRET'),
+        ('GENDER', 'GENDER_API_KEY')]
+        if manifest['backend'].get(provider + '_MODE') in {'sandbox', 'staging', 'live'}]
+
+
+def stale_secret_versions(manifest):
+    """Secrets whose newest version is not what an active backend revision is pinned to.
+
+    Functions bind a numeric secret version at deploy time, and the backend identity ignores
+    secret versions, so a rotation alone would never reach an unchanged backend.
+    """
+    latest = {}
+    for secret in provider_secrets(manifest):
+        name = gcloud(manifest, 'secrets', 'versions', 'describe', 'latest', '--secret', secret,
+            '--format=value(name)').strip()
+        latest[secret] = name.rsplit('/', 1)[-1]
+    services = {item.get('serviceConfig', {}).get('service', '').rsplit('/', 1)[-1]
+        for item in cloud_functions(manifest)
+        if item.get('labels', {}).get('firebase-functions-codebase') == 'python_codebase'}
+    stale = set()
+    for service in sorted(services):
+        for revision in service_state(manifest, service)['traffic']:
+            stale.update(secret for secret, version in verify_revision_secrets(manifest, revision)
+                if secret in latest and version != latest[secret])
+    return sorted(stale)
+
+
 def cloud_preflight(manifest, *, cloud=None):
     cloud = cloud or gcloud
     require(cloud(manifest, 'projects', 'describe', manifest['project'], '--format=value(projectId)').strip()
@@ -440,12 +470,7 @@ def cloud_preflight(manifest, *, cloud=None):
     for account in manifest['identities'].values():
         require(cloud(manifest, 'iam', 'service-accounts', 'describe', account, '--format=value(email)').strip()
             == account, 'existing service identity')
-    secrets = [secret for provider, secret in [
-        ('PAYPAL', 'PAYPAL_CLIENT_SECRET'), ('MAIL', 'MAILERSEND_API_KEY'),
-        ('PASS2U', 'PASS2U_API_KEY'), ('SOUNDCLOUD', 'SOUNDCLOUD_CLIENT_SECRET'),
-        ('GENDER', 'GENDER_API_KEY')]
-        if manifest['backend'].get(provider + '_MODE') in {'sandbox', 'staging', 'live'}]
-    for secret in secrets:
+    for secret in provider_secrets(manifest):
         require(cloud(manifest, 'secrets', 'versions', 'describe', 'latest', '--secret', secret,
             '--format=value(state)').strip() == 'ENABLED', 'enabled provider secret version')
         policy = json.loads(cloud(manifest, 'secrets', 'get-iam-policy', secret, '--format=json(bindings)'))
@@ -608,6 +633,12 @@ def main():
     require(saved == manifest, 'configuration changed since preparation')
     # Fail closed: without a readable live identity there is no basis to skip or deploy anything.
     changed = plan_release(manifest, read_live(manifest))
+    if not changed['backend']:
+        stale = stale_secret_versions(manifest)
+        if stale:
+            # Names only; never the values or versions.
+            print('Backend secret versions are stale (' + ', '.join(stale) + '); the backend will be updated.', flush=True)
+            changed['backend'] = True
     try:
         targets = execute_release(manifest, env, changed)
     except Exception:
