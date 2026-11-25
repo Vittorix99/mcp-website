@@ -558,3 +558,50 @@ def test_release_environment_uses_experiments_not_previews():
         (release.ROOT / 'scripts/deployment/bootstrap_staging.py').read_text()
     assert "FIREBASE_CLI_EXPERIMENTS='webframeworks'" in source
     assert 'FIREBASE_CLI_PREVIEWS' not in source
+
+
+def _preflight_fakes(monkeypatch, manifest):
+    monkeypatch.setattr(release, 'github', lambda path: {'total_count': 1, 'branch_policies': [{'name': 'main', 'type': 'branch'}]})
+    monkeypatch.setattr(release, 'validate_environment', lambda *args: None)
+    monkeypatch.setattr(release, 'command', lambda *args, **kwargs: manifest['sha'] + '\n')
+
+
+def test_read_only_preflight_skips_only_the_mutation_approvals(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    _preflight_fakes(monkeypatch, manifest)
+    monkeypatch.delenv('PAYMENT_ROLLOUT_APPROVED', raising=False)
+    monkeypatch.delenv('ROLLBACK_BASELINE_VERIFIED', raising=False)
+    release.preflight(manifest, read_only=True)
+    with pytest.raises(ValueError, match='payment worker compatibility approval'):
+        release.preflight(manifest)
+    monkeypatch.setenv('PAYMENT_ROLLOUT_APPROVED', 'true')
+    with pytest.raises(ValueError, match='rollback proof'):
+        release.preflight(manifest)
+    # Source and environment protections still apply in read-only mode.
+    monkeypatch.setattr(release, 'command', lambda *args, **kwargs: 'b' * 40 + '\n')
+    with pytest.raises(ValueError, match='checkout SHA'):
+        release.preflight(manifest, read_only=True)
+
+
+@pytest.mark.parametrize('operation', ['deploy', 'snapshot', 'rollback'])
+def test_read_only_flag_is_rejected_for_mutating_operations(monkeypatch, operation):
+    monkeypatch.setattr('sys.argv', ['release.py', operation, '--environment', 'staging', '--read-only'])
+    with pytest.raises(ValueError, match='read-only scope'):
+        release.main()
+
+
+def test_verify_access_job_is_manual_read_only_and_needs_no_deploy_flag():
+    import yaml
+    jobs = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
+    job = jobs['verify-access']
+    assert job['needs'] == 'verify'
+    assert job['if'] == "github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'"
+    assert job['with'] == {'environment': 'staging', 'operation': 'verify'}
+    assert 'ENABLE_' not in job['if']
+    # No mutating job can start for a verify dispatch.
+    for name in ['staging', 'production', 'rollback']:
+        assert 'verify' not in jobs[name]['if'].replace('needs.verify', '')
+    steps = yaml.safe_load((ROOT / '.github/workflows/deploy-environment.yml').read_text())['jobs']['release']['steps']
+    conditions = {step.get('name'): step.get('if') for step in steps}
+    assert conditions['Capture verified previous release before mutations'] == "inputs.operation == 'deploy'"
+    assert conditions['Preserve rollback snapshot before deployment'] == "inputs.operation == 'deploy'"
