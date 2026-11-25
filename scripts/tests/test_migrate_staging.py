@@ -18,10 +18,14 @@ def manifest_for(env):
 
 
 def functions(manifest, python=('get_event',), site=1):
+    build = f"projects/{manifest['project']}/serviceAccounts/" + manifest['identities']['BUILD_SERVICE_ACCOUNT']
     rows = [dict(name=f"projects/{manifest['project']}/locations/us-central1/functions/{name}",
-        labels={'firebase-functions-codebase': 'python_codebase'}) for name in python]
+        labels={'firebase-functions-codebase': 'python_codebase'}, buildConfig={'serviceAccount': build},
+        serviceConfig={'serviceAccountEmail': manifest['identities']['RUNTIME_SERVICE_ACCOUNT']}) for name in python]
     rows += [dict(name=f"projects/{manifest['project']}/locations/us-central1/functions/ssrsite{i}",
-        labels={'firebase-functions-codebase': 'firebase-frameworks-' + manifest['project']}) for i in range(site)]
+        labels={'firebase-functions-codebase': 'firebase-frameworks-' + manifest['project']},
+        buildConfig={'serviceAccount': build},
+        serviceConfig={'serviceAccountEmail': manifest['identities']['WEB_RUNTIME_SERVICE_ACCOUNT']}) for i in range(site)]
     return rows
 
 
@@ -57,7 +61,10 @@ def run_apply(tmp_path, monkeypatch, *, fail_on=None):
     monkeypatch.setattr(migrate, 'ROOT', tmp_path)
     monkeypatch.setattr(bootstrap, 'discover_endpoints', lambda: ENDPOINTS)
     monkeypatch.setattr(bootstrap, 'source_check', lambda *a: None)
-    monkeypatch.setattr(bootstrap, 'operator_cloud', lambda *a: lambda *args: json.dumps(functions(manifest)))
+    repository = {'name': f"projects/{manifest['project']}/locations/us-central1/repositories/gcf-artifacts",
+        'labels': {}, 'cleanupPolicies': {'keep': {'action': 'KEEP'}, 'old': {'action': 'DELETE'}}, 'cleanupPolicyDryRun': True}
+    monkeypatch.setattr(bootstrap, 'operator_cloud', lambda *a: lambda m, *args: json.dumps(
+        repository if args[:2] == ('artifacts', 'repositories') else functions(manifest)))
     monkeypatch.setattr(migrate.release, 'cloud_preflight', lambda *a, **k: None)
     monkeypatch.setattr(migrate.release, 'hosting', lambda *a, **k: {'releases': [{'type': 'DEPLOY'}]})
     monkeypatch.setattr(migrate.release, 'write_configuration', lambda *a: None)
@@ -88,7 +95,8 @@ def test_apply_updates_backend_then_site_and_verifies_each_phase_with_the_existi
     calls, verifications, error, result, scratch = run_apply(tmp_path, monkeypatch)
     assert error is None
     assert calls == ['validate', 'backend', 'hosting']
-    assert verifications == [{'web': 1}, {'hosting': True, 'web': 1}]
+    # Identities are checked before the first update (stamps differ until then), then after each phase.
+    assert verifications == [{'web': 1, 'stamps': False}, {'web': 1}, {'hosting': True, 'web': 1}]
     assert result['status'] == 'migrated-not-a-rollback-baseline'
     assert set(result) == {'schema', 'project', 'sha', 'components', 'status'}
     assert list(scratch.glob('operator-*')) == []
@@ -97,5 +105,32 @@ def test_apply_updates_backend_then_site_and_verifies_each_phase_with_the_existi
 def test_failed_phase_stops_without_retry_rollback_or_leaking_diagnostics(tmp_path, monkeypatch):
     calls, verifications, error, result, _ = run_apply(tmp_path, monkeypatch, fail_on='backend')
     assert 'SENTINEL' not in str(error) and 'no automatic rollback or retry' in str(error)
-    assert calls == ['validate', 'backend'] and verifications == []
+    assert calls == ['validate', 'backend'] and verifications == [{'web': 1, 'stamps': False}]
     assert result['status'] == 'incomplete-owner-investigation-required'
+
+
+def test_registry_retention_must_not_be_able_to_delete_images_during_migration():
+    name = 'projects/p/locations/us-central1/repositories/gcf-artifacts'
+    keep, delete = {'action': 'KEEP'}, {'action': 'DELETE'}
+    for repository in [{'name': name, 'labels': {'firebase-functions-cleanup-opted-out': 'true'}},
+                       {'name': name, 'cleanupPolicies': {'a': keep}},
+                       {'name': name, 'cleanupPolicies': {'a': keep, 'b': delete}, 'cleanupPolicyDryRun': True}]:
+        migrate.validate_migration_retention(repository, name)
+    for repository in [{'name': name}, {'name': name, 'cleanupPolicies': {}},
+                       {'name': name, 'cleanupPolicies': {'a': keep, 'b': delete}},
+                       {'name': name, 'cleanupPolicies': {'a': keep, 'b': delete}, 'cleanupPolicyDryRun': False},
+                       {'name': 'projects/other/locations/us-central1/repositories/gcf-artifacts',
+                        'labels': {'firebase-functions-cleanup-opted-out': 'true'}}]:
+        with pytest.raises(ValueError):
+            migrate.validate_migration_retention(repository, name)
+
+
+def test_identities_are_checked_before_the_first_update(tmp_path, monkeypatch):
+    manifest = manifest_for(environment())
+    good = functions(manifest)
+    migrate.bootstrap.verify_deployed(manifest, lambda *a: json.dumps(good), web=1, stamps=False)
+    wrong_runtime = [{**good[0], 'serviceConfig': {'serviceAccountEmail': 'other@x.iam.gserviceaccount.com'}}, good[1]]
+    wrong_build = [{**good[0], 'buildConfig': {}}, good[1]]
+    for rows in [wrong_runtime, wrong_build]:
+        with pytest.raises(ValueError):
+            migrate.bootstrap.verify_deployed(manifest, lambda *a: json.dumps(rows), web=1, stamps=False)

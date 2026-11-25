@@ -119,7 +119,7 @@ def initial_inventory(manifest, cloud):
     validate_empty_inventory(functions,services,hosting)
 
 
-def verify_deployed(manifest, cloud, *, hosting=False, web=None):
+def verify_deployed(manifest, cloud, *, hosting=False, web=None, stamps=True):
     rows = json.loads(cloud(manifest,'functions','list','--regions=-',
         '--format=json(name,labels,buildConfig.serviceAccount,serviceConfig.serviceAccountEmail)'))
     python = [row for row in rows if row.get('labels',{}).get('firebase-functions-codebase') == 'python_codebase']
@@ -132,7 +132,8 @@ def verify_deployed(manifest, cloud, *, hosting=False, web=None):
         require(row.get('buildConfig',{}).get('serviceAccount') == 'projects/'+manifest['project']+'/serviceAccounts/'+manifest['identities']['BUILD_SERVICE_ACCOUNT'], 'deployed build identity')
         runtime = 'RUNTIME_SERVICE_ACCOUNT' if row in python else 'WEB_RUNTIME_SERVICE_ACCOUNT'
         require(row.get('serviceConfig',{}).get('serviceAccountEmail') == manifest['identities'][runtime], 'deployed runtime identity')
-    release.verify_function_releases(manifest,cloud=cloud)
+    if stamps:
+        release.verify_function_releases(manifest,cloud=cloud)
     if hosting:
         release.smoke(manifest, site_sha=manifest['sha'])
 

@@ -30,6 +30,16 @@ def validate_existing_inventory(manifest, functions, hosting):
     require(isinstance(hosting, dict) and bool(hosting.get('releases')), 'existing Hosting release')
 
 
+def validate_migration_retention(repository, name):
+    """No image may be deleted while 130 functions are being replaced; dry run and keep-only policies are fine."""
+    policies = list(repository.get('cleanupPolicies', {}).values())
+    require(repository.get('name') == name and
+        (repository.get('labels', {}).get('firebase-functions-cleanup-opted-out') == 'true' or
+         (bool(policies) and (repository.get('cleanupPolicyDryRun') is True or
+                              all(policy.get('action') != 'DELETE' for policy in policies)))),
+        'artifact retention that cannot delete images during migration')
+
+
 def apply(manifest, env):
     require(env.get('MIGRATION_APPROVED') == 'true', 'explicit migration approval')
     clean_env = {key: value for key, value in env.items() if key != 'GOOGLE_APPLICATION_CREDENTIALS'}
@@ -41,6 +51,13 @@ def apply(manifest, env):
     release.cloud_preflight(manifest, cloud=cloud)
     functions = json.loads(cloud(manifest, 'functions', 'list', '--regions=-', '--format=json(name,labels)'))
     validate_existing_inventory(manifest, functions, release.hosting(manifest, '/releases?pageSize=1', cloud=cloud))
+    # Everything that could fail after the first update is checked before it: registry retention and the
+    # deployed build/runtime identities (stamps are expected to differ until the migration has run).
+    repository = json.loads(cloud(manifest, 'artifacts', 'repositories', 'describe', 'gcf-artifacts',
+        '--location', release.REGION, '--format=json(name,labels,cleanupPolicies,cleanupPolicyDryRun)'))
+    validate_migration_retention(repository,
+        'projects/' + manifest['project'] + '/locations/' + release.REGION + '/repositories/gcf-artifacts')
+    bootstrap.verify_deployed(manifest, cloud, web=1, stamps=False)
     release.write_configuration(manifest)
     scratch = ROOT / '.local/release'
     base = bootstrap.operator_environment(env)

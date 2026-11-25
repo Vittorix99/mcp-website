@@ -108,3 +108,48 @@ test('migration updates only approved existing HTTP functions and never creates 
   assert.throws(() => installCliGuards(cli, {...guarded,environment:'production'}, {migrate:true}))
   assert.throws(() => installCliGuards(cli, guarded, {migrate:true, bootstrap:true}))
 })
+
+test('migration also protects secret IAM, the SSR update path and artifact retention', async () => {
+  const {createRequire} = require('node:module')
+  const {installCliGuards, migrationRetentionAllowed} = require('../../scripts/deployment/cli-guards.cjs')
+  const cli = createRequire(require.resolve('firebase-tools/package.json'))
+  const functions = cli('./lib/gcp/cloudfunctionsv2.js')
+  const secrets = cli('./lib/gcp/secretManager.js')
+  const artifacts = cli('./lib/functions/artifacts.js')
+  const guarded = {environment:'staging',project,wif_provider:'projects/1005755179074/locations/global/workloadIdentityPools/p/providers/q',
+    identities:{DEPLOY_SERVICE_ACCOUNT:`github-deploy@${project}.iam.gserviceaccount.com`,
+      BUILD_SERVICE_ACCOUNT:`functions-build@${project}.iam.gserviceaccount.com`,
+      RUNTIME_SERVICE_ACCOUNT:`app-runtime@${project}.iam.gserviceaccount.com`,
+      WEB_RUNTIME_SERVICE_ACCOUNT:`web-runtime@${project}.iam.gserviceaccount.com`}}
+  const saved = {update:functions.updateFunction, secret:secrets.setIamPolicy, repo:artifacts.getRepo}
+  const updated = []
+  functions.updateFunction = async fn => { updated.push(fn.name) }
+  let repo
+  artifacts.getRepo = async () => repo
+  const name = id => `projects/${project}/locations/us-central1/functions/${id}`
+  const repoName = `projects/${project}/locations/us-central1/repositories/gcf-artifacts`
+  const restore = installCliGuards(cli, guarded, {migrate:true, approvedFunctions:['get_event']})
+  try {
+    await assert.rejects(secrets.setIamPolicy('p', 'n', {}), /Secret IAM writes require/)
+    const ssr = id => ({platform:'gcfv2',id,region:'us-central1',project,entryPoint:id,runtime:'nodejs22',codebase:'firebase-frameworks-' + project,
+      source:{storageSource:{bucket:'b',object:'o'}},serviceAccount:guarded.identities.WEB_RUNTIME_SERVICE_ACCOUNT,labels:{},httpsTrigger:{}})
+    await assert.rejects(functions.updateFunction({name:name('ssrsite')}), /Unapproved migration function/)
+    functions.functionFromEndpoint(ssr('ssrsite'))
+    await functions.updateFunction({name:name('ssrsite')})
+    assert.deepEqual(updated, [name('ssrsite')])
+    assert.throws(() => functions.functionFromEndpoint(ssr('anotherssr')), /Unexpected extra SSR function/)
+    repo = {name:repoName, cleanupPolicies:{a:{action:'KEEP'}, b:{action:'DELETE'}}, cleanupPolicyDryRun:true}
+    assert.deepEqual(await artifacts.checkCleanupPolicy(project, ['us-central1']), {locationsToSetup:[],locationsWithErrors:[]})
+    repo = {name:repoName, cleanupPolicies:{a:{action:'KEEP'}, b:{action:'DELETE'}}, cleanupPolicyDryRun:false}
+    await assert.rejects(artifacts.checkCleanupPolicy(project, ['us-central1']), /retention required/)
+    await assert.rejects(artifacts.checkCleanupPolicy('other', ['us-central1']), /Unexpected artifact repository/)
+  } finally {
+    restore()
+    Object.assign(functions, {updateFunction:saved.update})
+    secrets.setIamPolicy = saved.secret
+    artifacts.getRepo = saved.repo
+  }
+  assert.equal(migrationRetentionAllowed({labels:{'firebase-functions-cleanup-opted-out':'true'}}), true)
+  assert.equal(migrationRetentionAllowed({}), false)
+  assert.equal(migrationRetentionAllowed({cleanupPolicies:{a:{action:'DELETE'}}}), false)
+})

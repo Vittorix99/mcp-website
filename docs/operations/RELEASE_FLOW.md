@@ -90,6 +90,10 @@ ordinario via OIDC.
   esattamente con le 130 funzioni HTTP + 1 SSR create dal bootstrap.
 - Può solo **aggiornare** le funzioni approvate: creare, cancellare, trigger e scheduler sono rifiutati dalle guardie;
   concorrenza 3. Fasi: backend, verifica di tutti gli stamp, sito, verifica con smoke.
+- Prima del primo aggiornamento controlla anche identità di build/runtime delle funzioni e la retention del registro
+  (nessuna policy che possa cancellare immagini, salvo dry run); non può scrivere IAM dei segreti.
+- Va eseguita da un checkout pulito di `origin/main` con le proprie dipendenze installate (`npm ci`), non da un
+  collegamento a un altro checkout.
 - Esito pubblico in `.local/release/migration-result.json`. In caso di errore si ferma: nessun rollback né retry
   automatici. Non produce una baseline di rollback (`ROLLBACK_BASELINE_VERIFIED` resta falso).
 - Poi: due rilasci ordinari via OIDC, un rollback provato, e solo allora il flag baseline.
