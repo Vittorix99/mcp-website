@@ -77,11 +77,22 @@ OPERAZIONI MANUALI (mai automatiche)
 - **Hosting vs SSR:** il sito è verificato solo tramite l'endpoint SSR. Dopo un rollback fallito a metà
   ("intervento dell'owner") una versione Hosting non allineata non verrebbe rilevata dal `plan`.
 
-## Migrazione una tantum di staging (da fare)
+## Migrazione una tantum di staging
 
 Le 130 funzioni di staging portano ancora lo SHA e non riportano `backend_tree`: il `plan` le segna come cambiate e
 lo `snapshot` si rifiuta (nessuna identità precedente leggibile). Serve **un solo aggiornamento sul posto** di backend e
-sito con le credenziali dell'operatore (eccezione documentata, decisione 4), poi il flusso ordinario via OIDC.
+sito con le credenziali personali dell'operatore (eccezione documentata, decisione 4 del 25/11/2026), poi il flusso
+ordinario via OIDC.
+
+- Strumento: `scripts/deployment/migrate_staging.py` (`prepare`, `apply`) + `firebase-migrate.cjs`.
+- Protezioni: solo staging; commit pulito di `origin/main` approvato; operatore con OAuth personale verificato;
+  `MIGRATION_APPROVED=true` (consenso distinto da quelli del bootstrap); l'inventario cloud deve coincidere
+  esattamente con le 130 funzioni HTTP + 1 SSR create dal bootstrap.
+- Può solo **aggiornare** le funzioni approvate: creare, cancellare, trigger e scheduler sono rifiutati dalle guardie;
+  concorrenza 3. Fasi: backend, verifica di tutti gli stamp, sito, verifica con smoke.
+- Esito pubblico in `.local/release/migration-result.json`. In caso di errore si ferma: nessun rollback né retry
+  automatici. Non produce una baseline di rollback (`ROLLBACK_BASELINE_VERIFIED` resta falso).
+- Poi: due rilasci ordinari via OIDC, un rollback provato, e solo allora il flag baseline.
 
 Regole: staging sempre prima; produzione solo dopo staging riuscito e approvazione di una persona;
 ogni ambiente ha il proprio snapshot di rollback.

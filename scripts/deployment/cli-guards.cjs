@@ -57,9 +57,12 @@ function requiredProjectBindings(manifest, number, endpoints) {
   return rows.map(([role,email]) => ({role,members:['serviceAccount:' + email]}))
 }
 
-function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions = []} = {}) {
+function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, approvedFunctions = []} = {}) {
   validateIdentities(manifest)
   requireCondition(!bootstrap || manifest.environment === 'staging', 'Bootstrap requires staging')
+  // One-time owner migration: update the existing approved HTTP functions in place, never create or delete.
+  requireCondition(!migrate || (!bootstrap && manifest.environment === 'staging'), 'Migration requires staging and excludes bootstrap')
+  const restricted = bootstrap || migrate
   requireCondition(cli('./package.json').version === '14.26.0', 'Review the pinned CLI adapter')
   const functions = cli('./lib/gcp/cloudfunctionsv2.js')
   const resource = cli('./lib/gcp/resourceManager.js')
@@ -69,6 +72,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
   const proto = cli('./lib/gcp/proto.js')
   const artifacts = cli('./lib/functions/artifacts.js')
   const originals = {deleteFunction:functions.deleteFunction,updateFunction:functions.updateFunction,
+    createFunction:functions.createFunction,
     cleanupCheck:artifacts.checkCleanupPolicy,cleanupSet:artifacts.setCleanupPolicies,convert:functions.functionFromEndpoint, projectSet:resource.setIamPolicy,
     agentCheck:checks.ensureServiceAgentRoles, runSet:run.setIamPolicy,
     invokerCreate:run.setInvokerCreate, invokerUpdate:run.setInvokerUpdate}
@@ -90,6 +94,17 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
   artifacts.setCleanupPolicies = async () => { throw new Error('Artifact cleanup policy changes require owner provisioning') }
   const newPublicServices = new Set()
   const webFunctions = new Set()
+  if (migrate) {
+    const approved = new Set(approvedFunctions)
+    functions.deleteFunction = async () => { throw new Error('Migration forbids function deletion') }
+    functions.createFunction = async () => { throw new Error('Migration updates existing functions only; creation needs owner investigation') }
+    functions.updateFunction = async function(cloudFunction, ...rest) {
+      const id = String(cloudFunction?.name || '').split('/').at(-1)
+      requireCondition(cloudFunction.name === `projects/${manifest.project}/locations/us-central1/functions/${id}` &&
+        (approved.has(id) || webFunctions.has(id)), 'Unapproved migration function')
+      return originals.updateFunction.call(this,cloudFunction,...rest)
+    }
+  }
   function serviceTarget(project, name) {
     requireCondition(project === manifest.project && typeof name === 'string' &&
       name === `projects/${manifest.project}/locations/us-central1/services/${name.split('/').at(-1)}` &&
@@ -97,15 +112,17 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
   }
   functions.functionFromEndpoint = endpoint => {
     const result = withBuildIdentity(endpoint,manifest,originals.convert)
-    if (bootstrap) {
+    if (restricted) {
       requireCondition(endpoint.httpsTrigger && !endpoint.eventTrigger && !endpoint.scheduleTrigger &&
-        !endpoint.taskQueueTrigger && !endpoint.blockingTrigger, 'Bootstrap only permits HTTP functions')
+        !endpoint.taskQueueTrigger && !endpoint.blockingTrigger, 'Bootstrap and migration only permit HTTP functions')
       if (endpoint.codebase === 'python_codebase') {
         requireCondition(approvedFunctions.includes(endpoint.id), 'Unapproved bootstrap function')
       } else {
         webFunctions.add(endpoint.id)
         requireCondition(webFunctions.size === 1, 'Unexpected extra SSR function')
       }
+    }
+    if (bootstrap) {
       newPublicServices.add(`projects/${manifest.project}/locations/us-central1/services/${endpoint.id.toLowerCase().replaceAll('_','-')}`)
     }
     return result
@@ -139,6 +156,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, approvedFunctions =
   return () => {
     functions.deleteFunction = originals.deleteFunction
     functions.updateFunction = originals.updateFunction
+    functions.createFunction = originals.createFunction
     artifacts.checkCleanupPolicy = originals.cleanupCheck
     artifacts.setCleanupPolicies = originals.cleanupSet
     functions.functionFromEndpoint = originals.convert

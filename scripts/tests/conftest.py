@@ -9,7 +9,7 @@ _REAL_RUN = subprocess.run
 _TREE_QUERY = re.compile(r'^([0-9a-f]{40}):(.+)$')
 
 
-_RELEASE_MODULES = {'test_deployment_release', 'test_bootstrap_staging'}
+_RELEASE_MODULES = {'test_deployment_release', 'test_bootstrap_staging', 'test_migrate_staging'}
 
 
 @pytest.fixture(autouse=True)
