@@ -76,6 +76,10 @@ OPERAZIONI MANUALI (mai automatiche)
   rilascio forzato dei due componenti.
 - **Hosting vs SSR:** il sito è verificato solo tramite l'endpoint SSR. Dopo un rollback fallito a metà
   ("intervento dell'owner") una versione Hosting non allineata non verrebbe rilevata dal `plan`.
+- **Health endpoint pubblico (debito, decisione owner 2026-11-25):** `deployment_health` è raggiungibile senza token
+  (come le altre funzioni HTTP; la protezione è nei decorator). Espone solo ambiente, progetto, impronta del codice e
+  digest della configurazione, nessun segreto. Da rendere privato dopo la prima release: richiede IAM dedicato su quella
+  funzione, adeguamento dei guard di deploy e token per `plan` e smoke.
 
 ## Migrazione una tantum di staging
 
