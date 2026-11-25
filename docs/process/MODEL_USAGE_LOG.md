@@ -635,3 +635,19 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Dispatch: bootstrap_hosting_quota_review; gpt-6.1-sol, reasoning high, fresh context; read-only focused review of shared Hosting quota header and four stage/prod GET/POST regressions.
 - Result: no P1/P2; accepted by coordinator. Reviewer independently passed53deployment tests; coordinator RED4/GREEN116tooling with Node20 and live read-only staging inventory PASS. No bootstrap or production request executed; unchanged serverless instance settings.
 - Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
+
+
+## 2026-11-20 — Partial bootstrap quota recovery plan
+
+- Dispatch: bootstrap_quota_recovery_review; gpt-6.1-sol, reasoning high, fresh context; read-only review of section4f and sanitized partial-deployment evidence.
+- Result:1P1 and2P2 accepted and corrected in plan: admit one target end-to-end (serial executor alone does not fail-first), explicit original Functions/Run operation quiescence plus exclusive journal, separately pinned recovery helper and clean4834 application source. Helper implementation/tests/code review still required before any recovery mutation.
+- Evidence: main CI44808047460 SUCCESS on4834cb15. Initial buildSUCCESS; first bootstrap exited1 naturally from Run write quota60/min.53ACTIVE+77FAILED,0missing; all53active stamps/accounts/invokers verified,2appbuckets unchanged,Firestoreempty,Hosting0releases. No fullretry,rollback or manual cloud deletion; no signal sent.
+- Dispatch count:1Sol review task,0Luna tasks. Host token/cost telemetry unavailable.
+
+
+### 2026-11-21 — Continuazione della stessa review di recupero
+
+- Stesso incarico `bootstrap_quota_recovery_review`, Sol 6.1 high: review del helper operativo privato e del driver, senza nuove deleghe di implementazione.
+- Prima review del codice: 2 P1 e 3 P2 accettati dal coordinatore; corretti stop globale su HTTP/stream e code Hosting, perimetro della singola versione/pubblicazione, configurazione generata fissata, contratto health esatto e header quota escluso dagli upload firmati.
+- Coordinatore e revisore: 54 test offline Node20 passati, inclusi vincoli sul tag della sola nuova revisione SSR; sintassi Node e compilazione Python3.11 passate. Riesame concluso: nessun P1/P2 residuo; ulteriore controllo di provenienza prima delle scritture IAM aggiunto con regressione zero-fetch. Helper e driver congelati tramite SHA256 in ricevuta privata; nessuna scrittura di recupero ancora eseguita.
+- Conteggio invariato: 1 incarico Sol di review per il blocco recupero, 0 Luna. Token/costi non disponibili.

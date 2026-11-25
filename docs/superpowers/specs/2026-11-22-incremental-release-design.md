@@ -1,7 +1,11 @@
 # Release incrementale: disegno per approvazione
 
 Stato: **approvato dall'owner il 22/11/2026 per le decisioni 1-3** (Fase 1, identità per componente, Fase 2 rimandata all'ADR).
-La decisione 4 (percorso della migrazione una tantum) è ancora aperta. Nessuna implementazione avviata.
+Decisione 4 (25/11/2026): migrazione una tantum con credenziali operatore, come eccezione documentata.
+Fase 1 implementata il 25/11/2026 (PR "per-component release identity"); non ancora eseguita su un ambiente reale.
+Raffinamento rispetto al testo originale: l'identità del sito è l'impronta di `mcp-website` + `firebase.json` e non il
+commit (che resta come provenienza), così un commit che non tocca il sito non lo ridepoya. Regole/indici Firestore
+restano fuori dal flusso (non sono deployati da questi workflow).
 
 Collocazione nel programma: questo lavoro è un **abilitatore**, non una nuova workstream. Serve a rendere staging un
 ambiente affidabile e rilasciabile in modo ripetibile, da cui raccogliere le evidenze (WS3 osservabilità/costi, WS7 scenari,

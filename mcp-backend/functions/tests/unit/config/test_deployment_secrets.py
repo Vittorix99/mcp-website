@@ -37,7 +37,7 @@ def test_release_requires_project_specific_runtime_identity(monkeypatch):
     from config.function_secrets import configure_runtime_identity
     from firebase_functions import options
     staging(monkeypatch)
-    monkeypatch.setenv('MCP_RELEASE_SHA', 'a' * 40)
+    monkeypatch.setenv('MCP_BACKEND_TREE', 'a' * 40)
     settings = runtime.get_runtime_policy()
     for account in ['', 'runtime@wrong.iam.gserviceaccount.com']:
         monkeypatch.setenv('MCP_RUNTIME_SERVICE_ACCOUNT', account)
@@ -188,7 +188,7 @@ print('discovery_functions',len(functions))
     env = {k: os.environ[k] for k in ('PATH', 'HOME', 'TMPDIR', 'DYLD_FALLBACK_LIBRARY_PATH') if k in os.environ}
     result = subprocess.run([sys.executable, '-c', program], cwd=Path(__file__).resolve().parents[3],
         env={**env, 'MCP_ENV': environment, 'ADMIN_PORT': '8087',
-             'MCP_RELEASE_SHA':'a' * 40,
+             'MCP_BACKEND_TREE':'a' * 40,
              'MCP_RUNTIME_SERVICE_ACCOUNT':'app-runtime@' + ('mcp-website-dev-39539' if environment == 'staging' else 'mcp-website-2a1ad') + '.iam.gserviceaccount.com'},
         capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
