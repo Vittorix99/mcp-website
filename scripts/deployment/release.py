@@ -285,6 +285,9 @@ def command(args, *, env=None, cwd=ROOT):
         status = re.findall(r'RELEASE_SDK_STATUS=(4[0-9]{2}|5[0-9]{2})', result.stderr)
         if status:
             metadata['sdk_status'] = int(status[-1])
+        targets = re.findall(r'RELEASE_API_TARGET=([a-z0-9-]+\.googleapis\.com/[A-Za-z0-9/*:._-]{0,160})(?:\s|$)', result.stderr)
+        if targets:
+            metadata['api_target'] = targets[-1]
         kinds = re.findall(r'RELEASE_ERROR_TYPE=(Error|FirebaseError|TypeError|SyntaxError|RangeError|unknown)\b', result.stderr)
         if kinds:
             metadata['error_type'] = kinds[-1]

@@ -42,7 +42,30 @@ async function probeReleaseAccess(cli, manifest) {
     admin_config_read:true,project_permissions:true,account_actas:true}
 }
 
+// Non-secret locator of a denied Google API call: host plus method path with every resource id masked.
+const API_PATH_WORDS = new Set(['v1','v1beta1','v1beta2','v2','v2beta','v2alpha','projects','locations','functions','services',
+  'sites','versions','releases','channels','serviceAccounts','secrets','repositories','apps','webApps','config','operations',
+  'keys','namespaces','policy','buckets','objects','files','domains','apiKeys','iam','roles','permissions'])
+function apiTarget(error) {
+  for (let depth = 0; error && depth < 4; depth++, error = error.original || error.cause) {
+    const raw = error.context?.response?.url || error.response?.url
+    if (typeof raw !== 'string') continue
+    try {
+      const url = new URL(raw)
+      if (!/^[a-z0-9-]+\.googleapis\.com$/.test(url.hostname)) continue
+      const path = url.pathname.split('/').filter(Boolean).slice(0, 12).map(part => {
+        const [name, verb] = part.split(':')
+        const masked = API_PATH_WORDS.has(name) ? name : '*'
+        return /^[A-Za-z][A-Za-z0-9]{0,40}$/.test(verb || '') ? masked + ':' + verb : masked
+      }).join('/')
+      return url.hostname + '/' + path
+    } catch {}
+  }
+}
+
 function reportEntryFailure(error) {
+  const target = apiTarget(error)
+  if (target) console.error(`RELEASE_API_TARGET=${target}`)
   // FirebaseError defaults to status 500: report SDK status, not a proven HTTP response.
   let lastStatus
   const kind = ['Error','FirebaseError','TypeError','SyntaxError','RangeError'].includes(error?.name) ? error.name : 'unknown'
