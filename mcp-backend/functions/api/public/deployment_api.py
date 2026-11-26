@@ -1,4 +1,4 @@
-"""Public release identity; contains no provider configuration or credentials."""
+"""Public backend release identity; contains no provider configuration or credentials."""
 import os
 import re
 from flask import jsonify

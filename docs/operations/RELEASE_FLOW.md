@@ -243,3 +243,13 @@ non si aggiungono automaticamente ruoli o chiavi per far passare la prova.
 La PR di riparazione include questi controlli e il precheck account dedicati prima del primo
 site-only riuscito. Le modifiche ai test sito cambiano intenzionalmente `site_tree`; il sorgente
 backend resta invariato. Dopo CI, merge e sonda estesa si rivaluta il rilascio site-only.
+
+PR #31 unita in `cfaab98`; CI riuscita. La sonda `45881866817` conferma sotto WIF
+il solo permesso mancante `apikeys.keys.getKeyString`. Dopo consenso esplicito dell'owner,
+assegnato `roles/serviceusage.apiKeysViewer` al solo deployer di staging: confronto policy
+con una sola aggiunta, nessuna rimozione o altra variazione; nessuna chiave creata o stampata.
+Riavviato il solo job fallito della sonda, riutilizzando la CI già verde.
+
+La successiva prova backend-only usa una sola parola nella docstring di `deployment_api.py`
+per cambiare l'identità backend senza cambiare comportamento o sorgenti sito. La relativa PR
+può essere preparata in anticipo, ma si unisce solo dopo il primo site-only riuscito.
