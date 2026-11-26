@@ -76,6 +76,12 @@ scritture IAM dei segreti e modifiche alla retention. Non vengono abilitate nuov
 Produzione conserva la discovery completa e il selettore dell'intera codebase, con i propri gate.
 Attivare trigger o scheduler su staging richiede una baseline controllata separatamente approvata.
 
+Il controllo iniziale `actAs` del CLI fissato viene indirizzato agli account dedicati
+build/runtime/SSR del manifest, con verifica del progetto e risultato strettamente positivo.
+Il controllo originale richiedeva sempre l'account Appspot predefinito anche con runtime
+personalizzati: non si concedono permessi su quell'account inutilizzato per superarlo.
+Dinieghi, risposte mancanti e errori IAM fermano il rilascio; i divieti di scrittura IAM restano attivi.
+
 ### Limiti noti (dalla revisione indipendente)
 
 - **Segreti ruotati:** le funzioni usano una versione numerica del segreto fissata al deploy e l'identità del backend
@@ -203,3 +209,11 @@ senza abilitare flag di deploy. Usa la stessa WIF e il CLI fissato per autentica
 Hosting, `testIamPermissions` sul progetto e `actAs` sui tre account dedicati. Non esegue build,
 deploy, aggiornamenti del traffico, pubblicazioni Hosting o accessi ai valori dei segreti.
 Un esito positivo restringe l'indagine, ma non dimostra ancora che deploy o rollback funzionino.
+
+**Sonda eseguita:** PR #30 unita in `9a86753`; run `45872874707` riuscita.
+Autenticazione Firebase sotto WIF, lettura Hosting, permessi progetto e `actAs` sui tre account
+dedicati verificati, 131 funzioni elencate; staging/deploy, rollback e produzione saltati.
+Anche la build locale release con configurazione pubblica staging e senza credenziali cloud
+è riuscita. La causa storica non è quindi attribuita ad autenticazione o permessi mancanti.
+Il controllo Appspot errato è un difetto distinto del percorso backend esplicito,
+riprodotto offline con il vero hook del CLI; non spiega il precedente errore Hosting.
