@@ -321,12 +321,15 @@ def main():
     parser.add_argument('--as-of', type=date.fromisoformat, required=True)
     parser.add_argument('--recipients-config', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=ROOT / '.local/staging/dataset')
+    parser.add_argument('--members', type=int, default=4000)
+    parser.add_argument('--events', type=int, default=50)
     args = parser.parse_args()
     try:
         config = json.loads(args.recipients_config.read_text())
         # Use the explicitly approved base; do not print recipient values or add aliases to allowlist.
         base = config['allowed_recipients'][0]
-        dataset = generate(seed=args.seed, as_of=args.as_of, email_base=base)
+        dataset = generate(seed=args.seed, as_of=args.as_of, email_base=base,
+                           member_count=args.members, event_count=args.events)
         write_export(dataset, args.output)
     except (ValueError, KeyError, OSError) as error:
         parser.exit(2, f'Generation failed ({type(error).__name__}); check local configuration.\n')

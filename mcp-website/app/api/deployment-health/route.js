@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+// Component identity stays stable across commits that only change the backend.
 export async function GET() {
   const sha = process.env.NEXT_PUBLIC_RELEASE_SHA || ''
   const tree = process.env.NEXT_PUBLIC_SITE_TREE || ''

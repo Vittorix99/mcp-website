@@ -45,6 +45,7 @@ jobs:
       SOUNDCLOUD_CLIENT_ID: ${{ vars.SOUNDCLOUD_CLIENT_ID }}
       PAYMENT_ROLLOUT_APPROVED: ${{ vars.PAYMENT_ROLLOUT_APPROVED }}
       ROLLBACK_BASELINE_VERIFIED: ${{ vars.ROLLBACK_BASELINE_VERIFIED }}
+      STAGING_RELEASE_PROOF_APPROVED: ${{ vars.STAGING_RELEASE_PROOF_APPROVED }}
       RELEASE_ENVIRONMENT: ${{ inputs.environment }}
       RELEASE_OPERATION: ${{ inputs.operation }}
       SNAPSHOT_RUN_ID: ${{ inputs.snapshot_run_id }}

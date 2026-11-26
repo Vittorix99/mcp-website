@@ -105,6 +105,12 @@ Se E1 fallisce, la Fase 1 resta valida (si evita comunque il redeploy per i camb
 
 ## Migrazione (una tantum)
 
+Aggiornamento 26/11/2026: migrazione completata tramite il percorso una tantum approvato;
+dataset ridotto e indici verificati come riportato nell'handoff. La sequenza operativa attuale,
+incluso il consenso temporaneo per la prima prova manuale su staging con baseline ancora falsa,
+è in `docs/operations/RELEASE_FLOW.md`, sezione «Prima prova reale su staging».
+La lista seguente conserva la sequenza progettuale precedente alla migrazione.
+
 1. Merge del tooling con i nuovi stamp.
 2. Un primo rilascio che aggiorna le 130 funzioni di staging per togliere lo SHA dall'ambiente
    (e riallinea l'eccezione "SHA misti" di oggi). Richiede il percorso ordinario con credenziali OIDC/WIF,
