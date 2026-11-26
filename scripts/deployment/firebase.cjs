@@ -14,7 +14,7 @@ async function probeReleaseAccess(cli, manifest) {
   const iam = cli('./lib/gcp/iam.js')
   console.error('RELEASE_PROBE_PHASE=project-permissions')
   const permissions = ['run.services.get','run.services.update','firebasehosting.sites.get','firebasehosting.sites.update',
-    'cloudfunctions.functions.get','cloudfunctions.functions.update']
+    'cloudfunctions.functions.get','cloudfunctions.functions.update','apikeys.keys.getKeyString']
   const result = await iam.testIamPermissions(manifest.project,permissions)
   if (!result.passed) {
     console.error('RELEASE_PERMISSION_DENIED')
@@ -23,6 +23,10 @@ async function probeReleaseAccess(cli, manifest) {
     }
     throw new Error('Missing permissions for release probe')
   }
+  console.error('RELEASE_PROBE_PHASE=web-config')
+  await cli('./lib/fetchWebSetup.js').fetchWebSetup({project:manifest.project})
+  console.error('RELEASE_PROBE_PHASE=admin-config')
+  await cli('./lib/functionsConfig.js').getFirebaseConfig({project:manifest.project})
   console.error('RELEASE_PROBE_PHASE=account-actas')
   for (const key of ['BUILD_SERVICE_ACCOUNT','RUNTIME_SERVICE_ACCOUNT','WEB_RUNTIME_SERVICE_ACCOUNT']) {
     console.error(`RELEASE_ACCOUNT_ROLE=${key}`)
@@ -34,7 +38,8 @@ async function probeReleaseAccess(cli, manifest) {
       throw new Error('Missing permissions for dedicated service account')
     }
   }
-  return {mode:'read-only',firebase_auth:true,hosting_read:true,project_permissions:true,account_actas:true}
+  return {mode:'read-only',firebase_auth:true,hosting_read:true,web_config_read:true,
+    admin_config_read:true,project_permissions:true,account_actas:true}
 }
 
 function reportEntryFailure(error) {

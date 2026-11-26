@@ -288,13 +288,13 @@ def command(args, *, env=None, cwd=ROOT):
         kinds = re.findall(r'RELEASE_ERROR_TYPE=(Error|FirebaseError|TypeError|SyntaxError|RangeError|unknown)\b', result.stderr)
         if kinds:
             metadata['error_type'] = kinds[-1]
-        phases = re.findall(r'RELEASE_PROBE_PHASE=(firebase-auth|hosting-read|project-permissions|account-actas)', result.stderr)
+        phases = re.findall(r'RELEASE_PROBE_PHASE=(firebase-auth|hosting-read|web-config|admin-config|project-permissions|account-actas)', result.stderr)
         if phases:
             metadata['probe_phase'] = phases[-1]
         roles = re.findall(r'RELEASE_ACCOUNT_ROLE=(BUILD_SERVICE_ACCOUNT|RUNTIME_SERVICE_ACCOUNT|WEB_RUNTIME_SERVICE_ACCOUNT)\b', result.stderr)
         if roles:
             metadata['account_role'] = roles[-1]
-        missing = re.findall(r'RELEASE_MISSING_PERMISSION=(run\.services\.(?:get|update)|firebasehosting\.sites\.(?:get|update)|cloudfunctions\.functions\.(?:get|update)|iam\.serviceAccounts\.actAs)\b', result.stderr)
+        missing = re.findall(r'RELEASE_MISSING_PERMISSION=(run\.services\.(?:get|update)|firebasehosting\.sites\.(?:get|update)|cloudfunctions\.functions\.(?:get|update)|iam\.serviceAccounts\.actAs|apikeys\.keys\.getKeyString)\b', result.stderr)
         if missing:
             metadata['missing_permissions'] = sorted(set(missing))
         raise CommandFailure(metadata)
@@ -458,12 +458,30 @@ def rollback(snapshot, manifest):
         if index % 25 == 0 or index == len(snapshot['services']):
             progress('rollback.traffic', completed=index, total=len(snapshot['services']))
     progress('rollback.hosting')
-    hosting(manifest, '/releases', version=snapshot['hosting_version'])
+    # Hosting rejects republishing the version that is already active. This is
+    # normal for backend-only rollback or a deploy that failed before publication.
+    if active_hosting_version(manifest) != snapshot['hosting_version']:
+        hosting(manifest, '/releases', version=snapshot['hosting_version'])
+    else:
+        progress('rollback.hosting-already-active')
     progress('rollback.readback')
     for service, state in snapshot['services'].items():
         require(service_state(manifest, service) == state, 'restored revision traffic')
+    require(active_hosting_version(manifest) == snapshot['hosting_version'], 'restored Hosting version')
     smoke({**manifest, 'sha':snapshot['sha'], 'components':snapshot['components']}, site_sha=snapshot['sha'])
     progress('rollback.verified')
+
+
+def active_hosting_version(manifest):
+    releases = hosting(manifest, '/releases?pageSize=1').get('releases', [])
+    require(len(releases) == 1, 'active Hosting release readable')
+    release = releases[0]
+    if release.get('type') == 'SITE_DISABLE':
+        return None
+    version = release.get('version', {}).get('name')
+    require(bool(re.fullmatch('sites/' + re.escape(manifest['project']) + r'/versions/[a-zA-Z0-9-]+', version or '')),
+        'active Hosting version readable')
+    return version
 
 
 def verify_topology(previous_sha):
@@ -718,7 +736,7 @@ def main():
         result = command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'probe'], env=env)
         probe = json.loads(result.strip().splitlines()[-1])
         require(probe == dict(mode='read-only', firebase_auth=True, hosting_read=True,
-            project_permissions=True, account_actas=True), 'read-only probe result')
+            web_config_read=True, admin_config_read=True, project_permissions=True, account_actas=True), 'read-only probe result')
         print(json.dumps(probe, sort_keys=True), flush=True)
         print('Federated access verified: project, bucket, APIs, service identities and provider secret versions readable; '
               f'{len(cloud_functions(manifest))} functions listed; nothing deployed or changed.')
