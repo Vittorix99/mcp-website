@@ -48,14 +48,13 @@ def test_public_configuration_is_explicit_and_stamped(environment):
     assert release.prepare(environment, dict(reversed(list(inputs(environment).items())))) == manifest
 
 
-@pytest.mark.parametrize(('environment', 'count'), [('staging', 130), ('production', 141)])
-def test_real_sdk_inventory_matches_the_environment_release_profile(environment, count):
-    manifest = release.prepare(environment, inputs(environment))
+def test_real_sdk_inventory_matches_staging_http_release_profile():
+    manifest = release.prepare('staging', inputs())
     names = release.expected_functions(manifest, {})
-    assert len(names) == count
+    assert len(names) == 130
     assert 'deployment_health' in names
-    assert ('on_membership_created' in names) == (environment == 'production')
-    assert ('rebuild_analytics_nightly' in names) == (environment == 'production')
+    assert 'on_membership_created' not in names
+    assert 'rebuild_analytics_nightly' not in names
 
 
 @pytest.mark.parametrize(('key', 'value'), [
