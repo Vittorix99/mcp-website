@@ -290,11 +290,19 @@ def smoke(manifest, *, site_sha=None):
 
 
 def expected_functions(manifest, env):
+    if manifest['environment'] == 'production':
+        result = command([str(ROOT / '.venv/bin/python'), '-c',
+            'import json; from firebase_functions.private.serving import get_functions; '
+            'print(json.dumps(sorted(get_functions())))'], cwd=ROOT / 'mcp-backend/functions',
+            env={**env, **manifest['backend'], 'ADMIN_PORT':'8087'})
+        return json.loads(result)
+    # Bootstrap and migration intentionally provision only HTTP endpoints on staging.
+    # Use the same socket-blocked SDK inventory for snapshot and CLI selection.
     result = command([str(ROOT / '.venv/bin/python'), '-c',
-        'import json; from firebase_functions.private.serving import get_functions; '
-        'print(json.dumps(sorted(get_functions())))'], cwd=ROOT / 'mcp-backend/functions',
-        env={**env, **manifest['backend'], 'ADMIN_PORT':'8087'})
-    return json.loads(result)
+        'import json; from bootstrap_staging import discover_endpoints; print(json.dumps(discover_endpoints()))'],
+        cwd=ROOT / 'scripts/deployment')
+    endpoints = json.loads(result)
+    return sorted(row['id'] for row in endpoints if row['kind'] == 'http')
 
 
 def snapshot_release(manifest, env):
@@ -309,8 +317,6 @@ def snapshot_release(manifest, env):
     validate_health(backend, old, 'backend')
     validate_health(site, old, 'site', sha=old['sha'])
     verify_topology(old['sha'])
-    verify_function_releases(old)
-    smoke(old, site_sha=old['sha'])
     records = cloud_functions(manifest)
     functions = sorted(item['name'].rsplit('/', 1)[-1] for item in records
         if item.get('labels', {}).get('firebase-functions-codebase') == 'python_codebase')
@@ -318,6 +324,8 @@ def snapshot_release(manifest, env):
         'function inventory changed: controlled baseline required before automatic release')
     require(any(item.get('labels', {}).get('firebase-functions-codebase') ==
         'firebase-frameworks-' + manifest['project'] for item in records), 'SSR rollback target')
+    verify_function_releases(old)
+    smoke(old, site_sha=old['sha'])
     services = {}
     references = set()
     for item in records:

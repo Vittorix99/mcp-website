@@ -57,20 +57,24 @@ function requiredProjectBindings(manifest, number, endpoints) {
   return rows.map(([role,email]) => ({role,members:['serviceAccount:' + email]}))
 }
 
-// Migration may run while the registry has a cleanup policy only if nothing can delete images yet
-// (opt-out label, a keep-only policy, or a DELETE policy in dry-run mode).
+// Restricted updates require retention that cannot delete saved rollback images.
+// The opt-out label alone does not disable an existing DELETE policy.
 function migrationRetentionAllowed(repo) {
   const policies = Object.values(repo.cleanupPolicies || {})
+  if (repo.cleanupPolicyDryRun !== true && policies.some(policy => policy.action === 'DELETE')) return false
   return repo.labels?.['firebase-functions-cleanup-opted-out'] === 'true' ||
     (policies.length > 0 && (repo.cleanupPolicyDryRun === true || policies.every(policy => policy.action !== 'DELETE')))
 }
 
-function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, approvedFunctions = []} = {}) {
+function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, httpUpdatesOnly = false, approvedFunctions = []} = {}) {
   validateIdentities(manifest)
   requireCondition(!bootstrap || manifest.environment === 'staging', 'Bootstrap requires staging')
   // One-time owner migration: update the existing approved HTTP functions in place, never create or delete.
   requireCondition(!migrate || (!bootstrap && manifest.environment === 'staging'), 'Migration requires staging and excludes bootstrap')
-  const restricted = bootstrap || migrate
+  requireCondition(!httpUpdatesOnly || (!bootstrap && !migrate && manifest.environment === 'staging' &&
+    approvedFunctions.length > 0 && approvedFunctions.every(id => /^[a-z][a-z0-9_-]{0,62}$/.test(id)) &&
+    new Set(approvedFunctions).size === approvedFunctions.length), 'HTTP updates require an approved staging inventory')
+  const restricted = bootstrap || migrate || httpUpdatesOnly
   requireCondition(cli('./package.json').version === '14.26.0', 'Review the pinned CLI adapter')
   const functions = cli('./lib/gcp/cloudfunctionsv2.js')
   const resource = cli('./lib/gcp/resourceManager.js')
@@ -102,14 +106,15 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ap
     }
   }
   artifacts.setCleanupPolicies = async () => { throw new Error('Artifact cleanup policy changes require owner provisioning') }
-  // Both owner-operated modes may only use secret access that already exists.
+  // Restricted staging modes may only use secret access that already exists.
   if (restricted) secrets.setIamPolicy = async () => { throw new Error('Secret IAM writes require explicit owner provisioning') }
   const newPublicServices = new Set()
   const webFunctions = new Set()
-  if (migrate) {
+  if (migrate || httpUpdatesOnly) {
     const approved = new Set(approvedFunctions)
-    functions.deleteFunction = async () => { throw new Error('Migration forbids function deletion') }
-    functions.createFunction = async () => { throw new Error('Migration updates existing functions only; creation needs owner investigation') }
+    const mode = migrate ? 'Migration' : 'Staging release'
+    functions.deleteFunction = async () => { throw new Error(mode + ' forbids function deletion') }
+    functions.createFunction = async () => { throw new Error(mode + ' updates existing functions only; creation needs owner investigation') }
     // firebase-tools checks the artifact repository only after the updates; verify it here so a
     // bad state is rejected by the same guard, never left half-migrated and unprompted.
     artifacts.checkCleanupPolicy = async (project, locations) => {
@@ -124,7 +129,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ap
     functions.updateFunction = async function(cloudFunction, ...rest) {
       const id = String(cloudFunction?.name || '').split('/').at(-1)
       requireCondition(cloudFunction.name === `projects/${manifest.project}/locations/us-central1/functions/${id}` &&
-        (approved.has(id) || webFunctions.has(id)), 'Unapproved migration function')
+        (approved.has(id) || webFunctions.has(id)), migrate ? 'Unapproved migration function' : 'Unapproved staging release function')
       return originals.updateFunction.call(this,cloudFunction,...rest)
     }
   }
@@ -137,7 +142,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ap
     const result = withBuildIdentity(endpoint,manifest,originals.convert)
     if (restricted) {
       requireCondition(endpoint.httpsTrigger && !endpoint.eventTrigger && !endpoint.scheduleTrigger &&
-        !endpoint.taskQueueTrigger && !endpoint.blockingTrigger, 'Bootstrap and migration only permit HTTP functions')
+        !endpoint.taskQueueTrigger && !endpoint.blockingTrigger, 'Restricted staging modes only permit HTTP functions')
       if (endpoint.codebase === 'python_codebase') {
         requireCondition(approvedFunctions.includes(endpoint.id), 'Unapproved bootstrap function')
       } else {
@@ -157,7 +162,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ap
       String(number) === manifest.wif_provider?.split('/')[1], 'Unexpected IAM project identity')
     const endpoints = backend.allEndpoints(want)
     requireCondition(endpoints.every(endpoint => endpoint.project === manifest.project), 'Unexpected IAM endpoint project')
-    if (bootstrap) await artifacts.checkCleanupPolicy(project,['us-central1'])
+    if (bootstrap || httpUpdatesOnly) await artifacts.checkCleanupPolicy(project,['us-central1'])
     const policy = await resource.getIamPolicy(String(number))
     assertProjectBindings(policy,requiredProjectBindings(manifest,number,endpoints))
   }

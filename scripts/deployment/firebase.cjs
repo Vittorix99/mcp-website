@@ -3,6 +3,15 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const {createRequire} = require('node:module')
+const {execFileSync} = require('node:child_process')
+
+function releaseProfile(cli, manifest, endpoints) {
+  if (manifest.environment === 'production') return {only:'functions:python_codebase',guards:{}}
+  if (manifest.environment !== 'staging') throw new Error('Invalid release environment')
+  const only = require('./cli-guards.cjs').bootstrapSelectors(cli,endpoints)
+  return {only,guards:{httpUpdatesOnly:true,
+    approvedFunctions:endpoints.filter(row => row.kind === 'http').map(row => row.id)}}
+}
 
 function validateFederation(credential, manifest) {
   const expected = 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' + manifest.identities.DEPLOY_SERVICE_ACCOUNT + ':generateAccessToken'
@@ -94,18 +103,23 @@ function main() {
   if (args.length === 1 && args[0] === 'validate') return
   if (!['backend','hosting'].includes(args[0]) || args.length !== 1) throw new Error('Select a scoped release target')
   const cliRequire = createRequire(path.join(cliRoot,'package.json'))
-  installAdapters(root,cliRequire,manifest,credentialPath)
+  const endpoints = manifest.environment === 'staging' ? JSON.parse(execFileSync(
+    path.join(root,'.venv/bin/python'), ['-c',
+      'import json; from bootstrap_staging import discover_endpoints; print(json.dumps(discover_endpoints()))'],
+    {cwd:path.join(root,'scripts/deployment'),encoding:'utf8'})) : undefined
+  const profile = releaseProfile(cliRequire,manifest,endpoints)
+  installAdapters(root,cliRequire,manifest,credentialPath,profile.guards)
   limitDeployConcurrency(cliRequire)
   Object.assign(process.env, manifest.frontend)
   process.env.__NEXT_PROCESSED_ENV = 'true'
   const cli = path.join(cliRoot,'lib/bin/firebase.js')
   process.argv = [process.execPath,cli,'deploy','--non-interactive','--project',manifest.project,
     '--config',path.join(root,'firebase.release.generated.json'),'--only',
-    args[0] === 'backend' ? 'functions:python_codebase' : 'hosting']
+    args[0] === 'backend' ? profile.only : 'hosting']
   require(cli)
 }
 
-module.exports = {installAdapters, limitDeployConcurrency, DEPLOY_CONCURRENCY, validateFederation, discoveryEnvironment, releaseBuildInvocation, spawnReleaseBuild}
+module.exports = {releaseProfile, installAdapters, limitDeployConcurrency, DEPLOY_CONCURRENCY, validateFederation, discoveryEnvironment, releaseBuildInvocation, spawnReleaseBuild}
 if (require.main === module) {
   try { main() } catch { console.error('Guarded Firebase release failed'); process.exitCode = 1 }
 }

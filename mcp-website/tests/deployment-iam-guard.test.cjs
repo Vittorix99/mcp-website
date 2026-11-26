@@ -22,6 +22,78 @@ const policy = {bindings:[
   ['roles/eventarc.eventReceiver',manifest.identities.RUNTIME_SERVICE_ACCOUNT],
 ].map(([role,email]) => ({role,members:['serviceAccount:' + email]}))}
 
+test('ordinary staging permits approved HTTP updates and refuses topology and secret IAM writes', async () => {
+  const functions = cli('./lib/gcp/cloudfunctionsv2.js')
+  const secrets = cli('./lib/gcp/secretManager.js')
+  const saved = {update:functions.updateFunction,create:functions.createFunction,remove:functions.deleteFunction}
+  const updates = []
+  let topologyWrites = 0
+  functions.updateFunction = async row => {updates.push(row.name)}
+  functions.createFunction = functions.deleteFunction = async () => {topologyWrites++}
+  const restore = installCliGuards(cli,manifest,{httpUpdatesOnly:true,approvedFunctions:['get_event']})
+  const name = id => `projects/${project}/locations/us-central1/functions/${id}`
+  try {
+    await assert.rejects(functions.createFunction({name:name('get_event')}))
+    await assert.rejects(functions.deleteFunction(name('get_event')))
+    await assert.rejects(functions.updateFunction({name:name('not_approved')}))
+    await assert.rejects(secrets.setIamPolicy(project,'synthetic-secret',{}))
+    const http = {...endpoint,id:'get_event',entryPoint:'get_event',httpsTrigger:{}}
+    delete http.eventTrigger
+    for (const trigger of [{eventTrigger:endpoint.eventTrigger}, {scheduleTrigger:{}},
+      {taskQueueTrigger:{}}, {blockingTrigger:{}}]) {
+      assert.throws(() => functions.functionFromEndpoint({...http,...trigger}), /HTTP/)
+    }
+    functions.functionFromEndpoint(http)
+    await functions.updateFunction({name:name('get_event')})
+    assert.deepEqual(updates,[name('get_event')])
+    assert.equal(topologyWrites,0)
+  } finally {
+    restore()
+    functions.updateFunction = saved.update
+    functions.createFunction = saved.create
+    functions.deleteFunction = saved.remove
+  }
+  assert.throws(() => installCliGuards(cli,manifest,{httpUpdatesOnly:true,approvedFunctions:[]}))
+  assert.throws(() => installCliGuards(cli,manifest,{httpUpdatesOnly:true,bootstrap:true}))
+  assert.throws(() => installCliGuards(cli,{...manifest,environment:'production'},{httpUpdatesOnly:true,approvedFunctions:['get_event']}))
+})
+
+test('ordinary staging checks artifact retention before proceeding past deployment preflight', async () => {
+  const artifacts = cli('./lib/functions/artifacts.js')
+  const resource = cli('./lib/gcp/resourceManager.js')
+  const checks = cli('./lib/deploy/functions/checkIam.js')
+  const saved = {repo:artifacts.getRepo,policy:resource.getIamPolicy}
+  let repo = {name:`projects/${project}/locations/us-central1/repositories/gcf-artifacts`}
+  let iamReads = 0
+  artifacts.getRepo = async () => repo
+  resource.getIamPolicy = async () => {iamReads++;return structuredClone(policy)}
+  const restore = installCliGuards(cli,manifest,{httpUpdatesOnly:true,approvedFunctions:['get_event']})
+  const http = {...endpoint,id:'get_event',entryPoint:'get_event',httpsTrigger:{}}
+  delete http.eventTrigger
+  const want = {endpoints:{'us-central1':{get_event:http}}}
+  try {
+    await assert.rejects(checks.ensureServiceAgentRoles(project,number,want),/retention/)
+    assert.equal(iamReads,0)
+    repo = {...repo,labels:{'firebase-functions-cleanup-opted-out':'true'}}
+    await checks.ensureServiceAgentRoles(project,number,want)
+    assert.equal(iamReads,1)
+    repo = {...repo,labels:{},cleanupPolicies:{delete:{action:'DELETE'}}}
+    await assert.rejects(checks.ensureServiceAgentRoles(project,number,want),/retention/)
+    assert.equal(iamReads,1)
+    // The Firebase opt-out label does not neutralize an existing DELETE policy.
+    repo = {...repo,labels:{'firebase-functions-cleanup-opted-out':'true'},cleanupPolicyDryRun:false}
+    await assert.rejects(checks.ensureServiceAgentRoles(project,number,want),/retention/)
+    assert.equal(iamReads,1)
+    repo = {...repo,cleanupPolicyDryRun:true}
+    await checks.ensureServiceAgentRoles(project,number,want)
+    assert.equal(iamReads,2)
+  } finally {
+    restore()
+    artifacts.getRepo = saved.repo
+    resource.getIamPolicy = saved.policy
+  }
+})
+
 test('first Firestore deployment validates explicit bindings and cannot write project IAM', async () => {
   const resource = cli('./lib/gcp/resourceManager.js')
   const checks = cli('./lib/deploy/functions/checkIam.js')
