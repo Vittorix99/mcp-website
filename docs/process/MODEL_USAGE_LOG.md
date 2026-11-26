@@ -669,3 +669,14 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Conteggio invariato: 1 incarico Sol di review per il blocco, 0 Luna. Token/costi non disponibili.
 
 - Verifica CI della PR #29: run `45787689346` fallita soltanto nel nuovo test di discovery produzione (176 passati). Riproduzione offline con `google.auth.default` intercettata conferma richiesta ADC; localmente il test poteva usare ADC presenti. Rimossa la nuova discovery cloud dal test offline: resta la prova SDK staging socket-blocked e la prova CLI della selezione completa produzione. Nessun codice runtime modificato. Suite tooling locale dopo la correzione: 176 PASS; CI da ripetere. Correzione minuta del test gestita inline, nessun nuovo dispatch.
+
+
+## 2026-11-26 — Troubleshooting del rilascio site-only
+
+- Dispatch: `rollback_root_cause`; `gpt-6.1-sol`, reasoning high, fresh context, sola lettura su rollback, snapshot reale e CLI fissato. Stesso incarico riattivato per review delle diagnostiche; nessuna delega di implementazione.
+- Evidenze: run `45829126698`, CI e snapshot riusciti, deploy Hosting fallito e rollback segnalato incompleto. Coordinatore: confronto read-only conferma 131 funzioni ACTIVE, tutti i traffici e Hosting/health uguali allo snapshot; nessuna build nuova. Flag temporanei rimossi, baseline falsa. Lettura IAM e sorgente auth fissata non dimostra un ruolo mancante o una scadenza del token. Causa storica non recuperabile dai log conservati.
+- Investigatore: snapshot/topologia e sintassi SDK573 validi offline; 26 test mirati passati. Riprodotta la perdita di informazioni: errori figli diversi producevano lo stesso messaggio generico.
+- Correzione diagnostica: metadati allowlist senza output/errori SDK grezzi, separazione dei due errori e avanzamento rollback; `verify` esteso a sonda WIF/Firebase/Hosting/permessi senza deploy né scritture applicative.
+- Review: accettato e corretto 1 P2: il catch esterno non vede gli errori asincroni catturati internamente da Firebase. Collegato il reporter al vero `client.errorOut`, preservando il gestore originale; regressione con Command.register reale RED/GREEN. Riesame senza P1/P2 residui, accettato dal coordinatore.
+- Verifica: coordinatore 182 test Python tooling e 84 test configurazione sito PASS; reviewer 105 test release Python e 9 test Node boundary PASS, log completo Python182 confermato, diff check pulito. Nessuna modifica al backend applicativo, nessun nuovo deploy/rollback/IAM change. CI della diagnostica ancora da eseguire.
+- Conteggio: 1 incarico Sol di indagine/review per questo blocco, 0 Luna; conteggi di task, non misure di costo. Token/costi host non disponibili.

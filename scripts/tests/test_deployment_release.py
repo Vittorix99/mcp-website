@@ -15,6 +15,88 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
 
+@pytest.mark.parametrize('exit_code', [2, 17])
+def test_child_failure_retains_operation_and_exit_code_without_raw_output(monkeypatch, exit_code):
+    import subprocess
+    monkeypatch.setattr(release.subprocess, 'run', lambda *a, **kw: subprocess.CompletedProcess(
+        a[0], exit_code, stdout='PRIVATE_SENTINEL', stderr='PERMISSION_DENIED PRIVATE_SENTINEL'))
+    with pytest.raises(release.CommandFailure) as error:
+        release.command(['gcloud','run','services','update-traffic','private-sentinel'])
+    report = release.failure_metadata(error.value)
+    assert report['operation'] == 'gcloud.run.services.update-traffic'
+    assert report['exit_code'] == exit_code
+    assert report['category'] == 'permission-denied'
+    assert 'PRIVATE_SENTINEL' not in json.dumps(report)
+    assert 'private-sentinel' not in json.dumps(report)
+
+
+def test_failure_metadata_never_exposes_unknown_errors_or_http_payload():
+    from urllib.error import HTTPError
+    error = HTTPError('https://private-sentinel', 403, 'PRIVATE_SENTINEL', {}, None)
+    assert release.failure_metadata(error)['http_status'] == 403
+    for error in [error, ValueError('PRIVATE_SENTINEL'), RuntimeError('PRIVATE_SENTINEL')]:
+        assert 'sentinel' not in json.dumps(release.failure_metadata(error)).lower()
+
+
+def test_validation_failure_keeps_its_trusted_field():
+    with pytest.raises(ValueError) as error:
+        release.require(False,'rollback service inventory')
+    assert release.failure_metadata(error.value)['validation'] == 'rollback service inventory'
+
+
+def test_main_reports_both_failures_without_losing_rollback_reason(monkeypatch, tmp_path, capsys):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'ROOT', tmp_path)
+    scratch = tmp_path / '.local/release'
+    scratch.mkdir(parents=True)
+    (scratch / 'snapshot.json').write_text(json.dumps(snapshot(manifest)))
+    (scratch / 'config.json').write_text(json.dumps(manifest))
+    monkeypatch.setattr('sys.argv', ['release.py','deploy','--environment','staging'])
+    monkeypatch.setattr(release, 'prepare', lambda *a: manifest)
+    monkeypatch.setattr(release, 'preflight', lambda *a, **kw: None)
+    monkeypatch.setattr(release, 'release_environment', lambda _: {'GOOGLE_APPLICATION_CREDENTIALS':'synthetic'})
+    monkeypatch.setattr(release, 'command', lambda *a, **kw: '')
+    monkeypatch.setattr(release, 'cloud_preflight', lambda _: None)
+    monkeypatch.setattr(release, 'read_live', lambda _: healths(manifest))
+    monkeypatch.setattr(release, 'stale_secret_versions', lambda _: [])
+    def deploy(*args):
+        raise release.CommandFailure({'operation':'firebase.hosting','exit_code':17,'category':'permission-denied'})
+    def rollback(*args):
+        release.require(False, 'rollback service inventory')
+    monkeypatch.setattr(release, 'execute_release', deploy)
+    monkeypatch.setattr(release, 'rollback', rollback)
+    with pytest.raises(ValueError) as error:
+        release.main()
+    reports = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert reports[0]['stage'] == 'deploy' and reports[0]['exit_code'] == 17
+    assert reports[1]['stage'] == 'rollback' and reports[1]['validation'] == 'rollback service inventory'
+    assert release.failure_metadata(error.value)['category'] == 'rollback-incomplete'
+
+
+def test_verify_routes_only_to_read_only_probe_and_filters_child_stdout(monkeypatch, capsys):
+    manifest = release.prepare('staging', inputs())
+    probe = dict(mode='read-only',firebase_auth=True,hosting_read=True,project_permissions=True,account_actas=True)
+    monkeypatch.setattr('sys.argv', ['release.py','verify','--environment','staging'])
+    monkeypatch.setattr(release, 'prepare', lambda *a: manifest)
+    checks = []
+    monkeypatch.setattr(release, 'preflight', lambda *a, **kw: checks.append(kw['read_only']))
+    monkeypatch.setattr(release, 'release_environment', lambda _: {'GOOGLE_APPLICATION_CREDENTIALS':'synthetic'})
+    monkeypatch.setattr(release, 'cloud_preflight', lambda _: None)
+    monkeypatch.setattr(release, 'cloud_functions', lambda _: [])
+    calls = []
+    def command(args, **kw):
+        assert args[:2] == ['node',str(ROOT / 'scripts/deployment/firebase.cjs')]
+        calls.append(args[2])
+        assert args[2] in {'validate','probe'}
+        return 'PRIVATE_SENTINEL\n' + json.dumps(probe) if args[2] == 'probe' else ''
+    monkeypatch.setattr(release, 'command', command)
+    for name in ['snapshot_release','execute_release','rollback','write_configuration']:
+        monkeypatch.setattr(release, name, lambda *a, **kw: pytest.fail('Read-only probe attempted mutation'))
+    release.main()
+    assert calls == ['validate','probe'] and checks == [True]
+    assert 'PRIVATE_SENTINEL' not in capsys.readouterr().out
+
+
 def inputs(environment='staging'):
     project = 'mcp-website-dev-39539' if environment == 'staging' else 'mcp-website-2a1ad'
     return dict(GITHUB_REPOSITORY='Vittorix99/mcp-website', GITHUB_REPOSITORY_ID='899139661',
