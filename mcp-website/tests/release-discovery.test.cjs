@@ -97,6 +97,20 @@ test('entry failure diagnostics expose nested status and safe type without SDK m
   assert.ok(!output.join('\n').includes('PRIVATE_SENTINEL'))
 })
 
+test('entry failure reports only a masked Google API target', () => {
+  const {reportEntryFailure} = require('../../scripts/deployment/firebase.cjs')
+  const saved = console.error
+  const output = []
+  console.error = line => output.push(line)
+  try {
+    reportEntryFailure({status:403,context:{response:{url:'https://cloudfunctions.googleapis.com/v2/projects/secret-project/locations/us-central1/functions/privateName:setIamPolicy?key=PRIVATE_SENTINEL'}}})
+    reportEntryFailure({status:403,context:{response:{url:'https://evil.example.com/v2/projects/x'}}})
+  } finally {console.error=saved}
+  assert.ok(output.includes('RELEASE_API_TARGET=cloudfunctions.googleapis.com/v2/projects/*/locations/*/functions/*:setIamPolicy'))
+  assert.equal(output.filter(line => line.startsWith('RELEASE_API_TARGET=')).length,1)
+  assert.ok(!output.join('\n').match(/PRIVATE_SENTINEL|secret-project|privateName|evil/))
+})
+
 test('pinned CLI asynchronous failures reach the sanitizer and preserve original error handling', {timeout:2000}, async () => {
   const {createRequire} = require('node:module')
   const cli = createRequire(require.resolve('firebase-tools/package.json'))

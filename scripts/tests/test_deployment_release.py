@@ -59,6 +59,20 @@ def test_probe_permission_diagnostic_retains_only_known_key_permission(monkeypat
     assert 'PRIVATE_SENTINEL' not in json.dumps(report)
 
 
+def test_failure_retains_only_a_masked_google_api_target(monkeypatch):
+    import subprocess
+    stderr = ('RELEASE_API_TARGET=cloudfunctions.googleapis.com/v2/projects/*/locations/*/functions/*:setIamPolicy\n'
+        'RELEASE_API_TARGET=evil.example.com/PRIVATE_SENTINEL\nRELEASE_SDK_STATUS=403\n')
+    monkeypatch.setattr(release.subprocess, 'run', lambda *a, **kw:
+        subprocess.CompletedProcess(a[0], 1, stdout='PRIVATE_SENTINEL', stderr=stderr))
+    with pytest.raises(release.CommandFailure) as error:
+        release.command(['node',str(ROOT / 'scripts/deployment/firebase.cjs'),'hosting'])
+    report = release.failure_metadata(error.value)
+    assert report['api_target'] == 'cloudfunctions.googleapis.com/v2/projects/*/locations/*/functions/*:setIamPolicy'
+    assert report['sdk_status'] == 403
+    assert 'PRIVATE_SENTINEL' not in json.dumps(report)
+
+
 def test_main_reports_both_failures_without_losing_rollback_reason(monkeypatch, tmp_path, capsys):
     manifest = release.prepare('staging', inputs())
     monkeypatch.setattr(release, 'ROOT', tmp_path)
