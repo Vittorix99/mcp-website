@@ -5,6 +5,63 @@ const path = require('node:path')
 const {createRequire} = require('node:module')
 const {execFileSync} = require('node:child_process')
 
+async function probeReleaseAccess(cli, manifest) {
+  console.error('RELEASE_PROBE_PHASE=firebase-auth')
+  await cli('./lib/requireAuth.js').requireAuth({project:manifest.project,nonInteractive:true})
+  console.error('RELEASE_PROBE_PHASE=hosting-read')
+  const sites = await cli('./lib/hosting/api.js').listSites(manifest.project)
+  if (!sites.some(site => site.name?.split('/').at(-1) === manifest.project)) throw new Error('Expected Hosting site not found')
+  const iam = cli('./lib/gcp/iam.js')
+  console.error('RELEASE_PROBE_PHASE=project-permissions')
+  const permissions = ['run.services.get','run.services.update','firebasehosting.sites.get','firebasehosting.sites.update',
+    'cloudfunctions.functions.get','cloudfunctions.functions.update']
+  const result = await iam.testIamPermissions(manifest.project,permissions)
+  if (!result.passed) {
+    console.error('RELEASE_PERMISSION_DENIED')
+    for (const permission of permissions.filter(p => result.missing?.includes(p))) {
+      console.error(`RELEASE_MISSING_PERMISSION=${permission}`)
+    }
+    throw new Error('Missing permissions for release probe')
+  }
+  console.error('RELEASE_PROBE_PHASE=account-actas')
+  for (const key of ['BUILD_SERVICE_ACCOUNT','RUNTIME_SERVICE_ACCOUNT','WEB_RUNTIME_SERVICE_ACCOUNT']) {
+    console.error(`RELEASE_ACCOUNT_ROLE=${key}`)
+    const access = await iam.testResourceIamPermissions('https://iam.googleapis.com','v1',
+      `projects/${manifest.project}/serviceAccounts/${manifest.identities[key]}`,['iam.serviceAccounts.actAs'])
+    if (!access.passed) {
+      console.error('RELEASE_PERMISSION_DENIED')
+      console.error('RELEASE_MISSING_PERMISSION=iam.serviceAccounts.actAs')
+      throw new Error('Missing permissions for dedicated service account')
+    }
+  }
+  return {mode:'read-only',firebase_auth:true,hosting_read:true,project_permissions:true,account_actas:true}
+}
+
+function reportEntryFailure(error) {
+  // FirebaseError defaults to status 500: report SDK status, not a proven HTTP response.
+  let lastStatus
+  const kind = ['Error','FirebaseError','TypeError','SyntaxError','RangeError'].includes(error?.name) ? error.name : 'unknown'
+  console.error(`RELEASE_ERROR_TYPE=${kind}`)
+  for (let depth = 0; error && depth < 4; depth++, error = error.original || error.cause) {
+    const status = error.status || error.response?.status
+    if (Number.isInteger(status) && status >= 400 && status <= 599) {
+      lastStatus = status
+    }
+  }
+  if (lastStatus) console.error(`RELEASE_SDK_STATUS=${lastStatus}`)
+  console.error('Guarded Firebase release failed; arbitrary diagnostics withheld')
+}
+
+function installFailureReporter(cli) {
+  const client = cli('./lib/index.js')
+  const original = client.errorOut
+  client.errorOut = function(error) {
+    reportEntryFailure(error)
+    return original.call(this,error)
+  }
+  return () => {client.errorOut=original}
+}
+
 function releaseProfile(cli, manifest, endpoints) {
   if (manifest.environment === 'production') return {only:'functions:python_codebase',guards:{}}
   if (manifest.environment !== 'staging') throw new Error('Invalid release environment')
@@ -88,7 +145,7 @@ function limitDeployConcurrency(cli, limit = DEPLOY_CONCURRENCY) {
     constructor(options) { super({...options, concurrency: Math.min(options?.concurrency ?? limit, limit)}) }
   }
 }
-function main() {
+async function main() {
   if (process.versions.node.split('.')[0] !== '22') throw new Error('Release requires Node.js 22')
   const root = path.resolve(__dirname,'../..')
   const cliRoot = path.join(root,'mcp-website/node_modules/firebase-tools')
@@ -101,8 +158,13 @@ function main() {
   validateFederation(JSON.parse(fs.readFileSync(credentialPath,'utf8')), manifest)
   const args = process.argv.slice(2)
   if (args.length === 1 && args[0] === 'validate') return
-  if (!['backend','hosting'].includes(args[0]) || args.length !== 1) throw new Error('Select a scoped release target')
+  if (!['backend','hosting','probe'].includes(args[0]) || args.length !== 1) throw new Error('Select a scoped release target')
   const cliRequire = createRequire(path.join(cliRoot,'package.json'))
+  if (args[0] === 'probe') {
+    require('./cli-guards.cjs').validateIdentities(manifest)
+    console.log(JSON.stringify(await probeReleaseAccess(cliRequire,manifest)))
+    return
+  }
   const endpoints = manifest.environment === 'staging' ? JSON.parse(execFileSync(
     path.join(root,'.venv/bin/python'), ['-c',
       'import json; from bootstrap_staging import discover_endpoints; print(json.dumps(discover_endpoints()))'],
@@ -116,10 +178,11 @@ function main() {
   process.argv = [process.execPath,cli,'deploy','--non-interactive','--project',manifest.project,
     '--config',path.join(root,'firebase.release.generated.json'),'--only',
     args[0] === 'backend' ? profile.only : 'hosting']
+  installFailureReporter(cliRequire)
   require(cli)
 }
 
-module.exports = {releaseProfile, installAdapters, limitDeployConcurrency, DEPLOY_CONCURRENCY, validateFederation, discoveryEnvironment, releaseBuildInvocation, spawnReleaseBuild}
+module.exports = {installFailureReporter, probeReleaseAccess, reportEntryFailure, releaseProfile, installAdapters, limitDeployConcurrency, DEPLOY_CONCURRENCY, validateFederation, discoveryEnvironment, releaseBuildInvocation, spawnReleaseBuild}
 if (require.main === module) {
-  try { main() } catch { console.error('Guarded Firebase release failed'); process.exitCode = 1 }
+  main().catch(error => { reportEntryFailure(error); process.exitCode = 1 })
 }

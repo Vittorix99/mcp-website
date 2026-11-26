@@ -30,6 +30,100 @@ test('ordinary staging selects HTTP only while production keeps the complete cod
   assert.throws(() => releaseProfile(cli,{environment:'unknown'},endpoints))
 })
 
+test('WIF probe uses only Firebase reads and permission tests under the pinned CLI', async () => {
+  const {probeReleaseAccess} = require('../../scripts/deployment/firebase.cjs')
+  const accounts = {BUILD_SERVICE_ACCOUNT:'build',RUNTIME_SERVICE_ACCOUNT:'backend',WEB_RUNTIME_SERVICE_ACCOUNT:'web'}
+  const calls = []
+  const probeManifest = {...manifest,identities:accounts}
+  const cli = name => {
+    if (name === './lib/requireAuth.js') return {requireAuth:async options => {
+      calls.push('auth');assert.equal(options.project,manifest.project)
+    }}
+    if (name === './lib/hosting/api.js') return {listSites:async project => {
+      calls.push('hosting-read');return [{name:`projects/${project}/sites/${project}`}]
+    }}
+    if (name === './lib/gcp/iam.js') return {
+      testIamPermissions:async (project,permissions) => {
+        calls.push('project-permissions')
+        assert.ok(permissions.includes('run.services.update'))
+        assert.ok(permissions.includes('firebasehosting.sites.update'))
+        return {passed:true}
+      },
+      testResourceIamPermissions:async (origin,version,resource,permissions) => {
+        calls.push(resource)
+        assert.equal(origin,'https://iam.googleapis.com')
+        assert.equal(version,'v1')
+        assert.deepEqual(permissions,['iam.serviceAccounts.actAs'])
+        return {passed:true}
+      },
+    }
+    throw new Error('Probe requested a module outside the read-only allowlist')
+  }
+  assert.deepEqual(await probeReleaseAccess(cli,probeManifest), {mode:'read-only',firebase_auth:true,
+    hosting_read:true,project_permissions:true,account_actas:true})
+  assert.deepEqual(calls,['auth','hosting-read','project-permissions',...Object.values(accounts).map(
+    a => `projects/${manifest.project}/serviceAccounts/${a}`)])
+  const denied = name => name === './lib/gcp/iam.js'
+    ? {testIamPermissions:async () => ({passed:false,missing:['run.services.update','PRIVATE_SENTINEL']})} : cli(name)
+  const saved = console.error
+  const output = []
+  console.error = line => output.push(line)
+  try {
+    await assert.rejects(probeReleaseAccess(denied,probeManifest),/permissions/)
+  } finally {console.error=saved}
+  assert.ok(output.includes('RELEASE_MISSING_PERMISSION=run.services.update'))
+  assert.ok(!output.join('\n').includes('PRIVATE_SENTINEL'))
+})
+
+test('entry failure diagnostics expose nested status and safe type without SDK messages', () => {
+  const {reportEntryFailure} = require('../../scripts/deployment/firebase.cjs')
+  const saved = console.error
+  const output = []
+  console.error = line => output.push(line)
+  try {
+    reportEntryFailure({status:500,message:'PRIVATE_SENTINEL',original:{status:403,message:'PRIVATE_SENTINEL'}})
+  } finally {console.error=saved}
+  assert.ok(output.includes('RELEASE_SDK_STATUS=403'))
+  assert.ok(!output.includes('RELEASE_SDK_STATUS=500'))
+  assert.ok(!output.join('\n').includes('PRIVATE_SENTINEL'))
+})
+
+test('pinned CLI asynchronous failures reach the sanitizer and preserve original error handling', {timeout:2000}, async () => {
+  const {createRequire} = require('node:module')
+  const cli = createRequire(require.resolve('firebase-tools/package.json'))
+  const {Command} = cli('./lib/command.js')
+  const {Command:Program} = cli('commander')
+  const track = cli('./lib/track.js')
+  const {installFailureReporter} = require('../../scripts/deployment/firebase.cjs')
+  const error = Object.assign(new Error('PRIVATE_SENTINEL'),{status:403})
+  const output = []
+  const saved = {track:track.trackGA4,stderr:console.error}
+  let resolveDone
+  const done = new Promise(resolve => {resolveDone=resolve})
+  let handled
+  const client = {cli:new Program(),errorOut:received => {handled=received;resolveDone()}}
+  track.trackGA4 = async () => undefined
+  console.error = line => output.push(line)
+  const restore = installFailureReporter(name => {
+    assert.equal(name,'./lib/index.js')
+    return client
+  })
+  try {
+    const command = new Command('synthetic-diagnostic')
+    command.runner = () => async () => {throw error}
+    command.register(client)
+    client.cli.parse(['node','synthetic','synthetic-diagnostic'])
+    await done
+    assert.equal(handled,error)
+    assert.ok(output.includes('RELEASE_SDK_STATUS=403'))
+    assert.ok(!output.join('\n').includes('PRIVATE_SENTINEL'))
+  } finally {
+    restore()
+    console.error=saved.stderr
+    track.trackGA4=saved.track
+  }
+})
+
 test('WIF accepts exact external account audience and impersonation only',()=>{
   validateFederation(credential, manifest)
   for (const change of [{type:'service_account',private_key:'SENTINEL'}, {audience:'wrong'},

@@ -157,7 +157,7 @@ i flag di consegna disabilitati nei dati non escludono ogni effetto dei trigger.
 
 1. Merge del loader sintetico, correzione del gate e commento nel sorgente sito:
    il backend deve avere la stessa identità della migrazione, il sito deve cambiare.
-2. Con CI verde, avvio manuale `deploy`, approvazione Environment `staging`:
+2. Con CI verde e consenso dell'owner, avvio manuale `deploy` nell'Environment `staging` vincolato a `main`:
    piano solo sito, snapshot conservato, manifest con backend escluso, smoke riuscito.
 3. Secondo merge con sola modifica minima al backend, poi rilascio manuale:
    piano solo backend, sito escluso, snapshot e smoke riusciti; raccogliere evidenze E3.
@@ -175,3 +175,31 @@ del sorgente e le 130 HTTP previste su staging. Upload snapshot, deploy e produz
 health live ancora sulla migrazione `817af53`. Rimossi entrambi i flag temporanei
 (`ENABLE_STAGING_DEPLOY`, `STAGING_RELEASE_PROOF_APPROVED`); baseline ancora falsa.
 La correzione del profilo deve superare test, review e CI prima del nuovo tentativo.
+
+### Troubleshooting del secondo tentativo
+
+PR #29 unita in `a9f5d14`; run `45829126698` del 26/11/2026:
+- CI riuscita e piano solo Hosting; snapshot riuscito e artifact `rollback-staging` conservato.
+- Comando Hosting fallito; rollback automatico segnalato incompleto. Nessuna nuova build cloud osservata.
+- Lettura indipendente successiva: 131 funzioni ACTIVE; traffico di tutti i 131 servizi, versione Hosting
+  e identità di sito/backend coincidono con lo snapshot `817af53`. Questo non certifica il rollback.
+- Flag temporanei rimossi, baseline falsa; nessun retry o ampliamento IAM autorizzato dal solo errore.
+
+La causa storica dei due fallimenti resta **non identificata**: il wrapper scartava codice di uscita,
+stdout/stderr, e il gestore annidato nascondeva anche il motivo del rollback. Gli audit filtrati non
+hanno restituito errori utilizzabili. Snapshot/topologia e sintassi `gcloud` verificati offline;
+i grant IAM statici necessari risultano presenti, ma non provano l'esito di una scrittura.
+La sorgente [dell'azione auth fissata](https://github.com/google-github-actions/auth/blob/7c6bc770dae815cd3e89ee6cdf493a5fab2cc093/src/client/workload_identity_federation.ts#L175-L214)
+usa un URL per ottenere il subject token: la sola durata del job non dimostra credenziali scadute.
+
+Le diagnostiche conservano operazione approvata, exit code, durata, fase, categoria e stato SDK
+numerico; non stampano argomenti, stdout/stderr grezzi, messaggi SDK, URL autenticati o credenziali.
+Errori deploy e rollback restano distinti. Il gestore viene collegato anche all'`errorOut` reale
+di firebase-tools 14.26.0, che intercetta internamente gli errori asincroni prima del catch esterno.
+Lo stato SDK 500 può essere un default del CLI, non una risposta HTTP osservata.
+
+**Prossima prova:** dopo CI e merge della diagnostica, avvio manuale `operation=verify` su `main`,
+senza abilitare flag di deploy. Usa la stessa WIF e il CLI fissato per autenticazione, lettura del sito
+Hosting, `testIamPermissions` sul progetto e `actAs` sui tre account dedicati. Non esegue build,
+deploy, aggiornamenti del traffico, pubblicazioni Hosting o accessi ai valori dei segreti.
+Un esito positivo restringe l'indagine, ma non dimostra ancora che deploy o rollback funzionino.

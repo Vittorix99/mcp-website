@@ -29,9 +29,50 @@ TOPOLOGY_PATHS = ['firebase.json', 'mcp-backend/functions/triggers',
     'mcp-backend/functions/api/decorators', 'mcp-backend/functions/config/function_secrets.py']
 
 
+class ValidationFailure(ValueError):
+    """Only validation labels owned by this module may be shown in diagnostics."""
+    def __init__(self, field):
+        self.field = field
+        super().__init__(f'Release validation failed: {field}')
+
+
+class CommandFailure(ValueError):
+    def __init__(self, metadata):
+        self.metadata = metadata
+        super().__init__('Release child command failed: ' + json.dumps(metadata, sort_keys=True))
+
+
+def failure_metadata(error):
+    if isinstance(error, CommandFailure):
+        return error.metadata
+    if isinstance(error, ValidationFailure):
+        return {'category': 'validation', 'validation': error.field}
+    if isinstance(error, HTTPError):
+        return {'category': 'http', 'http_status': error.code}
+    public_failures = {
+        'Release failed and rollback is incomplete: owner intervention required.': 'rollback-incomplete',
+        'Release failed; previous release restored and verified.': 'deployment-failed-restored',
+    }
+    if type(error) is ValueError and str(error) in public_failures:
+        return {'category': public_failures[str(error)]}
+    kind = type(error).__name__
+    return {'category': 'unexpected', 'error_type': kind if kind in {
+        'ValueError', 'RuntimeError', 'TypeError', 'KeyError', 'JSONDecodeError',
+        'OSError', 'FileNotFoundError', 'TimeoutError'} else 'unknown'}
+
+
+def report_failure(stage, error):
+    print(json.dumps({'event': 'release_failure', 'stage': stage, **failure_metadata(error)},
+        sort_keys=True), file=sys.stderr, flush=True)
+
+
+def progress(stage, **counts):
+    print(json.dumps({'event': 'release_progress', 'stage': stage, **counts}, sort_keys=True), flush=True)
+
+
 def require(condition, field):
     if not condition:
-        raise ValueError(f'Release validation failed: {field}')
+        raise ValidationFailure(field)
 
 
 def public_value(env, key):
@@ -210,9 +251,53 @@ def validate_snapshot(snapshot, manifest):
 
 
 def command(args, *, env=None, cwd=ROOT):
+    started = time.monotonic()
     result = subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True)
     # Do not echo CLI stdout/stderr: SDK diagnostics can include environment or credentials.
-    require(result.returncode == 0, f'{Path(args[0]).name} command (diagnostics withheld)')
+    if result.returncode != 0:
+        name = Path(args[0]).name
+        tool = name if name in {'gcloud', 'gh', 'node', 'git'} else 'child'
+        if re.fullmatch(r'python(?:[0-9.]+)?', name):
+            tool = 'python'
+        operation = tool
+        prefixes = {
+            'gcloud': [('run', 'services', 'update-traffic'), ('run', 'services', 'describe'),
+                ('run', 'revisions', 'describe'), ('functions', 'list'), ('secrets', 'versions', 'describe'),
+                ('secrets', 'get-iam-policy'), ('projects', 'describe'), ('auth', 'print-access-token')],
+            'gh': [('api',), ('run', 'download')],
+            'git': [('rev-parse',), ('merge-base',), ('diff',)],
+        }
+        for prefix in prefixes.get(tool, []):
+            if tuple(args[1:1 + len(prefix)]) == prefix:
+                operation += '.' + '.'.join(prefix)
+                break
+        if tool == 'node' and len(args) == 3 and args[1] == str(ROOT / 'scripts/deployment/firebase.cjs') and args[2] in {'hosting', 'backend', 'probe', 'validate'}:
+            operation = 'firebase.' + args[2]
+        output = (result.stdout + '\n' + result.stderr).lower()
+        category = next((category for category, markers in [
+            ('permission-denied', ('permission_denied', 'permission denied', 'missing permissions')),
+            ('authentication', ('unauthenticated', 'failed to authenticate', 'invalid_grant', 'expired token')),
+            ('build', ('release build failed', 'build failed')),
+            ('network', ('enotfound', 'econnreset', 'etimedout', 'timed out')),
+        ] if any(marker in output for marker in markers)), 'unclassified')
+        metadata = {'operation': operation, 'exit_code': result.returncode, 'category': category,
+            'elapsed_seconds': round(time.monotonic() - started, 3)}
+        status = re.findall(r'RELEASE_SDK_STATUS=(4[0-9]{2}|5[0-9]{2})', result.stderr)
+        if status:
+            metadata['sdk_status'] = int(status[-1])
+        kinds = re.findall(r'RELEASE_ERROR_TYPE=(Error|FirebaseError|TypeError|SyntaxError|RangeError|unknown)\b', result.stderr)
+        if kinds:
+            metadata['error_type'] = kinds[-1]
+        phases = re.findall(r'RELEASE_PROBE_PHASE=(firebase-auth|hosting-read|project-permissions|account-actas)', result.stderr)
+        if phases:
+            metadata['probe_phase'] = phases[-1]
+        roles = re.findall(r'RELEASE_ACCOUNT_ROLE=(BUILD_SERVICE_ACCOUNT|RUNTIME_SERVICE_ACCOUNT|WEB_RUNTIME_SERVICE_ACCOUNT)\b', result.stderr)
+        if roles:
+            metadata['account_role'] = roles[-1]
+        missing = re.findall(r'RELEASE_MISSING_PERMISSION=(run\.services\.(?:get|update)|firebasehosting\.sites\.(?:get|update)|cloudfunctions\.functions\.(?:get|update)|iam\.serviceAccounts\.actAs)\b', result.stderr)
+        if missing:
+            metadata['missing_permissions'] = sorted(set(missing))
+        raise CommandFailure(metadata)
     return result.stdout
 
 
@@ -306,6 +391,7 @@ def expected_functions(manifest, env):
 
 
 def snapshot_release(manifest, env):
+    progress('snapshot.inventory')
     live = read_live(manifest)
     backend, site = live['backend'], live['site']
     # The previous site commit is the topology baseline: every release leaves both components
@@ -324,10 +410,12 @@ def snapshot_release(manifest, env):
         'function inventory changed: controlled baseline required before automatic release')
     require(any(item.get('labels', {}).get('firebase-functions-codebase') ==
         'firebase-frameworks-' + manifest['project'] for item in records), 'SSR rollback target')
+    progress('snapshot.revisions')
     verify_function_releases(old)
     smoke(old, site_sha=old['sha'])
     services = {}
     references = set()
+    progress('snapshot.capture', total=len(records))
     for item in records:
         service = item.get('serviceConfig', {}).get('service', '').rsplit('/', 1)[-1]
         require(re.fullmatch(NAME, service), 'managed Cloud Run service')
@@ -346,6 +434,7 @@ def snapshot_release(manifest, env):
 
 
 def rollback(snapshot, manifest):
+    progress('rollback.validate')
     validate_snapshot(snapshot, manifest)
     verify_topology(snapshot['sha'])
     verify_secret_versions(snapshot, manifest)
@@ -362,13 +451,19 @@ def rollback(snapshot, manifest):
             references.update(verify_revision_secrets(manifest, revision))
     require(references == {(item['secret'],item['version']) for item in snapshot['secrets']},
         'snapshot must describe secrets of every saved active revision')
-    for service, state in snapshot['services'].items():
+    progress('rollback.traffic', total=len(snapshot['services']))
+    for index, (service, state) in enumerate(snapshot['services'].items(), 1):
         target = ','.join(f'{revision}={percent}' for revision, percent in sorted(state['traffic'].items()))
         gcloud(manifest, 'run', 'services', 'update-traffic', service, '--region', REGION, '--to-revisions', target)
+        if index % 25 == 0 or index == len(snapshot['services']):
+            progress('rollback.traffic', completed=index, total=len(snapshot['services']))
+    progress('rollback.hosting')
     hosting(manifest, '/releases', version=snapshot['hosting_version'])
+    progress('rollback.readback')
     for service, state in snapshot['services'].items():
         require(service_state(manifest, service) == state, 'restored revision traffic')
     smoke({**manifest, 'sha':snapshot['sha'], 'components':snapshot['components']}, site_sha=snapshot['sha'])
+    progress('rollback.verified')
 
 
 def verify_topology(previous_sha):
@@ -620,6 +715,11 @@ def main():
     cloud_preflight(manifest)
     if args.operation == 'verify':
         # Identity and read access only: no snapshot, deployment, traffic or data change.
+        result = command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'probe'], env=env)
+        probe = json.loads(result.strip().splitlines()[-1])
+        require(probe == dict(mode='read-only', firebase_auth=True, hosting_read=True,
+            project_permissions=True, account_actas=True), 'read-only probe result')
+        print(json.dumps(probe, sort_keys=True), flush=True)
         print('Federated access verified: project, bucket, APIs, service identities and provider secret versions readable; '
               f'{len(cloud_functions(manifest))} functions listed; nothing deployed or changed.')
         return
@@ -648,6 +748,7 @@ def main():
     # Fail closed: without a readable live identity there is no basis to skip or deploy anything.
     changed = plan_release(manifest, read_live(manifest))
     if not changed['backend']:
+        progress('deploy.secret-version-check')
         stale = stale_secret_versions(manifest)
         if stale:
             # Names only; never the values or versions.
@@ -655,11 +756,13 @@ def main():
             changed['backend'] = True
     try:
         targets = execute_release(manifest, env, changed)
-    except Exception:
+    except Exception as deployment_error:
+        report_failure('deploy', deployment_error)
         print('Release failed; restoring the captured revisions and Hosting version.', flush=True)
         try:
             rollback(previous, manifest)
-        except Exception:
+        except Exception as rollback_error:
+            report_failure('rollback', rollback_error)
             raise ValueError('Release failed and rollback is incomplete: owner intervention required.') from None
         raise ValueError('Release failed; previous release restored and verified.') from None
     write_release_manifest(manifest, changed, targets)
@@ -671,5 +774,6 @@ if __name__ == '__main__':
         main()
     except Exception as error:
         # No arbitrary SDK/API errors, URLs with auth parameters or credential values in logs.
-        print(str(error) if isinstance(error, ValueError) else 'Release operation failed; diagnostics withheld.', file=sys.stderr)
+        report_failure('operation', error)
+        print('Release operation failed; arbitrary diagnostics withheld.', file=sys.stderr)
         sys.exit(1)
