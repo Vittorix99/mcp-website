@@ -606,6 +606,45 @@ def test_read_only_preflight_skips_only_the_mutation_approvals(monkeypatch):
         release.preflight(manifest, read_only=True)
 
 
+@pytest.mark.parametrize(('environment', 'event', 'proof', 'payment', 'allowed'), [
+    ('staging', 'workflow_dispatch', 'true', 'true', True),
+    ('staging', 'workflow_dispatch', '', 'true', False),
+    ('staging', 'workflow_dispatch', 'false', 'true', False),
+    ('staging', 'workflow_dispatch', 'TRUE', 'true', False),
+    ('staging', 'push', 'true', 'true', False),
+    ('production', 'workflow_dispatch', 'true', 'true', False),
+    ('staging', 'workflow_dispatch', 'true', 'false', False),
+])
+def test_unproven_baseline_allows_only_explicit_manual_staging_proof(
+        monkeypatch, environment, event, proof, payment, allowed):
+    manifest = release.prepare(environment, inputs(environment))
+    _preflight_fakes(monkeypatch, manifest)
+    monkeypatch.setenv('ROLLBACK_BASELINE_VERIFIED', 'false')
+    monkeypatch.setenv('STAGING_RELEASE_PROOF_APPROVED', proof)
+    monkeypatch.setenv('GITHUB_EVENT_NAME', event)
+    monkeypatch.setenv('PAYMENT_ROLLOUT_APPROVED', payment)
+    if allowed:
+        release.preflight(manifest)
+        # Proof consent must not disable the trusted checkout check.
+        monkeypatch.setattr(release, 'command', lambda *a, **kw: 'b' * 40 + '\n')
+        with pytest.raises(ValueError, match='checkout SHA'):
+            release.preflight(manifest)
+    else:
+        with pytest.raises(ValueError):
+            release.preflight(manifest)
+
+
+@pytest.mark.parametrize('environment', ['staging', 'production'])
+def test_verified_baseline_retains_ordinary_release_path(monkeypatch, environment):
+    manifest = release.prepare(environment, inputs(environment))
+    _preflight_fakes(monkeypatch, manifest)
+    monkeypatch.setenv('ROLLBACK_BASELINE_VERIFIED', 'true')
+    monkeypatch.setenv('PAYMENT_ROLLOUT_APPROVED', 'true')
+    monkeypatch.delenv('STAGING_RELEASE_PROOF_APPROVED', raising=False)
+    monkeypatch.setenv('GITHUB_EVENT_NAME', 'push')
+    release.preflight(manifest)
+
+
 @pytest.mark.parametrize('operation', ['deploy', 'snapshot', 'rollback'])
 def test_read_only_flag_is_rejected_for_mutating_operations(monkeypatch, operation):
     monkeypatch.setattr('sys.argv', ['release.py', operation, '--environment', 'staging', '--read-only'])

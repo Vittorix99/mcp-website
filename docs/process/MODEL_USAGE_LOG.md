@@ -651,3 +651,11 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Prima review del codice: 2 P1 e 3 P2 accettati dal coordinatore; corretti stop globale su HTTP/stream e code Hosting, perimetro della singola versione/pubblicazione, configurazione generata fissata, contratto health esatto e header quota escluso dagli upload firmati.
 - Coordinatore e revisore: 54 test offline Node20 passati, inclusi vincoli sul tag della sola nuova revisione SSR; sintassi Node e compilazione Python3.11 passate. Riesame concluso: nessun P1/P2 residuo; ulteriore controllo di provenienza prima delle scritture IAM aggiunto con regressione zero-fetch. Helper e driver congelati tramite SHA256 in ricevuta privata; nessuna scrittura di recupero ancora eseguita.
 - Conteggio invariato: 1 incarico Sol di review per il blocco recupero, 0 Luna. Token/costi non disponibili.
+
+
+## 2026-11-26 — Selective staging releases and rollback proof
+
+- Dispatch: `selective_release_review`; `gpt-6.1-sol`, reasoning high, fresh context, read-only review of the combined loader, manual staging proof gate, site identity change and operational sequence. No cloud calls or mutations authorized to reviewer.
+- Result: no actionable P1/P2; coordinator accepted. Reviewer identified the loader topology assumption; docstring and runbook now explicitly limit it to the already-executed one-time import. No loader rerun is authorized in this block.
+- Verification: RED observed for manual staging proof with baseline false. Coordinator: 173 scripts tests and 78 website config tests PASS with Python3.11/Node22; 13 focused gate checks also PASS under python -O. Reviewer independently: 173 scripts tests PASS; backend source unchanged, diff check clean. Initial broader failures were missing dependencies/default Node25, resolved with pinned dependencies and Node22. No build or cloud proof performed; full CI belongs to owner.
+- Dispatch count: 1 Sol review task, 0 Luna tasks (tiny edits handled inline). Host token/cost telemetry unavailable.

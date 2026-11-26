@@ -2,8 +2,9 @@
 """Load a reviewed synthetic export into the STAGING Firestore only (owner-operated, explicit --apply).
 
 Refuses any other project, an emulator host, a non-private personal credential, and a database that already
-holds documents outside the export. Staging has no Firestore triggers or schedulers deployed, so writes cannot
-send mail or call providers; the export itself must not request delivery (checked by read_export).
+holds documents outside the export. One-time pre-trigger import: the owner must verify that staging has no
+Firestore triggers or schedulers before --apply; this script does not inspect deployed topology. Export
+delivery flags are checked by read_export but do not prevent every possible trigger side effect.
 """
 import argparse
 import json

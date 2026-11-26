@@ -576,7 +576,13 @@ def preflight(manifest, *, read_only=False):
         # Approvals gate mutations only; a read-only access proof must work before they are granted.
         return
     require(os.environ.get('PAYMENT_ROLLOUT_APPROVED') == 'true', 'payment worker compatibility approval')
-    require(os.environ.get('ROLLBACK_BASELINE_VERIFIED') == 'true', 'staging rollback proof and baseline approval')
+    # The first real rollback cannot already have a verified baseline. Permit only
+    # owner-approved manual staging proofs; production always needs the baseline.
+    staging_proof = (manifest['environment'] == 'staging' and
+        os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and
+        os.environ.get('STAGING_RELEASE_PROOF_APPROVED') == 'true')
+    require(os.environ.get('ROLLBACK_BASELINE_VERIFIED') == 'true' or staging_proof,
+        'staging rollback proof and baseline approval')
 
 
 def main():

@@ -124,3 +124,34 @@ SHA e digest. Resta come artifact `rollback-<ambiente>` per 30 giorni.
 
 **Stato della prova: NON ancora provato su un ambiente reale.** Esistono solo test con simulazioni.
 `ROLLBACK_BASELINE_VERIFIED=false` significa esattamente questo; diventa vero solo dopo un rollback reale su staging.
+
+### Prima prova reale su staging
+
+Per evitare il requisito circolare di una baseline già provata prima del primo rollback,
+il consenso temporaneo `STAGING_RELEASE_PROOF_APPROVED=true` nell'Environment `staging`
+consente le prove **solo con avvio manuale** (`workflow_dispatch`) e solo su staging.
+Non certifica la baseline, non sostituisce `PAYMENT_ROLLOUT_APPROVED` e non disabilita
+reviewer, vincolo `main`, CI, WIF, inventario, snapshot, controlli dei segreti o smoke.
+Produzione richiede sempre `ROLLBACK_BASELINE_VERIFIED=true` nel proprio Environment.
+Il consenso temporaneo e `ENABLE_STAGING_DEPLOY` richiedono autorizzazione dell'owner;
+`ENABLE_PRODUCTION_DEPLOY` resta disabilitato durante queste prove.
+
+Sequenza del blocco approvato il 26/11/2026:
+Il dataset ridotto è già caricato: il loader entra nella PR come strumento della precedente
+importazione una tantum, senza rieseguirlo durante queste prove. Non controlla la topologia cloud:
+un futuro riuso richiede nuova verifica dell'assenza di trigger/scheduler e nuova approvazione;
+i flag di consegna disabilitati nei dati non escludono ogni effetto dei trigger.
+
+1. Merge del loader sintetico, correzione del gate e commento nel sorgente sito:
+   il backend deve avere la stessa identità della migrazione, il sito deve cambiare.
+2. Con CI verde, avvio manuale `deploy`, approvazione Environment `staging`:
+   piano solo sito, snapshot conservato, manifest con backend escluso, smoke riuscito.
+3. Secondo merge con sola modifica minima al backend, poi rilascio manuale:
+   piano solo backend, sito escluso, snapshot e smoke riusciti; raccogliere evidenze E3.
+4. Avvio manuale `rollback`, ambiente `staging`, ID della run del secondo rilascio:
+   ripristinare lo stato precedente al secondo rilascio e verificare traffico, Hosting e identità.
+5. Solo dopo esito verificato, owner imposta la baseline a `true` e rimuove il consenso temporaneo.
+
+I due merge sono necessari per avere due stati successivi di `main` con componenti differenti.
+E1/E2 richiedono una prova dedicata approvata: un rilascio senza cambi viene escluso dal
+`plan` e non esercita il salto delle funzioni invariate dentro firebase-tools.
