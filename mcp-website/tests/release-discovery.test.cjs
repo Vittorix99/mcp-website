@@ -13,6 +13,23 @@ const credential = {type:'external_account', audience:'//iam.googleapis.com/' + 
   service_account_impersonation_url:'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/' + manifest.identities.DEPLOY_SERVICE_ACCOUNT + ':generateAccessToken',
   credential_source:{url:'https://example.com/oidc',headers:{Authorization:'EPHEMERAL-SENTINEL'}}}
 
+test('ordinary staging selects HTTP only while production keeps the complete codebase', () => {
+  const {createRequire} = require('node:module')
+  const cli = createRequire(require.resolve('firebase-tools/package.json'))
+  const {releaseProfile} = require('../../scripts/deployment/firebase.cjs')
+  const endpoints = [{id:'get_event',kind:'http'},{id:'on_member',kind:'event'},{id:'cleanup',kind:'schedule'}]
+  assert.deepEqual(releaseProfile(cli,manifest,endpoints), {
+    only:'functions:python_codebase:get_event',
+    guards:{httpUpdatesOnly:true,approvedFunctions:['get_event']},
+  })
+  assert.deepEqual(releaseProfile(cli,{environment:'production'}), {
+    only:'functions:python_codebase',guards:{},
+  })
+  assert.throws(() => releaseProfile(cli,manifest,[{id:'api',kind:'http'},{id:'api-extra',kind:'event'}]))
+  assert.throws(() => releaseProfile(cli,manifest,[]))
+  assert.throws(() => releaseProfile(cli,{environment:'unknown'},endpoints))
+})
+
 test('WIF accepts exact external account audience and impersonation only',()=>{
   validateFederation(credential, manifest)
   for (const change of [{type:'service_account',private_key:'SENTINEL'}, {audience:'wrong'},

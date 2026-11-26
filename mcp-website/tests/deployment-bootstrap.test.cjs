@@ -68,7 +68,7 @@ test('the ordinary release shares the same deploy concurrency cap as the bootstr
   assert.equal(ordinary.limitDeployConcurrency, limitDeployConcurrency)
   assert.equal(ordinary.DEPLOY_CONCURRENCY, DEPLOY_CONCURRENCY)
   const source = require('node:fs').readFileSync(require.resolve('../../scripts/deployment/firebase.cjs'), 'utf8')
-  assert.match(source, /installAdapters\(root,cliRequire,manifest,credentialPath\)\n\s+limitDeployConcurrency\(cliRequire\)/)
+  assert.match(source, /installAdapters\(root,cliRequire,manifest,credentialPath,profile.guards\)\n\s+limitDeployConcurrency\(cliRequire\)/)
 })
 
 test('migration updates only approved existing HTTP functions and never creates or deletes', async () => {

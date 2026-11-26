@@ -63,6 +63,19 @@ OPERAZIONI MANUALI (mai automatiche)
   la release si ferma (nessun deploy "alla cieca"). Solo documentazione, test o tooling: non si deploya nulla.
 - **Manifest:** `release-<ambiente>.json` (commit, identità, cosa è stato deployato e cosa saltato), artifact per 90 giorni.
 
+### Profilo di staging: HTTP e SSR esistenti
+
+Staging mantiene il perimetro del bootstrap e della migrazione: 130 funzioni HTTP Python e una SSR;
+gli 8 trigger e i 3 scheduler presenti nel sorgente non vengono distribuiti.
+Lo snapshot confronta l'inventario live con la discovery SDK offline filtrata alle HTTP,
+prima dei controlli individuali sulle revisioni. Funzioni mancanti o aggiuntive fermano il rilascio.
+Il deploy backend ordinario OIDC usa gli stessi selettori HTTP del bootstrap, verificati con
+firebase-tools 14.26.0 anche contro collisioni di prefisso. Il guard consente solo aggiornamenti
+alle HTTP approvate e alla SSR esistente; rifiuta creazioni, cancellazioni, endpoint non HTTP,
+scritture IAM dei segreti e modifiche alla retention. Non vengono abilitate nuove funzioni.
+Produzione conserva la discovery completa e il selettore dell'intera codebase, con i propri gate.
+Attivare trigger o scheduler su staging richiede una baseline controllata separatamente approvata.
+
 ### Limiti noti (dalla revisione indipendente)
 
 - **Segreti ruotati:** le funzioni usano una versione numerica del segreto fissata al deploy e l'identità del backend
@@ -155,3 +168,10 @@ i flag di consegna disabilitati nei dati non escludono ogni effetto dei trigger.
 I due merge sono necessari per avere due stati successivi di `main` con componenti differenti.
 E1/E2 richiedono una prova dedicata approvata: un rilascio senza cambi viene escluso dal
 `plan` e non esercita il salto delle funzioni invariate dentro firebase-tools.
+
+**Tentativo iniziale del 26/11/2026:** PR #28 unita in `134bb5c`; run `45780635762`
+con CI riuscita e piano solo sito. Snapshot fermato dal confronto errato fra le 141 funzioni
+del sorgente e le 130 HTTP previste su staging. Upload snapshot, deploy e produzione saltati;
+health live ancora sulla migrazione `817af53`. Rimossi entrambi i flag temporanei
+(`ENABLE_STAGING_DEPLOY`, `STAGING_RELEASE_PROOF_APPROVED`); baseline ancora falsa.
+La correzione del profilo deve superare test, review e CI prima del nuovo tentativo.

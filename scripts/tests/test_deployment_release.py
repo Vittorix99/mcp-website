@@ -48,6 +48,16 @@ def test_public_configuration_is_explicit_and_stamped(environment):
     assert release.prepare(environment, dict(reversed(list(inputs(environment).items())))) == manifest
 
 
+@pytest.mark.parametrize(('environment', 'count'), [('staging', 130), ('production', 141)])
+def test_real_sdk_inventory_matches_the_environment_release_profile(environment, count):
+    manifest = release.prepare(environment, inputs(environment))
+    names = release.expected_functions(manifest, {})
+    assert len(names) == count
+    assert 'deployment_health' in names
+    assert ('on_membership_created' in names) == (environment == 'production')
+    assert ('rebuild_analytics_nightly' in names) == (environment == 'production')
+
+
 @pytest.mark.parametrize(('key', 'value'), [
     ('GITHUB_EVENT_NAME', 'pull_request'), ('GITHUB_EVENT_NAME', 'workflow_run'),
     ('GITHUB_REF', 'refs/heads/other'), ('GITHUB_REPOSITORY', 'attacker/mcp-website'),
@@ -394,6 +404,22 @@ def test_snapshot_collects_secret_versions_of_saved_revisions_after_rollback(mon
     monkeypatch.setattr(release, 'verify_secret_versions', lambda snapshot, _:checked.extend(snapshot['secrets']))
     result = release.snapshot_release(manifest, {})
     assert result['secrets'] == checked == [{'secret':'PAYPAL_CLIENT_SECRET','version':'7'}]
+
+
+@pytest.mark.parametrize('names', [[], ['deployment_health', 'unapproved_event']])
+def test_staging_snapshot_rejects_inventory_drift_before_revision_checks(monkeypatch, names):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'read_live', lambda _: healths(manifest))
+    monkeypatch.setattr(release, 'verify_topology', lambda _: None)
+    monkeypatch.setattr(release, 'cloud_functions', lambda _: [
+        dict(name=name, labels={'firebase-functions-codebase':'python_codebase'}) for name in names])
+    monkeypatch.setattr(release, 'expected_functions', lambda *a: ['deployment_health'])
+    revision_checks = []
+    monkeypatch.setattr(release, 'verify_function_releases', lambda _: revision_checks.append('checked'))
+    monkeypatch.setattr(release, 'smoke', lambda *a, **kw: None)
+    with pytest.raises(ValueError, match='function inventory changed'):
+        release.snapshot_release(manifest, {})
+    assert revision_checks == []
 
 
 def test_active_revision_alias_is_resolved_to_same_project_numeric_secret(monkeypatch):
