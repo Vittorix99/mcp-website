@@ -76,6 +76,12 @@ scritture IAM dei segreti e modifiche alla retention. Non vengono abilitate nuov
 Produzione conserva la discovery completa e il selettore dell'intera codebase, con i propri gate.
 Attivare trigger o scheduler su staging richiede una baseline controllata separatamente approvata.
 
+Il controllo iniziale `actAs` del CLI fissato viene indirizzato agli account dedicati
+build/runtime/SSR del manifest, con verifica del progetto e risultato strettamente positivo.
+Il controllo originale richiedeva sempre l'account Appspot predefinito anche con runtime
+personalizzati: non si concedono permessi su quell'account inutilizzato per superarlo.
+Dinieghi, risposte mancanti e errori IAM fermano il rilascio; i divieti di scrittura IAM restano attivi.
+
 ### Limiti noti (dalla revisione indipendente)
 
 - **Segreti ruotati:** le funzioni usano una versione numerica del segreto fissata al deploy e l'identità del backend
@@ -203,3 +209,37 @@ senza abilitare flag di deploy. Usa la stessa WIF e il CLI fissato per autentica
 Hosting, `testIamPermissions` sul progetto e `actAs` sui tre account dedicati. Non esegue build,
 deploy, aggiornamenti del traffico, pubblicazioni Hosting o accessi ai valori dei segreti.
 Un esito positivo restringe l'indagine, ma non dimostra ancora che deploy o rollback funzionino.
+
+**Sonda eseguita:** PR #30 unita in `9a86753`; run `45872874707` riuscita.
+Autenticazione Firebase sotto WIF, lettura Hosting, permessi progetto e `actAs` sui tre account
+dedicati verificati, 131 funzioni elencate; staging/deploy, rollback e produzione saltati.
+Anche la build locale release con configurazione pubblica staging e senza credenziali cloud
+è riuscita. La sonda conferma l'autenticazione e i permessi controllati; non copriva ancora
+`apikeys.keys.getKeyString`, aggiunto dopo l'evidenza descritta sotto.
+Il controllo Appspot errato è un difetto distinto del percorso backend esplicito,
+riprodotto offline con il vero hook del CLI; non spiega il precedente errore Hosting.
+
+### Evidenza strumentata e riparazione Hosting
+
+Run `45875197319` su `9a86753`: CI e snapshot riusciti; deploy `firebase.hosting`
+fallito con stato SDK 403. Il rollback ha completato tutti i 131 aggiornamenti traffico,
+poi la pubblicazione Hosting ha restituito HTTP 400. Il confronto indipendente successivo
+conferma traffico e versione Hosting uguali allo snapshot; flag temporanei rimossi, baseline falsa.
+
+Il CLI fissato evita la pubblicazione quando la versione è già attiva; il nostro rollback
+ora effettua lo stesso confronto e verifica comunque la versione finale prima dello smoke.
+Un sito disabilitato richiede la pubblicazione; un errore POST 400 non viene mai trattato come successo.
+La duplicazione della versione è la spiegazione più supportata del precedente 400, non una lettura
+del suo corpo d'errore ormai perduto: [issue primaria Firebase #10730](https://github.com/firebase/firebase-tools/issues/10730).
+
+Per il 403, la [documentazione IAM Firebase](https://firebase.google.com/docs/projects/iam/roles-predefined-product#hosting)
+richiede `roles/serviceusage.apiKeysViewer` oltre a Hosting Admin per il CLI. Nei grant di progetto
+del deployer tale ruolo e il permesso `apikeys.keys.getKeyString` risultano assenti.
+La sonda estesa verifica quel permesso sotto WIF prima di leggere le configurazioni SDK web/admin,
+senza stampare i relativi valori. Questo distingue un requisito IAM mancante da un errore di build.
+Un eventuale grant al solo deployer nel solo progetto staging richiede il consenso dell'owner:
+non si aggiungono automaticamente ruoli o chiavi per far passare la prova.
+
+La PR di riparazione include questi controlli e il precheck account dedicati prima del primo
+site-only riuscito. Le modifiche ai test sito cambiano intenzionalmente `site_tree`; il sorgente
+backend resta invariato. Dopo CI, merge e sonda estesa si rivaluta il rilascio site-only.

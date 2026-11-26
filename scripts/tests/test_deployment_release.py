@@ -44,6 +44,21 @@ def test_validation_failure_keeps_its_trusted_field():
     assert release.failure_metadata(error.value)['validation'] == 'rollback service inventory'
 
 
+def test_probe_permission_diagnostic_retains_only_known_key_permission(monkeypatch):
+    import subprocess
+    stderr = ('RELEASE_PERMISSION_DENIED\nRELEASE_PROBE_PHASE=project-permissions\n'
+        'RELEASE_MISSING_PERMISSION=apikeys.keys.getKeyString\nRELEASE_MISSING_PERMISSION=PRIVATE_SENTINEL\n')
+    monkeypatch.setattr(release.subprocess, 'run', lambda *a, **kw:
+        subprocess.CompletedProcess(a[0], 1, stdout='PRIVATE_SENTINEL', stderr=stderr))
+    with pytest.raises(release.CommandFailure) as error:
+        release.command(['node',str(ROOT / 'scripts/deployment/firebase.cjs'),'probe'])
+    report = release.failure_metadata(error.value)
+    assert report['operation'] == 'firebase.probe'
+    assert report['probe_phase'] == 'project-permissions'
+    assert report['missing_permissions'] == ['apikeys.keys.getKeyString']
+    assert 'PRIVATE_SENTINEL' not in json.dumps(report)
+
+
 def test_main_reports_both_failures_without_losing_rollback_reason(monkeypatch, tmp_path, capsys):
     manifest = release.prepare('staging', inputs())
     monkeypatch.setattr(release, 'ROOT', tmp_path)
@@ -75,7 +90,8 @@ def test_main_reports_both_failures_without_losing_rollback_reason(monkeypatch, 
 
 def test_verify_routes_only_to_read_only_probe_and_filters_child_stdout(monkeypatch, capsys):
     manifest = release.prepare('staging', inputs())
-    probe = dict(mode='read-only',firebase_auth=True,hosting_read=True,project_permissions=True,account_actas=True)
+    probe = dict(mode='read-only',firebase_auth=True,hosting_read=True,web_config_read=True,
+        admin_config_read=True,project_permissions=True,account_actas=True)
     monkeypatch.setattr('sys.argv', ['release.py','verify','--environment','staging'])
     monkeypatch.setattr(release, 'prepare', lambda *a: manifest)
     checks = []
@@ -326,7 +342,8 @@ def test_rollback_validates_every_revision_before_first_mutation(monkeypatch):
     assert len(checked) == 2
 
 
-def test_rollback_restores_backend_ssr_hosting_then_checks_identity(monkeypatch):
+@pytest.mark.parametrize('hosting_case', ['changed', 'already-active', 'post-fails', 'readback-drift', 'disabled'])
+def test_rollback_restores_backend_ssr_hosting_then_checks_identity(monkeypatch, hosting_case):
     monkeypatch.setattr(release, 'verify_topology', lambda _: None)
     manifest = release.prepare('staging', inputs())
     previous = snapshot(manifest)
@@ -339,14 +356,41 @@ def test_rollback_restores_backend_ssr_hosting_then_checks_identity(monkeypatch)
     monkeypatch.setattr(release, 'verify_revision_secrets', lambda *args: set())
     calls = []
     monkeypatch.setattr(release, 'gcloud', lambda _, *args: calls.append(args))
-    monkeypatch.setattr(release, 'hosting', lambda _, *args, **kwargs: calls.append(('hosting', kwargs['version'])))
+    active = previous['hosting_version'] if hosting_case in {'already-active','disabled'} else f"sites/{manifest['project']}/versions/newer"
+    disabled = hosting_case == 'disabled'
+    def hosting(_, path, *, version=None):
+        nonlocal active, disabled
+        if version is None:
+            return {'releases':[{'type':'SITE_DISABLE' if disabled else 'DEPLOY','version':{'name':active}}]}
+        if hosting_case == 'already-active':
+            pytest.fail('Duplicate active-version publication')
+        calls.append(('hosting', version))
+        if hosting_case == 'post-fails':
+            raise HTTPError('https://public-hosting-api', 400, 'synthetic', {}, None)
+        if hosting_case != 'readback-drift':
+            active = version
+            disabled = False
+        return {}
+    monkeypatch.setattr(release, 'hosting', hosting)
     monkeypatch.setattr(release, 'service_state', lambda _, service: previous['services'][service])
     monkeypatch.setattr(release, 'smoke', lambda old, **kwargs: calls.append(('health', old['sha'])))
+    if hosting_case == 'post-fails':
+        with pytest.raises(HTTPError):
+            release.rollback(previous, manifest)
+        return
+    if hosting_case == 'readback-drift':
+        with pytest.raises(ValueError, match='restored Hosting version'):
+            release.rollback(previous, manifest)
+        assert not any(call[0] == 'health' for call in calls)
+        return
     release.rollback(previous, manifest)
     assert calls[0][:3] == ('run', 'services', 'update-traffic')
     assert calls[1][:3] == ('run', 'services', 'update-traffic')
-    assert calls[2] == ('hosting', previous['hosting_version'])
-    assert calls[3] == ('health', previous['sha'])
+    if hosting_case == 'already-active':
+        assert calls[2] == ('health', previous['sha'])
+    else:
+        assert calls[2] == ('hosting', previous['hosting_version'])
+        assert calls[3] == ('health', previous['sha'])
 
 
 def test_read_only_preflight_checks_metadata_and_per_secret_runtime_access(monkeypatch):

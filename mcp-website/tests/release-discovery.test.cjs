@@ -42,11 +42,20 @@ test('WIF probe uses only Firebase reads and permission tests under the pinned C
     if (name === './lib/hosting/api.js') return {listSites:async project => {
       calls.push('hosting-read');return [{name:`projects/${project}/sites/${project}`}]
     }}
+    if (name === './lib/fetchWebSetup.js') return {fetchWebSetup:async options => {
+      assert.equal(options.project,manifest.project)
+      calls.push('web-config');return {private:'PRIVATE_SENTINEL'}
+    }}
+    if (name === './lib/functionsConfig.js') return {getFirebaseConfig:async options => {
+      assert.equal(options.project,manifest.project)
+      calls.push('admin-config');return {private:'PRIVATE_SENTINEL'}
+    }}
     if (name === './lib/gcp/iam.js') return {
       testIamPermissions:async (project,permissions) => {
         calls.push('project-permissions')
         assert.ok(permissions.includes('run.services.update'))
         assert.ok(permissions.includes('firebasehosting.sites.update'))
+        assert.ok(permissions.includes('apikeys.keys.getKeyString'))
         return {passed:true}
       },
       testResourceIamPermissions:async (origin,version,resource,permissions) => {
@@ -60,8 +69,8 @@ test('WIF probe uses only Firebase reads and permission tests under the pinned C
     throw new Error('Probe requested a module outside the read-only allowlist')
   }
   assert.deepEqual(await probeReleaseAccess(cli,probeManifest), {mode:'read-only',firebase_auth:true,
-    hosting_read:true,project_permissions:true,account_actas:true})
-  assert.deepEqual(calls,['auth','hosting-read','project-permissions',...Object.values(accounts).map(
+    hosting_read:true,web_config_read:true,admin_config_read:true,project_permissions:true,account_actas:true})
+  assert.deepEqual(calls,['auth','hosting-read','project-permissions','web-config','admin-config',...Object.values(accounts).map(
     a => `projects/${manifest.project}/serviceAccounts/${a}`)])
   const denied = name => name === './lib/gcp/iam.js'
     ? {testIamPermissions:async () => ({passed:false,missing:['run.services.update','PRIVATE_SENTINEL']})} : cli(name)

@@ -79,6 +79,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ht
   const functions = cli('./lib/gcp/cloudfunctionsv2.js')
   const resource = cli('./lib/gcp/resourceManager.js')
   const checks = cli('./lib/deploy/functions/checkIam.js')
+  const iam = cli('./lib/gcp/iam.js')
   const backend = cli('./lib/deploy/functions/backend.js')
   const run = cli('./lib/gcp/run.js')
   const proto = cli('./lib/gcp/proto.js')
@@ -88,7 +89,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ht
     createFunction:functions.createFunction,
     cleanupCheck:artifacts.checkCleanupPolicy,cleanupSet:artifacts.setCleanupPolicies,convert:functions.functionFromEndpoint, projectSet:resource.setIamPolicy,
     secretSet:secrets.setIamPolicy,
-    agentCheck:checks.ensureServiceAgentRoles, runSet:run.setIamPolicy,
+    agentCheck:checks.ensureServiceAgentRoles, accountCheck:checks.checkServiceAccountIam, runSet:run.setIamPolicy,
     invokerCreate:run.setInvokerCreate, invokerUpdate:run.setInvokerUpdate}
   if (bootstrap) {
     functions.deleteFunction = async () => { throw new Error('Bootstrap forbids function deletion and destructive recovery') }
@@ -157,6 +158,15 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ht
   }
   resource.setIamPolicy = async () => { throw new Error('Project IAM writes require explicit owner provisioning') }
   run.setIamPolicy = async () => { throw new Error('Service IAM writes require explicit owner provisioning') }
+  // The pinned CLI checks the unused Appspot account even for custom identities.
+  checks.checkServiceAccountIam = async project => {
+    requireCondition(project === manifest.project, 'Unexpected IAM project identity')
+    for (const key of ['BUILD_SERVICE_ACCOUNT','RUNTIME_SERVICE_ACCOUNT','WEB_RUNTIME_SERVICE_ACCOUNT']) {
+      const result = await iam.testResourceIamPermissions('https://iam.googleapis.com','v1',
+        `projects/${project}/serviceAccounts/${manifest.identities[key]}`,['iam.serviceAccounts.actAs'])
+      requireCondition(result?.passed === true, 'Missing permissions on configured service account; owner provisioning required')
+    }
+  }
   checks.ensureServiceAgentRoles = async (project, number, want) => {
     requireCondition(project === manifest.project && /^[0-9]+$/.test(String(number)) &&
       String(number) === manifest.wif_provider?.split('/')[1], 'Unexpected IAM project identity')
@@ -192,6 +202,7 @@ function installCliGuards(cli, manifest, {bootstrap = false, migrate = false, ht
     secrets.setIamPolicy = originals.secretSet
     secrets.setIamPolicy = originals.secretSet
     checks.ensureServiceAgentRoles = originals.agentCheck
+    checks.checkServiceAccountIam = originals.accountCheck
     run.setIamPolicy = originals.runSet
     run.setInvokerCreate = originals.invokerCreate
     run.setInvokerUpdate = originals.invokerUpdate
