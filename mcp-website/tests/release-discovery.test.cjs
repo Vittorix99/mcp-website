@@ -105,10 +105,12 @@ test('entry failure reports only a masked Google API target', () => {
   try {
     reportEntryFailure({status:403,context:{response:{url:'https://cloudfunctions.googleapis.com/v2/projects/secret-project/locations/us-central1/functions/privateName:setIamPolicy?key=PRIVATE_SENTINEL'}}})
     reportEntryFailure({status:403,context:{response:{url:'https://evil.example.com/v2/projects/x'}}})
+    reportEntryFailure({status:403,message:'Request to https://firebasehosting.googleapis.com/v1beta1/projects/secret-project/sites/privateSite/versions/abc123:finalize?key=PRIVATE_SENTINEL had HTTP Error: 403, PRIVATE_SENTINEL'})
   } finally {console.error=saved}
   assert.ok(output.includes('RELEASE_API_TARGET=cloudfunctions.googleapis.com/v2/projects/*/locations/*/functions/*:setIamPolicy'))
-  assert.equal(output.filter(line => line.startsWith('RELEASE_API_TARGET=')).length,1)
-  assert.ok(!output.join('\n').match(/PRIVATE_SENTINEL|secret-project|privateName|evil/))
+  assert.ok(output.includes('RELEASE_API_TARGET=firebasehosting.googleapis.com/v1beta1/projects/*/sites/*/versions/*:finalize'))
+  assert.equal(output.filter(line => line.startsWith('RELEASE_API_TARGET=')).length,2)
+  assert.ok(!output.join('\n').match(/PRIVATE_SENTINEL|secret-project|privateName|privateSite|abc123|evil/))
 })
 
 test('pinned CLI asynchronous failures reach the sanitizer and preserve original error handling', {timeout:2000}, async () => {

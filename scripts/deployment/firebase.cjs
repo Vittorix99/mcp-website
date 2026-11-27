@@ -48,7 +48,10 @@ const API_PATH_WORDS = new Set(['v1','v1beta1','v1beta2','v2','v2beta','v2alpha'
   'keys','namespaces','policy','buckets','objects','files','domains','apiKeys','iam','roles','permissions'])
 function apiTarget(error) {
   for (let depth = 0; error && depth < 4; depth++, error = error.original || error.cause) {
-    const raw = error.context?.response?.url || error.response?.url
+    // firebase-tools carries the failing URL in the message ("Request to <url> had HTTP Error"); only that URL is read.
+    const fromMessage = typeof error.message === 'string' ?
+      error.message.match(/^Request to (https:\/\/[a-z0-9-]+\.googleapis\.com\/\S*) had HTTP Error/)?.[1] : undefined
+    const raw = error.context?.response?.url || error.response?.url || fromMessage
     if (typeof raw !== 'string') continue
     try {
       const url = new URL(raw)
