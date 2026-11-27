@@ -288,6 +288,12 @@ def command(args, *, env=None, cwd=ROOT):
         targets = re.findall(r'RELEASE_API_TARGET=([a-z0-9-]+\.googleapis\.com/[A-Za-z0-9/*:._-]{0,160})(?:\s|$)', result.stderr)
         if targets:
             metadata['api_target'] = targets[-1]
+        guards = re.findall(r"^RELEASE_GUARD=([A-Za-z][A-Za-z ;,'().-]{0,139})$", result.stderr, re.M)
+        if guards:
+            metadata['guard'] = guards[-1]
+        named = re.findall(r'^RELEASE_PERMISSIONS=([A-Za-z.,]{1,300})$', result.stderr, re.M)
+        if named:
+            metadata['permissions_named'] = named[-1].split(',')[:8]
         kinds = re.findall(r'RELEASE_ERROR_TYPE=(Error|FirebaseError|TypeError|SyntaxError|RangeError|unknown)\b', result.stderr)
         if kinds:
             metadata['error_type'] = kinds[-1]

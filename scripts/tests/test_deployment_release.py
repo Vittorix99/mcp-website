@@ -73,6 +73,21 @@ def test_failure_retains_only_a_masked_google_api_target(monkeypatch):
     assert 'PRIVATE_SENTINEL' not in json.dumps(report)
 
 
+def test_failure_retains_static_guard_and_named_permissions_only(monkeypatch):
+    import subprocess
+    stderr = ('RELEASE_GUARD=Missing permissions on configured service account; owner provisioning required\n'
+        'RELEASE_PERMISSIONS=cloudfunctions.functions.create,run.services.setIamPolicy\n'
+        'RELEASE_GUARD=PRIVATE_SENTINEL secret=abc123 {x}\nRELEASE_PERMISSIONS=bad value PRIVATE_SENTINEL\n')
+    monkeypatch.setattr(release.subprocess, 'run', lambda *a, **kw:
+        subprocess.CompletedProcess(a[0], 1, stdout='PRIVATE_SENTINEL', stderr=stderr))
+    with pytest.raises(release.CommandFailure) as error:
+        release.command(['node',str(ROOT / 'scripts/deployment/firebase.cjs'),'backend'])
+    report = release.failure_metadata(error.value)
+    assert report['guard'] == 'Missing permissions on configured service account; owner provisioning required'
+    assert report['permissions_named'] == ['cloudfunctions.functions.create', 'run.services.setIamPolicy']
+    assert 'PRIVATE_SENTINEL' not in json.dumps(report)
+
+
 def test_main_reports_both_failures_without_losing_rollback_reason(monkeypatch, tmp_path, capsys):
     manifest = release.prepare('staging', inputs())
     monkeypatch.setattr(release, 'ROOT', tmp_path)
