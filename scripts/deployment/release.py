@@ -682,6 +682,29 @@ def verify_function_releases(manifest, *, cloud=None):
                 stamps.get('MCP_CONFIG_DIGEST') == backend['digest'], 'all active backend revisions must match release')
 
 
+def serve_latest_revisions(manifest, targets, *, cloud=None):
+    """Point the deployed components' services at their newest revision.
+
+    A deploy creates a revision, but a service whose traffic was pinned to a named revision (every restore does
+    that) keeps serving it, so the new release would never go live. Already-latest services are left untouched."""
+    cloud = cloud or gcloud
+    codebases = {{'backend': 'python_codebase', 'hosting': 'firebase-frameworks-' + manifest['project']}[target]
+        for target in targets}
+    services = sorted({item.get('serviceConfig', {}).get('service', '').rsplit('/', 1)[-1]
+        for item in cloud_functions(manifest, cloud=cloud)
+        if item.get('labels', {}).get('firebase-functions-codebase') in codebases})
+    progress('deploy.traffic', total=len(services))
+    for index, service in enumerate(services, 1):
+        require(re.fullmatch(NAME, service), 'deployed Cloud Run service')
+        data = json.loads(cloud(manifest, 'run', 'services', 'describe', service, '--region', REGION,
+            '--format=json(spec.traffic)'))
+        if not any(row.get('latestRevision') is True and row.get('percent') == 100
+                   for row in data.get('spec', {}).get('traffic', [])):
+            cloud(manifest, 'run', 'services', 'update-traffic', service, '--region', REGION, '--to-latest')
+        if index % 25 == 0 or index == len(services):
+            progress('deploy.traffic', completed=index, total=len(services))
+
+
 def execute_release(manifest, env, changed):
     """Deploy only the components whose live identity differs, then verify every component."""
     targets = [target for target, component in (('backend', 'backend'), ('hosting', 'site')) if changed[component]]
@@ -689,6 +712,8 @@ def execute_release(manifest, env, changed):
     for target in targets:
         print(f'Deploying scoped {target} release.', flush=True)
         command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), target], env=env)
+    if targets:
+        serve_latest_revisions(manifest, targets)
     verify_function_releases(manifest)
     smoke(manifest, site_sha=manifest['sha'] if changed['site'] else None)
     return targets
