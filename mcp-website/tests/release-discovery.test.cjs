@@ -113,6 +113,23 @@ test('entry failure reports only a masked Google API target', () => {
   assert.ok(!output.join('\n').match(/PRIVATE_SENTINEL|secret-project|privateName|privateSite|abc123|evil/))
 })
 
+test('entry failure reports only static guard messages and quoted permission names', () => {
+  const {reportEntryFailure} = require('../../scripts/deployment/firebase.cjs')
+  const saved = console.error
+  const output = []
+  console.error = line => output.push(line)
+  try {
+    reportEntryFailure({status:500,message:'Missing permissions on configured service account; owner provisioning required'})
+    reportEntryFailure({status:500,message:'Missing required permission on project secret-project to deploy functions: cloudfunctions.functions.create and run.services.setIamPolicy PRIVATE_SENTINEL',
+      original:{message:'Request to https://evil.example.com/x'}})
+    reportEntryFailure({status:500,message:'Arbitrary SDK text PRIVATE_SENTINEL'})
+  } finally {console.error=saved}
+  assert.ok(output.includes('RELEASE_GUARD=Missing permissions on configured service account; owner provisioning required'))
+  assert.ok(output.includes('RELEASE_PERMISSIONS=cloudfunctions.functions.create,run.services.setIamPolicy'))
+  assert.equal(output.filter(line => line.startsWith('RELEASE_GUARD=')).length,1)
+  assert.ok(!output.join('\n').match(/PRIVATE_SENTINEL|secret-project|evil|Arbitrary/))
+})
+
 test('pinned CLI asynchronous failures reach the sanitizer and preserve original error handling', {timeout:2000}, async () => {
   const {createRequire} = require('node:module')
   const cli = createRequire(require.resolve('firebase-tools/package.json'))

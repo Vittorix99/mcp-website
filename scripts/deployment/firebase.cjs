@@ -66,7 +66,24 @@ function apiTarget(error) {
   }
 }
 
+// Static messages owned by cli-guards.cjs and IAM permission names (service.resource.verb) quoted by the CLI.
+const GUARD_MESSAGE = /^(Missing permissions on configured service account|Required project IAM binding is missing|Secret IAM writes require|Project IAM writes require|Service IAM (?:writes require|differs from)|Artifact cleanup policy changes require|New service IAM requires|Missing function build configuration|Unexpected [A-Za-z ]{1,40}|Unapproved [A-Za-z ]{1,40}|Bootstrap [A-Za-z ]{1,60}|Migration [A-Za-z ]{1,60})[A-Za-z ;,'().-]{0,100}$/
+const PERMISSION_NAME = /\b(?:cloudfunctions|run|iam|secretmanager|artifactregistry|cloudbuild|eventarc|cloudscheduler|pubsub|storage|firebase|firebasehosting|firebaseextensions|serviceusage|resourcemanager|apikeys|cloudbilling|logging)\.[a-zA-Z]+\.[a-zA-Z]+\b/g
+function guardDetails(error) {
+  let guard
+  const permissions = new Set()
+  for (let depth = 0; error && depth < 4; depth++, error = error.original || error.cause) {
+    const message = typeof error.message === 'string' ? error.message : ''
+    if (!guard && GUARD_MESSAGE.test(message)) guard = message
+    for (const match of message.matchAll(PERMISSION_NAME)) if (permissions.size < 8) permissions.add(match[0])
+  }
+  return {guard, permissions: [...permissions]}
+}
+
 function reportEntryFailure(error) {
+  const details = guardDetails(error)
+  if (details.guard) console.error(`RELEASE_GUARD=${details.guard}`)
+  if (details.permissions.length) console.error(`RELEASE_PERMISSIONS=${details.permissions.join(',')}`)
   const target = apiTarget(error)
   if (target) console.error(`RELEASE_API_TARGET=${target}`)
   // FirebaseError defaults to status 500: report SDK status, not a proven HTTP response.
