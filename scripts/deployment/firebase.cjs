@@ -80,7 +80,24 @@ function guardDetails(error) {
   return {guard, permissions: [...permissions]}
 }
 
+// Staging only: first line of the failing error with identifiers and numbers masked, to locate unknown denials.
+function maskedMessage(error) {
+  try {
+    if (JSON.parse(require('node:fs').readFileSync(process.env.MCP_RELEASE_CONFIG, 'utf8')).environment !== 'staging') return
+  } catch { return }
+  for (let depth = 0; error && depth < 4; depth++, error = error.original || error.cause) {
+    const line = typeof error.message === 'string' ? error.message.split('\n')[0] : ''
+    if (!line) continue
+    const masked = line.replace(/https?:\/\/\S+/g, url => url.replace(/^(https?:\/\/[a-z0-9.-]+)(\/[^?\s]*)?.*$/, (_, host, path) =>
+        host + (path || '').split('/').map(part => /^[a-z]{2,20}$/.test(part) || /^v\d/.test(part) ? part : (part ? '*' : '')).join('/')))
+      .replace(/[A-Za-z0-9_-]{16,}/g, '*').replace(/\d{3,}/g, '*').replace(/[^A-Za-z0-9 _.,:;/*()'\[\]-]/g, '').slice(0, 200)
+    if (masked) return masked
+  }
+}
+
 function reportEntryFailure(error) {
+  const message = maskedMessage(error)
+  if (message) console.error(`RELEASE_MESSAGE=${message}`)
   const details = guardDetails(error)
   if (details.guard) console.error(`RELEASE_GUARD=${details.guard}`)
   if (details.permissions.length) console.error(`RELEASE_PERMISSIONS=${details.permissions.join(',')}`)
