@@ -888,7 +888,7 @@ def test_verify_access_job_is_manual_read_only_and_needs_no_deploy_flag():
     import yaml
     jobs = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
     job = jobs['verify-access']
-    assert job['needs'] == 'verify'
+    assert job['needs'] == 'gate'
     assert job['if'] == "github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'"
     assert job['with'] == {'environment': 'staging', 'operation': 'verify'}
     assert 'ENABLE_' not in job['if']
@@ -1060,3 +1060,53 @@ def test_current_secret_versions_leave_the_backend_alone(monkeypatch):
     manifest = release.prepare('staging', inputs())
     _stale_fakes(monkeypatch, manifest, '8')
     assert release.stale_secret_versions(manifest) == []
+
+
+def test_every_deployment_job_depends_on_the_ci_gate_and_cloud_identity_stays_out_of_ci():
+    import yaml
+    jobs = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
+    for name in ['staging', 'verify-access', 'rollback']:
+        assert jobs[name]['needs'] == 'gate'
+    assert jobs['production']['needs'] == 'staging'
+    # The suite is skipped only with proof, and the gate passes only when it ran or was provably reused.
+    assert jobs['verify']['if'] == "needs.evidence.outputs.reuse != 'true'"
+    assert jobs['gate']['needs'] == ['evidence', 'verify']
+    assert "needs.verify.result == 'success'" in jobs['gate']['if']
+    assert "needs.evidence.outputs.reuse == 'true'" in jobs['gate']['if']
+    # The evidence job reads GitHub metadata only: no cloud identity, no write permission.
+    assert jobs['evidence']['permissions'] == {'contents': 'read', 'actions': 'read', 'pull-requests': 'read'}
+    assert 'id-token' not in json.dumps(jobs['evidence']) and 'id-token' not in json.dumps(jobs['gate'])
+
+
+def test_deploy_validates_before_any_snapshot_and_api_scenarios_follow_the_backend_scope():
+    import yaml
+    steps = yaml.safe_load((ROOT / '.github/workflows/deploy-environment.yml').read_text())['jobs']['release']['steps']
+    names = [step.get('name') for step in steps]
+    check = names.index('Validate the deploy before any snapshot (dry run, writes nothing)')
+    assert check < names.index('Capture verified previous release before mutations')
+    assert steps[check]['if'] == "inputs.operation == 'deploy'" and ' check ' in steps[check]['run']
+    pr = yaml.safe_load((ROOT / '.github/workflows/pr.yml').read_text())['jobs']['verify']['steps']
+    by_name = {step.get('name'): step for step in pr}
+    assert by_name['Controlled synthetic API and statistics scenarios']['if'] == "steps.scope.outputs.api == 'true'"
+    assert 'mcp-backend/' in by_name['Decide whether the backend scenarios apply']['run']
+
+
+def test_check_runs_the_backend_dry_run_only_when_the_backend_will_deploy(monkeypatch, capsys):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr('sys.argv', ['release.py', 'check', '--environment', 'staging'])
+    monkeypatch.setattr(release, 'prepare', lambda *a: manifest)
+    monkeypatch.setattr(release, 'preflight', lambda *a, **kw: None)
+    monkeypatch.setattr(release, 'release_environment', lambda _: {'GOOGLE_APPLICATION_CREDENTIALS': 'synthetic'})
+    monkeypatch.setattr(release, 'cloud_preflight', lambda _: None)
+    monkeypatch.setattr(release, 'read_live', lambda _: {})
+    for name in ['snapshot_release', 'execute_release', 'rollback', 'write_configuration']:
+        monkeypatch.setattr(release, name, lambda *a, **kw: pytest.fail('check must not mutate'))
+    for backend, stale, expected in [(True, [], ['validate', 'backend-check']), (False, ['SECRET'], ['validate', 'backend-check']),
+                                     (False, [], ['validate'])]:
+        calls = []
+        monkeypatch.setattr(release, 'command', lambda args, **kw: calls.append(args[2]) or '')
+        monkeypatch.setattr(release, 'plan_release', lambda *a, backend=backend: {'backend': backend, 'site': True})
+        monkeypatch.setattr(release, 'stale_secret_versions', lambda _, stale=stale: stale)
+        release.main()
+        assert calls == expected
+    assert 'dry run) passed' in capsys.readouterr().out

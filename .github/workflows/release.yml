@@ -29,14 +29,46 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify:
+  # The full suite already ran on the pull request. Reuse that result only with proof tied to the same tree
+  # (scripts/ci/ci_evidence.py); anything uncertain runs the full suite again.
+  evidence:
     if: github.repository == 'Vittorix99/mcp-website' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      reuse: ${{ steps.evidence.outputs.reuse }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/ci_evidence.py
+
+  verify:
+    needs: evidence
+    if: needs.evidence.outputs.reuse != 'true'
     uses: ./.github/workflows/pr.yml
     permissions:
       contents: read
 
+  # Single prerequisite of every deployment job: the suite passed now, or passed earlier on the identical tree.
+  gate:
+    needs: [evidence, verify]
+    if: always() && (needs.verify.result == 'success' || (needs.verify.result == 'skipped' && needs.evidence.outputs.reuse == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo "CI gate passed (suite reused for the identical tree - ${{ needs.evidence.outputs.reuse }})"
+
   staging:
-    needs: verify
+    needs: gate
     if: vars.ENABLE_STAGING_DEPLOY == 'true' && (github.event_name == 'push' || inputs.operation == 'deploy')
     uses: ./.github/workflows/deploy-environment.yml
     permissions:
@@ -62,7 +94,7 @@ jobs:
   # Read-only proof of federated cloud access (staging only). Manual, needs no deploy flag,
   # and never snapshots, deploys or changes traffic or data.
   verify-access:
-    needs: verify
+    needs: gate
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'
     uses: ./.github/workflows/deploy-environment.yml
     permissions:
@@ -74,7 +106,7 @@ jobs:
       operation: verify
 
   rollback:
-    needs: verify
+    needs: gate
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' &&
       ((inputs.rollback_environment == 'staging' && vars.ENABLE_STAGING_DEPLOY == 'true') ||

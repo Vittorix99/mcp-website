@@ -763,14 +763,14 @@ def preflight(manifest, *, read_only=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['prepare', 'plan', 'verify', 'snapshot', 'deploy', 'rollback'])
+    parser.add_argument('operation', choices=['prepare', 'plan', 'verify', 'check', 'snapshot', 'deploy', 'rollback'])
     parser.add_argument('--environment', required=True, choices=['staging', 'production'])
     parser.add_argument('--snapshot-run-id')
     parser.add_argument('--read-only', action='store_true')
     args = parser.parse_args()
     # verify only reads; --read-only exists solely so the shared prepare step can skip mutation approvals.
-    require(args.operation in {'verify', 'plan'} or not args.read_only or args.operation == 'prepare', 'read-only scope')
-    read_only = args.operation in {'verify', 'plan'} or args.read_only
+    require(args.operation in {'verify', 'plan', 'check'} or not args.read_only or args.operation == 'prepare', 'read-only scope')
+    read_only = args.operation in {'verify', 'plan', 'check'} or args.read_only
     manifest = prepare(args.environment, os.environ)
     preflight(manifest, read_only=read_only)
     if args.operation == 'prepare':
@@ -786,6 +786,18 @@ def main():
     require(bool(env.get('GOOGLE_APPLICATION_CREDENTIALS')), 'ephemeral WIF credentials')
     command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'validate'], env=env)
     cloud_preflight(manifest)
+    if args.operation == 'check':
+        # Pre-deploy gate, run before any snapshot: the CLI's own validation phase for the backend, only when the
+        # backend will be deployed (same decision as `deploy`). Nothing is built, uploaded, updated or restored.
+        changed = plan_release(manifest, read_live(manifest))
+        if not changed['backend'] and stale_secret_versions(manifest):
+            changed['backend'] = True
+        if changed['backend']:
+            command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'backend-check'], env=env)
+            print('Backend deploy validation (dry run) passed.', flush=True)
+        else:
+            print('Backend is not part of this release: no dry run needed.', flush=True)
+        return
     if args.operation == 'verify':
         # Identity and read access only: no snapshot, deployment, traffic or data change.
         result = command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'probe'], env=env)
