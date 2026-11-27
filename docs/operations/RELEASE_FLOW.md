@@ -262,3 +262,10 @@ Letti dal diagnostico `api_target` (#33/#34), dalle etichette dello smoke (#35) 
   Limite noto: prima del deploy il traffico passa all'ultima revisione esistente, che dopo un tentativo fallito può essere
   la revisione del tentativo fallito. Su staging è accettabile; prima di produzione il rollback dovrebbe eliminare le
   revisioni create dal deploy fallito (il deployer ha `run.revisions.delete`).
+
+### Primo rilascio ordinario riuscito su staging (27/11/2026)
+
+Run `46048768103` (site-only, `workflow_dispatch`, OIDC): `plan` = solo `hosting`; snapshot, deploy del sito,
+`serve_latest_revisions` prima e dopo, verifica di identità e smoke riusciti; manifest `release-manifest-staging`
+pubblicato. Il backend è rimasto intatto (`backend_tree` invariato), il sito riporta il commit del run e il nuovo
+`site_tree`. Prova successiva: backend-only (una parola nella docstring di `deployment_api.py`, comportamento invariato).
