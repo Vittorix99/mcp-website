@@ -85,14 +85,16 @@ function maskedMessage(error) {
   try {
     if (JSON.parse(require('node:fs').readFileSync(process.env.MCP_RELEASE_CONFIG, 'utf8')).environment !== 'staging') return
   } catch { return }
+  const lines = []
   for (let depth = 0; error && depth < 4; depth++, error = error.original || error.cause) {
     const line = typeof error.message === 'string' ? error.message.split('\n')[0] : ''
     if (!line) continue
     const masked = line.replace(/https?:\/\/\S+/g, url => url.replace(/^(https?:\/\/[a-z0-9.-]+)(\/[^?\s]*)?.*$/, (_, host, path) =>
         host + (path || '').split('/').map(part => /^[a-z]{2,20}$/.test(part) || /^v\d/.test(part) ? part : (part ? '*' : '')).join('/')))
       .replace(/[A-Za-z0-9_-]{16,}/g, '*').replace(/\d{3,}/g, '*').replace(/[^A-Za-z0-9 _.,:;/*()'\[\]-]/g, '').slice(0, 200)
-    if (masked) return masked
+    if (masked && !lines.includes(masked)) lines.push(masked)
   }
+  return lines.slice(0, 3).join(' | ').slice(0, 400) || undefined
 }
 
 function reportEntryFailure(error) {

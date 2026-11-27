@@ -288,7 +288,7 @@ def command(args, *, env=None, cwd=ROOT):
         targets = re.findall(r'RELEASE_API_TARGET=([a-z0-9-]+\.googleapis\.com/[A-Za-z0-9/*:._-]{0,160})(?:\s|$)', result.stderr)
         if targets:
             metadata['api_target'] = targets[-1]
-        masked = re.findall(r"^RELEASE_MESSAGE=([A-Za-z0-9 _.,:;/*()'\[\]-]{1,200})$", result.stderr, re.M)
+        masked = re.findall(r"^RELEASE_MESSAGE=([A-Za-z0-9 _.,:;/*()'\[\]|-]{1,400})$", result.stderr, re.M)
         if masked:
             metadata['message'] = masked[-1]
         guards = re.findall(r"^RELEASE_GUARD=([A-Za-z][A-Za-z ;,'().-]{0,139})$", result.stderr, re.M)

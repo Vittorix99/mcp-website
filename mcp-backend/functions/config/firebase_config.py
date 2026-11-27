@@ -44,7 +44,10 @@ def initialize_firebase(settings: RuntimeSettings):
         if app.project_id != firebase.project_id:
             raise RuntimeConfigurationError("Existing Firebase app project does not match runtime policy")
     else:
-        credential = _EmulatorCredential() if emulator else credentials.ApplicationDefault()
+        # Firebase CLI code analysis (ADMIN_PORT set, no K_SERVICE) only reads decorators: it must not authenticate,
+        # so it never depends on the deployer's cloud permissions. The deployed runtime always has K_SERVICE.
+        analysing = bool(os.environ.get("ADMIN_PORT")) and not os.environ.get("K_SERVICE")
+        credential = _EmulatorCredential() if emulator or analysing else credentials.ApplicationDefault()
         app = firebase_admin.initialize_app(credential, {
             "projectId": firebase.project_id,
             "storageBucket": firebase.storage_bucket,
