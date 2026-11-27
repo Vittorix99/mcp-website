@@ -61,7 +61,21 @@ jobs:
         run: scripts/test-unit.sh
       - name: Offline development tools and synthetic data
         run: .venv/bin/python -m pytest scripts/tests -q
+      - name: Decide whether the backend scenarios apply
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Pull requests that touch only the site skip the slow backend scenarios; every other event runs them.
+          api=true
+          if [ "$EVENT" = pull_request ] && ! git diff --name-only "$BASE_SHA"...HEAD |
+              grep -qE '^(mcp-backend/|scripts/staging/|scripts/lib/|scripts/ci/|firestore\.|storage\.rules|firebase.*\.json|emulator\.sh|\.github/workflows/pr\.yml)'; then
+            api=false
+          fi
+          echo "api=$api" >> "$GITHUB_OUTPUT"
       - name: Controlled synthetic API and statistics scenarios
+        if: steps.scope.outputs.api == 'true'
         run: .venv/bin/python scripts/staging/test_emulator.py --api
       - name: Frontend policy and deterministic build
         working-directory: mcp-website

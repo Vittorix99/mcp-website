@@ -269,3 +269,28 @@ Run `46048768103` (site-only, `workflow_dispatch`, OIDC): `plan` = solo `hosting
 `serve_latest_revisions` prima e dopo, verifica di identità e smoke riusciti; manifest `release-manifest-staging`
 pubblicato. Il backend è rimasto intatto (`backend_tree` invariato), il sito riporta il commit del run e il nuovo
 `site_tree`. Prova successiva: backend-only (una parola nella docstring di `deployment_api.py`, comportamento invariato).
+
+## Flusso veloce (28/11/2026)
+
+Obiettivo: dal merge su `main` a staging in automatico, senza ripetere lavoro già provato.
+
+- **CI una sola volta.** `release.yml` ha un job `evidence` (solo lettura dei metadati GitHub, nessuna identità cloud) che
+  riusa la CI della PR **solo se** il commit su `main` è il merge di una sola PR, l'albero del commit coincide con quello della
+  testa della PR (ramo aggiornato) e `Core WS1 checks` è passato su quella testa; per un dispatch manuale, se un push run dello
+  stesso commit ha superato `gate`. Nel dubbio rigira la suite completa. Ogni job di rilascio dipende da `gate`
+  (suite passata ora, oppure riusata con prova).
+- **Scenari API solo se serve.** Nelle PR che non toccano backend, strumenti di staging, regole Firestore/Storage o
+  configurazione Firebase si saltano gli scenari API sintetici (~3,5 min); gli altri eventi li eseguono sempre.
+- **Dry run prima dello snapshot.** Il deploy esegue `release.py check`: se il backend sarà rilasciato, lancia la fase di
+  validazione del CLI (`--dry-run`) prima di catturare lo snapshot; un errore di permessi emerge in pochi minuti senza
+  snapshot, scritture né ripristino. `operation=verify` esegue lo stesso controllo in sola lettura.
+- **Staging automatico.** Con la baseline `ROLLBACK_BASELINE_VERIFIED=true` sull'Environment staging non serve più il consenso
+  `STAGING_RELEASE_PROOF_APPROVED`. L'interruttore è `ENABLE_STAGING_DEPLOY`: acceso, ogni push su `main` rilascia solo i
+  componenti cambiati; spento, i rilasci si fermano (interruttore di emergenza).
+
+### Baseline di rollback su staging (decisione owner 28/11/2026)
+
+`ROLLBACK_BASELINE_VERIFIED=true` su staging dopo: rilascio sito (run `46048768103`) e rilascio backend + sito
+(run `46075562302`) via OIDC riusciti, e 8 ripristini automatici verificati. **Rischio accettato dall'owner:** il percorso
+manuale `operation=rollback` con `snapshot_run_id` non è mai stato eseguito; lo stesso `rollback()` è però esercitato dal
+ripristino automatico. Produzione richiede la propria baseline.

@@ -84,6 +84,9 @@ jobs:
       - name: Show release plan (public health endpoints only; fails closed if live state is unreadable)
         if: inputs.operation == 'deploy'
         run: .venv/bin/python scripts/deployment/release.py plan --environment "$RELEASE_ENVIRONMENT"
+      - name: Validate the deploy before any snapshot (dry run, writes nothing)
+        if: inputs.operation == 'deploy'
+        run: .venv/bin/python scripts/deployment/release.py check --environment "$RELEASE_ENVIRONMENT"
       - name: Capture verified previous release before mutations
         if: inputs.operation == 'deploy'
         run: .venv/bin/python scripts/deployment/release.py snapshot --environment "$RELEASE_ENVIRONMENT"
