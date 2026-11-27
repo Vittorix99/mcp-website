@@ -539,7 +539,8 @@ def test_release_verifies_active_revisions_after_a_rollback_not_latest_function_
         release.verify_function_releases(manifest)
 
 
-def test_snapshot_collects_secret_versions_of_saved_revisions_after_rollback(monkeypatch):
+@pytest.mark.parametrize('kind,accepted', [('DEPLOY', True), ('ROLLBACK', True), ('SITE_DISABLE', False), ('', False)])
+def test_snapshot_collects_secret_versions_of_saved_revisions_after_rollback(monkeypatch, kind, accepted):
     manifest = release.prepare('staging', inputs())
     live = healths(manifest)
     monkeypatch.setattr(release, 'fetch_json', lambda url: live['backend'] if 'cloudfunctions' in url else live['site'])
@@ -555,10 +556,14 @@ def test_snapshot_collects_secret_versions_of_saved_revisions_after_rollback(mon
     monkeypatch.setattr(release, 'service_state', lambda _, service:{'traffic':{service+'-00001-abc':100}})
     monkeypatch.setattr(release, 'verify_revision_secrets', lambda _, revision:
         {('PAYPAL_CLIENT_SECRET','7')} if revision.startswith('public-api') else set())
-    monkeypatch.setattr(release, 'hosting', lambda *args:{'releases':[{'type':'DEPLOY',
+    monkeypatch.setattr(release, 'hosting', lambda *args:{'releases':[{'type':kind,
         'version':{'name':f"sites/{manifest['project']}/versions/previous-version"}}]})
     checked = []
     monkeypatch.setattr(release, 'verify_secret_versions', lambda snapshot, _:checked.extend(snapshot['secrets']))
+    if not accepted:
+        with pytest.raises(release.ValidationFailure, match='previous Hosting release'):
+            release.snapshot_release(manifest, {})
+        return
     result = release.snapshot_release(manifest, {})
     assert result['secrets'] == checked == [{'secret':'PAYPAL_CLIENT_SECRET','version':'7'}]
 

@@ -429,7 +429,9 @@ def snapshot_release(manifest, env):
         for revision in services[service]['traffic']:
             references.update(verify_revision_secrets(manifest, revision))
     releases = hosting(manifest, '/releases?pageSize=1').get('releases', [])
-    require(len(releases) == 1 and releases[0].get('type') == 'DEPLOY', 'previous Hosting release')
+    # A restored release is published as type ROLLBACK; it is as live and finalized as a DEPLOY, so a release
+    # that follows a successful automatic restore can still be snapshotted. SITE_DISABLE and others are refused.
+    require(len(releases) == 1 and releases[0].get('type') in {'DEPLOY', 'ROLLBACK'}, 'previous Hosting release')
     snapshot = dict(schema=2, environment=manifest['environment'], project=manifest['project'],
         sha=old['sha'], components=old['components'], functions=functions, services=services,
         secrets=[dict(secret=name,version=version) for name,version in sorted(references)],
