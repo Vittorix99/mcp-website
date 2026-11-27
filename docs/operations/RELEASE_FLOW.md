@@ -243,3 +243,17 @@ non si aggiungono automaticamente ruoli o chiavi per far passare la prova.
 La PR di riparazione include questi controlli e il precheck account dedicati prima del primo
 site-only riuscito. Le modifiche ai test sito cambiano intenzionalmente `site_tree`; il sorgente
 backend resta invariato. Dopo CI, merge e sonda estesa si rivaluta il rilascio site-only.
+
+### Requisiti emersi dalle prove site-only (27/11/2026)
+
+Letti dal diagnostico `api_target` (#33/#34), dalle etichette dello smoke (#35) e da dati Cloud Run/Hosting in sola lettura:
+
+- Il deploy Hosting con web frameworks legge l'API Firebase Extensions: al deployer di staging è assegnato il ruolo custom
+  `stagingReleaseExtensionsList` (solo `firebaseextensions.instances.list`; policy confrontata: 1 aggiunta, 0 rimozioni;
+  il ruolo predefinito `firebaseextensions.viewer` non contiene il permesso).
+- Controlla anche la fatturazione: `cloudbilling.googleapis.com` doveva essere abilitata sul progetto (abilitata dall'owner).
+- Dopo un rollback la release Hosting più recente ha tipo `ROLLBACK`: lo snapshot accetta `DEPLOY` e `ROLLBACK`
+  (`SITE_DISABLE` resta rifiutato).
+- Ogni ripristino aggancia il traffico a una revisione precisa; da quel momento le revisioni create dai deploy non ricevono
+  traffico e il sito pubblico serve ancora il commit precedente (smoke: `site release commit`). Dopo ogni deploy,
+  `serve_latest_revisions` riporta a `--to-latest` i servizi dei componenti rilasciati che non lo servono già.
