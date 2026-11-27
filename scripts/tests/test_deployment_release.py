@@ -934,10 +934,11 @@ def test_release_deploys_only_changed_components_and_always_verifies_all(monkeyp
     monkeypatch.setattr(release, 'verify_function_releases', lambda m: calls.append('verify-functions'))
     monkeypatch.setattr(release, 'smoke', lambda m, **kwargs: calls.append(('smoke', kwargs.get('site_sha'))))
     assert release.execute_release(manifest, {}, changed) == deployed
-    assert calls[:len(deployed)] == deployed
-    # New revisions must receive traffic before they are verified; nothing is touched when nothing was deployed.
-    traffic = [('traffic', deployed)] if deployed else []
-    assert calls[len(deployed):] == traffic + ['verify-functions', ('smoke', manifest['sha'] if changed['site'] else None)]
+    # Each target is routed to its latest revision BEFORE it is deployed (Hosting tags that revision when it releases),
+    # and again afterwards; nothing is touched when nothing was deployed.
+    before = [item for target in deployed for item in (('traffic', [target]), target)]
+    after = [('traffic', deployed)] if deployed else []
+    assert calls == before + after + ['verify-functions', ('smoke', manifest['sha'] if changed['site'] else None)]
 
 
 @pytest.mark.parametrize('targets,expected', [(['hosting'], ['ssr-site']), (['backend'], ['public-api']),

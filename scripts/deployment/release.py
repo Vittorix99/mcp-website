@@ -710,6 +710,9 @@ def execute_release(manifest, env, changed):
     targets = [target for target, component in (('backend', 'backend'), ('hosting', 'site')) if changed[component]]
     print('Release plan: ' + (', '.join(targets) if targets else 'nothing changed, no deployment') + '.', flush=True)
     for target in targets:
+        # Hosting pins the new version to the service's latest revision when it releases, and a service pinned to a
+        # named revision by an earlier restore does not advance: route to latest before the deploy, not only after.
+        serve_latest_revisions(manifest, [target])
         print(f'Deploying scoped {target} release.', flush=True)
         command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), target], env=env)
     if targets:
