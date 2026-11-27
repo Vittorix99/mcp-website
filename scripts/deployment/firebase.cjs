@@ -223,7 +223,7 @@ async function main() {
   validateFederation(JSON.parse(fs.readFileSync(credentialPath,'utf8')), manifest)
   const args = process.argv.slice(2)
   if (args.length === 1 && args[0] === 'validate') return
-  if (!['backend','hosting','probe'].includes(args[0]) || args.length !== 1) throw new Error('Select a scoped release target')
+  if (!['backend','backend-check','hosting','probe'].includes(args[0]) || args.length !== 1) throw new Error('Select a scoped release target')
   const cliRequire = createRequire(path.join(cliRoot,'package.json'))
   if (args[0] === 'probe') {
     require('./cli-guards.cjs').validateIdentities(manifest)
@@ -242,7 +242,9 @@ async function main() {
   const cli = path.join(cliRoot,'lib/bin/firebase.js')
   process.argv = [process.execPath,cli,'deploy','--non-interactive','--project',manifest.project,
     '--config',path.join(root,'firebase.release.generated.json'),'--only',
-    args[0] === 'backend' ? profile.only : 'hosting']
+    args[0] === 'hosting' ? 'hosting' : profile.only,
+    // backend-check runs the CLI's validation phase only: nothing is built, uploaded or updated.
+    ...(args[0] === 'backend-check' ? ['--dry-run'] : [])]
   installFailureReporter(cliRequire)
   require(cli)
 }

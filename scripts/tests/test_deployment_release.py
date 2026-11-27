@@ -145,13 +145,14 @@ def test_verify_routes_only_to_read_only_probe_and_filters_child_stdout(monkeypa
     def command(args, **kw):
         assert args[:2] == ['node',str(ROOT / 'scripts/deployment/firebase.cjs')]
         calls.append(args[2])
-        assert args[2] in {'validate','probe'}
+        assert args[2] in {'validate','probe','backend-check'}
         return 'PRIVATE_SENTINEL\n' + json.dumps(probe) if args[2] == 'probe' else ''
     monkeypatch.setattr(release, 'command', command)
     for name in ['snapshot_release','execute_release','rollback','write_configuration']:
         monkeypatch.setattr(release, name, lambda *a, **kw: pytest.fail('Read-only probe attempted mutation'))
     release.main()
-    assert calls == ['validate','probe'] and checks == [True]
+    # The dry run validates the backend deploy (read-only); it never deploys, builds or uploads.
+    assert calls == ['validate','probe','backend-check'] and checks == [True]
     assert 'PRIVATE_SENTINEL' not in capsys.readouterr().out
 
 
