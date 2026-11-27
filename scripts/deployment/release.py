@@ -271,7 +271,7 @@ def command(args, *, env=None, cwd=ROOT):
             if tuple(args[1:1 + len(prefix)]) == prefix:
                 operation += '.' + '.'.join(prefix)
                 break
-        if tool == 'node' and len(args) == 3 and args[1] == str(ROOT / 'scripts/deployment/firebase.cjs') and args[2] in {'hosting', 'backend', 'probe', 'validate'}:
+        if tool == 'node' and len(args) == 3 and args[1] == str(ROOT / 'scripts/deployment/firebase.cjs') and args[2] in {'hosting', 'backend', 'backend-check', 'probe', 'validate'}:
             operation = 'firebase.' + args[2]
         output = (result.stdout + '\n' + result.stderr).lower()
         category = next((category for category, markers in [
@@ -793,6 +793,9 @@ def main():
         require(probe == dict(mode='read-only', firebase_auth=True, hosting_read=True,
             web_config_read=True, admin_config_read=True, project_permissions=True, account_actas=True), 'read-only probe result')
         print(json.dumps(probe, sort_keys=True), flush=True)
+        # The CLI's own validation phase for the backend (permissions, APIs, secrets, IAM guards), without deploying.
+        command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'backend-check'], env=env)
+        print('Backend deploy validation (dry run) passed.', flush=True)
         print('Federated access verified: project, bucket, APIs, service identities and provider secret versions readable; '
               f'{len(cloud_functions(manifest))} functions listed; nothing deployed or changed.')
         return
