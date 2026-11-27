@@ -88,6 +88,19 @@ def test_failure_retains_static_guard_and_named_permissions_only(monkeypatch):
     assert 'PRIVATE_SENTINEL' not in json.dumps(report)
 
 
+def test_failure_retains_only_a_masked_message_line(monkeypatch):
+    import subprocess
+    stderr = ('RELEASE_MESSAGE=Failed to read https://secretmanager.googleapis.com/v1/projects/*/secrets/*: denied for *\n'
+        'RELEASE_MESSAGE=bad {value} PRIVATE_SENTINEL<script>\n')
+    monkeypatch.setattr(release.subprocess, 'run', lambda *a, **kw:
+        subprocess.CompletedProcess(a[0], 1, stdout='PRIVATE_SENTINEL', stderr=stderr))
+    with pytest.raises(release.CommandFailure) as error:
+        release.command(['node',str(ROOT / 'scripts/deployment/firebase.cjs'),'backend'])
+    report = release.failure_metadata(error.value)
+    assert report['message'] == 'Failed to read https://secretmanager.googleapis.com/v1/projects/*/secrets/*: denied for *'
+    assert 'PRIVATE_SENTINEL' not in json.dumps(report)
+
+
 def test_main_reports_both_failures_without_losing_rollback_reason(monkeypatch, tmp_path, capsys):
     manifest = release.prepare('staging', inputs())
     monkeypatch.setattr(release, 'ROOT', tmp_path)

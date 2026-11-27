@@ -130,6 +130,35 @@ test('entry failure reports only static guard messages and quoted permission nam
   assert.ok(!output.join('\n').match(/PRIVATE_SENTINEL|secret-project|evil|Arbitrary/))
 })
 
+test('staging failure message is masked and never emitted for other environments', () => {
+  const fs = require('node:fs')
+  const os = require('node:os')
+  const path = require('node:path')
+  const {reportEntryFailure} = require('../../scripts/deployment/firebase.cjs')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cfg-'))
+  const config = environment => {
+    const file = path.join(dir, environment + '.json')
+    fs.writeFileSync(file, JSON.stringify({environment}))
+    return file
+  }
+  const run = file => {
+    const saved = {error:console.error, config:process.env.MCP_RELEASE_CONFIG}
+    const output = []
+    console.error = line => output.push(line)
+    process.env.MCP_RELEASE_CONFIG = file
+    try {
+      reportEntryFailure({status:500,message:'Failed to read https://secretmanager.googleapis.com/v1/projects/12345678901/secrets/PAYPAL_CLIENT_SECRET_PRIVATE_TOKEN_ABCDEFGH?key=PRIVATE_SENTINEL: denied for abcdefghijklmnopqrstuvwxyz0123456789\nsecond line SECRET'})
+    } finally {console.error=saved.error; if (saved.config === undefined) delete process.env.MCP_RELEASE_CONFIG; else process.env.MCP_RELEASE_CONFIG=saved.config}
+    return output
+  }
+  const staging = run(config('staging'))
+  const line = staging.find(row => row.startsWith('RELEASE_MESSAGE='))
+  assert.ok(line && line.includes('secretmanager.googleapis.com/v1/projects/*/secrets/*') && line.includes('denied for *'))
+  assert.ok(!staging.join('\n').match(/PRIVATE_SENTINEL|12345678901|PAYPAL|abcdefgh|second line/))
+  assert.ok(!run(config('production')).some(row => row.startsWith('RELEASE_MESSAGE=')))
+  assert.ok(!run(path.join(dir, 'missing.json')).some(row => row.startsWith('RELEASE_MESSAGE=')))
+})
+
 test('pinned CLI asynchronous failures reach the sanitizer and preserve original error handling', {timeout:2000}, async () => {
   const {createRequire} = require('node:module')
   const cli = createRequire(require.resolve('firebase-tools/package.json'))
