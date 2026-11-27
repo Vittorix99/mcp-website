@@ -930,11 +930,51 @@ def test_release_deploys_only_changed_components_and_always_verifies_all(monkeyp
     manifest = release.prepare('staging', inputs())
     calls = []
     monkeypatch.setattr(release, 'command', lambda args, **kwargs: calls.append(args[-1]))
+    monkeypatch.setattr(release, 'serve_latest_revisions', lambda m, targets: calls.append(('traffic', list(targets))))
     monkeypatch.setattr(release, 'verify_function_releases', lambda m: calls.append('verify-functions'))
     monkeypatch.setattr(release, 'smoke', lambda m, **kwargs: calls.append(('smoke', kwargs.get('site_sha'))))
     assert release.execute_release(manifest, {}, changed) == deployed
     assert calls[:len(deployed)] == deployed
-    assert calls[len(deployed):] == ['verify-functions', ('smoke', manifest['sha'] if changed['site'] else None)]
+    # New revisions must receive traffic before they are verified; nothing is touched when nothing was deployed.
+    traffic = [('traffic', deployed)] if deployed else []
+    assert calls[len(deployed):] == traffic + ['verify-functions', ('smoke', manifest['sha'] if changed['site'] else None)]
+
+
+@pytest.mark.parametrize('targets,expected', [(['hosting'], ['ssr-site']), (['backend'], ['public-api']),
+                                              (['backend', 'hosting'], ['public-api', 'ssr-site'])])
+def test_deploy_moves_only_pinned_services_of_deployed_components_to_latest(monkeypatch, targets, expected):
+    manifest = release.prepare('staging', inputs())
+    records = [
+        dict(name='publicapi', labels={'firebase-functions-codebase': 'python_codebase'},
+             serviceConfig={'service': 'public-api'}),
+        dict(name='ssrsite', labels={'firebase-functions-codebase': 'firebase-frameworks-' + manifest['project']},
+             serviceConfig={'service': 'ssr-site'})]
+    monkeypatch.setattr(release, 'cloud_functions', lambda *a, **k: records)
+    state = {'public-api': [{'percent': 100, 'revisionName': 'public-api-00003-abc'}],
+             'ssr-site': [{'percent': 100, 'revisionName': 'ssr-site-00003-abc'}]}
+    calls = []
+
+    def cloud(_, *args):
+        if args[:3] == ('run', 'services', 'describe'):
+            return json.dumps({'spec': {'traffic': state[args[3]]}})
+        calls.append(args)
+    release.serve_latest_revisions(manifest, targets, cloud=cloud)
+    assert [call[3] for call in calls] == expected
+    assert all(call[:3] == ('run', 'services', 'update-traffic') and call[-1] == '--to-latest' for call in calls)
+
+
+def test_deploy_leaves_services_already_serving_latest_untouched(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'cloud_functions', lambda *a, **k: [
+        dict(name='ssrsite', labels={'firebase-functions-codebase': 'firebase-frameworks-' + manifest['project']},
+             serviceConfig={'service': 'ssr-site'})])
+    calls = []
+
+    def cloud(_, *args):
+        calls.append(args)
+        return json.dumps({'spec': {'traffic': [{'percent': 100, 'latestRevision': True}]}})
+    release.serve_latest_revisions(manifest, ['hosting'], cloud=cloud)
+    assert all(call[:3] == ('run', 'services', 'describe') for call in calls)
 
 
 def test_release_manifest_records_deployed_and_skipped(tmp_path, monkeypatch):
