@@ -268,7 +268,7 @@ def test_smoke_failure_names_component_and_check_without_values(monkeypatch):
     monkeypatch.setattr(release, 'fetch_json', lambda url: stale if 'web.app' in url else live['backend'])
     with pytest.raises(release.ValidationFailure) as error:
         release.smoke(manifest, site_sha=manifest['sha'])
-    assert release.failure_metadata(error.value)['validation'] == 'site health: site release commit'
+    assert release.failure_metadata(error.value)['validation'] == 'site health: site release commit (observed cccccccccccc)'
     assert 'c' * 40 not in json.dumps(release.failure_metadata(error.value))
     # A non-validation error (e.g. unreachable endpoint) stays generic.
     def unreachable(url):
@@ -276,6 +276,21 @@ def test_smoke_failure_names_component_and_check_without_values(monkeypatch):
     monkeypatch.setattr(release, 'fetch_json', unreachable)
     with pytest.raises(ValueError, match='Release health check failed'):
         release.smoke(manifest)
+
+
+def test_smoke_waits_for_a_slow_hosting_release_to_propagate(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    sleeps, checks = [], []
+    monkeypatch.setattr(release.time, 'sleep', lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(release, 'fetch_json', lambda url: {})
+
+    def validate(health, manifest, component, **kwargs):
+        checks.append(component)
+        if component == 'site' and checks.count('site') < 20:
+            raise release.ValidationFailure('site release commit')
+    monkeypatch.setattr(release, 'validate_health', validate)
+    release.smoke(manifest, site_sha=manifest['sha'])
+    assert checks.count('site') == 20 and len(sleeps) >= 19
 
 
 def _smoke_with(monkeypatch, failing, code):

@@ -354,22 +354,32 @@ def fetch_json(url):
         return json.load(response)
 
 
+# Hosting pins each version to a Cloud Run revision tag and a new release can take minutes to reach every edge.
+HEALTH_ATTEMPTS = 24
+HEALTH_DELAY_SECONDS = 10
+
+
 def smoke(manifest, *, site_sha=None):
     project = manifest['project']
     for component, url in HEALTH_URLS.items():
         url = url.format(project=project)
         # Bounded retry handles propagation; mismatch is never reported as success.
-        for attempt in range(6):
+        observed = None
+        for attempt in range(HEALTH_ATTEMPTS):
             try:
-                validate_health(fetch_json(url), manifest, component, sha=site_sha if component == 'site' else None)
+                health = fetch_json(url)
+                commit = health.get('release_sha') if isinstance(health, dict) else None
+                observed = commit if isinstance(commit, str) and re.fullmatch(SHA, commit) else None
+                validate_health(health, manifest, component, sha=site_sha if component == 'site' else None)
                 break
             except Exception as error:
-                if attempt == 5:
-                    # Only labels owned by this module are surfaced: which component and which check failed.
+                if attempt == HEALTH_ATTEMPTS - 1:
+                    # Only labels owned by this module plus the public commit the site reports are surfaced.
                     if isinstance(error, ValidationFailure):
-                        raise ValidationFailure(f'{component} health: {error.field}') from None
+                        detail = f' (observed {observed[:12]})' if observed and component == 'site' else ''
+                        raise ValidationFailure(f'{component} health: {error.field}{detail}') from None
                     raise ValueError('Release health check failed') from None
-                time.sleep(5)
+                time.sleep(HEALTH_DELAY_SECONDS)
     for endpoint in ['get_all_events', 'get_next_event', 'get_membership_price_public',
                      'get_published_radio_episodes', 'get_latest_radio_episode', 'get_radio_seasons']:
         try:
