@@ -51,3 +51,33 @@ def test_cloud_startup_uses_application_default_credentials(firebase_module, mon
     db, bucket = firebase_module.initialize_firebase(load_runtime_settings(cloud_environment("staging")))
     assert db == ("db", "mcp-website-dev-39539")
     assert calls[0][0] is credential
+
+
+def _cloud_settings():
+    from config.runtime_settings import CredentialMode
+    firebase = SimpleNamespace(
+        credential_mode=CredentialMode.ADC, project_id="mcp-website-dev-39539",
+        storage_bucket="mcp-website-dev-39539.appspot.com", firestore_emulator_host=None,
+        auth_emulator_host=None, storage_emulator_host=None, pubsub_emulator_host=None)
+    return SimpleNamespace(firebase=firebase)
+
+
+@pytest.mark.parametrize("env,expects_adc", [
+    ({"ADMIN_PORT": "8081"}, False),                       # Firebase CLI code analysis: never authenticate
+    ({"ADMIN_PORT": "8081", "K_SERVICE": "svc"}, True),    # deployed runtime keeps ADC even if ADMIN_PORT leaks in
+    ({}, True),                                            # ordinary cloud startup
+])
+def test_cloud_startup_authenticates_except_during_cli_code_analysis(firebase_module, monkeypatch, env, expects_adc):
+    calls = _fake_constructors(firebase_module, monkeypatch)
+    for key in ("ADMIN_PORT", "K_SERVICE", "FIRESTORE_EMULATOR_HOST", "FIREBASE_AUTH_EMULATOR_HOST",
+                "STORAGE_EMULATOR_HOST", "PUBSUB_EMULATOR_HOST"):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    sentinel = object()
+    monkeypatch.setattr(firebase_module.credentials, "ApplicationDefault", lambda: sentinel)
+    firebase_module.initialize_firebase(_cloud_settings())
+    credential = calls[0][0]
+    assert (credential is sentinel) == expects_adc
+    if not expects_adc:
+        assert isinstance(credential.get_credential(), AnonymousCredentials)
