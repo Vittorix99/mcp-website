@@ -255,5 +255,10 @@ Letti dal diagnostico `api_target` (#33/#34), dalle etichette dello smoke (#35) 
 - Dopo un rollback la release Hosting più recente ha tipo `ROLLBACK`: lo snapshot accetta `DEPLOY` e `ROLLBACK`
   (`SITE_DISABLE` resta rifiutato).
 - Ogni ripristino aggancia il traffico a una revisione precisa; da quel momento le revisioni create dai deploy non ricevono
-  traffico e il sito pubblico serve ancora il commit precedente (smoke: `site release commit`). Dopo ogni deploy,
-  `serve_latest_revisions` riporta a `--to-latest` i servizi dei componenti rilasciati che non lo servono già.
+  traffico e il sito pubblico serve ancora il commit precedente (smoke: `site release commit`). Hosting, alla release,
+  aggancia la nuova versione alla "ultima revisione pronta" del servizio: con il traffico agganciato la nuova revisione
+  non avanza e la versione riusa il tag di quella vecchia (verificato: la versione `c17f967b` puntava a `fh-f21a9371…`).
+  `serve_latest_revisions` riporta quindi a `--to-latest` i servizi del componente **prima** del suo deploy e li ricontrolla dopo.
+  Limite noto: prima del deploy il traffico passa all'ultima revisione esistente, che dopo un tentativo fallito può essere
+  la revisione del tentativo fallito. Su staging è accettabile; prima di produzione il rollback dovrebbe eliminare le
+  revisioni create dal deploy fallito (il deployer ha `run.revisions.delete`).
