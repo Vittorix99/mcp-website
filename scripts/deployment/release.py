@@ -363,8 +363,11 @@ def smoke(manifest, *, site_sha=None):
             try:
                 validate_health(fetch_json(url), manifest, component, sha=site_sha if component == 'site' else None)
                 break
-            except Exception:
+            except Exception as error:
                 if attempt == 5:
+                    # Only labels owned by this module are surfaced: which component and which check failed.
+                    if isinstance(error, ValidationFailure):
+                        raise ValidationFailure(f'{component} health: {error.field}') from None
                     raise ValueError('Release health check failed') from None
                 time.sleep(5)
     for endpoint in ['get_all_events', 'get_next_event', 'get_membership_price_public',
