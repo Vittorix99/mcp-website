@@ -260,6 +260,24 @@ def test_smoke_rejects_wrong_release_even_with_http_success():
         release.validate_health({**live['backend'], 'release_sha':manifest['sha']}, manifest, 'backend')
 
 
+def test_smoke_failure_names_component_and_check_without_values(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    live = healths(manifest)
+    stale = {**live['site'], 'release_sha':'c' * 40}
+    monkeypatch.setattr(release.time, 'sleep', lambda *_: None)
+    monkeypatch.setattr(release, 'fetch_json', lambda url: stale if 'web.app' in url else live['backend'])
+    with pytest.raises(release.ValidationFailure) as error:
+        release.smoke(manifest, site_sha=manifest['sha'])
+    assert release.failure_metadata(error.value)['validation'] == 'site health: site release commit'
+    assert 'c' * 40 not in json.dumps(release.failure_metadata(error.value))
+    # A non-validation error (e.g. unreachable endpoint) stays generic.
+    def unreachable(url):
+        raise OSError('PRIVATE_SENTINEL')
+    monkeypatch.setattr(release, 'fetch_json', unreachable)
+    with pytest.raises(ValueError, match='Release health check failed'):
+        release.smoke(manifest)
+
+
 def _smoke_with(monkeypatch, failing, code):
     manifest = release.prepare('staging', inputs())
     seen = []
