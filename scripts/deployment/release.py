@@ -139,6 +139,13 @@ def public_configuration(environment, env, sha, trees=None):
         backend['MAIL_ALLOWED_RECIPIENTS'] = recipients
     for key in ['MAILERSEND_FROM_EMAIL', 'MAILERSEND_FROM_NAME', 'SOUNDCLOUD_CLIENT_ID']:
         backend[key] = public_value(env, key)
+    # Optional public settings that keep the live behaviour: where contact-form messages go and the email logo.
+    # Absent means the code default applies; present means it is validated and part of the backend digest.
+    for key, pattern in [('CONTACT_MESSAGES_TO_EMAIL', r'[^\s@,;<>*]+@[^\s@,;<>*]+\.[^\s@,;<>*]+'),
+                         ('MAILERSEND_LOGO_URL', r'https://[^\s"\\]+')]:
+        if env.get(key):
+            require(re.fullmatch(pattern, public_value(env, key)), key)
+            backend[key] = env[key]
     frontend = dict(NEXT_PUBLIC_ENV=environment, NEXT_PUBLIC_BASE_URL=resource['backend_url'],
         NEXT_PUBLIC_FIREBASE_PROJECT_ID=project, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=resource['storage_bucket'],
         NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=f'{project}.firebaseapp.com',
