@@ -66,9 +66,10 @@ def test_only_ids_of_deleted_memberships_are_removed_from_purchases():
 def test_review_items_list_ids_only_and_never_become_changes():
     members = [('m1', dict(email='a@x.it', phone='+39 333 111')), ('m2', dict(email='', phone='0039333111')),
                ('m3', dict(email='c@x.it', phone='+39 333 111')), ('m4', dict(email='d@x.it'))]
-    parts = [('p', dict(discountCodeId='c1')), ('q', dict(discountCodeId='c1')), ('r', dict())]
+    purchases = [('p', dict(discountCodeId='c1', status='COMPLETED')), ('q', dict(discountCodeId='c1', status='COMPLETED')),
+                 ('r', dict()), ('s', dict(discountCodeId='c3', status='REFUNDED'))]
     codes = [('c1', dict(usedCount=2)), ('c2', dict(usedCount=1)), ('c3', dict(usedCount=0))]
-    review = reconcile.review_items(members, parts, codes)
+    review = reconcile.review_items(members, purchases, codes)
     assert review['memberships_without_email'] == ['m2']
     assert review['memberships_sharing_a_phone'] == [['m1', 'm3']]
     assert review['discount_codes_with_inconsistent_counter'] == ['c2']

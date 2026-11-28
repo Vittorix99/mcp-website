@@ -95,16 +95,18 @@ def plan_purchase_memberships(purchases, membership_ids):
     return changes
 
 
-def review_items(memberships, participants, codes):
+def review_items(memberships, purchases, codes):
     """Ids only, for a person to decide; never changed by this script."""
     by_phone = {}
     for doc_id, data in memberships:
         phone = re.sub(r'\D', '', str(data.get('phone') or ''))
         if phone:
             by_phone.setdefault(phone, []).append(doc_id)
+    # usedCount rises once per captured payment and is not lowered when a participant is deleted later,
+    # so the reference count is COMPLETED purchases, not participants.
     used = {}
-    for _, data in participants:
-        if data.get('discountCodeId'):
+    for _, data in purchases:
+        if data.get('discountCodeId') and data.get('status') == 'COMPLETED':
             used[data['discountCodeId']] = used.get(data['discountCodeId'], 0) + 1
     return dict(
         memberships_without_email=sorted(doc_id for doc_id, data in memberships if not (data.get('email') or '').strip()),
@@ -125,7 +127,7 @@ def build_plan(client, project, now):
     price_changes, odd_prices = plan_participant_prices(participants)
     changes = (plan_events(events, now) + member_changes + price_changes
                + plan_purchase_memberships(purchases, {doc_id for doc_id, _ in members}))
-    review = review_items(members, participants, codes)
+    review = review_items(members, purchases, codes)
     review.update(memberships_without_usable_year_index=sorted(no_year_index), participants_with_unparseable_price=sorted(odd_prices))
     return dict(project=project, year=now.year, changes=sorted(changes, key=lambda item: (item['category'], item['path'])),
                 review=review)
