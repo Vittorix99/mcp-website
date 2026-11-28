@@ -308,3 +308,31 @@ Obiettivo: dal merge su `main` a staging in automatico, senza ripetere lavoro gi
 (run `46075562302`) via OIDC riusciti, e 8 ripristini automatici verificati. **Rischio accettato dall'owner:** il percorso
 manuale `operation=rollback` con `snapshot_run_id` non è mai stato eseguito; lo stesso `rollback()` è però esercitato dal
 ripristino automatico. Produzione richiede la propria baseline.
+
+## Produzione: stato e prerequisiti (verifica di sola lettura del 28/11/2026)
+
+**Stato rilevato.** La produzione (`mcp-website-2a1ad`) gira ancora con il deploy storico: nessun Environment GitHub
+`production`, nessun pool WIF, nessun account di servizio dedicato (solo quelli di default), nessuna variabile di rilascio.
+Le credenziali dei provider (PayPal live, MailerSend, Pass2U, SoundCloud, ecc.) sono **variabili d'ambiente in chiaro nelle
+revisioni Cloud Run**; in Secret Manager esiste solo `GENDER_API_KEY`. Il codice nuovo vuole `PAYPAL_MODE` (rifiuta
+`PAYPAL_ENV`, che oggi vale `production`) e i segreti in Secret Manager con accesso per-segreto all'account runtime.
+
+**Perché non prima del lancio.** Il primo rilascio OIDC cambia la configurazione runtime (modalità provider, segreti,
+account, CPU) di tutti gli endpoint, incluso il pagamento PayPal live, e richiede il click del revisore. Dopo il lancio.
+
+**Ordine proposto (ogni passo cloud richiede l'ok dell'owner; i valori dei segreti non passano dalla chat):**
+1. Segreti: creare in Secret Manager `PAYPAL_CLIENT_SECRET` (live), `MAILERSEND_API_KEY`, `PASS2U_API_KEY`,
+   `SOUNDCLOUD_CLIENT_SECRET` (+ `GENDER_API_KEY` già presente), con le versioni attuali; il copia-incolla lo fa l'owner.
+2. Identità: account di servizio build/runtime/web-runtime/deployer, pool e provider WIF limitati a repository, ramo `main`
+   ed Environment `production`; stessi permessi minimi di staging (ruolo per elencare le estensioni, lettura metadati
+   Firestore, API Cloud Billing, `apiKeysViewer`, accesso per-segreto al solo account runtime).
+3. GitHub: Environment `production` con revisore obbligatorio (owner), senza bypass admin, solo `main`; variabili
+   `WIF_PROVIDER`, `DEPLOY_SERVICE_ACCOUNT`, account runtime, ID pubblici (PayPal client id live, ecc.).
+4. Prova a vuoto: `operation=verify` su produzione (sola lettura, include il dry run del backend), poi `ROLLBACK_BASELINE_VERIFIED`
+   per produzione e un primo rilascio con approvazione manuale; `ENABLE_PRODUCTION_DEPLOY` resta spento finché la prova non è verde.
+5. Dopo il primo rilascio: stesse verifiche di staging (smoke, controlli pubblici) e solo allora rilascio automatico dopo staging.
+
+**Latenza (misure del 28/11/2026, curl dall'Italia, 4 richieste per endpoint).** A caldo 0,22-0,33 s su produzione e staging
+(baseline del 24/10: 0,26-0,39 s): invariata. Alla prima richiesta dopo inattività 4,6-13 s su entrambe (istanze a 0). Rimedio
+da decidere con l'owner prima del lancio: almeno una istanza minima sugli endpoint pubblici di lettura e sul checkout (costo
+mensile), oppure un ping periodico; l'import iniziale del backend è la causa da ridurre in seguito.

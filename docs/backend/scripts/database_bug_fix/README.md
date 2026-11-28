@@ -90,3 +90,21 @@ MCP_ENV=test \
 GOOGLE_APPLICATION_CREDENTIALS=/Users/vittoriodigiorgio/Desktop/MCP-WEB-PROJECT/mcp-backend/functions/service_.account_test.json \
 python mcp-backend/functions/scripts/database_bug_fix/report_membership_discrepancies.py
 ```
+
+## reconcile_stale_state.py
+
+Mechanical fixes from the 2026-11-28 production audit, by category (`--only`): `events_status` (finished events still
+`active` -> `ended`), `memberships_validity` (`subscription_valid` -> False when `membership_years` lacks the current year;
+what the 1 January trigger does), `participant_prices` (text prices -> numbers), `purchase_memberships` (ids of deleted
+memberships removed from `membership_ids`). Duplicate phones, missing emails and inconsistent discount-code counters are only
+listed under `review` in the plan.
+
+- **Dry run by default** (reads only, writes a plan file of document paths and old/new values, no personal data).
+- `--apply --only ... --plan-file PLAN --confirm-project P` refuses to run if live data no longer matches the reviewed plan
+  for the selected categories. One field per document, guarded by the document's last update time, rollback values written to
+  disk before the first write.
+
+```bash
+cd mcp-backend/functions
+../../.venv/bin/python scripts/database_bug_fix/reconcile_stale_state.py --project mcp-website-2a1ad
+```
