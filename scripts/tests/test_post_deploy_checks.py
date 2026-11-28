@@ -10,7 +10,9 @@ PROJECT = 'mcp-website-dev-39539'
 
 
 def healthy(url, headers):
-    if 'admin_get_radio_episodes' in url or 'member_get_me' in url:
+    if 'admin_get_radio_episodes' in url:
+        return 401, 'text/html; charset=utf-8', 'No authorization token provided'
+    if 'member_get_me' in url:
         return 401, 'application/json', '{"error": "Authorization token missing"}'
     if 'get_event_by_id' in url:
         return 400, 'application/json', '{"error": "Invalid request"}'
