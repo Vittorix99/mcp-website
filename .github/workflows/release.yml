@@ -69,7 +69,11 @@ jobs:
 
   staging:
     needs: gate
-    if: vars.ENABLE_STAGING_DEPLOY == 'true' && (github.event_name == 'push' || inputs.operation == 'deploy')
+    # `verify` is skipped when the suite is reused, and GitHub skips every job downstream of a skipped job unless
+    # the condition says otherwise: require the gate result explicitly instead.
+    if: >-
+      !cancelled() && needs.gate.result == 'success' && vars.ENABLE_STAGING_DEPLOY == 'true' &&
+      (github.event_name == 'push' || inputs.operation == 'deploy')
     uses: ./.github/workflows/deploy-environment.yml
     permissions:
       contents: read
@@ -81,7 +85,8 @@ jobs:
 
   production:
     needs: staging
-    if: vars.ENABLE_PRODUCTION_DEPLOY == 'true' && needs.staging.result == 'success'
+    if: >-
+      !cancelled() && vars.ENABLE_PRODUCTION_DEPLOY == 'true' && needs.staging.result == 'success'
     uses: ./.github/workflows/deploy-environment.yml
     permissions:
       contents: read
@@ -95,7 +100,9 @@ jobs:
   # and never snapshots, deploys or changes traffic or data.
   verify-access:
     needs: gate
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'
+    if: >-
+      !cancelled() && needs.gate.result == 'success' &&
+      github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'
     uses: ./.github/workflows/deploy-environment.yml
     permissions:
       contents: read
@@ -108,6 +115,7 @@ jobs:
   rollback:
     needs: gate
     if: >-
+      !cancelled() && needs.gate.result == 'success' &&
       github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' &&
       ((inputs.rollback_environment == 'staging' && vars.ENABLE_STAGING_DEPLOY == 'true') ||
       (inputs.rollback_environment == 'production' && vars.ENABLE_PRODUCTION_DEPLOY == 'true'))
