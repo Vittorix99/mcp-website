@@ -889,7 +889,8 @@ def test_verify_access_job_is_manual_read_only_and_needs_no_deploy_flag():
     jobs = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
     job = jobs['verify-access']
     assert job['needs'] == 'gate'
-    assert job['if'] == "github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'"
+    assert job['if'].split() == ("!cancelled() && needs.gate.result == 'success' && "
+        "github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'").split()
     assert job['with'] == {'environment': 'staging', 'operation': 'verify'}
     assert 'ENABLE_' not in job['if']
     # No mutating job can start for a verify dispatch.
@@ -1110,3 +1111,15 @@ def test_check_runs_the_backend_dry_run_only_when_the_backend_will_deploy(monkey
         release.main()
         assert calls == expected
     assert 'dry run) passed' in capsys.readouterr().out
+
+
+def test_deployment_jobs_run_after_a_reused_suite_and_never_after_a_failed_or_cancelled_gate():
+    import yaml
+    jobs = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
+    # `verify` is skipped when the suite is reused; GitHub would skip everything downstream unless the gate is explicit.
+    for name in ['staging', 'verify-access', 'rollback']:
+        condition = ' '.join(jobs[name]['if'].split())
+        assert condition.startswith("!cancelled() && needs.gate.result == 'success'")
+    assert jobs['production']['if'].startswith('!cancelled() &&')
+    assert "needs.staging.result == 'success'" in jobs['production']['if']
+    assert "vars.ENABLE_STAGING_DEPLOY == 'true'" in jobs['staging']['if']
