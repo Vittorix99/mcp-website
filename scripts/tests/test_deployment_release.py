@@ -1123,3 +1123,120 @@ def test_deployment_jobs_run_after_a_reused_suite_and_never_after_a_failed_or_ca
     assert jobs['production']['if'].startswith('!cancelled() &&')
     assert "needs.staging.result == 'success'" in jobs['production']['if']
     assert "vars.ENABLE_STAGING_DEPLOY == 'true'" in jobs['staging']['if']
+
+
+def _scoped_fixture(monkeypatch, manifest):
+    live = healths(manifest)
+    monkeypatch.setattr(release, 'fetch_json', lambda url: live['backend'] if 'cloudfunctions' in url else live['site'])
+    monkeypatch.setattr(release, 'smoke', lambda *a, **kw: None)
+    monkeypatch.setattr(release, 'verify_topology', lambda _: None)
+    records = [dict(name='deployment_health', labels={'firebase-functions-codebase': 'python_codebase'},
+        serviceConfig={'service': 'public-api'}),
+        dict(name='ssrsite', labels={'firebase-functions-codebase': 'firebase-frameworks-' + manifest['project']},
+        serviceConfig={'service': 'ssr-site'})]
+    monkeypatch.setattr(release, 'cloud_functions', lambda _: records)
+    monkeypatch.setattr(release, 'expected_functions', lambda *a: ['deployment_health'])
+    monkeypatch.setattr(release, 'hosting', lambda *a, **kw: {'releases': [{'type': 'DEPLOY',
+        'version': {'name': f"sites/{manifest['project']}/versions/previous-version"}}]})
+    monkeypatch.setattr(release, 'verify_secret_versions', lambda *a: None)
+    states, secrets, backend_checks = [], [], []
+    monkeypatch.setattr(release, 'service_state', lambda _, service: states.append(service) or
+        {'traffic': {service + '-00001-abc': 100}})
+    monkeypatch.setattr(release, 'verify_revision_secrets', lambda _, revision: secrets.append(revision) or set())
+    monkeypatch.setattr(release, 'verify_function_releases', lambda _: backend_checks.append('checked'))
+    return states, secrets, backend_checks
+
+
+@pytest.mark.parametrize('scope,services,backend_checked', [
+    ({'backend': False, 'site': True}, ['ssr-site'], False),
+    ({'backend': True, 'site': False}, ['public-api'], True),
+    ({'backend': True, 'site': True}, ['public-api', 'ssr-site'], True),
+    ({'backend': False, 'site': False}, [], False)])
+def test_snapshot_covers_only_the_components_the_release_changes(monkeypatch, scope, services, backend_checked):
+    manifest = release.prepare('staging', inputs())
+    states, secrets, backend_checks = _scoped_fixture(monkeypatch, manifest)
+    result = release.snapshot_release(manifest, {}, scope)
+    assert sorted(result['services']) == sorted(states) == services
+    assert (backend_checks == ['checked']) is backend_checked
+    assert result['schema'] == 3 and result['scope'] == [c for c in ('backend', 'site') if scope[c]]
+    release.validate_snapshot(result, manifest)
+    # The Hosting baseline is always captured; it is one read.
+    assert result['hosting_version'].endswith('previous-version')
+
+
+def test_rollback_restores_only_the_snapshot_scope_and_ignores_other_services(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'verify_topology', lambda _: None)
+    states, secrets, _ = _scoped_fixture(monkeypatch, manifest)
+    previous = {**snapshot(manifest), 'schema': 3, 'scope': ['site'],
+        'services': {'ssr-site': {'traffic': {'ssr-site-00001-abc': 100}}}}
+    calls = []
+    monkeypatch.setattr(release, 'gcloud', lambda _, *args: calls.append(args))
+    monkeypatch.setattr(release, 'active_hosting_version', lambda _: previous['hosting_version'])
+    release.rollback(previous, manifest)
+    assert [call[3] for call in calls] == ['ssr-site']
+    assert secrets == ['ssr-site-00001-abc']
+    # A scoped snapshot must still match the live inventory of its own component.
+    previous['services'] = {'other-site': {'traffic': {'other-site-00001-abc': 100}}}
+    with pytest.raises(ValueError, match='rollback service inventory'):
+        release.rollback(previous, manifest)
+
+
+def test_snapshot_scope_is_validated_and_empty_scope_has_nothing_to_restore():
+    manifest = release.prepare('staging', inputs())
+    previous = {**snapshot(manifest), 'schema': 3}
+    for scope in (['backend', 'backend'], ['database'], 'backend', None):
+        with pytest.raises(ValueError):
+            release.validate_snapshot({**previous, 'scope': scope}, manifest)
+    release.validate_snapshot({**previous, 'scope': [], 'services': {}}, manifest)
+    with pytest.raises(ValueError):
+        release.validate_snapshot({**previous, 'scope': ['site'], 'services': {}}, manifest)
+    assert release.snapshot_scope(snapshot(manifest)) == {'backend', 'site'}
+
+
+def test_check_records_the_scope_and_snapshot_and_deploy_refuse_live_drift(monkeypatch, tmp_path):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'ROOT', tmp_path)
+    monkeypatch.setattr('sys.argv', ['release.py', 'check', '--environment', 'staging'])
+    monkeypatch.setattr(release, 'prepare', lambda *a: manifest)
+    monkeypatch.setattr(release, 'preflight', lambda *a, **kw: None)
+    monkeypatch.setattr(release, 'release_environment', lambda _: {'GOOGLE_APPLICATION_CREDENTIALS': 'synthetic'})
+    monkeypatch.setattr(release, 'cloud_preflight', lambda _: None)
+    monkeypatch.setattr(release, 'read_live', lambda _: {})
+    monkeypatch.setattr(release, 'command', lambda *a, **kw: '')
+    monkeypatch.setattr(release, 'plan_release', lambda *a: {'backend': False, 'site': True})
+    monkeypatch.setattr(release, 'stale_secret_versions', lambda _: [])
+    release.main()
+    assert release.read_scope() == {'backend': False, 'site': True}
+    # Live state now also wants a backend deploy: the recorded scope no longer covers it.
+    with pytest.raises(release.ValidationFailure, match='changed since the pre-deploy check'):
+        release.require_within_scope({'backend': True, 'site': True}, release.read_scope())
+    release.require_within_scope({'backend': False, 'site': True}, release.read_scope())
+    (tmp_path / '.local/release/scope.json').write_text('{"backend": "yes", "site": true}')
+    with pytest.raises(ValueError):
+        release.read_scope()
+    (tmp_path / '.local/release/scope.json').unlink()
+    with pytest.raises(FileNotFoundError):
+        release.read_scope()
+
+
+def test_deploy_executes_exactly_the_snapshot_scope(monkeypatch, tmp_path):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'ROOT', tmp_path)
+    scratch = tmp_path / '.local/release'
+    scratch.mkdir(parents=True)
+    # A stale-secret backend release: the live identity says "unchanged", the recorded scope says "backend".
+    (scratch / 'snapshot.json').write_text(json.dumps({**snapshot(manifest), 'schema': 3, 'scope': ['backend']}))
+    (scratch / 'config.json').write_text(json.dumps(manifest))
+    monkeypatch.setattr('sys.argv', ['release.py', 'deploy', '--environment', 'staging'])
+    monkeypatch.setattr(release, 'prepare', lambda *a: manifest)
+    monkeypatch.setattr(release, 'preflight', lambda *a, **kw: None)
+    monkeypatch.setattr(release, 'release_environment', lambda _: {'GOOGLE_APPLICATION_CREDENTIALS': 'synthetic'})
+    monkeypatch.setattr(release, 'command', lambda *a, **kw: '')
+    monkeypatch.setattr(release, 'cloud_preflight', lambda _: None)
+    monkeypatch.setattr(release, 'read_live', lambda _: healths(manifest))
+    monkeypatch.setattr(release, 'stale_secret_versions', lambda _: pytest.fail('stale scan runs once, in check'))
+    seen = []
+    monkeypatch.setattr(release, 'execute_release', lambda m, e, changed: seen.append(changed) or ['backend'])
+    release.main()
+    assert seen == [{'backend': True, 'site': False}]

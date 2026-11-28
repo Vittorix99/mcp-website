@@ -224,8 +224,23 @@ def plan_release(manifest, live):
     return changed
 
 
+COMPONENTS = ('backend', 'site')
+
+
+def codebases_for(manifest, components):
+    names = {'backend': 'python_codebase', 'site': 'firebase-frameworks-' + manifest['project']}
+    return {names[component] for component in components}
+
+
+def snapshot_scope(snapshot):
+    """Components whose services the snapshot covers. A schema 2 snapshot always covered both."""
+    scope = snapshot.get('scope', list(COMPONENTS))
+    require(isinstance(scope, list) and len(set(scope)) == len(scope) and set(scope) <= set(COMPONENTS), 'snapshot scope')
+    return set(scope)
+
+
 def validate_snapshot(snapshot, manifest):
-    require(snapshot.get('schema') == 2 and snapshot.get('project') == manifest['project'] and
+    require(snapshot.get('schema') in {2, 3} and snapshot.get('project') == manifest['project'] and
         snapshot.get('environment') == manifest['environment'], 'snapshot environment')
     components = snapshot.get('components', {})
     require(re.fullmatch(SHA, snapshot.get('sha', '')) and
@@ -237,7 +252,9 @@ def validate_snapshot(snapshot, manifest):
         snapshot.get('hosting_version', '')), 'snapshot hosting version')
     require(isinstance(snapshot.get('functions'), list) and snapshot['functions'] and
         all(re.fullmatch(r'[a-zA-Z][a-zA-Z0-9_]*', name) for name in snapshot['functions']), 'snapshot function names')
-    require(isinstance(snapshot.get('services'), dict) and snapshot['services'], 'snapshot services')
+    # Nothing to restore when the release changes no component; otherwise every covered component has services.
+    scope = snapshot_scope(snapshot)
+    require(isinstance(snapshot.get('services'), dict) and (snapshot['services'] or not scope), 'snapshot services')
     require(isinstance(snapshot.get('secrets'), list), 'snapshot secret version references')
     for reference in snapshot['secrets']:
         require(re.fullmatch(r'[A-Z][A-Z0-9_]*', reference.get('secret', '')) and
@@ -415,7 +432,11 @@ def expected_functions(manifest, env):
     return sorted(row['id'] for row in endpoints if row['kind'] == 'http')
 
 
-def snapshot_release(manifest, env):
+def snapshot_release(manifest, env, scope=None):
+    """Capture the baseline of the components this release will change; others keep serving untouched."""
+    scope = {component: True for component in COMPONENTS} if scope is None else scope
+    covered = sorted(component for component in COMPONENTS if scope.get(component))
+    codebases = codebases_for(manifest, covered)
     progress('snapshot.inventory')
     live = read_live(manifest)
     backend, site = live['backend'], live['site']
@@ -436,10 +457,12 @@ def snapshot_release(manifest, env):
     require(any(item.get('labels', {}).get('firebase-functions-codebase') ==
         'firebase-frameworks-' + manifest['project'] for item in records), 'SSR rollback target')
     progress('snapshot.revisions')
-    verify_function_releases(old)
+    if 'backend' in covered:
+        verify_function_releases(old)
     smoke(old, site_sha=old['sha'])
     services = {}
     references = set()
+    records = [item for item in records if item.get('labels', {}).get('firebase-functions-codebase') in codebases]
     progress('snapshot.capture', total=len(records))
     for item in records:
         service = item.get('serviceConfig', {}).get('service', '').rsplit('/', 1)[-1]
@@ -451,7 +474,7 @@ def snapshot_release(manifest, env):
     # A restored release is published as type ROLLBACK; it is as live and finalized as a DEPLOY, so a release
     # that follows a successful automatic restore can still be snapshotted. SITE_DISABLE and others are refused.
     require(len(releases) == 1 and releases[0].get('type') in {'DEPLOY', 'ROLLBACK'}, 'previous Hosting release')
-    snapshot = dict(schema=2, environment=manifest['environment'], project=manifest['project'],
+    snapshot = dict(schema=3, scope=covered, environment=manifest['environment'], project=manifest['project'],
         sha=old['sha'], components=old['components'], functions=functions, services=services,
         secrets=[dict(secret=name,version=version) for name,version in sorted(references)],
         hosting_version=releases[0]['version']['name'])
@@ -467,7 +490,9 @@ def rollback(snapshot, manifest):
     verify_secret_versions(snapshot, manifest)
     # Validate ALL targets before the first mutation; no guessed service names or latest pointers.
     records = cloud_functions(manifest)
-    current = {item.get('serviceConfig', {}).get('service', '').rsplit('/', 1)[-1] for item in records}
+    codebases = codebases_for(manifest, snapshot_scope(snapshot))
+    current = {item.get('serviceConfig', {}).get('service', '').rsplit('/', 1)[-1] for item in records
+        if item.get('labels', {}).get('firebase-functions-codebase') in codebases}
     require(current == set(snapshot['services']), 'rollback service inventory')
     functions = sorted(item['name'].rsplit('/', 1)[-1] for item in records
         if item.get('labels', {}).get('firebase-functions-codebase') == 'python_codebase')
@@ -761,6 +786,20 @@ def preflight(manifest, *, read_only=False):
         'staging rollback proof and baseline approval')
 
 
+def read_scope():
+    """The components this release changes, decided once by `check` before any snapshot."""
+    scope = json.loads((ROOT / '.local/release/scope.json').read_text())
+    require(isinstance(scope, dict) and set(scope) == set(COMPONENTS) and
+        all(type(value) is bool for value in scope.values()), 'release scope')
+    return scope
+
+
+def require_within_scope(planned, scope):
+    # Live state moving between the check and now would make the baseline incomplete: refuse rather than guess.
+    require(all(scope[component] for component in COMPONENTS if planned[component]),
+        'live release changed since the pre-deploy check')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=['prepare', 'plan', 'verify', 'check', 'snapshot', 'deploy', 'rollback'])
@@ -792,6 +831,10 @@ def main():
         changed = plan_release(manifest, read_live(manifest))
         if not changed['backend'] and stale_secret_versions(manifest):
             changed['backend'] = True
+        # The stale-secret scan is the slow part: do it once. Snapshot and deploy read this scope.
+        scratch = ROOT / '.local/release'
+        scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
+        (scratch / 'scope.json').write_text(json.dumps(changed, sort_keys=True) + '\n')
         if changed['backend']:
             command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'backend-check'], env=env)
             print('Backend deploy validation (dry run) passed.', flush=True)
@@ -824,7 +867,9 @@ def main():
         print('Rollback traffic, Hosting version and health verified; application data unchanged.')
         return
     if args.operation == 'snapshot':
-        previous = snapshot_release(manifest, env)
+        scope = read_scope()
+        require_within_scope(plan_release(manifest, read_live(manifest)), scope)
+        previous = snapshot_release(manifest, env, scope)
         (ROOT / '.local/release/snapshot.json').write_text(json.dumps(previous, sort_keys=True) + '\n')
         # Snapshot upload is a separate workflow step BEFORE any deploy command.
         print('Rollback baseline captured; no deployment started.')
@@ -834,14 +879,10 @@ def main():
     saved = json.loads((ROOT / '.local/release/config.json').read_text())
     require(saved == manifest, 'configuration changed since preparation')
     # Fail closed: without a readable live identity there is no basis to skip or deploy anything.
-    changed = plan_release(manifest, read_live(manifest))
-    if not changed['backend']:
-        progress('deploy.secret-version-check')
-        stale = stale_secret_versions(manifest)
-        if stale:
-            # Names only; never the values or versions.
-            print('Backend secret versions are stale (' + ', '.join(stale) + '); the backend will be updated.', flush=True)
-            changed['backend'] = True
+    scope = {component: component in snapshot_scope(previous) for component in COMPONENTS}
+    require_within_scope(plan_release(manifest, read_live(manifest)), scope)
+    # The snapshot covers exactly these components, so the release deploys exactly these (stale secrets included).
+    changed = scope
     try:
         targets = execute_release(manifest, env, changed)
     except Exception as deployment_error:

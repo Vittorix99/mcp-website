@@ -288,6 +288,13 @@ Obiettivo: dal merge su `main` a staging in automatico, senza ripetere lavoro gi
   `STAGING_RELEASE_PROOF_APPROVED`. L'interruttore è `ENABLE_STAGING_DEPLOY`: acceso, ogni push su `main` rilascia solo i
   componenti cambiati; spento, i rilasci si fermano (interruttore di emergenza).
 
+- **Snapshot per componente.** `check` decide una sola volta quali componenti cambiano (identità live + segreti ruotati) e
+  scrive `.local/release/scope.json`. `snapshot` cattura servizi e segreti **solo** dei componenti in scope (schema 3, campo
+  `scope`); la versione Hosting si registra sempre. `deploy` rilascia esattamente lo scope dello snapshot e si ferma se lo stato
+  live richiede un componente fuori scope (nessun baseline parziale). `rollback` valida e ripristina solo i servizi in scope;
+  uno snapshot schema 2 resta valido e copre entrambi i componenti. Rilascio senza modifiche: scope vuoto, nessun servizio.
+  Un rilascio solo sito non esegue più le ~130 verifiche delle revisioni backend nello snapshot né la scansione segreti due volte.
+
 ### Baseline di rollback su staging (decisione owner 28/11/2026)
 
 `ROLLBACK_BASELINE_VERIFIED=true` su staging dopo: rilascio sito (run `46048768103`) e rilascio backend + sito
