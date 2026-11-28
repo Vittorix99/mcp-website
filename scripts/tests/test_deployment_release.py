@@ -1207,17 +1207,20 @@ def test_check_records_the_scope_and_snapshot_and_deploy_refuse_live_drift(monke
     monkeypatch.setattr(release, 'plan_release', lambda *a: {'backend': False, 'site': True})
     monkeypatch.setattr(release, 'stale_secret_versions', lambda _: [])
     release.main()
-    assert release.read_scope() == {'backend': False, 'site': True}
+    assert release.read_scope(manifest) == {'backend': False, 'site': True}
     # Live state now also wants a backend deploy: the recorded scope no longer covers it.
     with pytest.raises(release.ValidationFailure, match='changed since the pre-deploy check'):
-        release.require_within_scope({'backend': True, 'site': True}, release.read_scope())
-    release.require_within_scope({'backend': False, 'site': True}, release.read_scope())
-    (tmp_path / '.local/release/scope.json').write_text('{"backend": "yes", "site": true}')
-    with pytest.raises(ValueError):
-        release.read_scope()
-    (tmp_path / '.local/release/scope.json').unlink()
+        release.require_within_scope({'backend': True, 'site': True}, release.read_scope(manifest))
+    release.require_within_scope({'backend': False, 'site': True}, release.read_scope(manifest))
+    path = tmp_path / '.local/release/scope.json'
+    recorded = json.loads(path.read_text())
+    for update in [dict(scope={'backend': 'yes', 'site': True}), dict(environment='production'), dict(sha='f' * 40)]:
+        path.write_text(json.dumps({**recorded, **update}))
+        with pytest.raises(ValueError):
+            release.read_scope(manifest)
+    path.unlink()
     with pytest.raises(FileNotFoundError):
-        release.read_scope()
+        release.read_scope(manifest)
 
 
 def test_deploy_executes_exactly_the_snapshot_scope(monkeypatch, tmp_path):
@@ -1240,3 +1243,33 @@ def test_deploy_executes_exactly_the_snapshot_scope(monkeypatch, tmp_path):
     monkeypatch.setattr(release, 'execute_release', lambda m, e, changed: seen.append(changed) or ['backend'])
     release.main()
     assert seen == [{'backend': True, 'site': False}]
+
+
+@pytest.mark.parametrize('scope', [['backend'], []])
+def test_backend_only_rollback_never_moves_hosting_or_checks_the_site(monkeypatch, scope):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'verify_topology', lambda _: None)
+    _scoped_fixture(monkeypatch, manifest)
+    services = {'public-api': {'traffic': {'public-api-00001-abc': 100}}} if scope else {}
+    previous = {**snapshot(manifest), 'schema': 3, 'scope': scope, 'services': services}
+    monkeypatch.setattr(release, 'gcloud', lambda *a: None)
+    monkeypatch.setattr(release, 'hosting', lambda *a, **kw: pytest.fail('Hosting must not move'))
+    monkeypatch.setattr(release, 'active_hosting_version', lambda *a: pytest.fail('Hosting must not be read'))
+    seen = []
+    monkeypatch.setattr(release, 'smoke', lambda m, **kw: seen.append((kw['site_sha'], set(kw['components']))))
+    release.rollback(previous, manifest)
+    assert seen == [(None, set(scope))]
+
+
+def test_schema_two_snapshot_still_restores_both_components(monkeypatch):
+    manifest = release.prepare('staging', inputs())
+    monkeypatch.setattr(release, 'verify_topology', lambda _: None)
+    _scoped_fixture(monkeypatch, manifest)
+    previous = {**snapshot(manifest), 'services': {'public-api': {'traffic': {'public-api-00001-abc': 100}},
+        'ssr-site': {'traffic': {'ssr-site-00001-abc': 100}}}}
+    monkeypatch.setattr(release, 'gcloud', lambda *a: None)
+    monkeypatch.setattr(release, 'active_hosting_version', lambda *a: previous['hosting_version'])
+    seen = []
+    monkeypatch.setattr(release, 'smoke', lambda m, **kw: seen.append((kw['site_sha'], set(kw['components']))))
+    release.rollback(previous, manifest)
+    assert seen == [(previous['sha'], {'backend', 'site'})]

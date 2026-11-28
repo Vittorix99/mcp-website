@@ -295,6 +295,13 @@ Obiettivo: dal merge su `main` a staging in automatico, senza ripetere lavoro gi
   uno snapshot schema 2 resta valido e copre entrambi i componenti. Rilascio senza modifiche: scope vuoto, nessun servizio.
   Un rilascio solo sito non esegue più le ~130 verifiche delle revisioni backend nello snapshot né la scansione segreti due volte.
 
+- **Controlli dopo il rilascio.** Dopo deploy e smoke, `scripts/staging/post_deploy_checks.py` esegue solo GET pubblici in sola
+  lettura (nessuna credenziale, nessuna scrittura): guardie di autenticazione (admin/member senza token e con token non valido
+  → 401/403), contratto delle API pubbliche (JSON, errori 4xx senza stack trace) e pagine del sito (home, eventi, radio,
+  contatti, robots). Un fallimento rende rosso il job ma **non** avvia un ripristino automatico: decide l'owner.
+  `test_endpoint_authentication_inventory.py` (statico) fallisce se un endpoint nasce senza guardia o se la superficie pubblica
+  cambia senza aggiornare l'elenco rivisto.
+
 ### Baseline di rollback su staging (decisione owner 28/11/2026)
 
 `ROLLBACK_BASELINE_VERIFIED=true` su staging dopo: rilascio sito (run `46048768103`) e rilascio backend + sito

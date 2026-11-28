@@ -385,9 +385,11 @@ HEALTH_ATTEMPTS = 24
 HEALTH_DELAY_SECONDS = 10
 
 
-def smoke(manifest, *, site_sha=None):
+def smoke(manifest, *, site_sha=None, components=COMPONENTS):
     project = manifest['project']
     for component, url in HEALTH_URLS.items():
+        if component not in components:
+            continue
         url = url.format(project=project)
         # Bounded retry handles propagation; mismatch is never reported as success.
         observed = None
@@ -509,18 +511,24 @@ def rollback(snapshot, manifest):
         gcloud(manifest, 'run', 'services', 'update-traffic', service, '--region', REGION, '--to-revisions', target)
         if index % 25 == 0 or index == len(snapshot['services']):
             progress('rollback.traffic', completed=index, total=len(snapshot['services']))
-    progress('rollback.hosting')
-    # Hosting rejects republishing the version that is already active. This is
-    # normal for backend-only rollback or a deploy that failed before publication.
-    if active_hosting_version(manifest) != snapshot['hosting_version']:
-        hosting(manifest, '/releases', version=snapshot['hosting_version'])
-    else:
-        progress('rollback.hosting-already-active')
+    scope = snapshot_scope(snapshot)
+    # Hosting is part of the site component: a backend-only baseline must not move a site it never covered.
+    if 'site' in scope:
+        progress('rollback.hosting')
+        # Hosting rejects republishing the version that is already active. This is
+        # normal for a deploy that failed before publication.
+        if active_hosting_version(manifest) != snapshot['hosting_version']:
+            hosting(manifest, '/releases', version=snapshot['hosting_version'])
+        else:
+            progress('rollback.hosting-already-active')
     progress('rollback.readback')
     for service, state in snapshot['services'].items():
         require(service_state(manifest, service) == state, 'restored revision traffic')
-    require(active_hosting_version(manifest) == snapshot['hosting_version'], 'restored Hosting version')
-    smoke({**manifest, 'sha':snapshot['sha'], 'components':snapshot['components']}, site_sha=snapshot['sha'])
+    if 'site' in scope:
+        require(active_hosting_version(manifest) == snapshot['hosting_version'], 'restored Hosting version')
+    # Only the restored components have a known identity to compare against.
+    smoke({**manifest, 'sha':snapshot['sha'], 'components':snapshot['components']},
+        site_sha=snapshot['sha'] if 'site' in scope else None, components=scope)
     progress('rollback.verified')
 
 
@@ -786,9 +794,12 @@ def preflight(manifest, *, read_only=False):
         'staging rollback proof and baseline approval')
 
 
-def read_scope():
-    """The components this release changes, decided once by `check` before any snapshot."""
-    scope = json.loads((ROOT / '.local/release/scope.json').read_text())
+def read_scope(manifest):
+    """The components this release changes, decided once by `check` before any snapshot, for this run only."""
+    record = json.loads((ROOT / '.local/release/scope.json').read_text())
+    require(isinstance(record, dict) and record.get('environment') == manifest['environment'] and
+        record.get('sha') == manifest['sha'], 'release scope belongs to this run')
+    scope = record.get('scope')
     require(isinstance(scope, dict) and set(scope) == set(COMPONENTS) and
         all(type(value) is bool for value in scope.values()), 'release scope')
     return scope
@@ -834,7 +845,8 @@ def main():
         # The stale-secret scan is the slow part: do it once. Snapshot and deploy read this scope.
         scratch = ROOT / '.local/release'
         scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
-        (scratch / 'scope.json').write_text(json.dumps(changed, sort_keys=True) + '\n')
+        (scratch / 'scope.json').write_text(json.dumps(dict(environment=manifest['environment'],
+            sha=manifest['sha'], scope=changed), sort_keys=True) + '\n')
         if changed['backend']:
             command(['node', str(ROOT / 'scripts/deployment/firebase.cjs'), 'backend-check'], env=env)
             print('Backend deploy validation (dry run) passed.', flush=True)
@@ -867,7 +879,7 @@ def main():
         print('Rollback traffic, Hosting version and health verified; application data unchanged.')
         return
     if args.operation == 'snapshot':
-        scope = read_scope()
+        scope = read_scope(manifest)
         require_within_scope(plan_release(manifest, read_live(manifest)), scope)
         previous = snapshot_release(manifest, env, scope)
         (ROOT / '.local/release/snapshot.json').write_text(json.dumps(previous, sort_keys=True) + '\n')
