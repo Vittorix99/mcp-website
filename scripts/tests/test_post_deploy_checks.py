@@ -10,7 +10,7 @@ PROJECT = 'mcp-website-dev-39539'
 
 
 def healthy(url, headers):
-    if 'get_all_admins' in url or 'member_get_me' in url:
+    if 'admin_get_radio_episodes' in url or 'member_get_me' in url:
         return 401, 'application/json', '{"error": "Authorization token missing"}'
     if 'get_event_by_id' in url:
         return 400, 'application/json', '{"error": "Invalid request"}'
@@ -30,7 +30,7 @@ def test_a_healthy_environment_passes_every_check(capsys):
 
 def test_an_unguarded_admin_endpoint_is_reported():
     def open_admin(url, headers):
-        return (200, 'application/json', '[]') if 'get_all_admins' in url else healthy(url, headers)
+        return (200, 'application/json', '[]') if 'admin_get_radio_episodes' in url else healthy(url, headers)
     assert [name for name, _ in checks.run(PROJECT, open_admin)] == ['admin without token', 'admin invalid token']
 
 
