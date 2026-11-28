@@ -93,12 +93,16 @@ python mcp-backend/functions/scripts/database_bug_fix/report_membership_discrepa
 
 ## reconcile_stale_state.py
 
-- Ends events still `active` whose end time has passed, and sets `subscription_valid=False` on memberships whose
-  `membership_years` does not include the current year (what the 1 January trigger does; it had not run for 2025→2026).
-- Memberships without a usable `membership_years` are only listed for manual review, never changed.
-- **Dry run by default** (reads only, writes a plan file of ids and old/new values). `--apply` needs the reviewed plan file,
-  `--confirm-project`, and refuses to run if live data no longer matches the plan. One field per document, guarded by the
-  document's last update time, rollback values written to disk first.
+Mechanical fixes from the 2026-11-28 production audit, by category (`--only`): `events_status` (finished events still
+`active` -> `ended`), `memberships_validity` (`subscription_valid` -> False when `membership_years` lacks the current year;
+what the 1 January trigger does), `participant_prices` (text prices -> numbers), `purchase_memberships` (ids of deleted
+memberships removed from `membership_ids`). Duplicate phones, missing emails and inconsistent discount-code counters are only
+listed under `review` in the plan.
+
+- **Dry run by default** (reads only, writes a plan file of document paths and old/new values, no personal data).
+- `--apply --only ... --plan-file PLAN --confirm-project P` refuses to run if live data no longer matches the reviewed plan
+  for the selected categories. One field per document, guarded by the document's last update time, rollback values written to
+  disk before the first write.
 
 ```bash
 cd mcp-backend/functions
