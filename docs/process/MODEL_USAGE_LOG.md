@@ -693,3 +693,14 @@ coordinatore su richiesta owner;nessuna stima token/costi disponibile.
 - Stesso Sol high: contratto path/query/body corretto; versione snapshot FINALIZED. Repo primaria Firebase #10730 e CLI fissato hosting-clone evitano di pubblicare la versione già attiva. Correzione idempotente più readback Hosting, senza mascherare HTTP400; casi changed/already-active/post400/drift/SITE_DISABLE verificati RED/GREEN.
 - Doc ufficiale Hosting richiede API Keys Viewer; ruolo/getKeyString assenti nei grant letti. Estesa sonda read-only con test di quel permesso e GET delle configurazioni SDK web/admin, solo booleani/metadati consentiti in output. Nessun valore delle configurazioni SDK viene stampato. Grant eventuale ancora soggetto al consenso owner.
 - Review del blocco combinato accettata senza rilievi residui. Ritirato un P2 di perimetro dopo chiarimento: il site-only è ancora da completare, quindi la nuova identità sito è prevista in questa riparazione; il futuro backend-only rimane separato. Verifiche finali del blocco: 189 Python e 84 Node PASS, inclusa regressione di redazione/getKeyString; diff check pulito. Nessun nuovo incarico/modello; conteggio invariato, telemetria token/costi indisponibile.
+
+### 28/11/2026 — snapshot per componente, controlli post-rilascio, audit dati produzione
+
+- Lavoro del coordinatore (modello dell'host, non selezionabile dal progetto): PR #47 snapshot per componente, #48 script di
+  riconciliazione (dry run di default), #49/#50 controlli post-rilascio. Verifica: 224 test tooling (1 richiede Node 22), 9 test
+  backend nuovi, CI verde su ogni testa unita, run staging `46102536037` riuscito con 13/13 controlli pubblici.
+- Sotto agenti generici (modello predefinito del tool, nessun modello scelto): 1 review indipendente di PR #47 (2 rilievi,
+  corretti), 2 audit di sola lettura sul database di produzione, 1 verifica di sola lettura su tre voci. Esiti accettati dopo
+  verifica incrociata; un controllo del coordinatore sul campo dei codici sconto era errato ed è stato corretto. Conteggio: 4
+  task delegati; nessun dato di token o costo disponibile dalla telemetria dell'host.
+- Nessuna scrittura su produzione. Produzione non configurata per il rilascio OIDC: prerequisiti in `RELEASE_FLOW.md`.
