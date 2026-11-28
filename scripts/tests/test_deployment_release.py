@@ -641,6 +641,22 @@ def test_active_revision_alias_is_resolved_to_same_project_numeric_secret(monkey
         release.verify_revision_secrets(manifest, revision)
 
 
+def test_optional_contact_and_logo_settings_are_validated_and_stamped():
+    base = release.prepare('production', inputs('production'))
+    assert 'CONTACT_MESSAGES_TO_EMAIL' not in base['backend'] and 'MAILERSEND_LOGO_URL' not in base['backend']
+    extra = {**inputs('production'), 'CONTACT_MESSAGES_TO_EMAIL': 'staff@example.com',
+        'MAILERSEND_LOGO_URL': 'https://example.com/logo.png'}
+    manifest = release.prepare('production', extra)
+    assert manifest['backend']['CONTACT_MESSAGES_TO_EMAIL'] == 'staff@example.com'
+    assert manifest['backend']['MAILERSEND_LOGO_URL'] == 'https://example.com/logo.png'
+    assert manifest['components']['backend']['digest'] != base['components']['backend']['digest']
+    assert manifest['components']['site']['digest'] == base['components']['site']['digest']
+    for key, bad in [('CONTACT_MESSAGES_TO_EMAIL', 'not-an-email'), ('CONTACT_MESSAGES_TO_EMAIL', 'a@b.c,d@e.f'),
+                     ('MAILERSEND_LOGO_URL', 'http://example.com/logo.png'), ('MAILERSEND_LOGO_URL', 'javascript:alert(1)')]:
+        with pytest.raises(ValueError, match=key):
+            release.prepare('production', {**inputs('production'), key: bad})
+
+
 def test_staging_release_uses_real_providers_and_fake_wallet_without_changing_production():
     manifest = release.prepare('staging', inputs())
     backend = manifest['backend']
