@@ -107,6 +107,9 @@ jobs:
             verify) .venv/bin/python scripts/deployment/release.py verify --environment "$RELEASE_ENVIRONMENT" ;;
             *) exit 1 ;;
           esac
+      - name: Post-deploy checks (public and read-only - API contract, authentication guards, site pages)
+        if: success() && inputs.operation == 'deploy'
+        run: .venv/bin/python scripts/staging/post_deploy_checks.py --project "$(jq -r .project .local/release/config.json)"
       - name: Publish release manifest (what went live, what was skipped)
         if: success() && inputs.operation == 'deploy'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
