@@ -332,6 +332,25 @@ account, CPU) di tutti gli endpoint, incluso il pagamento PayPal live, e richied
    per produzione e un primo rilascio con approvazione manuale; `ENABLE_PRODUCTION_DEPLOY` resta spento finché la prova non è verde.
 5. Dopo il primo rilascio: stesse verifiche di staging (smoke, controlli pubblici) e solo allora rilascio automatico dopo staging.
 
+**Avanzamento (28/11/2026, sera).** Passi 1-3 fatti: segreti in Secret Manager, identita e WIF, Environment GitHub `production`
+(revisore owner, nessun bypass admin, solo `main`, 11 variabili pubbliche). Il passo 4 `operation=verify` con
+`verify_environment=production` e verde (run 46163021593): accesso federato, probe in sola lettura e dry run del backend.
+Ancora spenti: `ENABLE_PRODUCTION_DEPLOY`, `ROLLBACK_BASELINE_VERIFIED`, `PAYMENT_ROLLOUT_APPROVED`. Nessun deploy fatto.
+
+**Cosa serve oltre ai permessi di progetto (scoperto con i fallimenti del verify, utile per ogni nuovo progetto).**
+- Sul bucket Storage dell'app: `github-deploy` con un ruolo custom che contiene solo `storage.buckets.get`; `app-runtime` con `storage.objectAdmin`.
+- Sui bucket `gcf-v2-sources-*` e `gcf-v2-uploads-*` della regione: `functions-build` con `storage.objectViewer`.
+- Sul repository Artifact Registry `gcf-artifacts`: `github-deploy` reader, `functions-build` writer.
+- A livello progetto: `roles/eventarc.eventReceiver` per `app-runtime` (richiesto dal guard se il backend ha trigger a evento).
+- Catalogo: il bucket di produzione e `mcp-website-2a1ad.firebasestorage.app` e le origini includono `https://musiconnectingpeople.com`.
+- Il log del job nasconde il messaggio del guard: per capire un errore leggere `scripts/deployment/cli-guards.cjs` e confrontare con lo staging.
+
+**Prima del primo deploy reale (non ancora fatto).** Il primo rilascio OIDC sostituisce la configurazione di tutte le funzioni
+(modalita provider, segreti, account). Variabili presenti oggi nelle revisioni e non lette dal nuovo codice:
+`MAILERLITE_API_KEY`, `PAYPAL_MERCHANT_ID`, `GOOGLE_MAIL_REFRESH_TOKEN`; da confrontare con i default del nuovo codice:
+`GMAIL_MAIL`, `CONTACT_MESSAGES_TO_EMAIL`, `LOGO_URL`, `INSTAGRAM_URL`, `MAILERSEND_LOGO_URL`, `GENDER_API_URL`.
+Decisione owner: primo deploy dopo il lancio, con approvazione manuale e snapshot di partenza.
+
 **Latenza (misure del 28/11/2026, curl dall'Italia, 4 richieste per endpoint).** A caldo 0,22-0,33 s su produzione e staging
 (baseline del 24/10: 0,26-0,39 s): invariata. Alla prima richiesta dopo inattività 4,6-13 s su entrambe (istanze a 0). Rimedio
 da decidere con l'owner prima del lancio: almeno una istanza minima sugli endpoint pubblici di lettura e sul checkout (costo
