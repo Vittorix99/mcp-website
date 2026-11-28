@@ -30,8 +30,8 @@ def checks(project):
     site = f'https://{project}.web.app'
     yield from [
         # Authentication guards: a missing or invalid token never reaches the handler (admin and member surfaces).
-        ('admin without token', api + 'get_all_admins', None, {401, 403}, 'json'),
-        ('admin invalid token', api + 'get_all_admins', {'Authorization': BAD_TOKEN}, {401, 403}, 'json'),
+        ('admin without token', api + 'admin_get_radio_episodes', None, {401, 403}, 'json'),
+        ('admin invalid token', api + 'admin_get_radio_episodes', {'Authorization': BAD_TOKEN}, {401, 403}, 'json'),
         ('member without token', api + 'member_get_me', None, {401}, 'json'),
         ('member invalid token', api + 'member_get_me', {'Authorization': BAD_TOKEN}, {401}, 'json'),
         # Public API contract and input validation: JSON answers, client errors rather than server errors, no stack traces.
