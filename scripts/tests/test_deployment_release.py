@@ -891,7 +891,10 @@ def test_verify_access_job_is_manual_read_only_and_needs_no_deploy_flag():
     assert job['needs'] == 'gate'
     assert job['if'].split() == ("!cancelled() && needs.gate.result == 'success' && "
         "github.event_name == 'workflow_dispatch' && inputs.operation == 'verify'").split()
-    assert job['with'] == {'environment': 'staging', 'operation': 'verify'}
+    assert job['with'] == {'environment': '${{ inputs.verify_environment }}', 'operation': 'verify'}
+    release = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())
+    trigger = release.get('on', release.get(True))['workflow_dispatch']['inputs']['verify_environment']
+    assert trigger['options'] == ['staging', 'production'] and trigger['default'] == 'staging'
     assert 'ENABLE_' not in job['if']
     # No mutating job can start for a verify dispatch.
     for name in ['staging', 'production', 'rollback']:

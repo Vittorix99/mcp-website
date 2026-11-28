@@ -20,7 +20,7 @@ test('staging selects its observed Firebase bucket and refuses the obsolete over
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:'mcp-website-dev-39539.appspot.com'},catalog))
   const production = validatePublicRuntime({NEXT_PUBLIC_ENV:'production',
     NEXT_PUBLIC_PAYPAL_LIVE_CLIENT_ID:'fake-live-client'},catalog)
-  assert.equal(production.firebase.storageBucket,'mcp-website-2a1ad.appspot.com')
+  assert.equal(production.firebase.storageBucket,'mcp-website-2a1ad.firebasestorage.app')
 })
 
 test('cloud PayPal requires the selected client ID and never accepts sandbox demo IDs', () => {
