@@ -9,6 +9,11 @@ on:
         type: choice
         options: [deploy, rollback, verify]
         default: deploy
+      verify_environment:
+        description: Environment for the read-only verify operation
+        type: choice
+        options: [staging, production]
+        default: staging
       rollback_environment:
         type: choice
         options: [staging, production]
@@ -96,7 +101,7 @@ jobs:
       environment: production
       operation: deploy
 
-  # Read-only proof of federated cloud access (staging only). Manual, needs no deploy flag,
+  # Read-only proof of federated cloud access (staging by default, production when selected). Manual, needs no deploy flag,
   # and never snapshots, deploys or changes traffic or data.
   verify-access:
     needs: gate
@@ -109,7 +114,7 @@ jobs:
       actions: read
       id-token: write
     with:
-      environment: staging
+      environment: ${{ inputs.verify_environment }}
       operation: verify
 
   rollback:
