@@ -30,9 +30,9 @@
     },
     "production": {
       "project_id": "mcp-website-2a1ad",
-      "storage_bucket": "mcp-website-2a1ad.appspot.com",
+      "storage_bucket": "mcp-website-2a1ad.firebasestorage.app",
       "backend_url": "https://us-central1-mcp-website-2a1ad.cloudfunctions.net",
-      "allowed_origins": ["https://mcp-website-2a1ad.web.app"],
+      "allowed_origins": ["https://musiconnectingpeople.com", "https://mcp-website-2a1ad.web.app"],
       "credential_mode": "adc",
       "emulators": {},
       "providers": {"paypal": "live", "mail": "live", "sender": "disabled", "pass2u": "live", "gender": "disabled", "soundcloud": "live"}

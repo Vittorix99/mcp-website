@@ -40,7 +40,7 @@ def test_environment_must_be_explicit():
 @pytest.mark.parametrize("key,value", [
     ("GCLOUD_PROJECT", "mcp-website-2a1ad"),
     ("GOOGLE_CLOUD_PROJECT", "mcp-website-dev-39539"),
-    ("STORAGE_BUCKET", "mcp-website-2a1ad.appspot.com"),
+    ("STORAGE_BUCKET", "mcp-website-2a1ad.firebasestorage.app"),
     ("BACKEND_URL", "https://production.example.com"),
     ("GOOGLE_APPLICATION_CREDENTIALS", "/secret/sentinel.json"),
     ("FIREBASE_SERVICE_ACCOUNT_JSON", "SENTINEL_RAW_JSON"),
